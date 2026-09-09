@@ -1819,6 +1819,7 @@ struct WorkoutsView: View {
 /// workout visible even when there is not yet enough history to draw a line.
 private struct WorkoutRecoveryTrendChart: View {
     let points: [WorkoutRecoveryTrendPoint]
+    @State private var inspectionLocation: CGPoint?
 
     private struct Plot: Identifiable {
         let startTs: Int
@@ -1881,6 +1882,44 @@ private struct WorkoutRecoveryTrendChart: View {
                     if let bpm = value.as(Int.self) { Text("\(bpm)") }
                 }
                 .foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                let plot = proxy.plotRectCompat(in: geometry)
+                let projected = plots.compactMap { point -> (point: Plot, position: CGPoint)? in
+                    guard let x = proxy.position(forX: point.date),
+                          let y = proxy.position(forY: point.value) else { return nil }
+                    return (point, CGPoint(x: x + plot.minX, y: y + plot.minY))
+                }
+                ZStack(alignment: .topLeading) {
+                    if let location = inspectionLocation,
+                       let index = ChartHoverMath.nearestIndex(to: location, positions: projected.map(\.position)) {
+                        let selected = projected[index]
+                        let color = selected.point.interval == one ? StrandPalette.metricRose
+                            : selected.point.interval == two ? StrandPalette.metricCyan : StrandPalette.metricPurple
+                        Path { path in
+                            path.move(to: CGPoint(x: selected.position.x, y: plot.minY))
+                            path.addLine(to: CGPoint(x: selected.position.x, y: plot.maxY))
+                        }
+                        .stroke(color.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        Circle()
+                            .fill(color)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(StrandPalette.surfaceBase, lineWidth: 2))
+                            .position(selected.position)
+                        PositionedTooltip(
+                            anchor: selected.position,
+                            container: geometry.size,
+                            tooltip: ChartTooltip(
+                                value: "\(selected.point.value) bpm · \(selected.point.interval)",
+                                label: selected.point.date.formatted(date: .abbreviated, time: .shortened),
+                                accent: color
+                            )
+                        )
+                    }
+                }
+                .chartInspectionInput(enabled: !projected.isEmpty) { inspectionLocation = $0 }
             }
         }
         .accessibilityLabel("Heart-rate recovery trend in beats per minute")

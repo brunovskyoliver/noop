@@ -53,7 +53,7 @@ public struct TrendChart: View {
     /// plotted range simply falls off it rather than being clamped to an edge it does not sit on.
     public var baselineValue: Double?
     public var height: CGFloat
-    /// Whether hovering reveals a crosshair + tooltip for the nearest point.
+    /// Whether hovering or holding reveals a crosshair and tooltip for the nearest point.
     public var showsHover: Bool
     /// Formats a point's value for the tooltip's bold line (default: rounded int).
     public var valueFormat: (Double) -> String
@@ -130,7 +130,7 @@ public struct TrendChart: View {
         }
     }
 
-    /// The x-position the cursor is hovering, in chart-local coordinates.
+    /// The pointer or held finger's x-position in chart-local coordinates.
     @State private var hoverX: CGFloat? = nil
 
     /// PERF: a 365-day (or longer) series feeds Swift Charts hundreds of LineMark/AreaMark vertices, each
@@ -297,7 +297,8 @@ public struct TrendChart: View {
                         let color = StrandPalette.sample(stops: gradient.toStops(), at: unit(p.value))
 
                         // Vertical crosshair at the nearest x.
-                        CrosshairRule(x: cx, height: geo.size.height)
+                        CrosshairRule(x: cx, height: plot.height, color: color.opacity(0.5))
+                            .offset(y: plot.minY)
 
                         // Highlighted dot on the line.
                         HighlightDot(color: color)
@@ -326,23 +327,8 @@ public struct TrendChart: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .animation(StrandMotion.fade, value: hoverX)
-                .contentShape(Rectangle())
-                .onContinuousHover(coordinateSpace: .local) { phase in
-                    guard showsHover else { return }
-                    // Update the hover position in a NON-animating transaction. Otherwise entering or
-                    // leaving the chart flips hoverX inside an animated context, the body re-evaluates,
-                    // and SwiftUI Charts re-runs the line's draw-on animation — flickering the curve to a
-                    // flat baseline and back as the cursor crosses the plot edge (#104). The crosshair's
-                    // own fade is the overlay's .animation(value: hoverX) above and is unaffected by this.
-                    var tx = Transaction()
-                    tx.disablesAnimations = true
-                    withTransaction(tx) {
-                        switch phase {
-                        case .active(let location): hoverX = location.x
-                        case .ended: hoverX = nil
-                        }
-                    }
+                .chartInspectionInput(enabled: showsHover && !points.isEmpty) { location in
+                    hoverX = location.map { min(max($0.x, plot.minX), plot.maxX) }
                 }
             }
         }

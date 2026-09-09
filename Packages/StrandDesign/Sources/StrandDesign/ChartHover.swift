@@ -1,7 +1,89 @@
 #if !os(watchOS)
-// The chart-hover toolkit (tooltips, crosshair, nearest-point) is for pointer/cursor charts the
-// watch never shows; excluded on watchOS, iOS/macOS unchanged.
+// These interactive charts are shown on iOS and macOS, but not watchOS.
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
+
+public extension View {
+    /// Pointer hover or a short hold followed by scrubbing. A normal swipe remains available to scroll.
+    func chartInspectionInput(enabled: Bool = true, onChange: @escaping (CGPoint?) -> Void) -> some View {
+        modifier(ChartInspectionInput(enabled: enabled, onChange: onChange))
+    }
+}
+
+private struct ChartInspectionInput: ViewModifier {
+    let enabled: Bool
+    let onChange: (CGPoint?) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color.clear)
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location): update(location)
+                    case .ended: update(nil)
+                    }
+                }
+                #if os(iOS)
+                .overlay {
+                    ChartInspectionTouchSurface(onChange: update)
+                        .accessibilityHidden(true)
+                }
+                #endif
+                .onDisappear { update(nil) }
+        } else {
+            content.allowsHitTesting(false)
+        }
+    }
+
+    private func update(_ location: CGPoint?) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { onChange(location) }
+    }
+}
+
+#if os(iOS)
+/// A native long press supplies stationary touch coordinates without a zero-distance pan stealing
+/// the enclosing ScrollView's swipe. It also keeps tracking after recognition, until release/cancel.
+private struct ChartInspectionTouchSurface: UIViewRepresentable {
+    let onChange: (CGPoint?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handle(_:)))
+        press.minimumPressDuration = 0.25
+        press.allowableMovement = 10
+        view.addGestureRecognizer(press)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.onChange = onChange
+    }
+
+    final class Coordinator: NSObject {
+        var onChange: (CGPoint?) -> Void
+
+        init(onChange: @escaping (CGPoint?) -> Void) { self.onChange = onChange }
+
+        @objc func handle(_ press: UILongPressGestureRecognizer) {
+            switch press.state {
+            case .began, .changed: onChange(press.location(in: press.view))
+            case .ended, .cancelled, .failed: onChange(nil)
+            default: break
+            }
+        }
+    }
+}
+#endif
 
 // MARK: - Chart Hover Toolkit (reusable across every visualization)
 //
@@ -15,7 +97,7 @@ import SwiftUI
 
 // MARK: - ChartTooltip
 
-/// A small dark read-out card shown near the cursor while hovering a chart.
+/// A readout card for the selected chart point.
 /// Renders a bold primary value line and a secondary label/date line.
 public struct ChartTooltip: View {
 
@@ -41,10 +123,11 @@ public struct ChartTooltip: View {
                     .frame(width: 7, height: 7)
                     .shadow(color: accent.opacity(0.8), radius: 3)
             }
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(value)
                     .font(StrandFont.captionNumber)
                     .fontWeight(.semibold)
+                    .monospacedDigit()
                     .foregroundStyle(StrandPalette.textPrimary)
                 if let label {
                     Text(label)
@@ -53,10 +136,15 @@ public struct ChartTooltip: View {
                 }
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(NoopPanelSurface(cornerRadius: 8, elevated: true))
-        .fixedSize()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(NoopPanelSurface(cornerRadius: 12, elevated: true))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder((accent ?? StrandPalette.hairlineStrong).opacity(0.4), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label != nil ? "\(value), \(label!)" : value)
     }
@@ -100,6 +188,15 @@ public struct ChartTooltipPlacement {
 
 /// Geometry helpers for mapping a hover location to the nearest datum.
 public enum ChartHoverMath {
+
+    /// Screen-space distance distinguishes overlapping series with the same date.
+    public static func nearestIndex(to location: CGPoint, positions: [CGPoint]) -> Int? {
+        positions.indices.min { lhs, rhs in
+            let a = positions[lhs], b = positions[rhs]
+            return hypot(a.x - location.x, a.y - location.y)
+                < hypot(b.x - location.x, b.y - location.y)
+        }
+    }
 
     /// Index of the sample whose x-position (evenly spaced across `width`) is
     /// closest to `x`. Returns nil for an empty series.
@@ -189,15 +286,24 @@ struct NowCapDot: View {
 
 /// Wraps a tooltip so its measured size feeds back into placement. Fades in
 /// with StrandMotion and positions itself within `container` near `anchor`.
-struct PositionedTooltip: View {
+public struct PositionedTooltip: View {
     var anchor: CGPoint
     var container: CGSize
     var tooltip: ChartTooltip
 
     @State private var measured: CGSize = .zero
 
-    var body: some View {
-        tooltip
+    public init(anchor: CGPoint, container: CGSize, tooltip: ChartTooltip) {
+        self.anchor = anchor
+        self.container = container
+        self.tooltip = tooltip
+    }
+
+    public var body: some View {
+        ViewThatFits(in: .horizontal) {
+            tooltip.fixedSize()
+            tooltip.frame(width: max(0, container.width - 8))
+        }
             .background(
                 GeometryReader { g in
                     Color.clear

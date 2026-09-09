@@ -4,6 +4,14 @@ import SwiftUI
 
 final class StrandDesignTests: XCTestCase {
 
+    func testChartInspectionDistinguishesSeriesAtTheSameDate() {
+        let positions = [CGPoint(x: 40, y: 10), CGPoint(x: 40, y: 90), CGPoint(x: 180, y: 50)]
+        XCTAssertEqual(ChartHoverMath.nearestIndex(to: CGPoint(x: 43, y: 82), positions: positions), 1)
+        XCTAssertEqual(ChartHoverMath.nearestIndex(to: CGPoint(x: 44, y: 14), positions: positions), 0)
+        XCTAssertEqual(ChartHoverMath.nearestIndex(to: CGPoint(x: 300, y: 50), positions: positions), 2)
+        XCTAssertNil(ChartHoverMath.nearestIndex(to: .zero, positions: []))
+    }
+
     func testVersion() {
         XCTAssertEqual(StrandDesign.version, "0.1.0")
     }
