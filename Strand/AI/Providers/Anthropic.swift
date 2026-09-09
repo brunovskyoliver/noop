@@ -49,7 +49,7 @@ struct AnthropicClient: AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         var wire: [[String: Any]] = []
         for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
@@ -71,7 +71,7 @@ struct AnthropicClient: AIProviderClient {
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.anthropicDelta(payload) {
-                onDelta(delta)
+                await onDelta(delta)
             }
         }
     }

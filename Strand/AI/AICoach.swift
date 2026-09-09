@@ -960,7 +960,7 @@ final class AICoachEngine: ObservableObject {
     private func streamProvider(key: String,
                                 messages: [(role: ChatMessage.Role, content: String)],
                                 inlineImage: String? = nil,
-                                onDelta: (String) -> Void) async throws {
+                                onDelta: @MainActor (String) -> Void) async throws {
         try await provider.client.streamWithImage(
             key: key,
             model: model,

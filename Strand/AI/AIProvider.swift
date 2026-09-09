@@ -186,7 +186,8 @@ protocol AIProviderClient {
     /// Fetch the provider's live model list and return plain model ids.
     func fetchModels(key: String, session: URLSession) async throws -> [String]
 
-    /// Stream a chat turn, calling `onDelta` for each text chunk as it arrives. The concatenated
+    /// Stream a chat turn, delivering each text chunk to `onDelta` on the main actor in order.
+    /// All callbacks finish before the stream returns. The concatenated
     /// deltas must equal the text that `send` would return for the same inputs (byte-parity with
     /// the non-streamed path). The default implementation falls back to `send` + a single delta,
     /// so providers without streaming still work. K1.
@@ -196,7 +197,7 @@ protocol AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws
 
     /// K11: Stream a chat turn with an optional inline image (base64 PNG). Only Gemini implements
@@ -209,7 +210,7 @@ protocol AIProviderClient {
         messages: [(role: ChatMessage.Role, content: String)],
         inlineImage: String?,
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws
 }
 
@@ -223,7 +224,7 @@ extension AIProviderClient {
         messages: [(role: ChatMessage.Role, content: String)],
         inlineImage: String?,
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         try await stream(key: key, model: model, systemPrompt: systemPrompt,
                          messages: messages, session: session, onDelta: onDelta)
@@ -238,11 +239,11 @@ extension AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         let reply = try await send(key: key, model: model, systemPrompt: systemPrompt,
                                     messages: messages, session: session)
-        onDelta(reply)
+        await onDelta(reply)
     }
 }
 
@@ -310,7 +311,7 @@ func emptyReplyError(_ json: [String: Any]) -> AICoachError {
 func performStreamingRequest(
     _ req: URLRequest,
     session: URLSession,
-    onLine: (String) -> Void
+    onLine: (String) async -> Void
 ) async throws {
     let bytes: (URLSession.AsyncBytes, URLResponse)
     do {
@@ -328,7 +329,7 @@ func performStreamingRequest(
         // Read line-by-line from the SSE byte stream. `URLSession.AsyncBytes` splits on \n.
         for try await line in bytes.0.lines {
             if let payload = SseDeltas.dataPayload(fromLine: line) {
-                onLine(payload)
+                await onLine(payload)
             }
         }
     case 401, 403:

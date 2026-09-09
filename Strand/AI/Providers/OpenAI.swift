@@ -36,7 +36,7 @@ struct OpenAIClient: AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
@@ -53,7 +53,7 @@ struct OpenAIClient: AIProviderClient {
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.openAiDelta(payload) {
-                onDelta(delta)
+                await onDelta(delta)
             }
         }
     }

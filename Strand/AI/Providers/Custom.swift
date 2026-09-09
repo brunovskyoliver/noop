@@ -41,7 +41,7 @@ struct CustomClient: AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         try AIProvider.guardCustomBaseURL()
         var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
@@ -63,7 +63,7 @@ struct CustomClient: AIProviderClient {
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.openAiDelta(payload) {
-                onDelta(delta)
+                await onDelta(delta)
             }
         }
     }

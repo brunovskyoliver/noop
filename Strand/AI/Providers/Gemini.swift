@@ -77,7 +77,7 @@ struct GeminiClient: AIProviderClient {
         systemPrompt: String,
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         let contents = GeminiClient.buildContents(from: messages)
 
@@ -100,7 +100,7 @@ struct GeminiClient: AIProviderClient {
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.geminiDelta(payload) {
-                onDelta(delta)
+                await onDelta(delta)
             }
         }
     }
@@ -114,7 +114,7 @@ struct GeminiClient: AIProviderClient {
         messages: [(role: ChatMessage.Role, content: String)],
         inlineImage: String?,
         session: URLSession,
-        onDelta: (String) -> Void
+        onDelta: @MainActor (String) -> Void
     ) async throws {
         var contents = GeminiClient.buildContents(from: messages)
         if let image = inlineImage {
@@ -138,7 +138,7 @@ struct GeminiClient: AIProviderClient {
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.geminiDelta(payload) {
-                onDelta(delta)
+                await onDelta(delta)
             }
         }
     }
