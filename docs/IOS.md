@@ -133,11 +133,31 @@ below.
 >    `xcodegen generate`. This one gitignored file drives **every** target's bundle id *and* the shared
 >    App Group together (`$(BUNDLE_ID_PREFIX).noop`, `group.$(BUNDLE_ID_PREFIX).noop.staging`) — nothing
 >    hard-coded in Swift, nothing else to edit, and it survives future regenerates.
-> 2. In Xcode, **select your Team** (Signing & Capabilities) for the `NOOPiOS` **and** `NOOPiOSWidgets`
->    targets — the one step Apple still requires you to do by hand.
+> 2. Set `DEVELOPMENT_TEAM = YOUR_TEAM_ID` in the same local config. All targets inherit it,
+>    including the watch app and extensions, and it survives `xcodegen generate`.
+>    The matching Apple account must be signed in under Xcode's Settings > Accounts.
 >
 > Skip step 1 and the build still works under the default `com.noopapp` identifiers — fine if this is
 > the only NOOP install on your device.
+
+### Running on iOS 27.0
+
+Use Xcode 27 with the iOS platform support installed. Apple's
+[Xcode requirements](https://developer.apple.com/xcode/system-requirements/) list
+the supported macOS versions and SDKs. Xcode 27 RC requires macOS 26.6 or later.
+Download it from [Apple Developer Downloads](https://developer.apple.com/download/),
+open it to finish setup, then open `Strand.xcodeproj`, select the `NOOPiOS` scheme
+and your paired iPhone, and run.
+
+Keep the iOS deployment target at 17.0. This is the oldest supported OS, so it
+does not need to become 27.0 to run on an iOS 27 phone. The project uses `iphoneos`
+as its SDK setting, which follows the selected Xcode installation.
+
+If Xcode reports that the developer disk image could not be mounted, check that
+you opened the project in Xcode 27 and completed its platform setup. Changing the
+deployment target does not install device support. For command-line builds with
+multiple Xcode installations, set `DEVELOPER_DIR` to the intended app's
+`Contents/Developer` directory.
 
 > ℹ️ **Cross-platform engineering lives in [`CROSS_PLATFORM.md`](CROSS_PLATFORM.md)** — the shared-code
 > boundary across the macOS / iOS / Android clients, the `Platform.swift` shim convention, the
