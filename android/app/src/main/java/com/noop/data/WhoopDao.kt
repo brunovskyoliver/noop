@@ -8,6 +8,70 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
+/** Kept as one compile-time constant so Room and the plain-JVM SQLite regression test execute the exact
+ * same statement. Swift's twin lives in WhoopStore.analysisFingerprint(). */
+internal const val ANALYSIS_FINGERPRINT_SQL =
+    "SELECT 'v2|' || " +
+        "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
+        "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
+        "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
+        "'x' || (SELECT COALESCE(MAX(rowid), 0) FROM respSample) || '|' || " +
+        "'g' || (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) || '|' || " +
+        "'s' || (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) || '|' || " +
+        "'e' || (SELECT COALESCE(MAX(rowid), 0) FROM event) || '|' || " +
+        "'o' || (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) || '|' || " +
+        "'t' || (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) || '|' || " +
+        "'z' || (SELECT COALESCE(MAX(rowid), 0) FROM stepSample)"
+
+/** Per-day, per-owner witness of every scored stream the HR fingerprint does NOT cover (#29).
+ *
+ * [ANALYSIS_FINGERPRINT_SQL] answers "did anything change anywhere"; the analyzeRecent per-day reuse cache
+ * asks "did THIS night's scored input change". A history offload does not commit its channels together —
+ * HR can land first and R-R, respiration or SpO2 minutes later, and an offloaded HR row duplicating a live
+ * one is ignored on conflict — so a night scored once from HR alone can gain its R-R with COUNT/MAX over
+ * hrSample completely unmoved. Keyed on HR alone the cache re-served that HRV-less scan for the rest of the
+ * process, a user-initiated refresh included.
+ *
+ * COUNT(*) is the load-bearing half: it moves when a backfill lands rows INSIDE a window already covered,
+ * which MAX(ts) alone would miss. Every arm is an index range walk over the same (deviceId, ts) key the HR
+ * fingerprint uses, materializing no rows.
+ *
+ * rrInterval is filtered exactly as [WhoopDao.rrIntervals] filters at read (the 0x6E SpO2-IBI duplicate and
+ * future-stamped beats), so the witness counts the beats that are actually scored. The literal 2 is
+ * RrSourceChannel.SPO2_IBI.code, pinned to the enum by RrChannelTest, for the same reason it is a literal
+ * there: a Room @Query is a compile-time constant string.
+ *
+ * sleepStateSample is in it because the band state is appended from the SAME v18 record at the same ts as
+ * HR: a re-offloaded record whose HR row is ignored on conflict still lands a new band row that the day is
+ * scored from. Its letter is 'b' (band), not 's', which [ANALYSIS_FINGERPRINT_SQL] already spends.
+ *
+ * The result is opaque and only ever compared to itself in memory, so it needs no byte identity with the
+ * Swift twin, `WhoopStore.dayStreamFingerprint`. Kept as one constant so every caller executes the exact
+ * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, so a plain-JVM
+ * SQLite harness could not run it verbatim. Room's KSP verification is what checks it. */
+internal const val DAY_STREAM_FINGERPRINT_SQL =
+    "SELECT 's1|' || " +
+        "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || '|' || " +
+        "'x' || (SELECT COUNT(*) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'o' || (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'g' || (SELECT COUNT(*) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'z' || (SELECT COUNT(*) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'t' || (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'b' || (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)"
+
 /**
  * Data-access for the local store. Mirrors the GRDB reads/writes in WhoopStore
  * (StreamStore.swift, Reads.swift, MetricsCache.swift).
@@ -124,10 +188,6 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPpgWaveform(rows: List<PpgWaveformSampleEntity>): List<Long>
 
-    /** RAW 5/MG IMU offload buffers (packed i16 BLOB). Idempotent by (deviceId, ts). (#423) */
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertRawImu(rows: List<RawImuSampleEntity>): List<Long>
-
     /**
      * The remaining 5/MG v18 per-second fields, one compact blob per strap-second. Idempotent by
      * (deviceId, ts) — IGNORE keeps the FIRST-seen row, matching every other per-second stream, so a
@@ -135,6 +195,19 @@ interface WhoopDao : DeviceRegistryDao {
      */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertV18Aux(rows: List<V18AuxSampleEntity>): List<Long>
+
+    /**
+     * Bound the PPG waveform table to the newest [keep] rows for [deviceId] (#1911 rolling retention).
+     * Same shape as [pruneV18Aux] below, and deliberately the same NEWEST-N semantic rather than an
+     * age-based delete: see `WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS`. Swift twin: the DELETE at the
+     * end of `WhoopStore.insert`.
+     */
+    @Query(
+        "DELETE FROM ppgWaveformSample WHERE deviceId = :deviceId AND ts < " +
+            "(SELECT MIN(ts) FROM (SELECT ts FROM ppgWaveformSample WHERE deviceId = :deviceId " +
+            "ORDER BY ts DESC LIMIT :keep))",
+    )
+    suspend fun prunePpgWaveform(deviceId: String, keep: Int)
 
     /**
      * Bound the v18 aux table to the newest [keep] rows for [deviceId] (rolling retention, v31). Same
@@ -146,22 +219,6 @@ interface WhoopDao : DeviceRegistryDao {
             "(SELECT MIN(ts) FROM (SELECT ts FROM v18AuxSample WHERE deviceId = :deviceId ORDER BY ts DESC LIMIT :keep))"
     )
     suspend fun pruneV18Aux(deviceId: String, keep: Int)
-
-    /** Bound the raw-IMU table to the newest [keep] rows for [deviceId] (rolling retention, #423). */
-    @Query(
-        "DELETE FROM rawImuSample WHERE deviceId = :deviceId AND ts < " +
-            "(SELECT MIN(ts) FROM (SELECT ts FROM rawImuSample WHERE deviceId = :deviceId ORDER BY ts DESC LIMIT :keep))"
-    )
-    suspend fun pruneRawImu(deviceId: String, keep: Int)
-
-    /** RAW 5/MG IMU buffers in [from, to] (ascending), packed i16 BLOB. (#423)
-     *  Intentionally dormant — zero callers, retained for the eventual cross-check (see [RawImuSampleEntity]
-     *  CONSUMER STATUS, #978). Not dead code; do not delete. */
-    @Query(
-        "SELECT * FROM rawImuSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-            "ORDER BY ts ASC LIMIT :limit"
-    )
-    suspend fun rawImuSamples(deviceId: String, from: Long, to: Long, limit: Int): List<RawImuSampleEntity>
 
     // MARK: - Server-derived caches (latest value wins)
 
@@ -251,13 +308,33 @@ interface WhoopDao : DeviceRegistryDao {
 
     @Query(
         "DELETE FROM scoreInputProvenance " +
-            "WHERE deviceId = :deviceId AND day >= :from AND day <= :to"
+            "WHERE deviceId = :deviceId AND day >= :from AND day <= :to " +
+            "AND `key` != 'vo2max_est'"
     )
     suspend fun deleteScoreInputProvenanceInRange(deviceId: String, from: String, to: String)
 
+    /** Persist a metric-series batch and its specialized provenance in one transaction. Used by weekly
+     *  VO₂max so a method label can never describe an older/newer value after a partial write. */
+    @Transaction
+    suspend fun upsertMetricSeriesWithProvenance(
+        rows: List<MetricSeriesRow>,
+        provenance: List<ScoreInputProvenanceRow>,
+    ) {
+        if (rows.isNotEmpty()) upsertMetricSeries(rows)
+        if (provenance.isNotEmpty()) upsertScoreInputProvenance(provenance)
+    }
+
+    @Query(
+        "DELETE FROM metricSeries WHERE deviceId = :deviceId AND day >= :from AND day <= :to " +
+            "AND `key` = :key"
+    )
+    suspend fun deleteMetricSeriesKeyInRange(deviceId: String, from: String, to: String, key: String)
+
     /**
      * Replace a computed scoring window atomically. If any score or provenance write fails, Room rolls
-     * the whole transaction back, so an old score can never be labelled with a newer provider.
+     * the whole transaction back, so an old score can never be labelled with a newer provider. VO₂max's
+     * weekly estimator provenance is owned by [upsertMetricSeriesWithProvenance] and survives this daily
+     * window replacement; otherwise a normal re-score would erase the prior two Saturdays' method tags.
      */
     @Transaction
     suspend fun replaceComputedScoreWindow(
@@ -267,6 +344,8 @@ interface WhoopDao : DeviceRegistryDao {
         dailyMetrics: List<DailyMetric>,
         metricPoints: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
+        replaceMetricKeys: List<String> = emptyList(),
+        replaceMetricSourceIds: List<String> = listOf(deviceId),
     ) {
         // #1196: a scoring pass that produced NO computed daily rows must NOT wipe the persisted window.
         // That happens transiently during a reconnect+offload storm (a pass runs over a still-incomplete
@@ -279,6 +358,9 @@ interface WhoopDao : DeviceRegistryDao {
         if (dailyMetrics.isEmpty()) return
         deleteDailyMetricsInRange(deviceId, from, to)
         deleteScoreInputProvenanceInRange(deviceId, from, to)
+        for (sourceId in replaceMetricSourceIds) {
+            for (key in replaceMetricKeys) deleteMetricSeriesKeyInRange(sourceId, from, to, key)
+        }
         upsertDailyMetrics(dailyMetrics)
         if (metricPoints.isNotEmpty()) upsertMetricSeries(metricPoints)
         if (provenance.isNotEmpty()) upsertScoreInputProvenance(provenance)
@@ -449,6 +531,18 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun events(deviceId: String, from: Long, to: Long, limit: Int): List<EventRow>
 
     @Query(
+        "SELECT * FROM event WHERE deviceId = :deviceId AND kind = :kind " +
+            "AND ts >= :from AND ts <= :to ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun eventsByKind(
+        deviceId: String,
+        kind: String,
+        from: Long,
+        to: Long,
+        limit: Int,
+    ): List<EventRow>
+
+    @Query(
         "SELECT * FROM battery WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
             "ORDER BY ts ASC LIMIT :limit"
     )
@@ -472,6 +566,54 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun stepSamples(deviceId: String, from: Long, to: Long, limit: Int): List<StepSample>
 
+    /** One predecessor for a half-open physiological-cycle scan. Device-scoped by construction. */
+    @Query(
+        "SELECT * FROM stepSample WHERE deviceId = :deviceId AND ts < :onset " +
+            "ORDER BY ts DESC LIMIT 1"
+    )
+    suspend fun stepSampleBefore(deviceId: String, onset: Long): StepSample?
+
+    /** Stable activity-class mode for the complete cycle; it must never be re-decided per page. */
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM stepSample WHERE deviceId = :deviceId " +
+            "AND ts >= :onset AND ts < :endExclusive AND activityClass IS NOT NULL LIMIT 1)"
+    )
+    suspend fun hasStepActivityClasses(deviceId: String, onset: Long, endExclusive: Long): Boolean
+
+    /** PK-index seek: never aggregate-scan the whole cycle merely to find its first sample. */
+    @Query(
+        "SELECT ts FROM stepSample WHERE deviceId = :deviceId " +
+            "AND ts >= :onset AND ts < :endExclusive ORDER BY ts ASC LIMIT 1"
+    )
+    suspend fun firstStepTimestamp(
+        deviceId: String,
+        onset: Long,
+        endExclusive: Long,
+    ): Long?
+
+    /** PK-index seek paired with [firstStepTimestamp]; warm candidate coverage stays O(log n). */
+    @Query(
+        "SELECT ts FROM stepSample WHERE deviceId = :deviceId " +
+            "AND ts >= :onset AND ts < :endExclusive ORDER BY ts DESC LIMIT 1"
+    )
+    suspend fun lastStepTimestamp(
+        deviceId: String,
+        onset: Long,
+        endExclusive: Long,
+    ): Long?
+
+    /** Keyset page for [afterExclusive, endExclusive); avoids both OFFSET and the legacy 200k cap. */
+    @Query(
+        "SELECT * FROM stepSample WHERE deviceId = :deviceId AND ts > :afterExclusive " +
+            "AND ts < :endExclusive ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun stepSamplesPage(
+        deviceId: String,
+        afterExclusive: Long,
+        endExclusive: Long,
+        limit: Int,
+    ): List<StepSample>
+
     /** The strap's OWN banked band sleep_state (#175) in [from, to], ascending. Feeds the Deep Timeline
      *  band-state track and the per-session grid the H7 re-onset confirm guard reads. */
     @Query(
@@ -492,6 +634,65 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun gravitySamples(deviceId: String, from: Long, to: Long, limit: Int): List<GravitySample>
 
+    /**
+     * Which raw streams a device has ANY rows for in a window — the strap-capability question, answered
+     * without counting.
+     *
+     * EXISTS rather than COUNT on purpose. The question is presence, and every one of these tables is
+     * keyed `(deviceId, ts)`, so each subquery is an index seek that stops at the first row instead of
+     * walking a night's worth — a 4.0 night carries ~190k gravity rows and counting them to learn "yes"
+     * would be absurd. One statement so it is one round trip.
+     *
+     * Answers what no existing line could: a strap streaming live HR with no motion cannot produce a
+     * staged night or an auto-detected workout, and until now a reader had to infer that from the absence
+     * of other lines. Diagnostics-export only, like [rawSampleCountsByDevice]. Swift twin:
+     * `WhoopStore.streamPresence`.
+     */
+    data class StreamPresence(
+        val hr: Boolean, val rr: Boolean, val gravity: Boolean, val steps: Boolean,
+    )
+
+    @Query(
+        "SELECT " +
+            "EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS hr, " +
+            "EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS rr, " +
+            "EXISTS(SELECT 1 FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS gravity, " +
+            "EXISTS(SELECT 1 FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS steps"
+    )
+    suspend fun streamPresence(deviceId: String, from: Long, to: Long): StreamPresence
+
+    /** Raw biometric sample counts per device id in a window - see [rawSampleCountsByDevice]. */
+    data class DeviceSampleCount(val deviceId: String, val total: Int)
+
+    /**
+     * Raw biometric sample counts per device id in a window, across every id present in the tables -
+     * including ids the device registry cannot see.
+     *
+     * The registry is the wrong place to ask "where did this night's samples go". `my-whoop` is a source
+     * LABEL for imported/computed data, not necessarily a `pairedDevice` row, and forgetting a device
+     * deletes its row while leaving every sample table untouched. So a forgotten or import-only id owns
+     * rows the registry will never list. Asking the sample tables directly has no such blind spot.
+     *
+     * Counts `hrSample` + `ppgHrSample` + `gravitySample` - the same streams the night funnel's
+     * "no raw biometric samples" guard tests. Unordered; callers sort.
+     *
+     * Filtering on `ts` without a `deviceId` cannot seek into the `(deviceId, ts)` primary key, so this is
+     * an index-ONLY scan (both columns live in that index, so no table rows are touched) with `deviceId`
+     * leading, which also lets the GROUP BY skip a temp b-tree. Cheap enough for a user-triggered
+     * diagnostics export, which is the only caller. Swift twin: `WhoopStore.rawSampleCountsByDevice`.
+     */
+    @Query(
+        "SELECT deviceId, SUM(n) AS total FROM (" +
+            "SELECT deviceId, COUNT(*) AS n FROM hrSample WHERE ts >= :from AND ts <= :to GROUP BY deviceId " +
+            "UNION ALL " +
+            "SELECT deviceId, COUNT(*) AS n FROM ppgHrSample WHERE ts >= :from AND ts <= :to GROUP BY deviceId " +
+            "UNION ALL " +
+            "SELECT deviceId, COUNT(*) AS n FROM gravitySample WHERE ts >= :from AND ts <= :to GROUP BY deviceId" +
+            ") GROUP BY deviceId"
+    )
+    suspend fun rawSampleCountsByDevice(from: Long, to: Long): List<DeviceSampleCount>
+
+
     // MARK: - Daily metrics / sleep reads (mirror MetricsCache.swift)
 
     /**
@@ -503,6 +704,12 @@ interface WhoopDao : DeviceRegistryDao {
             "ORDER BY day ASC"
     )
     suspend fun dailyMetricsRange(deviceId: String, from: String, to: String): List<DailyMetric>
+
+    @Query(
+        "SELECT * FROM dailyMetric WHERE deviceId = :deviceId AND day >= :from AND day <= :to " +
+            "ORDER BY day ASC"
+    )
+    fun dailyMetricsRangeFlow(deviceId: String, from: String, to: String): Flow<List<DailyMetric>>
 
     /**
      * Delete a source's cached daily rows whose day-key is in [from, to] (inclusive, yyyy-MM-dd
@@ -609,6 +816,17 @@ interface WhoopDao : DeviceRegistryDao {
         from: String,
         to: String,
     ): List<MetricSeriesRow>
+
+    @Query(
+        "SELECT * FROM metricSeries WHERE deviceId = :deviceId AND key = :key AND day >= :from AND day <= :to " +
+            "ORDER BY day ASC"
+    )
+    fun metricSeriesFlow(
+        deviceId: String,
+        key: String,
+        from: String,
+        to: String,
+    ): Flow<List<MetricSeriesRow>>
 
     /** Distinct metric keys present for a device, sorted ascending (Swift metricKeys, v9). */
     @Query("SELECT DISTINCT key FROM metricSeries WHERE deviceId = :deviceId ORDER BY key ASC")
@@ -895,6 +1113,10 @@ interface WhoopDao : DeviceRegistryDao {
     // #836: max raw-HR timestamp across all devices. Paired with countHr() as a cheap whole-history change
     // fingerprint so the 15-min idle rescore can skip when nothing new has landed (COALESCE → 0 when empty).
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample") suspend fun maxHrTs(): Long
+    /** Complete raw-analysis fingerprint. A sleep offload can add gravity/RR after HR, so the whole-pass
+     * gate must move when any scoring input changes, not only when measured HR changes. */
+    @Query(ANALYSIS_FINGERPRINT_SQL)
+    suspend fun analysisFingerprint(): String
     // #1005: per-day (device + window) HR fingerprint — row count + newest ts — for analyzeRecent's per-day
     // reuse cache. Cheap COUNT/MAX aggregate over the (deviceId, ts) index, never a row fetch; mirrors Swift
     // WhoopStore.hrFingerprint(deviceId:from:to:). COALESCE(MAX) → 0 for an empty window.
@@ -902,6 +1124,44 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun countHrInWindow(deviceId: String, from: Long, to: Long): Int
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
     suspend fun maxHrTsInWindow(deviceId: String, from: Long, to: Long): Long
+    // Does this device have ANY heart rate in the window? A scalar EXISTS, not a row.
+    //
+    // The day-owner resolver asks this once per candidate per day, so a 60-day steps-calibration window
+    // on a two-strap install asks it 120 times per pass. It used to be answered by fetching a LIMIT 1
+    // ROW from [hrSamples] and testing the list for emptiness, which materialises a cursor and an
+    // HrSample for a question whose answer is one bit.
+    //
+    // BOTH tables, because [hrSamples] is a UNION and "has heart rate" has always meant either of them.
+    // A WHOOP 4.0 v25 record stores no per-second HR at all — it is PPG-derived and lands in
+    // `ppgHrSample` — so checking `hrSample` alone would have quietly stopped those days from owning
+    // themselves. The union's `NOT EXISTS` de-dupe does not affect PRESENCE: a ppgHr row suppressed
+    // because an hrSample shares its ts implies hrSample is non-empty, so "union non-empty" is exactly
+    // "hrSample non-empty OR ppgHrSample non-empty". OR short-circuits, so the common case is one probe.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) " +
+            "OR EXISTS(SELECT 1 FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)"
+    )
+    suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean
+
+    // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. It is exactly the
+    // `g` segment of DAY_STREAM_FINGERPRINT_SQL below, on its own: that one counts gravity alongside eight
+    // other streams, so a new HR row would invalidate a motion volume that cannot have changed.
+    // dayMotionIntensity folds one day's gravity and nothing else, so its key must move when that stream
+    // moves and at no other time. Mirrors Swift WhoopStore.gravityFingerprint.
+    //
+    // ONE query returning both columns, not two returning one each. Two would let an insert land between
+    // them and yield a count from before it beside a newest-timestamp from after — a witness describing a
+    // state the day was never in. The pair has to be read atomically to mean anything.
+    @Query(
+        "SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample " +
+            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to"
+    )
+    suspend fun gravityWitnessInWindow(deviceId: String, from: Long, to: Long): GravityWitness
+    // #29: the same per-day (device + window) witness for every OTHER scored stream — see
+    // DAY_STREAM_FINGERPRINT_SQL. Without it a night whose R-R landed after its HR keyed identically to the
+    // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.
+    @Query(DAY_STREAM_FINGERPRINT_SQL)
+    suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String
     @Query("SELECT COUNT(*) FROM rrInterval") suspend fun countRr(): Int
     @Query("SELECT COUNT(*) FROM event") suspend fun countEvents(): Int
     @Query("SELECT COUNT(*) FROM battery") suspend fun countBattery(): Int
@@ -914,7 +1174,6 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("SELECT COUNT(*) FROM ppgHrSample") suspend fun countPpgHr(): Int
     @Query("SELECT COUNT(*) FROM sleepStateSample") suspend fun countSleepState(): Int
     @Query("SELECT COUNT(*) FROM ppgWaveformSample") suspend fun countPpgWaveform(): Int
-    @Query("SELECT COUNT(*) FROM rawImuSample") suspend fun countRawImu(): Int
     @Query("SELECT COUNT(*) FROM v18AuxSample") suspend fun countV18Aux(): Int
     @Query("SELECT COUNT(*) FROM respSample") suspend fun countResp(): Int
     @Query("SELECT COUNT(*) FROM gravitySample") suspend fun countGravity(): Int
@@ -969,15 +1228,14 @@ interface WhoopDao : DeviceRegistryDao {
     // bad-clock strap's garbage-ts rows survived in them while every sibling stream above was cleaned.
     // They are keyed by the SAME `ts` from the SAME type-47 ingest path, so there is no reason to exempt
     // them. Legacy-rows only in practice (the #547 ingest gate now rejects an implausible ts before it is
-    // banked), which is why it went unnoticed. Swift twin: TimestampHeal.rawTables.
+    // banked), which is why it went unnoticed. Keep this list synchronized with the `rawTables` local in
+    // Swift `WhoopStore.healImplausibleTimestamps`.
     @Query("DELETE FROM sleepStateSample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneSleepStateByTs(minTs: Long, maxTs: Long): Int
 
     @Query("DELETE FROM ppgWaveformSample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun prunePpgWaveformByTs(minTs: Long, maxTs: Long): Int
 
-    @Query("DELETE FROM rawImuSample WHERE ts < :minTs OR ts > :maxTs")
-    suspend fun pruneRawImuByTs(minTs: Long, maxTs: Long): Int
 
     @Query("DELETE FROM v18AuxSample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun pruneV18AuxByTs(minTs: Long, maxTs: Long): Int
@@ -999,4 +1257,31 @@ interface WhoopDao : DeviceRegistryDao {
      *  (before [minTs]) AND computed (`-noop`), so an imported multi-year sleep history survives (v8.2.1). */
     @Query("DELETE FROM sleepSession WHERE startTs > :maxTs OR (startTs < :minTs AND deviceId LIKE '%-noop')")
     suspend fun pruneSleepSessionByTs(minTs: Long, maxTs: Long): Int
+
+    // MARK: - PRD-K2: persisted Coach conversation
+
+    /** The full stored conversation, oldest first (by orderIndex). */
+    @Query("SELECT * FROM coachMessage ORDER BY orderIndex ASC")
+    suspend fun coachMessages(): List<CoachMessageRow>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCoachMessagesRaw(rows: List<CoachMessageRow>)
+
+    /** Wipe the entire stored conversation (the Coach toolbar's "Clear conversation" action, and the
+     *  first half of a full replace). */
+    @Query("DELETE FROM coachMessage")
+    suspend fun clearCoachMessages()
+
+    /**
+     * Replace the ENTIRE stored conversation with [rows] in one transaction. Simpler and safer than
+     * incremental insert/update/delete bookkeeping across the several streaming-finalization call
+     * sites (a streamed reply mutates the same message's text repeatedly before settling); the table
+     * is capped at the caller's MAX_STORED_MESSAGES, so a full replace is always cheap. Byte-parity
+     * twin of Swift `WhoopStore.replaceCoachMessages`.
+     */
+    @Transaction
+    suspend fun replaceCoachMessages(rows: List<CoachMessageRow>) {
+        clearCoachMessages()
+        if (rows.isNotEmpty()) insertCoachMessagesRaw(rows)
+    }
 }

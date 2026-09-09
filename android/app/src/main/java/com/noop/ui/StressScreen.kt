@@ -124,7 +124,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // span/beat gate is not met. Faithful twin of the iOS StressView readouts.
     var stressIndex by remember { mutableStateOf<StressIndex.Components?>(null) }
     var freqHrv by remember { mutableStateOf<HrvFreqDomain.Bands?>(null) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    androidx.compose.runtime.LaunchedEffect(vm.activeStrapId) {
         val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
             .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
         daytime = read.daytime
@@ -181,15 +181,15 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     val todayWindow = stressLocalDayWindowContaining(nowSeconds, zone)
     val from = todayWindow.fromEpochSecond
     val tzOffsetSeconds = zone.rules.getOffset(Instant.ofEpochSecond(nowSeconds)).totalSeconds.toLong()
-    val hr = vm.repo.hrSamples("my-whoop", from, nowSeconds, limit = 200_000)
+    val hr = vm.repo.hrSamplesUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     if (hr.size < DaytimeStress.minHourHrSamples) {
         return DaytimeReadout(DaytimeStress.Result.EMPTY, null, null)
     }
-    val rr = vm.repo.rrIntervals("my-whoop", from, nowSeconds, limit = 200_000)
+    val rr = vm.repo.rrIntervalsUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     // Wrist accelerometer for the motion gate: an ambulatory hour is EXERTION, not stress, so it is
     // masked rather than scored (DaytimeStress). Same repo read as R-R; empty on hardware or imports
     // with no gravity, which is exactly the "no masking, prior behaviour" degradation.
-    val gravity = vm.repo.gravitySamples("my-whoop", from, nowSeconds, limit = 200_000)
+    val gravity = vm.repo.gravitySamplesUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     // Score against the PERSONAL cross-day baseline only when the user opted in (#463) AND enough worn
     // history exists (DaytimeBaselines.scoringMode is the degradation gate); else the day's own calm
     // hours (DayRelative, the default). The trailing-history reads happen only past the HR-count guard
@@ -227,15 +227,15 @@ private suspend fun daytimeScoringMode(
     // Oldest → newest so the EWMA fold replays the history in order.
     for (back in baselineHistoryDays downTo 1) {
         val window = stressLocalDayWindow(todayLocalDay.minusDays(back.toLong()), zone)
-        val dayHr = vm.repo.hrSamples(
-            "my-whoop",
+        val dayHr = vm.repo.hrSamplesUnion(
+            vm.activeStrapId,
             window.fromEpochSecond,
             window.toEpochSecondInclusive,
             limit = 200_000,
         )
         if (dayHr.isEmpty()) continue   // unworn day — no floor to learn, skip the R-R read
-        val dayRr = vm.repo.rrIntervals(
-            "my-whoop",
+        val dayRr = vm.repo.rrIntervalsUnion(
+            vm.activeStrapId,
             window.fromEpochSecond,
             window.toEpochSecondInclusive,
             limit = 200_000,
@@ -1024,11 +1024,16 @@ private fun MarkerTile(
 private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier) {
     var range by remember { mutableStateOf(StressRange.Month) }
     val points = remember(model, range) { model.windowedTrend(range) }
+    // #1600: derived ONCE per window, not per recomposition. `windowedTrend` now returns points rather
+    // than bare values, so the two projections the card needs are mapped here beside the memo they come
+    // from — otherwise each recomposition of a scrubbing chart rebuilds both lists.
+    val values = remember(points) { points.map { it.value } }
+    val dayLabels = remember(points) { points.map { shortDayLabel(it.day) } }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader("Stress Trend", overline = "History", trailing = range.label)
         if (points.size >= 2) {
-            val avg = points.average()
+            val avg = values.average()
             NoopCard(tint = Palette.stressColor) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -1050,11 +1055,19 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                         )
                     }
                     LineChart(
-                        values = points,
+                        values = values,
                         modifier = Modifier.height(Metrics.chartHeight),
                         color = StressRamp.STEADY,
                         fill = true,
                         selectionEnabled = true,
+                        // #1600: the same omission the Vital Signs detail chart had — a dated daily
+                        // trend that opted into selection and then had nothing to say but the number.
+                        // Both lists map from the one windowed `points`, so they cannot desynchronise.
+                        selectionLabels = dayLabels,
+                        // #1662: one decimal, matching the Today/Avg/Peak footer below. The default
+                        // formatter collapses a value within 0.05 of an integer, so a 2.0 stress day
+                        // scrubbed as "2" beside a footer reading "2.0".
+                        formatValue = { String.format(Locale.US, "%.1f", it) },
                     )
                     HorizontalDivider(color = Palette.hairline)
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -1260,12 +1273,17 @@ internal class StressModel private constructor(
     data class TrendPoint(val day: String, val value: Double)
 
     /** The full daily proxy trend, sliced to the selected trailing window (count-based,
-     *  matching the day budget). Falls back to ALL when the trailing slice has < 2 points. */
-    fun windowedTrend(range: StressRange): List<Double> {
-        val all = fullTrend.map { it.value }
-        val days = range.days ?: return all
-        val slice = fullTrend.takeLast(days).map { it.value }
-        return if (slice.size >= 2) slice else all
+     *  matching the day budget). Falls back to ALL when the trailing slice has < 2 points.
+     *
+     *  #1600: returns the POINTS, not bare values. The chart needs the day beside each value to name
+     *  it on the scrub read-out, and deriving the labels from a second call that re-applied this
+     *  windowing — including the `size >= 2` fallback — would risk the two lists disagreeing. Charts
+     *  drop mismatched selection labels SILENTLY, so that divergence would present as the read-out
+     *  simply not working. One list, mapped twice at the call site, cannot desynchronise. */
+    fun windowedTrend(range: StressRange): List<TrendPoint> {
+        val days = range.days ?: return fullTrend
+        val slice = fullTrend.takeLast(days)
+        return if (slice.size >= 2) slice else fullTrend
     }
 
     companion object {

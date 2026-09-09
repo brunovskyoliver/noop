@@ -1,7 +1,8 @@
 package com.noop.testcentre
 
 /**
- * The report-completeness guard (Kotlin twin of the Swift ReportCompleteness). A report is only useful
+ * The report-completeness guard. Swift's architectural counterpart is `CaptureCompleteness` (there is no
+ * Swift type named ReportCompleteness). A report is only useful
  * if the active mode's KILLER TRACE actually landed in report.txt. The Test Centre's whole point is that
  * each domain emits one upfront, hard-to-miss line that settles the bug; if a tester toggles a mode but
  * the emitter never fires (strap never connected, no scored day, the import never ran), the .zip looks
@@ -9,15 +10,23 @@ package com.noop.testcentre
  * whether its killer-trace token is present, so a maintainer (and the tester, via the review sheet) sees
  * "Sleep: MISSING" before the report ships rather than after a round-trip.
  *
- * The {domain -> token} map below is the SINGLE source of truth and is byte-identical to the Swift twin
- * (same domains, same token substrings). Each token is the distinctive, stable leading fragment of that
+ * The {domain -> token} map below is the SINGLE source of truth FOR THIS PLATFORM, and is deliberately
+ * NOT byte-identical to Swift's. It cannot be: each side keys on the tokens ITS OWN emitters actually
+ * write, and the two platforms word several of those lines differently. Of the ten killer tokens, four
+ * match Swift exactly, three differ only by a trailing fragment, and three have no counterpart in the
+ * Swift map at all -- import (`import parser=` vs `import stage=`), steps (`stepsEst ` vs `stepsRaw`)
+ * and battery (`battery series=` vs `bank soc=`). Aligning them would break this guard, because the
+ * token has to match the line Android emits. Each token is the distinctive, stable leading fragment of that
  * domain's killer trace (verified against the trace emitters and their unit tests): a SUBSTRING match is
  * deliberate so the per-day / per-record suffix (counts, ids, ISO dates) can vary without breaking the
  * check. The UNIVERSAL token (`dayOwner day=`) rides every export, so it is checked on every report.
  *
  * Pure + side-effect-free (no clock, no IO): the assembler passes the assembled report.txt text and the
  * active-domain set, and gets back the lines to append. No PII (tokens are fixed format fragments). No
- * em-dashes. Tested directly on the JVM, and a parity test pins the map against the Swift twin.
+ * em-dashes. Tested directly on the JVM by ReportCompletenessContractTest, which pins THIS map -- it
+ * does not read the Swift side and cannot detect drift there. Cross-platform parity of the SECTION the
+ * user reads (labels, ordering, present/MISSING wording) is the contract that matters here; identical
+ * tokens are not, and were never achievable.
  */
 object ReportCompleteness {
 
@@ -40,7 +49,13 @@ object ReportCompleteness {
         TestDomain.IMPORT to "import parser=",
         TestDomain.STEPS to "stepsEst ",
         TestDomain.BATTERY to "battery series=",
-        TestDomain.RECOVERY to "charge score=",
+        // "charge day=", not "charge score=". Every recovery trace line is re-emitted by
+        // IntelligenceEngine.recoveryTraceLines as `charge day=<day> ` + the body, so the bare
+        // "charge score=" this used to look for CANNOT occur and the domain reported MISSING on every
+        // capture that had a perfectly healthy trace. The day prefix is also the one part shared by
+        // every variant the trace emits - score, nilScore and each term - so it cannot go stale the
+        // way a token naming one variant did.
+        TestDomain.RECOVERY to "charge day=",
         TestDomain.HRV to "hrv rmssd=",
     )
 
@@ -121,6 +136,21 @@ object ReportCompleteness {
     }
 
     /**
+     * How long a profile must have been running before "complete" means anything.
+     *
+     * A trace only records while its profile is on, so a capture started seconds before the export
+     * contains none of the passes it is meant to evidence. That is not hypothetical: a sleep bundle
+     * arrived with its profile started NINE SECONDS before the export, carrying no `[sleep]` lines at
+     * all, and this section still said "complete: all active traces present" - which is exactly what
+     * told the reporter it was ready to send, and cost a full round trip to discover.
+     *
+     * Two minutes, because the thing most captures need to contain is a scoring pass, and one takes
+     * about forty seconds on a large library. Short enough not to nag, long enough that a capture
+     * clearing it plausibly holds one.
+     */
+    const val MIN_PROFILE_SECONDS = 120L
+
+    /**
      * The "Capture check" section appended to report.txt: a header, then one line per checked domain in
      * deterministic order, then a footer flag when any active domain's trace is MISSING (the at-a-glance
      * "this report carries no diagnostic for X" signal). The parenthetical names the token that ACTUALLY
@@ -128,8 +158,16 @@ object ReportCompleteness {
      * `(<killer>)`, an evidence-only match (#127) reads `(via <evidence>)`, and MISSING reads
      * `(expected <killer>)` — the Swift renderer's "expected …" wording for the missing case. Returns
      * the section WITHOUT a leading newline; the assembler joins it.
+     *
+     * @param profileRanSeconds how long the profile had been running when the bundle was assembled,
+     *   or null when that is unknown. Null is treated as "cannot judge" and says nothing, because
+     *   inventing a warning from a missing timestamp would be its own false signal.
      */
-    fun captureCheckSection(reportText: String, active: Set<TestDomain>): String {
+    fun captureCheckSection(
+        reportText: String,
+        active: Set<TestDomain>,
+        profileRanSeconds: Long? = null,
+    ): String {
         val statuses = statuses(reportText, active)
         val sb = StringBuilder()
         sb.append("=== Capture check ===")
@@ -162,12 +200,30 @@ object ReportCompleteness {
         } else {
             sb.append("INCOMPLETE: missing ").append(missingActive.joinToString(", "))
         }
+        // A short profile is reported WHATEVER the trace verdict was, and deliberately after it: a
+        // capture can hold every token it needs and still be too young to hold the pass that explains
+        // the bug, and a reader who has just been told "complete" is precisely the one who needs to
+        // know that. Phrased as what to do, not as a fault.
+        // `in 0 until MIN`, not `< MIN`: a clock moved backwards between starting the profile and
+        // exporting yields a NEGATIVE age, and "the profile ran -412s before this export" is a worse
+        // line than saying nothing. A nonsense age is unknown, and unknown says nothing.
+        if (profileRanSeconds != null && profileRanSeconds in 0 until MIN_PROFILE_SECONDS) {
+            sb.append("\nTOO SHORT: the profile ran ").append(profileRanSeconds)
+                .append("s before this export. Traces only record while the profile is on, so a scoring")
+                .append(" pass may not have happened yet. Leave it running a couple of minutes, then")
+                .append(" export again.")
+        }
         return sb.toString()
     }
 
     /** The meta.json `capture_check` value: a {domainId -> "present"|"MISSING"} map plus the `complete`
      *  flag, for the machine-readable tie. Keys are the wire ids; emitted in sorted order by TestBundleMeta
-     *  so the JSON bytes line up with the Swift twin. */
+     *  so the JSON bytes line up with the Swift twin.
+     *
+     *  `complete` means TRACES PRESENT and nothing more, so it can read true on a capture whose section
+     *  carries the short-profile note. That is deliberate rather than an oversight: widening the flag
+     *  would change what every existing consumer thinks it asks. The duration a machine reader needs is
+     *  already in the meta beside this, as `profile_started_at`. */
     fun captureCheckMeta(reportText: String, active: Set<TestDomain>): CaptureCheckMeta {
         val statuses = statuses(reportText, active)
         val map = LinkedHashMap<String, String>()

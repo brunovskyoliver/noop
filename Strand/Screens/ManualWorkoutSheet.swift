@@ -37,12 +37,15 @@ struct ManualWorkoutSheet: View {
     /// Distance as ENTERED, in the user's unit (km or mi) — converted to stored metres on save (#1195).
     @State private var distanceText: String
 
-    /// The length unit system, so the Distance field reads/writes in the user's unit. Read live for the
-    /// field label + parse; the init pre-fill reads the same key straight from UserDefaults (@AppStorage
-    /// isn't available before `self` is formed).
+    /// Exercise-distance choice. Unset follows the original combined setting for existing installs.
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
-    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
-    private var distanceUnit: String { unitSystem == .imperial ? "mi" : "km" }
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
+    private var distanceUnit: String { UnitFormatter.distanceUnit(distanceUnitSystem) }
 
     /// Focus for the numeric (Avg HR / Calories / Distance) fields so the keyboard Done button can resign
     /// them — the decimal pad has no return key. iOS-only effect; the enum keeps both platforms compiling.
@@ -74,7 +77,11 @@ struct ManualWorkoutSheet: View {
         // Pre-fill the distance in the user's unit so an untouched edit round-trips the stored metres
         // (buildManualRow then re-stores exactly what's shown). @AppStorage isn't usable pre-init, so read
         // the same key directly.
-        let sys = UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        let bodySystem = UnitSystem(
+            rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+        let sys = UnitPrefs.resolveDistance(
+            system: bodySystem,
+            override: UserDefaults.standard.string(forKey: UnitPrefs.distanceSystemKey) ?? "")
         _distanceText = State(initialValue: e?.distanceM.map { Self.distanceEntryString($0, system: sys) } ?? "")
     }
 
@@ -112,6 +119,8 @@ struct ManualWorkoutSheet: View {
             formContent
                 .padding(NoopMetrics.space6)
         }
+        // #697/#horizontal-swipe parity, see ScreenScaffold.
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .scrollDismissesKeyboard(.interactively)
         // A fixed 420pt is right for the free-floating macOS sheet, but on iPhone it's wider than
         // the screen, so the Avg HR/Calories row, the Start DatePicker and the footer ran off the
@@ -250,6 +259,14 @@ struct ManualWorkoutSheet: View {
                 Color.clear.preference(key: SuggestionsHeightKey.self, value: geo.size.height)
             })
         }
+        // #697 parity: this screen builds its OWN ScrollView rather than going through
+        // ScreenScaffold, so it never inherited the scaffold's horizontal-bounce suppression and
+        // could still rubber-band left-right on a purely vertical scroll. Same modifier, same
+        // guard. `.basedOnSize` permits horizontal bounce only when content genuinely overflows
+        // the width, so nothing that is meant to scroll sideways is affected. (#1532 follow-up)
+        #if os(iOS)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        #endif
         .frame(height: min(max(suggestionsHeight, 1), 168))
         .onPreferenceChange(SuggestionsHeightKey.self) { suggestionsHeight = $0 }
         .background(StrandPalette.surfaceInset, in: inputShape)
@@ -373,7 +390,7 @@ struct ManualWorkoutSheet: View {
     private var distanceMeters: Double? {
         let t = distanceText.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty, let v = Double(t), v >= 0 else { return nil }
-        let km = unitSystem == .imperial ? v / UnitFormatter.milesPerKilometer : v
+        let km = distanceUnitSystem == .imperial ? v / UnitFormatter.milesPerKilometer : v
         return km * 1000.0
     }
 
@@ -415,7 +432,9 @@ struct ManualWorkoutSheet: View {
         }
         if !distanceText.trimmingCharacters(in: .whitespaces).isEmpty,
            distanceMeters == nil || (distanceMeters ?? -1) < 0 || (distanceMeters ?? 0) > 1_000_000 {
-            return String(localized: "Distance must be 0–1,000 km.")
+            return distanceUnitSystem == .imperial
+                ? String(localized: "Distance must be 0–621 mi.")
+                : String(localized: "Distance must be 0–1,000 km.")
         }
         return String(localized: "Check the values and try again.")
     }

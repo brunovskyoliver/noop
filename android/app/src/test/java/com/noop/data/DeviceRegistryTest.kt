@@ -62,6 +62,12 @@ class DeviceRegistryTest {
         override suspend fun renameDevice(id: String, nickname: String?) {
             devices[id]?.let { devices[id] = it.copy(nickname = nickname) }
         }
+        override suspend fun touchLastSeen(id: String, now: Long) {
+            // #1527, mirrors the query's `AND status != 'archived'`.
+            devices[id]?.let {
+                if (it.status != DeviceStatus.archived.name) devices[id] = it.copy(lastSeenAt = now)
+            }
+        }
 
         override suspend fun setPeripheralId(id: String, peripheralId: String?) {
             devices[id]?.let { devices[id] = it.copy(peripheralId = peripheralId) }
@@ -91,7 +97,6 @@ class DeviceRegistryTest {
         override suspend fun deleteStepsFor(deviceId: String) { deletedTables += "stepSample" to deviceId }
         override suspend fun deletePpgHrFor(deviceId: String) { deletedTables += "ppgHrSample" to deviceId }
         override suspend fun deletePpgWaveformFor(deviceId: String) { deletedTables += "ppgWaveformSample" to deviceId }
-        override suspend fun deleteRawImuFor(deviceId: String) { deletedTables += "rawImuSample" to deviceId }
         override suspend fun deleteV18AuxFor(deviceId: String) { deletedTables += "v18AuxSample" to deviceId }
         override suspend fun deleteEventsFor(deviceId: String) { deletedTables += "event" to deviceId }
         override suspend fun deleteBatteryFor(deviceId: String) { deletedTables += "battery" to deviceId }
@@ -128,7 +133,6 @@ class DeviceRegistryTest {
         override suspend fun reKeySteps(from: String, to: String) {}
         override suspend fun reKeyPpgHr(from: String, to: String) {}
         override suspend fun reKeyPpgWaveform(from: String, to: String) {}
-        override suspend fun reKeyRawImu(from: String, to: String) {}
         override suspend fun reKeyV18Aux(from: String, to: String) {}
         override suspend fun reKeyEvents(from: String, to: String) {}
         override suspend fun reKeyBattery(from: String, to: String) {}
@@ -306,7 +310,7 @@ class DeviceRegistryTest {
         // were missing, leaving raw sleep-state, lab markers, live sessions and dismissed markers behind.
         val expectedTables = setOf(
             "hrSample", "rrInterval", "spo2Sample", "skinTempSample", "respSample", "gravitySample",
-            "stepSample", "ppgHrSample", "ppgWaveformSample", "rawImuSample", "v18AuxSample",
+            "stepSample", "ppgHrSample", "ppgWaveformSample", "v18AuxSample",
             "event", "battery", "dailyMetric", "sleepSession",
             "journal", "workout", "appleDaily", "metricSeries", "dayOwnership",
             "scoreInputProvenance",

@@ -23,7 +23,7 @@ struct StrandiOSApp: App {
     @StateObject private var watch = WatchSessionBridge()
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
-    @StateObject private var router = NavRouter()
+    @StateObject private var router: NavRouter
     @State private var liveActivity = LiveActivityController()
     @Environment(\.scenePhase) private var scenePhase
     /// Appearance preference (System/Light/Dark). Default follows the OS; the Settings picker writes it.
@@ -66,8 +66,22 @@ struct StrandiOSApp: App {
         // is open, so a user testing the wind-down reminder with NOOP foregrounded sees nothing. Register
         // before the first scene so any early-fired notification is presented.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        // K5: tapping a scheduled morning-brief notification routes to Coach via the shared NavRouter.
+        let router = NavRouter()
+        _router = StateObject(wrappedValue: router)
+        NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
+        // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
+        // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
+        // suspended lost every scored night AND left the watermark unadvanced, which made the next offload
+        // start the same doomed pass again. This processing task is where that work is escalated to; it is
+        // the long, deferrable kind rather than the metered refresh kind the two schedulers above use.
+        // Registered before launch finishes and permitted in project.yml, or iOS never delivers it.
+        RescoreBackgroundScheduler.register { [weak model] in
+            await model?.runDeferredRescoreIfOwed()
+        }
         let bridge = HealthKitBridge(
             repo: model.repo,
             appleDeviceId: model.appleDeviceId,
@@ -93,6 +107,45 @@ struct StrandiOSApp: App {
         // lifetime; the bridge no-ops unless Health was authorized.
         model.healthWriteBack = { [weak bridge] in
             _ = await bridge?.writeBackAfterNewData()
+        }
+    }
+
+    /// The Shortcut-import alert's presentation binding, hoisted OUT of the `.alert` chain.
+    ///
+    /// An inline `Binding(get:set:)` is two untyped closures the solver must infer in place, on a
+    /// modifier chain that had already blown the type-check budget. Declaring it as a `Binding<Bool>`
+    /// property replaces all of that with one known type. Hoisting the message alone was not enough —
+    /// the build failed again at the same modifier, which is why this one is here too.
+    private var healthImportAlertPresented: Binding<Bool> {
+        Binding(
+            get: { model.pendingShortcutHealthImport != nil },
+            set: { showing in
+                if !showing { model.cancelPendingHealthImport() }
+            }
+        )
+    }
+
+    /// The Shortcut-import alert's buttons, hoisted for the same reason as the binding above.
+    @ViewBuilder
+    private var healthImportAlertButtons: some View {
+        Button("Import") { model.confirmPendingHealthImport() }
+        Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
+    }
+
+    /// The Shortcut-import alert's message, hoisted OUT of the `.alert` chain.
+    ///
+    /// Not a style preference. This closure — an `if let` around two interpolated `Text`s — sits on a
+    /// modifier chain that grew past the Swift type-checker's budget, and the build failed with
+    /// "unable to type-check this expression in reasonable time" pointing at `} message: {`. The
+    /// expression did not change; the chain around it did. Hoisting a sub-expression into its own
+    /// declaration gives the solver a fixed type to work from instead of one more unknown in a chain
+    /// it is already struggling with.
+    @ViewBuilder
+    private var healthImportAlertMessage: some View {
+        if let pending = model.pendingShortcutHealthImport {
+            Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
+        } else {
+            Text("A Shortcut wants to add data to the Apple Health import source.")
         }
     }
 
@@ -216,20 +269,10 @@ struct StrandiOSApp: App {
                         model.handleHealthImportURL(url)
                     }
                 }
-                .alert("Import Apple Health data?", isPresented: Binding(
-                    get: { model.pendingShortcutHealthImport != nil },
-                    set: { showing in
-                        if !showing { model.cancelPendingHealthImport() }
-                    }
-                )) {
-                    Button("Import") { model.confirmPendingHealthImport() }
-                    Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
+                .alert("Import Apple Health data?", isPresented: healthImportAlertPresented) {
+                    healthImportAlertButtons
                 } message: {
-                    if let pending = model.pendingShortcutHealthImport {
-                        Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
-                    } else {
-                        Text("A Shortcut wants to add data to the Apple Health import source.")
-                    }
+                    healthImportAlertMessage
                 }
                 // Bring the watch link up once at launch (WCSession ignores a redundant activate), then
                 // push the first snapshot so a watch that's already on-wrist gets current scores without
@@ -250,7 +293,7 @@ struct StrandiOSApp: App {
         // safe no-op until the user opts in.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                model.drainPendingIntents()
+                model.drainPendingIntents(router: router)
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant
                 // and iOS can't re-arm it while suspended, so it would otherwise fire once and stop.
                 model.applySmartAlarm()
@@ -258,6 +301,17 @@ struct StrandiOSApp: App {
                 // timer or an incidental reconnect. Floored at 90s and never clock/empty-streak-suppressed
                 // (BackfillPolicy.shouldRun's .foreground case), so this is a safe no-op on rapid re-opens.
                 model.ble.requestSync(.foreground)
+                // #1538: settle a re-score an earlier background attempt could not finish, rather than
+                // waiting on the 15-minute idle tick now that there is a foreground with no suspension
+                // deadline. A no-op unless one is genuinely outstanding.
+                //
+                // Its OWN task, deliberately. This pass is minutes long on the installs that need it —
+                // that is the whole reason it was deferred — and the sequential block below owns Health
+                // sync, the widget snapshot and the watch push. Awaiting it there would leave the widget
+                // and the watch showing stale numbers for the entire re-score every time the app is
+                // opened, which is a worse regression than the bug being fixed. `analyzeRecent`
+                // serialises itself, so overlapping with the sync this foreground also kicks off is safe.
+                Task { await model.runDeferredRescoreIfOwed() }
                 Task {
                     health.refreshAuthIfPreviouslyGranted()
                     HealthWritebackBackgroundScheduler.updateSchedule(
@@ -279,6 +333,13 @@ struct StrandiOSApp: App {
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
+                // #1538: same reasoning for the re-score continuation, plus one case of its own. A pass
+                // can be left owed with NOTHING scheduled — a foreground pass killed by a force-quit
+                // never runs the deferral path that submits the request, and iOS can discard a request
+                // that was submitted. Without this the work would wait for the next offload to defer it
+                // or the next launch to drain it. Re-submitting on the way out costs nothing when
+                // nothing is owed, because it is skipped entirely.
+                if RescoreBackgroundScheduler.isRescoreOwed { RescoreBackgroundScheduler.schedule() }
                 // #114: capture the LAST in-app live state on the way out so the Home widget matches what
                 // the user just saw — its battery/HR/score otherwise lag to the last FOREGROUND refreshSeq
                 // bump. One reload per app-exit is low-frequency and well within WidgetKit's daily budget.
@@ -372,6 +433,16 @@ private struct iOSRootView: View {
             // Seed the current What's New into the Updates inbox (idempotent per version) so the bell
             // collects it even if the user dismisses the auto sheet.
             UpdateStore.shared.seedWhatsNewIfNeeded()
+            // #1659: iOS cannot auto-update a sideloaded build - no API lets an app install or re-sign an
+            // .ipa - so the most NOOP can do is NOTICE a release and say so.
+            //
+            // Gated on the SAME condition as showWhatsNewIfDue above, and the Android hook. This matters
+            // now that the check is on by default: without it a brand-new install would reach the network
+            // during first run, before the Terms gate the user has not accepted yet. While the default was
+            // off, nothing made that visible.
+            if onboarded && acceptedTerms == Terms.currentVersion {
+                UpdateWatch.runIfDue(currentVersion: UpdateWatch.installedVersion, sideloadHint: true)
+            }
         }
         .onChange(of: acceptedTerms) { _, _ in showWhatsNewIfDue() }
     }

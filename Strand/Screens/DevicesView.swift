@@ -91,6 +91,13 @@ private struct DevicesContent: View {
     /// has produced any clock signal - a routed frame, a clock correlation, or a data-range reply - so a
     /// generic HR strap or an idle card never shows a fabricated "waiting" state. One computation for
     /// both the line and the warning (the log scan is the cost worth paying once, not twice).
+    ///
+    /// #1818: the battery term reads `batterySamples.last`, NOT `batteryPct`. `batteryPct` deliberately
+    /// outlives the link (`clearBiometrics` leaves it) so Today/the widget can show a last-known charge,
+    /// and a 21 h old reading is indistinguishable from a fresh one there (#530). Withdrawing the "charge
+    /// it" advice on a stale 100% would suppress it in exactly the case it is right - a strap that ran
+    /// flat, which is what reset the RTC, reconnecting before its first battery event. `batterySamples`
+    /// is cleared on disconnect, so `.last` is a reading from THIS link or nothing.
     private var strapClockState: (line: String, warning: String?)? {
         guard live.connected else { return nil }
         let deviceClock = ConnectionReadout.clockCorrelatedDevice(logLines: live.log)
@@ -100,7 +107,8 @@ private struct DevicesContent: View {
         let frame = ConnectionReadout.lastFrameLabel(lastFrameUnix: live.lastFrameAtUnix,
                                                      nowUnix: Int(Date().timeIntervalSince1970))
         let warning = ConnectionReadout.rtcWarning(deviceClockUnix: deviceClock,
-                                                   strapNewestUnix: live.strapRange?.newestUnix)
+                                                   strapNewestUnix: live.strapRange?.newestUnix,
+                                                   batteryPct: live.batterySamples.last?.soc)
         return (String(localized: "Clock latched: \(latched) · last frame \(frame)"), warning)
     }
 
@@ -193,10 +201,18 @@ private struct DevicesContent: View {
                     // handshake, so a non-WHOOP active device (Oura) must NOT inherit it. Single last-connected-
                     // strap key, so a not-yet-connected active strap can briefly show the other strap's build on
                     // a multi-WHOOP install until it republishes. Twin of Android.
-                    liveFirmware: device.status == .active
-                        ? (live.strapFirmware
-                            ?? (SourceCoordinator.isWhoop(device) ? UserDefaults.standard.string(forKey: "noop.lastFirmware") : nil))
-                        : nil,
+                    // #1633 follow-up: resolve against THIS device, never the last strap to connect. The old
+                    // fallback read one global key, so with two straps paired a 5/MG reported the 4.0's firmware.
+                    // The legacy key is honoured only when a single device is paired, where it cannot belong to
+                    // anything else.
+                    liveFirmware: FirmwareAttribution.resolve(
+                        live: device.status == .active ? live.strapFirmware : nil,
+                        perDevice: SourceCoordinator.isWhoop(device)
+                            ? FirmwareAttribution.prefKey(peripheralId: device.peripheralId)
+                                .flatMap { UserDefaults.standard.string(forKey: $0) } : nil,
+                        legacyGlobal: SourceCoordinator.isWhoop(device)
+                            ? UserDefaults.standard.string(forKey: "noop.lastFirmware") : nil,
+                        pairedCount: registry.devices.count),
                     // Historical record layout (v24/v25 on WHOOP 4.0) observed from this connection's
                     // backfill. Distinct from the strap firmware build shown as FW.
                     liveHistoryLayout: (device.status == .active && live.connected) ? live.strapRange?.firmwareLayout : nil,
@@ -1296,6 +1312,9 @@ private struct ExtendedBatteryProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
             }
             HStack {
                 if !waiting {
@@ -1398,6 +1417,9 @@ private struct BodyLocationProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
             }
             HStack {
                 if !waiting {
@@ -1517,6 +1539,9 @@ private struct FeatureFlagProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
             }
             HStack {
                 if !waiting {
@@ -1595,6 +1620,9 @@ private struct EcgProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
             }
             HStack {
                 if !waiting {
@@ -1666,6 +1694,9 @@ private struct DeviceConfigProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #if os(iOS)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                #endif
             }
             HStack {
                 if !waiting {

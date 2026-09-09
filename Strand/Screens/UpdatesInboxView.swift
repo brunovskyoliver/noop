@@ -89,6 +89,10 @@ struct UpdatesInboxView: View {
                 }
                 .padding(20)
             }
+            #if os(iOS)
+            // #697/#horizontal-swipe parity, see ScreenScaffold.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
         }
     }
 
@@ -245,6 +249,8 @@ private struct UpdateRow: View {
         case .whatsNew:      return "sparkles"
         case .reading:       return "waveform.path.ecg"
         case .strapAlert:    return "exclamationmark.triangle"
+        // Distinct from `.whatsNew`'s sparkles on purpose: this is something you have NOT got yet.
+        case .newVersion:    return "arrow.down.circle"
         }
     }
 
@@ -255,6 +261,7 @@ private struct UpdateRow: View {
         case .whatsNew:      return StrandPalette.accent
         case .reading:       return StrandPalette.restColor
         case .strapAlert:    return StrandPalette.statusWarning
+        case .newVersion:    return StrandPalette.accent
         }
     }
 

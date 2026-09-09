@@ -24,9 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Accessible
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import androidx.compose.material.icons.filled.Accessible
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.IceSkating
 import androidx.compose.material.icons.filled.Kayaking
@@ -110,6 +110,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
@@ -436,22 +438,49 @@ private fun PostLogNoteBanner(text: String) {
     }
 }
 
-/** The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
- *  (in the range bar) and the empty state, so a user with no imports can still log a session. */
+/**
+ * The "Add workout" pill — opens the manual add dialog. Shown on both the populated screen
+ * (in the range bar) and the empty state, so a user with no imports can still log a session.
+ *
+ * #1602: this sits beside a Material3 [Button] in the Workouts action row, and the two are built by
+ * different mechanisms — so their metrics have to be matched deliberately or they drift. A `Button`
+ * carries `defaultMinSize(minHeight = ButtonDefaults.MinHeight)`; a bare `Row` has no minimum at all,
+ * so its height was whatever the content happened to be plus its padding, and the pair rendered at
+ * different heights with different label sizes.
+ *
+ * Both are pinned here: the same minimum height as a `Button`, and the same [NoopType.captionNumber]
+ * the Start button uses. iOS has never had this because both of its buttons come from ONE primitive
+ * (`NoopButton`, differing only by `kind`) — the real fix is an Android equivalent, and until that
+ * exists this is the seam that has to be held by hand.
+ */
 @Composable
 internal fun AddWorkoutButton(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
+            // Material's constant, not a NOOP token: the goal is not "be 40.dp", it is "be whatever the
+            // Button beside me is". Android has no control-height token to reach for (iOS keeps one,
+            // `NoopMetrics.controlHeight` = 48), and minting one at today's value would match by
+            // coincidence and drift the moment Material changed its default.
+            .defaultMinSize(minHeight = ButtonDefaults.MinHeight)
             .clip(RoundedCornerShape(50))
             .background(Palette.accentMuted)
             .clickable(onClick = onAdd)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            // 10.dp matches the Start button's contentPadding; this used to carry 14.dp. Invisible in
+            // English — width is fixed by `weight(1f)` — but this button already gives up 22.dp to an
+            // icon and spacer that Start has not, and the long translations are comparable in length
+            // ("Ajouter un entraînement" against "Démarrer l'entraînement"), so the extra 8.dp only
+            // decided which label ellipsized first.
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Filled.Add, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text(uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc), style = NoopType.subhead, color = Palette.accent)
+        Text(
+            uiString(R.string.l10n_workouts_screen_add_workout_a196a2cc),
+            style = NoopType.captionNumber,
+            color = Palette.accent,
+        )
     }
 }
 
@@ -934,7 +963,7 @@ private fun SummarySection(
 ) {
     // Imperial/Metric display preference (D#103). Distances are stored in metres; the toggle re-labels
     // them. Read here so a change recomposes the tiles. Display-only — nothing stored changes.
-    val unitSystem = UnitPrefs.system(LocalContext.current)
+    val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
     val totalCount = rows.size
     val totalTimeH = rows.mapNotNull { it.durationS }.sum() / 3600.0
     val totalKcal = rows.mapNotNull { it.energyKcal }.sum()
@@ -1454,7 +1483,7 @@ private fun SessionRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
+internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Per-window reads (#410): the HR curve (downsampled bucket means) and the HR-zone split. Zones
@@ -1521,7 +1550,7 @@ private fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: () 
             if (row.maxHr != null) DetailRow("Max HR", "${row.maxHr} bpm")
             if (row.energyKcal != null) DetailRow("Calories", "${grouped(row.energyKcal)} kcal")
             if (row.distanceM != null) {
-                val unitSystem = UnitPrefs.system(LocalContext.current)
+                val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
                 DetailRow("Distance", UnitFormatter.distanceFromKilometers(row.distanceM / 1000.0, unitSystem))
             }
             steps?.let { DetailRow("Steps", "${grouped(it.toDouble())} steps") }  // #398, on-foot sports
@@ -2014,7 +2043,7 @@ private fun ManualWorkoutDialog(
     // #1195: distance as ENTERED, in the user's unit (km/mi), converted to stored metres on save. Pre-fill
     // in that unit so an untouched edit round-trips the stored value. Period decimal (Locale.US) to match
     // toDoubleOrNull parsing, exactly as the macOS ManualWorkoutSheet does.
-    val unitSystem = UnitPrefs.system(LocalContext.current)
+    val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
     val distUnit = if (unitSystem == UnitSystem.IMPERIAL) "mi" else "km"
     var distance by remember {
         mutableStateOf(
@@ -2541,7 +2570,7 @@ internal fun sportIcon(sport: String): ImageVector = when (sport.lowercase().tri
     "volleyball", "sand volleyball", "spikeball" -> Icons.Filled.SportsVolleyball
     "golf" -> Icons.Filled.SportsGolf
     "climbing" -> Icons.Filled.Terrain
-    "wheelchair" -> Icons.Filled.Accessible
+    "wheelchair" -> Icons.AutoMirrored.Filled.Accessible
     "gaming" -> Icons.Filled.SportsEsports
     "motor racing" -> Icons.Filled.SportsMotorsports
     else -> sportIconFuzzy(sport)
@@ -2581,7 +2610,7 @@ private fun sportIconFuzzy(sport: String): ImageVector {
         s.contains("basketball") || s.contains("netball") -> Icons.Filled.SportsBasketball
         s.contains("gaming") || s.contains("esport") -> Icons.Filled.SportsEsports
         s.contains("motor") || s.contains("racing") -> Icons.Filled.SportsMotorsports
-        s.contains("wheelchair") -> Icons.Filled.Accessible
+        s.contains("wheelchair") -> Icons.AutoMirrored.Filled.Accessible
         else -> Icons.Filled.FitnessCenter
     }
 }

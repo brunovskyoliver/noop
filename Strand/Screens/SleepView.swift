@@ -28,6 +28,9 @@ import UIKit
 
 struct SleepView: View {
     @EnvironmentObject var repo: Repository
+    /// For `circadianPhase` only (the body-clock dial). Named `appModel` because `model` on this screen is
+    /// already the built `SleepModel`.
+    @EnvironmentObject var appModel: AppModel
     // NOTE: SleepView itself deliberately does NOT observe `LiveState`. A connected strap publishes
     // at ~1 Hz; observing here would re-evaluate this heavy body on every tick. The only two live
     // dependencies — the "going to sleep / awake" mark card (it appends to the strap log) and the
@@ -72,7 +75,7 @@ struct SleepView: View {
     @State private var habitualMidsleepSec: Int? = nil
 
     /// Persisted per-epoch MOTION series keyed by each session's detected `startTs` (#407). Loaded in the
-    /// same `.task` as `allSessions` from `repo.sessionMotions(starts:)`, then laid along the hypnogram for
+    /// same `.task` as `allSessions` from `repo.sessionMotions(sessions:)`, then laid along the hypnogram for
     /// the SAME main-night GROUP blocks the hero resolved (mergeDay's group) — we do NOT re-resolve the
     /// night, only read the already-chosen group's stored motion. A block with no stored series stays absent
     /// (honest empty state for older rows whose `motionJSON` is NULL). Refreshed with `allSessions`.
@@ -151,6 +154,7 @@ struct SleepView: View {
                     // Each top-level section fades + rises in sequence on first appear (Reduce-Motion safe).
                     VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                         if let sleepUndo { sleepUndoBanner(sleepUndo) }
+                        SleepFreshnessNote(latestWakeTs: resolved.night.session.endTs)
                         // Bleed past ScreenScaffold's 16/24 gutters so the hero column is edge-to-edge
                         // in the upper band; the night scene itself is the fixed topBackground.
                         // Customize sits at the end of the hero (not floating in a blank band).
@@ -205,7 +209,7 @@ struct SleepView: View {
                 habitualMidsleepSec = await repo.habitualMidsleepSec()
                 // Per-epoch motion for every block (#407), keyed by detected start. mergeDay reads only the
                 // already-resolved group's entries — this just pre-fetches them all so the model build is sync.
-                motionByStart = await repo.sessionMotions(starts: allSessions.map { $0.startTs })
+                motionByStart = await repo.sessionMotions(sessions: allSessions)
                 nightOffset = 0
                 navNight = nil
                 modelKey = dataKey
@@ -306,7 +310,8 @@ struct SleepView: View {
     /// Locale-formatted clock time (no date) for the banner's window range.
     private func clockTime(_ ts: Int) -> String {
         Date(timeIntervalSince1970: TimeInterval(ts))
-            .formatted(date: .omitted, time: .shortened)
+            .formatted(Date.FormatStyle(date: .omitted, time: .shortened)
+                .locale(AppClock.formattingLocale))   // #1821
     }
 
     /// The transient undo strip: a Rest-tinted frosted banner with the suppressed window and a real Undo
@@ -356,22 +361,25 @@ struct SleepView: View {
         return n == 0 ? "Last night" : (n == 1 ? "1 night ago" : "\(n) nights ago")
     }
 
-    /// #1311: how many CALENDAR nights back the carousel night at `offset` is from the newest recorded
-    /// night. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a night with no
-    /// data (strap off-body) is a gap the flat index can't see — labelling by index makes two nights
-    /// either side of a skipped night read as consecutive and desyncs the "N nights ago" labels (and the
-    /// Rest value they name). Uses the same local start-of-day `navDays` is grouped by; falls back to the
-    /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
-    private func nightsAgo(_ offset: Int) -> Int {
-        let days = navDays
-        guard offset >= 0, offset < days.count,
-              let newestTs = days.first?.first?.endTs, let shownTs = days[offset].first?.endTs
-        else { return offset }
-        let cal = Calendar.current
-        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
-        let newest = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(newestTs)))
-        let d = cal.dateComponents([.day], from: shown, to: newest).day ?? offset
-        return d >= 0 ? d : offset
+    /// #1311: how many nights back the carousel night at `offset` is, counted in CALENDAR nights rather
+    /// than carousel index. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a
+    /// night with no data (strap off-body) is a gap the flat index can't see — labelling by index makes
+    /// two nights either side of a skipped night read as consecutive and desyncs the "N nights ago"
+    /// labels (and the Rest value they name).
+    ///
+    /// Counted FROM TODAY, not from the newest recorded night.
+    ///
+    /// Delegates to `SleepNightLabel.nightsAgo`, which is where this logic is tested. It lived inline
+    /// and private here, which is why the newest-anchored defect went uncaught on this platform.
+    /// Kotlin twin: `calendarNightsAgo`.
+    private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
+        SleepNightLabel.nightsAgo(
+            // Optional per entry, NOT `?? 0`: a day group with no session must fall back to the offset
+            // the way the Kotlin twin does. Zero would be 1970 and would read as ~20,000 nights ago.
+            wakeTimestamps: navDays.map { $0.first.map { s in Int(s.endTs) } },
+            offset: offset,
+            today: Repository.logicalDay(now)
+        )
     }
 
     /// The night the Rest hero reflects: the ◀/▶-navigated night while browsing (falling back to
@@ -401,11 +409,34 @@ struct SleepView: View {
         switch section {
         case .sleepMarks:      SleepMarkCard()
         case .stages:          hero(model)
+        case .bodyClock:       bodyClockDial(model)
         case .nightDetail:     NightDetailCard(model: model)
         case .sleepDebt:       SleepDebtLedgerCard(model: model)
         case .stagesVsTypical: StagesVsTypicalCard(model: model)
         case .asleepDuration:  durationTrend(model)
         }
+    }
+
+    /// The 24 h dial (#1680), or nothing at all.
+    ///
+    /// Drawn only for a fit that is at least `.wide`: an `.unreadable` rhythm has no phase to compare a
+    /// night against, and an empty ring would read as a broken chart rather than as "not enough data". The
+    /// card is a reorderable Sleep section, so anyone who does not want it hides it in Arrange — the same
+    /// affordance every other card on this screen already has, rather than a new setting of its own.
+    @ViewBuilder
+    private func bodyClockDial(_ model: SleepModel) -> some View {
+        if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
+            BodyClockDialCard(estimate: phase,
+                              actualBedHour: Self.localClockHour(model.night.session.effectiveStartTs),
+                              actualWakeHour: Self.localClockHour(model.night.session.endTs))
+        }
+    }
+
+    /// A unix second as a fractional local clock hour — the dial's only input beyond the phase estimate.
+    static func localClockHour(_ ts: Int) -> Double {
+        let c = Calendar.current.dateComponents([.hour, .minute],
+                                                from: Date(timeIntervalSince1970: TimeInterval(ts)))
+        return Double(c.hour ?? 0) + Double(c.minute ?? 0) / 60.0
     }
 
     /// The compact "Customize" affordance above the arrangeable cards — opens the Arrange sheet. Mirrors
@@ -793,6 +824,14 @@ struct SleepView: View {
             if stageStagingIsSparse(night) {
                 stageIncompleteNote
             }
+            // #1716 — a device-provided hypnogram assembled from records that never all arrived leaves a
+            // HOLE in the timeline while the session still spans the whole night, so a night we saw a
+            // fraction of renders as a complete one. Say which fraction. This is the only place the
+            // coverage guard becomes visible: the engine's matching Rest downgrade lands in a transient
+            // `DayResult` field no screen reads, so the gate was otherwise correct and inert.
+            if let coverage = stageCoverage(night), coverage < HypnogramCoverage.minCoverage {
+                stagePartialNote(coverage)
+            }
             // For an Oura-provided night, say plainly that this split is the ring's RAW on-device
             // classification — so the larger Awake / smaller Deep+REM here isn't misread as the polished
             // numbers the Oura app shows for the same night (the app post-processes the same stream).
@@ -855,10 +894,14 @@ struct SleepView: View {
             // A colour-coded key in the chart's ramp so the bands are decodable (esp. the Garmin ramp's two
             // pinks), then the per-stage breakdown rows below.
             footer: {
-                VStack(alignment: .leading, spacing: NoopMetrics.space2) {
-                    SleepStageLegend(palette: style.stagePalette)
-                    stageBreakdownRows(s)
-                }
+                    // #1536: the stage LEGEND that used to sit here is gone, and the rows below now take
+                    // the chart's ramp. Those two go together. The legend decoded the hypnogram above it,
+                    // which is real work — but it listed the stages in a different order than the rows, and
+                    // the rows drew FIXED palette tokens while the chart drew ramp colours, so on
+                    // Oura/Garmin three things in one card disagreed. Ramp-aware rows name and colour every
+                    // stage correctly, which IS the key; a legend above a correct key is the redundancy
+                    // that was reported.
+                    stageBreakdownRows(s, palette: style.stagePalette)
             }
         )
     }
@@ -912,6 +955,17 @@ struct SleepView: View {
     /// flag (imported / pre-migration night) is never flagged. Mirror in Kotlin.
     private func stageStagingIsSparse(_ night: Night) -> Bool {
         night.sourceBlocks.contains { $0.stagingSparse == true }
+    }
+
+    /// How much of this night's window its stage timeline actually accounts for, or nil when coverage is
+    /// not a measurable question for the payloads it was built from (#1716). Asked of the bridged main-night
+    /// GROUP via the SAME shared accumulation `analyzeDay` uses, threading the same learned habitual so the
+    /// group resolves identically to the hero's — a per-row answer would be the wrong question for a
+    /// fragmented night. Mirror in Kotlin.
+    private func stageCoverage(_ night: Night) -> Double? {
+        let group = SleepView.mainNightGroup(night.sourceBlocks,
+                                             habitualMidsleepSec: night.habitualMidsleepSec)
+        return HypnogramCoverage.groupFraction(group.isEmpty ? night.sourceBlocks : group)
     }
 
     /// Pure H9 gate (unit-testable without a live view) — true when a night's staging is low-confidence:
@@ -970,6 +1024,35 @@ struct SleepView: View {
         }
         .padding(.horizontal, 2)
         // `.combine` builds the a11y label from the badge + body Text (no separate localized string).
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The PARTIAL-TIMELINE caveat (#1716): this night's stage segments account for less than
+    /// `HypnogramCoverage.minCoverage` of the window the session claims, so the stage totals describe only
+    /// the part of the night the timeline accounts for. Distinct from BOTH notes above — H9 doubts the
+    /// deep/REM SPLIT of a fully-described night, #345 doubts a night staged on thin motion, and this one
+    /// says plainly that some of the night is MISSING rather than doubted. It is the visible half of the
+    /// engine-side guard: `analyzeDay` already downgrades Rest to `.building` on exactly this condition,
+    /// but that tier is transient engine output no screen reads, so without this the gate was inert.
+    ///
+    /// HONEST-DATA: it reports only what was observed and changes no number. The percentage is floored,
+    /// never rounded — 94.8% must not print as "95%" and appear to contradict the gate that flagged it.
+    /// The copy names NO cause and offers NO remedy, deliberately: on the 08-29/30 and 08-30/31 captures the
+    /// missing codes DID reach NOOP — the ring reported them unwritten (0xFF), the persist log trimmed
+    /// exactly as many as the hole is wide — and re-persisting the same night 5 and 8 times left the hole
+    /// intact. "The rest never reached NOOP" and "syncing again can fill in" were both wrong. Nor does the
+    /// copy point at the totals by DIRECTION: both hosts render this note below the stage-breakdown card
+    /// that carries them, so "the totals below" pointed the wrong way on every screen that shipped it.
+    private func stagePartialNote(_ coverage: Double) -> some View {
+        let pct = Int((coverage * 100).rounded(.down))
+        return HStack(alignment: .top, spacing: 8) {
+            SourceBadge("Partly recorded", tint: StrandPalette.statusWarning)
+            Text("Only \(pct)% of this night's window has stage data. The stage totals cover only that part of the night.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 2)
         .accessibilityElement(children: .combine)
     }
 
@@ -1184,12 +1267,12 @@ struct SleepView: View {
     /// proportional bar in the stage colour over a faint track, and the right-aligned duration. Same data
     /// as the prior footer (`s.rem` / `s.deep` / `s.light` / `s.awake` over `s.total`) — no new numbers.
     @ViewBuilder
-    private func stageBreakdownRows(_ s: Stages) -> some View {
+    private func stageBreakdownRows(_ s: Stages, palette: SleepStagePalette = .noop) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
-            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total, percent: stageSharePercent(.rem, s))
-            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total, percent: stageSharePercent(.deep, s))
-            stageBreakdownRow(.light, minutes: s.light, total: s.total, percent: stageSharePercent(.light, s))
-            stageBreakdownRow(.awake, minutes: s.awake, total: s.total, percent: stageSharePercent(.awake, s))
+            stageBreakdownRow(.rem,   minutes: s.rem,   total: s.total, percent: stageSharePercent(.rem, s), palette: palette)
+            stageBreakdownRow(.deep,  minutes: s.deep,  total: s.total, percent: stageSharePercent(.deep, s), palette: palette)
+            stageBreakdownRow(.light, minutes: s.light, total: s.total, percent: stageSharePercent(.light, s), palette: palette)
+            stageBreakdownRow(.awake, minutes: s.awake, total: s.total, percent: stageSharePercent(.awake, s), palette: palette)
         }
     }
 
@@ -1211,8 +1294,9 @@ struct SleepView: View {
     /// apportioned share (so the four rows sum to 100). Tappable (WHOOP, ryanAtriumAi #988): selecting a
     /// row highlights that stage and recedes the rest; tapping the selected row again clears the highlight.
     @ViewBuilder
-    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double, percent: Int) -> some View {
-        let color = StrandPalette.sleepStageColor(stage)
+    private func stageBreakdownRow(_ stage: SleepStage, minutes: Double, total: Double, percent: Int,
+                                   palette: SleepStagePalette = .noop) -> some View {
+        let color = StrandPalette.sleepStageColor(stage, palette: palette)
         let fraction = total > 0 ? min(1, max(0, minutes / total)) : 0
         let isSelected = selectedStage == stage
         let othersSelected = selectedStage != nil && !isSelected
@@ -1260,9 +1344,9 @@ struct SleepView: View {
     // MARK: - WHOOP stage-timeline rows (the sleep-details reference design, ryanAtriumAi #988)
 
     /// Clock labels for the timeline axis; "jmm" respects the device 12/24-hour setting.
-    private static let stageAxisFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = AppLanguage.activeLocale; f.setLocalizedDateFormatFromTemplate("jmm"); return f
-    }()
+    /// #1821: routed through AppClock so the Clock format setting reaches this label. Was a `static
+    /// let`, which would have frozen the reader's choice at first use until the app relaunched.
+    private static var stageAxisFormatter: DateFormatter { AppClock.hourMinuteFormatter() }
 
     /// The WHOOP sleep-stages chart: a stack of four per-stage timeline rows (AWAKE · LIGHT ·
     /// DEEP · REM, WHOOP's order) over a shared onset→wake time axis. Each row is independently
@@ -1971,10 +2055,7 @@ struct SleepView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        // While the strap is mid-offload, say so — "No nights" reads as final otherwise (#77). The note
-        // owns the `LiveState` observation in its own leaf so the chunk count ticks without re-rendering
-        // SleepView (scroll-stutter isolation; identical output to the prior inline check).
-        SleepSyncingNote()
+        SleepFreshnessNote(latestWakeTs: nil)
         if repo.loaded {
             ComingSoon(what: "No nights here yet. Import your WHOOP export in Data Sources to see every night, your sleep stages and trends straight away. Or open Intelligence to see last night computed from the strap after you wear it to bed.")
         } else {
@@ -2477,10 +2558,72 @@ struct SleepMarkCard: View {
 
 /// The "Syncing strap history…" note, shown only while a historical offload is running (#77). Owns the
 /// `LiveState` observation so the chunk count ticks without re-rendering the rest of the Sleep screen.
-private struct SleepSyncingNote: View {
+enum SleepFreshnessStatus: Equatable {
+    case syncing, calculating, syncFailed, awaitingSync, notDetected
+}
+
+/// Pure priority ladder behind the Sleep status banner. "Missing" is deliberately held until morning so
+/// opening Sleep during the night does not claim a still-in-progress night was missed.
+func resolveSleepFreshness(hasCurrentNight: Bool, morningReady: Bool, syncing: Bool,
+                           calculating: Bool, syncedSinceDayStart: Bool,
+                           syncFailed: Bool) -> SleepFreshnessStatus? {
+    if syncing { return .syncing }
+    if calculating { return .calculating }
+    if hasCurrentNight || !morningReady { return nil }
+    if syncFailed { return .syncFailed }
+    return syncedSinceDayStart ? .notDetected : .awaitingSync
+}
+
+/// Explicit state for the expected current night. Older sleep can remain available underneath, but it is
+/// never left to impersonate today's result while a sync, calculation, or failed detection is unresolved.
+private struct SleepFreshnessNote: View {
     @EnvironmentObject private var live: LiveState
+    @EnvironmentObject private var intelligence: IntelligenceEngine
+    let latestWakeTs: Int?
+
     var body: some View {
-        if live.backfilling { SyncingHistoryNote(chunks: live.syncChunksThisSession) }
+        let calendar = Calendar.current
+        let now = Date()
+        let start = calendar.startOfDay(for: now)
+        let current = latestWakeTs.map {
+            calendar.isDate(Date(timeIntervalSince1970: TimeInterval($0)), inSameDayAs: now)
+        } ?? false
+        // AppModel intentionally waits two quiet seconds after HISTORY_COMPLETE before starting the
+        // scoring pass. Treat that debounce as calculation too; otherwise the banner can flash the final
+        // "wasn't detected" verdict between sync completion and `intelligence.computing` becoming true.
+        let calculationQueued = live.lastSyncedAt.map {
+            (0..<5).contains(now.timeIntervalSince1970 - $0)
+        } ?? false
+        let status = resolveSleepFreshness(
+            hasCurrentNight: current,
+            morningReady: calendar.component(.hour, from: now) >= 6,
+            syncing: live.backfilling,
+            calculating: intelligence.computing || calculationQueued,
+            syncedSinceDayStart: (live.lastSyncedAt ?? 0) >= start.timeIntervalSince1970,
+            syncFailed: live.lastSyncError != nil
+        )
+        switch status {
+        case .syncing:
+            SyncingHistoryNote(chunks: live.syncChunksThisSession)
+        case .calculating:
+            DataPendingNote(title: "Calculating last night's sleep…",
+                            message: "Your strap history is in. NOOP is detecting and staging the night now.",
+                            symbol: "waveform.path.ecg")
+        case .syncFailed:
+            DataPendingNote(title: "Last night's sleep hasn't synced",
+                            message: "The history sync stopped before it finished. Keep the strap nearby and try Sync again.",
+                            symbol: "exclamationmark.arrow.triangle.2.circlepath")
+        case .awaitingSync:
+            DataPendingNote(title: "Waiting for last night's sleep",
+                            message: "Connect the strap and sync its history. NOOP will calculate the night when the overnight data arrives.",
+                            symbol: "arrow.triangle.2.circlepath")
+        case .notDetected:
+            DataPendingNote(title: "Last night's sleep wasn't detected",
+                            message: "Sync finished, but NOOP couldn't confidently identify a sleep window. Keep the strap connected and try Sync again; the older night below is still your latest detected sleep.",
+                            symbol: "moon.zzz")
+        case nil:
+            EmptyView()
+        }
     }
 }
 

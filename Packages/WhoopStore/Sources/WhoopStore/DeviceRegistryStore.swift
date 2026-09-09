@@ -76,6 +76,20 @@ public struct DeviceRegistryStore: Sendable {
         }
     }
 
+    /// Stamp a row as seen right now. Called when a strap actually connects or drops, because nothing
+    /// else in the BLE path writes `lastSeenAt` — before #1527 it was only ever set when the row was
+    /// created or promoted to active, so the Devices card reported time-since-ADDED and a strap syncing
+    /// every day could read "Last seen 45 d ago".
+    ///
+    /// Archived rows are excluded: "Removed - data kept" is a deliberate resting state, and a stray
+    /// connect must not quietly resurrect one into looking live.
+    public func touchLastSeen(_ id: String, at ts: Int) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE pairedDevice SET lastSeenAt = ? WHERE id = ? AND status != 'archived'",
+                           arguments: [ts, id])
+        }
+    }
+
     /// Adopt (or clear) the stable BLE identity for a registry row. `peripheralId` is the
     /// CBPeripheral.identifier.uuidString on iOS/Mac; passing nil un-adopts it.
     public func setPeripheralId(_ id: String, peripheralId: String?) throws {
@@ -93,6 +107,11 @@ public struct DeviceRegistryStore: Sendable {
                              arguments: [peripheralId]).map(Self.decode)
         }
     }
+
+    /// Suffix of the COMPUTED sibling every device id owns — the engine writes its derived days, detected
+    /// workouts and metric series under `<deviceId>-noop`. Spelled here so the adoption can carry it with
+    /// the pairing; the Kotlin twin is `WhoopRepository.computedDeviceId`.
+    public static let computedSuffix = "-noop"
 
     /// Every table whose rows are keyed by `deviceId` (the per-device sample/derived tables). This is
     /// the authoritative list `deleteAllData` clears — kept in sync with the `deviceId`-keyed tables in
@@ -120,7 +139,6 @@ public struct DeviceRegistryStore: Sendable {
         "ppgWaveformSample",
         // v28-raw-imu (#423): the opt-in 5/MG raw-IMU offload capture is deviceId-keyed too — "delete all
         // of this device's data" must clear it, or the raw inertial samples survive deletion (same defect).
-        "rawImuSample",
         // v31-deep-capture-channels: the banked 5/MG v18 auxiliary fields are deviceId-keyed per-second
         // rows like every stream above, so a "delete all of this device's data" must clear them too.
         "v18AuxSample",
@@ -185,9 +203,19 @@ public struct DeviceRegistryStore: Sendable {
                 """, arguments: [serialId, activeId])
             }
             // Move the active id's recordings onto the serial id (canonical wins a PK clash), then clear it.
-            for table in Self.deviceScopedTables {
-                try db.execute(sql: "UPDATE OR IGNORE \(table) SET deviceId = ? WHERE deviceId = ?", arguments: [serialId, activeId])
-                try db.execute(sql: "DELETE FROM \(table) WHERE deviceId = ?", arguments: [activeId])
+            //
+            // BOTH id shapes, not just the pairing's own. Every strap also owns a COMPUTED sibling keyed
+            // `<deviceId>-noop` — the scored days, detected workouts and metric series the engine derives
+            // — and that id is never equal to `activeId`, so an exact-match re-key silently left it behind.
+            // The next scoring pass then writes under `<serialId>-noop`, stranding the old computed
+            // history under an id nothing reads again: the orphaned-history failure this adoption exists
+            // to PREVENT, displaced onto the computed half. The ring path never hit it because a ring has
+            // no computed sibling to strand, which is why the shipped migration looked proven.
+            for (from, to) in [(activeId, serialId), (activeId + Self.computedSuffix, serialId + Self.computedSuffix)] {
+                for table in Self.deviceScopedTables {
+                    try db.execute(sql: "UPDATE OR IGNORE \(table) SET deviceId = ? WHERE deviceId = ?", arguments: [to, from])
+                    try db.execute(sql: "DELETE FROM \(table) WHERE deviceId = ?", arguments: [from])
+                }
             }
             // Drop ONLY the provisional CB-UUID registry rows; other oura-* pairings are left as-is.
             try db.execute(sql: "DELETE FROM pairedDevice WHERE id = ?", arguments: [activeId])
@@ -230,7 +258,21 @@ public struct DeviceRegistryStore: Sendable {
     }
 
     private static func decode(_ row: Row) -> PairedDevice {
-        var caps = Set((row["capabilities"] as String).split(separator: ",").compactMap { Metric(rawValue: String($0)) })
+        // #1518: TRIM before matching. `Metric(rawValue:)` is exact, so a stored `"hr, hrv"` decoded to
+        // `{hr}` — the whitespace-bearing token simply failed to parse and `compactMap` dropped it, losing
+        // a real capability with nothing reporting it. Writes here are always canonical
+        // (`map(\.rawValue).sorted().joined`), so a spaced token can only arrive from history: rows the
+        // v36 migration rewrote before #1495 taught it to trim, or a restored backup.
+        //
+        // Fixing it on READ rather than with another migration is deliberate. A migration repairs the rows
+        // that exist when it runs, once; trimming here self-heals every row every time it is read, including
+        // any that arrive later from a restore. Kotlin never needed this — it keeps `capabilities` as a
+        // String and normalises it at the registry layer, so it has no typed decode to lose anything in.
+        var caps = Set(
+            (row["capabilities"] as String)
+                .split(separator: ",")
+                .compactMap { Metric(rawValue: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        )
         // #548: calibrated SpO₂ % is never produced from a live WHOOP path — drop a stale registry bit
         // so Devices / day-owner UI never advertise a capability AnalyticsEngine will not fill.
         let brand = row["brand"] as String

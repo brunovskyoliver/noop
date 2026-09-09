@@ -1,8 +1,9 @@
 package com.noop.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,10 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,11 +28,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import android.text.format.DateFormat
-import java.util.TimeZone
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.noop.R
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.roundToInt
 
 /**
@@ -45,12 +50,12 @@ import kotlin.math.roundToInt
  * macOS SleepView.stageBreakdownRows. (PipBar)
  */
 @Composable
-internal fun StageBreakdownRows(s: Stages) {
+internal fun StageBreakdownRows(s: Stages, palette: SleepStagePalette = SleepStagePalette.NOOP) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-        StageBreakdownRow("REM", s.rem, s.total, Palette.sleepREM, stageSharePercent("REM", s))
-        StageBreakdownRow("Deep", s.deep, s.total, Palette.sleepDeep, stageSharePercent("Deep", s))
-        StageBreakdownRow("Light", s.light, s.total, Palette.sleepLight, stageSharePercent("Light", s))
-        StageBreakdownRow("Awake", s.awake, s.total, Palette.sleepAwake, stageSharePercent("Awake", s))
+        StageBreakdownRow("REM", s.rem, s.total, stageColorForRamp("REM", palette), stageSharePercent("REM", s))
+        StageBreakdownRow("Deep", s.deep, s.total, stageColorForRamp("Deep", palette), stageSharePercent("Deep", s))
+        StageBreakdownRow("Light", s.light, s.total, stageColorForRamp("Light", palette), stageSharePercent("Light", s))
+        StageBreakdownRow("Awake", s.awake, s.total, stageColorForRamp("Awake", palette), stageSharePercent("Awake", s))
     }
 }
 
@@ -238,14 +243,48 @@ internal fun FilledHypnogram(
     // stranding the axis at just onset/mid/wake; a tablet fans out to the 8-label ceiling. Floor 4 keeps a
     // narrow phone from collapsing back to bare edges.
     val maxAxisLabels = (LocalConfiguration.current.screenWidthDp / 60).coerceIn(4, 8)
-    val is24h = DateFormat.is24HourFormat(LocalContext.current)
+    // #1821: the reader's CHOSEN clock, not the raw device switch. Reading the device here would have
+    // left the hypnogram axis in 24h while the sleep card above it changed - the setting half-applied.
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)
     val axisTicks = if (showsAxis) hypnogramAxisTicks(onsetTs!!, wakeTs!!, maxAxisLabels, is24h) else emptyList()
+    var scrub by remember(intervals) { mutableStateOf<ScrubHit?>(null) }
+    // The crosshair tracks the FINGER. Snapping it to the resolved segment would put the line up to
+    // half a segment from the touch while the readout named the time where the finger actually was.
+    var scrubX by remember(intervals) { mutableStateOf(0f) }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space6)) {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(Metrics.compactChartHeight)
-                .semantics { contentDescription = axSummary },
+                .semantics { contentDescription = axSummary }
+                .then(
+                    // #1855: drag to read the clock time under your finger. Offered only when the
+                    // night supplies a clock window, because without one there is no real time to
+                    // report and a number would have to be invented.
+                    if (showsAxis) {
+                        Modifier.pointerInput(intervals, originSec, spanSec) {
+                            fun hit(x: Float) = scrubHitAt(
+                                xPx = x,
+                                widthPx = size.width.toFloat(),
+                                intervals = intervals,
+                                originSec = originSec,
+                                spanSec = spanSec,
+                            )
+                            detectHorizontalDragGestures(
+                                onDragStart = { scrubX = it.x; scrub = hit(it.x) },
+                                onDragEnd = { scrub = null },
+                                onDragCancel = { scrub = null },
+                                onHorizontalDrag = { change, _ ->
+                                    scrubX = change.position.x
+                                    scrub = hit(change.position.x)
+                                    change.consume()
+                                },
+                            )
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             val w = size.width
             val h = size.height
@@ -317,15 +356,62 @@ internal fun FilledHypnogram(
                     strokeWidth = 1f,
                 )
             }
+
+            // Scrub crosshair LAST, so it sits over the filled staircase. In FILLED mode every stage
+            // paints from its level down to the baseline, so a crosshair drawn earlier is covered by
+            // the next rect and effectively invisible across most of the chart.
+            if (scrub != null) {
+                val cx = scrubX.coerceIn(0f, w)
+                drawLine(
+                    color = Palette.textPrimary,
+                    start = Offset(cx, 0f),
+                    end = Offset(cx, h),
+                    strokeWidth = 2f,
+                )
+            }
         }
-        if (axisTicks.isNotEmpty()) {
+        val hit = scrub
+        if (hit != null) {
+            // Replaces the time axis rather than adding a layer, so the chart does not change height
+            // mid-drag. Two Texts with spacing, not one string joined by a literal separator: that
+            // separator would be new hardcoded copy, and building it outside the Text() call to dodge
+            // extraction is the pattern #557 / #922 track. Stage names and clockTimeLabel are both
+            // existing, so this adds no new strings.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(
+                    Metrics.space6,
+                    Alignment.CenterHorizontally,
+                ),
+            ) {
+                Text(
+                    hit.stage.uppercase(),
+                    style = NoopType.footnote,
+                    color = Palette.textSecondary,
+                    maxLines = 1,
+                )
+                Text(
+                    clockTimeLabel(hit.timestamp, is24h),
+                    style = NoopType.footnote,
+                    color = Palette.textPrimary,
+                    maxLines = 1,
+                )
+            }
+        } else if (axisTicks.isNotEmpty()) {
             HypnogramTimeAxis(axisTicks)
         }
     }
 }
 
 /** A compact colour-coded key for the stepped hypnogram: one dot + label per stage in the chart's ramp, so
- *  the bands are decodable (esp. the Garmin ramp's two pinks, Awake vs REM). Twin of Swift SleepStageLegend. */
+ *  the bands are decodable (esp. the Garmin ramp's two pinks, Awake vs REM). Twin of Swift SleepStageLegend.
+ *
+ *  NOTHING RENDERS THIS (#1536). Its only call sites put it above [StageBreakdownRows], whose rows carry
+ *  their own text labels — so it decoded something already named, listed the stages in a different order
+ *  than the rows, and drew RAMP colours while those rows use fixed [Palette] tokens, which made its dots
+ *  disagree with the swatches beneath them on any non-NOOP ramp. Kept, not deleted: it is the only code
+ *  that knows how to build this key, and a genuinely unlabelled hypnogram is exactly what it is for. Wire
+ *  it to one of those, not to a labelled table. */
 @Composable
 internal fun SleepStageLegend(palette: SleepStagePalette) {
     Row(
@@ -429,9 +515,10 @@ private fun hypnogramSummaryFor(intervals: List<StageInterval>): String =
  */
 @Composable
 internal fun ClockLabelRow(onsetTs: Long, wakeTs: Long) {
-    val onset = clockTimeLabel(onsetTs)
-    val mid = clockTimeLabel((onsetTs + wakeTs) / 2L)
-    val wake = clockTimeLabel(wakeTs)
+    val is24h = ClockPrefs.uses24Hour(LocalContext.current)   // #1821
+    val onset = clockTimeLabel(onsetTs, is24h)
+    val mid = clockTimeLabel((onsetTs + wakeTs) / 2L, is24h)
+    val wake = clockTimeLabel(wakeTs, is24h)
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             onset,

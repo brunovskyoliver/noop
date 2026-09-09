@@ -212,6 +212,23 @@ class SourceCoordinator(
             }
         }
 
+    /** Stamp the row belonging to the strap that just DISCONNECTED, resolved by the identity it adopted
+     *  rather than by whatever is active now. On a multi-WHOOP install those are not the same row: make
+     *  another strap active while this one is live, and stamping "the active row" would record a sighting of
+     *  a strap that was never connected — the same mis-mapping the peripheralId guard below exists to
+     *  prevent. An address no row has adopted stamps nothing.
+     *
+     *  Matched the way the connect path below matches — `ignoreCase` — and NOT through
+     *  [DeviceRegistry.deviceForPeripheralId], whose `WHERE peripheralId = ?` is case-SENSITIVE in SQLite.
+     *  A stored address differing only in case is the same strap to the guard below, so resolving it more
+     *  strictly here would adopt on connect and then silently stamp nothing on disconnect — the same
+     *  quiet staleness this whole change exists to remove. The Swift twin keeps its exact lookup because
+     *  its connect path compares exactly too; each side matches ITS OWN adopt rule. (#1527) */
+    private suspend fun touchLastSeenForStrap(address: String) {
+        val row = registry.all().firstOrNull { it.peripheralId.equals(address, ignoreCase = true) } ?: return
+        registry.touchLastSeen(row.id)
+    }
+
     /**
      * The BLE engine connected to a WHOOP strap at [address] (null on disconnect). Persist that stable
      * identity onto the CURRENTLY ACTIVE device when it's a WHOOP and hasn't adopted one yet — so the
@@ -230,8 +247,18 @@ class SourceCoordinator(
         // Track the live strap's address for the WHOOP->WHOOP adopt-in-place skip (#74). A null address is a
         // disconnect/never-connected republish: clear it so a later make-active can't wrongly match a stale
         // link, then fall through to the existing ignore.
+        val previouslyConnectedTo = connectedWhoopAddress
         connectedWhoopAddress = address
-        if (address == null) return
+        if (address == null) {
+            // Disconnect edge. The strap was in hand right up to this instant, so stamp it NOW rather than
+            // leaving the connect-time value: after a ten-hour overnight session that would have the card
+            // reading "Last seen 10 h ago" the moment the link dropped. Only when we were actually
+            // connected — a null republish with no prior link is not a sighting. (#1527)
+            if (previouslyConnectedTo != null) {
+                scope.launch { runCatching { touchLastSeenForStrap(previouslyConnectedTo) } }
+            }
+            return
+        }
         scope.launch {
             val activeId = registry.activeDeviceId() ?: return@launch
             val devices = registry.all()
@@ -240,11 +267,14 @@ class SourceCoordinator(
 
             val existing = row.peripheralId
             when {
-                existing == null ->
+                existing == null -> {
                     // First connect for this WHOOP row → adopt the strap's stable identity (its address).
                     registry.setPeripheralId(activeId, address)
+                    registry.touchLastSeen(activeId)
+                }
                 existing.equals(address, ignoreCase = true) -> {
-                    // Already adopted this exact strap → nothing to do.
+                    // Already adopted this exact strap → only the sighting is new. (#1527)
+                    registry.touchLastSeen(activeId)
                 }
                 else ->
                     // A DIFFERENT strap connected under this WHOOP row. Never silently overwrite — that would
@@ -408,8 +438,11 @@ class SourceCoordinator(
                     context = ctx,
                     deviceId = id,
                     liveSink = liveSink,
-                    persist = { batch: StreamBatch, deviceId: String ->
-                        scope.launch { runCatching { repo.insert(batch, deviceId) } }
+                    // Hand the OUTCOME back. This was `runCatching { ... }` with no onFailure while the
+                    // source had already cleared its buffer, so a rejected batch vanished with the
+                    // surrounding log still reading like a healthy stream.
+                    persist = { batch: StreamBatch, deviceId: String, done ->
+                        scope.launch { done(runCatching { repo.insert(batch, deviceId) }) }
                     },
                     log = straplog,   // generic-HR lifecycle → the SAME exported strap log (issue #421)
                     onBattery = batterySink,  // strap battery → the same live state the WHOOP strap battery uses
@@ -501,7 +534,7 @@ class SourceCoordinator(
                         runCatching {
                             val from = s.startTs - 16 * 3600 - 3600
                             val to = s.endTs + 3600
-                            repo.sleepSessions(deviceId, from, to, 64)
+                            repo.sleepSessionsForDevice(deviceId, from, to, 64)
                                 .filter { it.startTs != s.startTs && com.noop.analytics.SleepSessionDedup.isDuplicate(session, it) }
                                 .forEach { e ->
                                     straplog("Oura: dup-gen(#1284) persist ${dupGenShape(s.startTs, s.endTs, s.stagesJson)} duplicates stored ${dupGenShape(e.startTs, e.endTs, e.stagesJSON)} startDelta=${s.startTs - e.startTs}s (end-anchor drift) - cross-connection DB read")
@@ -514,7 +547,7 @@ class SourceCoordinator(
                             // candidate (safe default). Mirrors the Swift twin's structure + FAILED log.
                             val from = s.startTs - 16 * 3600 - 3600
                             val to = s.endTs + 3600
-                            val nearby = runCatching { repo.sleepSessions(deviceId, from, to, 64) }.getOrDefault(emptyList())
+                            val nearby = runCatching { repo.sleepSessionsForDevice(deviceId, from, to, 64) }.getOrDefault(emptyList())
                             val plan = com.noop.analytics.SleepSessionDedup.planBank(session, nearby)
                             if (plan.bank) {
                                 // Bank the survivor FIRST, retire what it supersedes only after it lands — so a
@@ -614,9 +647,13 @@ class SourceCoordinator(
             return isWhoop(device)
         }
 
-        /** A device is WHOOP when its id is "my-whoop" or its brand is "WHOOP" (the seeded row's brand). */
-        fun isWhoop(device: PairedDeviceRow): Boolean =
-            device.id == WhoopBleClient.DEFAULT_DEVICE_ID ||
-                device.brand.equals("WHOOP", ignoreCase = true)
+        /**
+         * A device is WHOOP when its id is "my-whoop" or its brand is "WHOOP" (the seeded row's brand).
+         *
+         * #1881 gave the BLE client the same question to answer, so the rule now lives in ONE place
+         * ([SourceIdentity]) and this delegates. Two spellings of "is this a WHOOP" that could disagree is
+         * precisely how a strap's samples end up filed under a ring.
+         */
+        fun isWhoop(device: PairedDeviceRow): Boolean = SourceIdentity.isWhoop(device)
     }
 }
