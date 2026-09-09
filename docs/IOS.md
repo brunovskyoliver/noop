@@ -142,7 +142,8 @@ below.
 
 ### Running on iOS 27.0
 
-Use Xcode 27 with the iOS platform support installed. Apple's
+The existing app can be built with Xcode 26.4.1 and installed on an iOS 27.0
+device. Use Xcode 27 when you need the iOS 27 SDK. Apple's
 [Xcode requirements](https://developer.apple.com/xcode/system-requirements/) list
 the supported macOS versions and SDKs. Xcode 27 RC requires macOS 26.6 or later.
 Download it from [Apple Developer Downloads](https://developer.apple.com/download/),
@@ -153,9 +154,12 @@ Keep the iOS deployment target at 17.0. This is the oldest supported OS, so it
 does not need to become 27.0 to run on an iOS 27 phone. The project uses `iphoneos`
 as its SDK setting, which follows the selected Xcode installation.
 
-If Xcode reports that the developer disk image could not be mounted, check that
-you opened the project in Xcode 27 and completed its platform setup. Changing the
-deployment target does not install device support. For command-line builds with
+If Xcode reports that the developer disk image could not be mounted, unlock the
+iPhone and keep it awake, then retry. Check the underlying error before updating
+Xcode or its platform support. Changing the deployment target does not install
+device support. If installation succeeds but launch reports an untrusted profile,
+open Settings > General > VPN & Device Management on the iPhone and trust your
+developer profile. For command-line builds with
 multiple Xcode installations, set `DEVELOPER_DIR` to the intended app's
 `Contents/Developer` directory.
 
