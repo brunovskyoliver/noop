@@ -37,6 +37,31 @@ final class AICoachRefreshModelsRaceTests: XCTestCase {
         return engine
     }
 
+    func testCustomServerChangeMidFetchDropsOldServerModels() async {
+        let defaults = UserDefaults.standard
+        let savedURL = defaults.object(forKey: AIProvider.customBaseURLKey)
+        defer {
+            if let savedURL { defaults.set(savedURL, forKey: AIProvider.customBaseURLKey) }
+            else { defaults.removeObject(forKey: AIProvider.customBaseURLKey) }
+        }
+        let engine = makeEngine(deviceId: "test-aicoach-server-edit")
+        engine.customBaseURL = "http://old.example.com/v1"
+        let gate = Gate()
+        let started = expectation(description: "old server fetch started")
+        engine.fetchModelsOverride = { _, _ in
+            started.fulfill()
+            await gate.wait()
+            return ["old-server-model"]
+        }
+        let refresh = Task { await engine.refreshModels() }
+        await fulfillment(of: [started], timeout: 2)
+        engine.customBaseURL = "http://new.example.com/v1"
+        engine.availableModels = ["new-server-model"]
+        await gate.open()
+        await refresh.value
+        XCTAssertEqual(engine.availableModels, ["new-server-model"])
+    }
+
     /// A switch mid-fetch must leave `availableModels` equal to the NEW provider's options ONLY, with
     /// none of the OLD provider's freshly-fetched ids leaking in.
     func testProviderSwitchMidFetchDropsStaleOldProviderIds() async {

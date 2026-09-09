@@ -381,6 +381,46 @@ final class AICoachEngine: ObservableObject {
     /// usually need none). Gates the setup card vs. the live chat.
     var isConfigured: Bool { provider == .custom ? customConnected : hasKey }
 
+    var hasProviderKey: Bool { !(resolvedKey ?? "").isEmpty }
+
+    /// Save edited connection details without disconnecting or clearing the conversation.
+    @discardableResult
+    func saveProviderSettings(baseURL: String, authHeader: CustomAIAuthHeader,
+                              model modelID: String, replacementKey: String,
+                              removeKey: Bool = false) -> Bool {
+        guard !sending else { return false }
+        let selectedModel = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selectedModel.isEmpty else {
+            errorText = String(localized: "Enter a model ID.")
+            return false
+        }
+        let normalizedURL = AIProvider.normalizeCustomBaseURL(baseURL)
+        if provider == .custom {
+            do { try AIProvider.guardCustomBaseURL(normalizedURL) }
+            catch { errorText = error.localizedDescription; return false }
+        }
+        let key = replacementKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty {
+            guard AIKeyStore.save(key, owner: provider.rawValue) else {
+                errorText = AICoachError.keySaveFailed.errorDescription
+                objectWillChange.send()
+                return false
+            }
+        } else if removeKey && provider == .custom && hasProviderKey {
+            AIKeyStore.clear()
+        }
+        if provider == .custom {
+            if normalizedURL != AIProvider.customBaseURL { availableModels = [] }
+            customBaseURL = normalizedURL
+            customAuthHeader = authHeader
+            customConnected = true
+        }
+        setCustomModel(selectedModel)
+        errorText = nil
+        objectWillChange.send()
+        return true
+    }
+
     /// The key to send with a request: the stored key, or an empty string for the keyless Custom
     /// provider. `nil` means "not configured", the caller surfaces `.noKey`.
     private var resolvedKey: String? {
@@ -489,6 +529,8 @@ final class AICoachEngine: ObservableObject {
         // resume that it's still the live one, and merge against THIS same snapshot, so the guard and
         // the merge always use one consistent provider, never a stale/mixed list for the wrong one.
         let capturedProvider = provider
+        let capturedCustomURL = customBaseURL
+        let capturedAuthHeader = customAuthHeader
 
         do {
             let ids: [String]
@@ -504,7 +546,9 @@ final class AICoachEngine: ObservableObject {
 
             // The user switched providers while we were awaiting, so these ids belong to the old one.
             // Drop them rather than write a list for a provider that's no longer selected.
-            guard provider == capturedProvider else { return }
+            guard provider == capturedProvider,
+                  provider != .custom || (customBaseURL == capturedCustomURL && customAuthHeader == capturedAuthHeader)
+            else { return }
 
             guard !ids.isEmpty else {
                 errorText = AICoachError.decode.errorDescription
@@ -520,7 +564,9 @@ final class AICoachEngine: ObservableObject {
             availableModels = merged
         } catch {
             // A switch mid-flight makes any error moot for the old provider, so don't surface it.
-            guard provider == capturedProvider else { return }
+            guard provider == capturedProvider,
+                  provider != .custom || (customBaseURL == capturedCustomURL && customAuthHeader == capturedAuthHeader)
+            else { return }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
             return
         }

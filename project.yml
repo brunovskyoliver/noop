@@ -106,12 +106,10 @@ targets:
         LSApplicationCategoryType: public.app-category.healthcare-fitness
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your Mac. Nothing leaves your device."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map. The route stays on your device. Nothing leaves it."
-        # The AI Coach's "Custom (OpenAI-compatible)" provider talks to a LOCAL LLM server over plain
-        # HTTP on loopback (Ollama / LM Studio / llama.cpp at http://localhost:…). ATS blocks cleartext
-        # by default; NSAllowsLocalNetworking exempts loopback/.local/unqualified hosts ONLY — public
-        # HTTPS endpoints are unaffected. No arbitrary-loads blanket exemption.
+        # Custom Coach endpoints are user-configured and may use HTTP on any host.
+        # Do not add NSAllowsLocalNetworking: it overrides NSAllowsArbitraryLoads on modern OS versions.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
         # Oura BYO-app OAuth credentials (values come from configFiles above); read at runtime via
         # OuraCredentials.fromBundle. Absent/blank values cleanly disable the Connect-Oura lane.
         OURA_CLIENT_ID: $(OURA_CLIENT_ID)
@@ -298,12 +296,9 @@ targets:
         # a typed question already uses.
         NSSpeechRecognitionUsageDescription: "NOOP transcribes your question on-device so you can ask the coach out loud instead of typing. Audio never leaves your iPhone."
         NSMicrophoneUsageDescription: "NOOP uses the microphone to let you ask the coach a question by voice. The audio is transcribed on-device and never leaves your iPhone."
-        # #187: the opt-in AI Coach's "Custom (OpenAI-compatible)" provider can point at a LOCAL LLM on
-        # the LAN (Ollama / LM Studio at http://192.168.x.x:11434). ATS blocks cleartext by default;
-        # NSAllowsLocalNetworking exempts loopback/.local/private-LAN hosts ONLY — public HTTPS endpoints
-        # are unaffected, so cloud providers stay TLS. Mirrors the macOS target.
+        # Custom Coach endpoints may use HTTP, including remote hosts and VPN addresses.
         NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
         # #155: expose the app's Documents folder to Files/Shortcuts so the user's Siri Shortcut can
         # read the opt-in noop_sync.txt drop file (Apple-Health-free export for sideloaded installs).
         # Both keys are required for the folder to actually appear in Files.

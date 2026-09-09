@@ -44,6 +44,7 @@ struct CoachView: View {
     @State private var briefStatus: String?
     /// K2: confirmation gate for the destructive "Clear conversation" toolbar action.
     @State private var showClearConfirm = false
+    @State private var showProviderSettings = false
 
     // K4: on-device voice input for the composer (iOS only). macOS gets a no-op stub via
     // `#if os(iOS)` guards — the shared file keeps compiling for both targets.
@@ -112,16 +113,19 @@ struct CoachView: View {
                     .disabled(coach.messages.isEmpty)
                 }
                 ToolbarItem {
-                    Button(role: .destructive) {
-                        coach.disconnect()
-                        keyDraft = ""
+                    Button {
+                        showProviderSettings = true
                     } label: {
-                        Label("Disconnect", systemImage: "gearshape")
+                        Label("Provider settings", systemImage: "gearshape")
                     }
-                    .help("Forget the saved key and disconnect")
-                    .accessibilityLabel("Disconnect provider")
+                    .help("Edit the provider connection and model")
+                    .accessibilityLabel("Provider settings")
+                    .disabled(coach.sending)
                 }
             }
+        }
+        .sheet(isPresented: $showProviderSettings) {
+            CoachProviderSettingsView(coach: coach)
         }
         .confirmationDialog(
             "Clear conversation?",
@@ -453,7 +457,7 @@ struct CoachView: View {
                                 .strokeBorder(StrandPalette.hairline, lineWidth: 1))
                             .disableAutocorrection(true)
                             .accessibilityLabel("Server URL")
-                        Text("Any OpenAI-compatible server: Ollama, LM Studio, llama.cpp, or your own gateway. Stays on your network; nothing leaves \(Platform.deviceNounPhrase).")
+                        Text("Any OpenAI-compatible server: Ollama, LM Studio, llama.cpp, or your own gateway. HTTP and HTTPS URLs are supported. Requests go to the server you choose.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -530,7 +534,7 @@ struct CoachView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(StrandPalette.accent)
-                .disabled(!coach.hasKey)
+                .disabled(!coach.hasKey && coach.provider != .custom)
                 .help("Fetch the available models from \(coach.provider.displayName) using your saved key")
                 .accessibilityLabel("Refresh models from provider")
             }
@@ -597,12 +601,21 @@ struct CoachView: View {
     // MARK: - Connected state
 
     private var connectedHeader: some View {
-        HStack(spacing: 10) {
-            StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
-            Spacer()
-            if coach.sending {
-                StatePill("Thinking", tone: .accent, pulsing: true)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
+                Spacer()
+                if coach.sending {
+                    StatePill("Thinking", tone: .accent, pulsing: true)
+                }
             }
+            Button { showProviderSettings = true } label: {
+                Label("Provider settings", systemImage: "slider.horizontal.3")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(coach.sending)
         }
     }
 
