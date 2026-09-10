@@ -48,6 +48,7 @@ struct LiquidTodayView: View {
     @State private var hydrationGoalML: Int?
 
     // async-loaded via the confirmed Repository accessors
+    @State private var dashboardReloadToken = 0
     @State private var restScore: Double?          // sleep_performance, day-keyed
     /// Input providers for the three scores, keyed by recovery / strain / sleep_performance.
     @State private var heroProviderByMetric: [String: ScoreInputProvider] = [:]
@@ -425,7 +426,7 @@ struct LiquidTodayView: View {
         .liquidMediumHaptic(trigger: pullHaptic)
         // hydrationSeq joins the id so logging a drink re-reads the card immediately, the same trigger set
         // classic TodayView's reloadHydration() uses.
-        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)") {
+        .task(id: "\(repo.refreshSeq)-\(selectedDayOffset)-\(repo.hydrationSeq)-\(hydrationEnabled)-\(dayCycleModeRaw)-\(dashboardReloadToken)") {
             await load()
         }
         .sheet(item: $guideSection) { section in
@@ -511,8 +512,11 @@ struct LiquidTodayView: View {
                 // so a pull while disconnected or mid-offload safely no-ops. The sync status chip owns the
                 // ongoing offload progress; the pull spinner stays short (the reload below).
                 ble.syncNow()
+                let previousSequence = repo.refreshSeq
                 await repo.refresh()
-                await load()
+                // Raw HR can change without changing the repository's daily summaries. Restart the
+                // same cancellable task in that case instead of running a second loader alongside it.
+                if repo.refreshSeq == previousSequence { dashboardReloadToken &+= 1 }
                 try? await Task.sleep(nanoseconds: 350_000_000)   // let the fill read as "done"
                 withAnimation(.easeOut(duration: 0.25)) { refreshing = false }
             }
@@ -1522,10 +1526,13 @@ struct LiquidTodayView: View {
     // MARK: - Data
 
     private func load() async {
+        guard !Task.isCancelled else { return }
         // #989: today's hydration total + goal. One metricSeries row + a UserDefaults read, same as classic
         // TodayView.reloadHydration(). Cleared when the feature is off so the card can't show a stale total.
         if hydrationEnabled {
-            hydrationTotalML = await repo.hydrationTotal(day: Repository.localDayKey(Date()))
+            let total = await repo.hydrationTotal(day: Repository.localDayKey(Date()))
+            guard !Task.isCancelled else { return }
+            hydrationTotalML = total
             hydrationGoalML = repo.hydrationGoalML(profileSex: profile.sex)
         } else {
             hydrationTotalML = nil
@@ -1575,6 +1582,7 @@ struct LiquidTodayView: View {
         let nextDayKey = Repository.localDayKey(cal.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart)
         let cycleMarkers = dayCycleMode == .sleepOnset
             ? await repo.exploreSeries(key: DayCycleIntelligenceIntegration.onsetKey, source: "my-whoop") : []
+        guard !Task.isCancelled else { return }
         let from = cycleMarkers.last(where: { $0.day == selectedDayKey }).map { Int($0.value) } ?? calendarFrom
         let toExclusive = cycleMarkers.last(where: { $0.day == nextDayKey }).map { Int($0.value) } ?? calendarTo
         let to = max(from, toExclusive - 1)
@@ -1592,10 +1600,16 @@ struct LiquidTodayView: View {
             // max, so the stored row simply won) which is why it went unnoticed. 200_000 is what every
             // other whole-window HR consumer already passes.
             let todayHr = await repo.hrSamples(from: from, to: to, limit: 200_000)
+            guard !Task.isCancelled else { return }
             let maxHR = profile.age > 0 ? StrainScorer.tanakaHRmax(age: Double(profile.age)) : nil
             let restHR = day?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
-            liveStrainLocal = StrainScorer.strain(todayHr, maxHR: maxHR, restingHR: restHR,
-                                                  method: PuffinExperiment.effortMethod, sex: profile.sex)
+            let method = PuffinExperiment.effortMethod
+            let sex = profile.sex
+            liveStrainLocal = await CancellableAnalysis.run {
+                StrainScorer.strain(todayHr, maxHR: maxHR, restingHR: restHR,
+                                    method: method, sex: sex)
+            }
+            guard !Task.isCancelled else { return }
         } else {
             liveStrainLocal = nil
         }
@@ -1611,7 +1625,7 @@ struct LiquidTodayView: View {
         async let spo2CandA = repo.exploreSeries(key: "spo2_candidate", source: "my-whoop")
         async let appleA = repo.appleDailyRows()
         async let hrA = repo.hrBuckets(from: from, to: to, bucketSeconds: 300)
-        async let wkA = repo.workoutRows()
+        async let wkA = repo.workoutRows(from: from, to: toExclusive)
         // Ask the same cross-source resolver the Classic Today view uses which source actually won each
         // displayed score. Include the exact carried-Charge day; a fixed relative lookback can miss a
         // legitimately old carried score.
@@ -1624,8 +1638,12 @@ struct LiquidTodayView: View {
         async let restSourceA = repo.resolvedSeries(key: "sleep_performance", source: Repository.whoopSource,
                                                     from: sourceDayKey, to: sourceDayKey)
 
-        let restSeries = await restA
-        let stepsSeries = await stepsA
+        let (restSeries, stepsSeries, storedStress, appleRowsForSpark, spo2CandSeries,
+             fitnessSeries, vo2Series, vitalitySeries, hrRows, workoutRows,
+             chargeSource, effortSource, restSource) = await (
+                restA, stepsA, stressA, appleA, spo2CandA, fitA, vo2A, vitA, hrA, wkA,
+                chargeSourceA, effortSourceA, restSourceA)
+        guard !Task.isCancelled else { return }
         let restByDay = Dictionary(restSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
         // Selected day's Rest; tail fallback only at offset 0 (a past day with no row shows nothing) AND
         // only when the tail night is still fresh. #977: a live 5.0 whose sleep never scores (no overnight
@@ -1638,7 +1656,6 @@ struct LiquidTodayView: View {
             todayKey: selectedDayKey)
         // StressModel loops the full history to build its baseline — run it OFF the main actor so a big
         // history doesn't stutter the UI. Snapshot the inputs (value types) into the detached task.
-        let storedStress = await stressA
         let daysSnapshot = repo.days
 
         // #430 parity: the day-keyed series the DETAILED Key-Metrics tiles graph — a trailing CALENDAR
@@ -1653,10 +1670,8 @@ struct LiquidTodayView: View {
         // estimate) over the window, so a Health-Connect / Apple-only calorie user gets a trend too —
         // matching the imported-first VALUE. Union of imported days + strap-row days. Mirrors Android's
         // caloriesSpark (windowed caloriesByDay).
-        let appleRowsForSpark = await appleA
         // Queue 11a: SpO₂ candidate fallback — day-keyed for the tile's value lookup, windowed for its
         // detailed-mode sparkline below (same shape as `restByDay`/`kSparks["spo2"]` above).
-        let spo2CandSeries = await spo2CandA
         spo2CandidateByDay = Dictionary(spo2CandSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
         var winImportedKcal: [String: Double] = [:]
         for r in appleRowsForSpark where r.day >= sparkCutoff && r.day <= selectedDayKey {
@@ -1687,12 +1702,14 @@ struct LiquidTodayView: View {
             "sleep_performance": restSeries.filter { $0.day >= sparkCutoff && $0.day <= selectedDayKey }
                 .map { ($0.day, $0.value) },
         ]
-        stress = await Task.detached(priority: .utility) {
+        let stressScore = await CancellableAnalysis.run {
             StressModel(days: daysSnapshot, stored: storedStress)?.score
-        }.value
-        fitnessAge = (await fitA).last?.value   // history-wide latest banked (not day-scoped)
-        vo2max = (await vo2A).last?.value        // #1391: latest banked VO₂max estimate
-        vitality = (await vitA).last?.value
+        }
+        guard !Task.isCancelled else { return }
+        stress = stressScore
+        fitnessAge = fitnessSeries.last?.value   // history-wide latest banked (not day-scoped)
+        vo2max = vo2Series.last?.value        // #1391: latest banked VO₂max estimate
+        vitality = vitalitySeries.last?.value
         // Steps is a DAILY metric, so key it to the SELECTED day (like restScore above), not the history-wide
         // latest. Without this, swiping to a past day with no strap step count showed today's estimate (the
         // `.last` value) instead of that day's. Mirrors the classic Today's stepsEstByDay[selectedDayKey].
@@ -1701,14 +1718,13 @@ struct LiquidTodayView: View {
         // Imported Apple Health steps for the SELECTED day (max across rows), the middle tier between the
         // measured strap count and the motion estimate. Health Connect is Android-only, so apple-health is
         // the sole import source on iOS. Mirrors Android `stepsForDay` (#377).
-        importedStepsDay = (await appleA).filter { $0.day == selectedDayKey }.compactMap { $0.steps }.max()
+        importedStepsDay = appleRowsForSpark.filter { $0.day == selectedDayKey }.compactMap { $0.steps }.max()
         // #616: same-day imported active energy — the calorie fallback when the strap banked no on-device
         // HR estimate for the day, so the tile/card/detail agree (imported-first, mirrors steps).
-        importedActiveKcalDay = (await appleA).filter { $0.day == selectedDayKey }.compactMap { $0.activeKcal }.max()
-        hrValues = (await hrA).map { $0.bpm }
-        workouts = (await wkA).filter { $0.startTs >= from && $0.startTs < to }
+        importedActiveKcalDay = appleRowsForSpark.filter { $0.day == selectedDayKey }.compactMap { $0.activeKcal }.max()
+        hrValues = hrRows.map { $0.bpm }
+        workouts = workoutRows
 
-        let (chargeSource, effortSource, restSource) = await (chargeSourceA, effortSourceA, restSourceA)
         let sourceResolutions = [
             ("recovery", chargeSource),
             ("strain", effortSource),
@@ -1729,6 +1745,7 @@ struct LiquidTodayView: View {
                 )
             }
         }
+        guard !Task.isCancelled else { return }
         heroProviderByMetric = providers
 
         // #today-hosted-cards: build the shared SleepModel that backs the hosted sleep cards, but ONLY when
@@ -1739,8 +1756,11 @@ struct LiquidTodayView: View {
         let sleepOrigin = String(localized: "Sleep")
         if HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(where: { $0.origin == sleepOrigin }) {
             let hostedSessions = await repo.allSleepSessions()
+            guard !Task.isCancelled else { return }
             let hostedHabitual = await repo.habitualMidsleepSec()
+            guard !Task.isCancelled else { return }
             let hostedMotion = await repo.sessionMotions(sessions: hostedSessions)
+            guard !Task.isCancelled else { return }
             hostedSleepModel = SleepModel.build(SleepModelInputs(
                 days: repo.days,
                 sleeps: repo.sleeps,

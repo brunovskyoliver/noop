@@ -1115,14 +1115,14 @@ final class Repository: ObservableObject {
             return (try? await store.hrSamples(deviceId: deviceIds[0], from: from, to: to,
                                                limit: limit)) ?? []
         }
-        var byTs: [Int: HRSample] = [:]
+        var lists: [[HRSample]] = []
         for id in deviceIds {
-            for s in (try? await store.hrSamples(deviceId: id, from: from, to: to,
-                                                 limit: limit)) ?? [] where byTs[s.ts] == nil {
-                byTs[s.ts] = s
-            }
+            guard !Task.isCancelled else { return [] }
+            lists.append((try? await store.hrSamples(deviceId: id, from: from, to: to,
+                                                     limit: limit)) ?? [])
         }
-        return byTs.values.sorted { $0.ts < $1.ts }
+        let snapshots = lists
+        return await CancellableAnalysis.run { Self.mergeHRSamples(snapshots) }
     }
 
     func hrSamples(from: Int, to: Int, limit: Int = 8000) async -> [HRSample] {
@@ -1134,13 +1134,27 @@ final class Repository: ObservableObject {
         guard ids.count != 1 else {
             return (try? await store.hrSamples(deviceId: deviceId, from: from, to: to, limit: limit)) ?? []
         }
-        var byTs: [Int: HRSample] = [:]
+        var lists: [[HRSample]] = []
         for id in ids {
-            for s in (try? await store.hrSamples(deviceId: id, from: from, to: to, limit: limit)) ?? [] where byTs[s.ts] == nil {
-                byTs[s.ts] = s
+            guard !Task.isCancelled else { return [] }
+            lists.append((try? await store.hrSamples(deviceId: id, from: from, to: to, limit: limit)) ?? [])
+        }
+        let snapshots = lists
+        return await CancellableAnalysis.run { Self.mergeHRSamples(snapshots) }
+    }
+
+    /// Preserve source precedence while keeping a whole-day union off the UI actor.
+    nonisolated private static func mergeHRSamples(_ lists: [[HRSample]]) -> [HRSample] {
+        var byTs: [Int: HRSample] = [:]
+        for list in lists {
+            for (index, sample) in list.enumerated() {
+                if index.isMultiple(of: 1024), Task.isCancelled { return [] }
+                if byTs[sample.ts] == nil { byTs[sample.ts] = sample }
             }
         }
-        return byTs.values.sorted { $0.ts < $1.ts }
+        guard !Task.isCancelled else { return [] }
+        let merged = byTs.values.sorted { $0.ts < $1.ts }
+        return Task.isCancelled ? [] : merged
     }
 
     /// R-R beats across the active physical WHOOP and canonical history. Exact duplicates are removed
@@ -2591,6 +2605,18 @@ final class Repository: ObservableObject {
     /// re-derives the detected rows each run, so a plain delete would resurrect them; the dismissed
     /// span list is the durable "not a workout" record.
     func workoutRows(days: Int = 4000) async -> [WorkoutRow] {
+        await workoutRows(days: days, startWindow: nil)
+    }
+
+    /// Workouts starting in a half-open display window. Deduplicate against the same history as the
+    /// full list before filtering: an overlapping twin can start outside the requested window, and
+    /// no fixed padding covers every workout duration. Only visible rows need HR reconciliation.
+    func workoutRows(from: Int, to: Int) async -> [WorkoutRow] {
+        guard from < to else { return [] }
+        return await workoutRows(days: 4000, startWindow: from..<to)
+    }
+
+    private func workoutRows(days: Int, startWindow: Range<Int>?) async -> [WorkoutRow] {
         guard let store = await ensureStore() else { return [] }
         let now = Int(Date().timeIntervalSince1970)
         let lo = now - days * 86_400, hi = now + 86_400
@@ -2629,7 +2655,9 @@ final class Repository: ObservableObject {
         } else {
             deduped = WorkoutSource.dedupCrossSource(filtered)
         }
-        let visible = deduped.sorted { $0.startTs > $1.startTs }
+        guard !Task.isCancelled else { return [] }
+        let visible = deduped.filter { startWindow?.contains($0.startTs) ?? true }
+            .sorted { $0.startTs > $1.startTs }
         return await reconcileWorkoutHrWithTrace(visible, store: store)
     }
 
@@ -2694,6 +2722,7 @@ final class Repository: ObservableObject {
         let strainProfile = self.strainProfile
         var reduced: [Int: (avg: Int, peak: Int, strain: Double?)] = [:]
         for chunkStart in stride(from: 0, to: eligibleIndices.count, by: readChunk) {
+            guard !Task.isCancelled else { return rows }
             let chunk = eligibleIndices[chunkStart..<min(chunkStart + readChunk, eligibleIndices.count)]
             await withTaskGroup(of: (index: Int, avg: Int, peak: Int, strain: Double?)?.self) { group in
                 for idx in chunk {
@@ -2711,7 +2740,11 @@ final class Repository: ObservableObject {
                     // only the resulting Sendable String crosses into the task.
                     let hrIds = Self.workoutHrDeviceIds(source: rows[idx].source, activeStrapId: deviceId,
                                                         importedIds: importedReadIds)
+                    #if DEBUG
+                    loadFireCounts["workoutHrWindows", default: 0] += 1
+                    #endif
                     group.addTask { [hrIds] in
+                        guard !Task.isCancelled else { return nil }
                         // #836: aggregate in SQLite over the WHOLE window instead of reducing up to 8000
                         // materialised rows. The old read capped at 8000, so a workout longer than ~2h13m
                         // at 1 Hz reported the mean of its FIRST 8000 samples as the session average — wrong
