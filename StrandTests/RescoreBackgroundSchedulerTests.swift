@@ -241,5 +241,55 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         let latest = RescoreBackgroundScheduler.markRescoreOwed()
         XCTAssertTrue(RescoreBackgroundScheduler.markRescoreCompleted(seconds: 1, owedToken: latest))
     }
+
+    func testCallerCancellationReachesRunningWorkerAndPreservesDebt() async {
+        let started = expectation(description: "worker started")
+        var observedCancellation = false
+        let caller = Task {
+            await RescoreBackgroundScheduler.run(isBackground: false, log: { _ in }) {
+                RescoreBackgroundScheduler.markRescoreOwed()
+                started.fulfill()
+                do {
+                    try await Task.sleep(nanoseconds: 60_000_000_000)
+                } catch {
+                    observedCancellation = Task.isCancelled
+                }
+            }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        caller.cancel()
+        await caller.value
+        XCTAssertTrue(observedCancellation)
+        XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed)
+    }
+
+    func testCancelledCallerDoesNotStartWork() async {
+        var ran = false
+        let caller = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            await RescoreBackgroundScheduler.run(isBackground: false, log: { _ in }) {
+                ran = true
+            }
+        }
+        await caller.value
+        XCTAssertFalse(ran)
+    }
+
+    func testExtendedProcessingGrantRunsOwedWorkAndIsScoped() async {
+        RescoreBackgroundScheduler.markRescoreOwed()
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 82, owedToken: nil)
+        var ran = false
+        await RescoreBackgroundScheduler.$hasExtendedProcessingTime.withValue(true) {
+            await RescoreBackgroundScheduler.run(isBackground: true, log: { _ in }) {
+                XCTAssertTrue(RescoreBackgroundScheduler.hasExecutionGrant)
+                XCTAssertTrue(RescoreBackgroundScheduler.hasExtendedProcessingTime)
+                ran = true
+            }
+        }
+        XCTAssertTrue(ran)
+        XCTAssertFalse(RescoreBackgroundScheduler.hasExecutionGrant)
+        XCTAssertFalse(RescoreBackgroundScheduler.hasExtendedProcessingTime)
+    }
+
 }
 

@@ -855,6 +855,10 @@ final class Backfiller {
             let rrCensus = RrEmissionStats.compute(decoded.rr.map { (ts: $0.ts, rrMs: $0.rrMs) })
             do {
                 counts = try await store.insert(decoded, deviceId: deviceId)
+                // Save analysis debt before acknowledging history; duplicate chunks owe no new work.
+                if counts.hr + counts.rr + counts.events + counts.spo2 + counts.skinTemp + counts.resp + counts.gravity > 0 {
+                    RescoreBackgroundScheduler.markRescoreOwed()
+                }
                 onBankedOffload(counts)
             } catch {
                 // Diag (#601): the decoded rows couldn't be written — this is the "history stalls but live HR

@@ -1,32 +1,22 @@
 import Foundation
+import OSLog
 #if os(iOS)
 import BackgroundTasks
 import UIKit
 #endif
 
-/// Runs a backgrounded re-score somewhere it can actually finish, and records honestly when one did not.
-///
-/// See `RescoreBackgroundPolicy` for the problem (#1538) and the decision rules. This is the plumbing:
-/// the durable "a re-score is owed" mark, the measured duration the policy reads, the iOS
-/// execution assertion, and the `BGProcessingTask` that work is escalated to.
-///
-/// `BGProcessingTask` rather than `BGAppRefreshTask` — the two the app already uses (the scheduled debug
-/// export, the Health write-back) are refresh tasks, which are metered for short work. Processing tasks are
-/// the long, deferrable kind, which is what an eight-minute pass needs. iOS decides when one runs and
-/// favours idle and charging, so this is an "eventually, without needing the user to hold the app open"
-/// guarantee, NOT a promise that a score appears moments after a sync. Nothing here claims otherwise, and
-/// the honest limit is worth stating: on an install where the pass takes minutes, the score still normally
-/// appears when the app is next opened. What changes is that the phone stops paying for a full doomed pass
-/// on every single offload to get there.
-///
-/// HONEST about platform limits, in the shape of `ScheduledDebugExport`:
-/// - **macOS** — the app is a normal foreground app with no suspension deadline. Every entry point here is
-///   a no-op that reports `.run`, so the existing behaviour is exactly preserved.
-/// - **iOS** — needs the `processing` background mode AND the identifier listed in
-///   `BGTaskSchedulerPermittedIdentifiers` AND `register()` called before launch finishes. If any of those
-///   is missing, `submit` fails gracefully and the foreground path still scores normally.
+/// Coordinates durable pending analysis and the execution time iOS grants it.
+/// Short passes use an execution assertion; longer work is submitted to BGProcessing.
+/// Processing delivery is discretionary, so the foreground path must also drain pending work.
+/// Register before launch finishes and keep the processing identifier in the app's Info.plist.
 @MainActor
 enum RescoreBackgroundScheduler {
+
+    @TaskLocal static var hasExtendedProcessingTime = false
+    @TaskLocal static var hasExecutionGrant = false
+
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.noopapp.noop",
+                                       category: "RescoreBackground")
 
     /// A re-score is OWED: either a pass marked itself started and never marked itself finished (it was
     /// killed), or a trigger deferred one to a background task. Survives process death, which is the
@@ -139,7 +129,12 @@ enum RescoreBackgroundScheduler {
     static func run(isBackground: Bool? = nil,
                     owesOnDefer: Bool = true,
                     log: @escaping (String) -> Void,
-                    work: () async -> Void) async {
+                    work: @escaping @MainActor () async -> Void) async {
+        guard !Task.isCancelled else { return }
+        if hasExtendedProcessingTime {
+            await runCancellableWork(work: work)
+            return
+        }
         let decision = RescoreBackgroundPolicy.decide(
             isBackground: isBackground ?? isBackgrounded,
             rescoreAlreadyOwed: isRescoreOwed,
@@ -159,37 +154,71 @@ enum RescoreBackgroundScheduler {
             // rather than move it.
             markRescoreOwed()
             log("re-score: deferred to a background task — \(reason)")
-            schedule()
+            schedule(log: log)
         case .run:
             await withAssertion(log: log, work: work)
         }
     }
 
-    /// Hold an execution assertion for the duration of `work` so a SHORT pass is not suspended halfway.
-    /// A long one still outlives the grant; the assertion's expiry handler is where that becomes visible
-    /// in the log and where the work is escalated, rather than the process simply vanishing.
-    private static func withAssertion(log: @escaping (String) -> Void, work: () async -> Void) async {
+    /// Cancellation must reach the worker, including when the caller was already cancelled.
+    /// Analysis must likewise propagate it to any detached CPU task it owns.
+    static func runCancellableWork(work: @escaping @MainActor () async -> Void) async {
+        guard !Task.isCancelled else { return }
+        let worker = Task { @MainActor in
+            guard !Task.isCancelled else { return }
+            await $hasExecutionGrant.withValue(true) { await work() }
+        }
+        await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
+    }
+
+    /// Expiration cancels the actual worker before releasing the execution assertion.
+    private static func withAssertion(log: @escaping (String) -> Void,
+                                      work: @escaping @MainActor () async -> Void) async {
         #if os(iOS)
+        let worker = Task { @MainActor in
+            guard !Task.isCancelled else { return }
+            await $hasExecutionGrant.withValue(true) { await work() }
+        }
         let assertion = BackgroundAssertion()
         let taskID = UIApplication.shared.beginBackgroundTask(withName: "noop.rescore") {
-            // iOS invokes this on the main thread when it is about to reclaim the assertion. The pass
-            // itself cannot be cancelled from here — its heavy loop runs in a detached task, which does
-            // not inherit cancellation — so do not pretend to stop it. Record the fact and escalate:
-            // the owed mark is still set (only a completed pass clears it) and that is what the next
-            // decision reads.
             MainActor.assumeIsolated {
-                log("re-score: background time expired before the pass finished — escalating (#1538)")
-                schedule()
+                worker.cancel()
+                markRescoreOwed()
+                log("re-score: background time expired; cancelling and preserving pending work")
+                schedule(log: log)
                 assertion.end()
             }
         }
         assertion.store(taskID)
-        await work()
-        // Idempotent under the box's lock, so the expiry path and this one cannot double-end the task —
-        // which UIKit treats as a programmer error — and cannot leak it either.
+        if taskID == .invalid && isBackgrounded {
+            worker.cancel()
+            markRescoreOwed()
+            log("re-score: execution assertion unavailable; preserving pending work")
+            schedule(log: log)
+        }
+        // Leave headroom before iOS's expiration callback. This timer only bounds work that
+        // started in the background; foreground work remains eligible to finish normally.
+        let budget: Task<Void, Never>? = isBackgrounded ? Task {
+            do { try await Task.sleep(nanoseconds: 20_000_000_000) } catch { return }
+            guard isBackgrounded else { return }
+            worker.cancel()
+            markRescoreOwed()
+            log("re-score: short background budget used; saved checkpoints will resume later")
+            schedule(log: log)
+        } : nil
+        defer { budget?.cancel() }
+        await withTaskCancellationHandler {
+            await worker.value
+        } onCancel: {
+            worker.cancel()
+        }
         assertion.end()
         #else
-        await work()
+        await runCancellableWork(work: work)
         #endif
     }
 
@@ -205,8 +234,15 @@ enum RescoreBackgroundScheduler {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
             let completion = TaskCompletionGuard(task: task)
             let worker = Task { @MainActor in
-                await operation()
-                guard !Task.isCancelled else { return }
+                await $hasExtendedProcessingTime.withValue(true) {
+                    guard !Task.isCancelled else { return }
+                    await operation()
+                }
+                guard !Task.isCancelled else {
+                    if isRescoreOwed { schedule() }
+                    completion.finish(success: false)
+                    return
+                }
                 // Re-arm only while work remains. A processing task is single-shot, and re-submitting
                 // unconditionally would ask iOS for a wake on every install forever, including the ones
                 // that never have anything to do.
@@ -218,7 +254,9 @@ enum RescoreBackgroundScheduler {
                 // The pass did not finish inside the processing budget either. Ask for another rather
                 // than dropping the work, and report the failure so iOS's own scheduling heuristics see
                 // it honestly instead of being told this succeeded.
-                schedule()
+                Task { @MainActor in
+                    schedule()
+                }
                 completion.finish(success: false)
             }
         }
@@ -226,7 +264,7 @@ enum RescoreBackgroundScheduler {
 
     /// Keep exactly one pending request, so calling this from several places is idempotent and also
     /// repairs a request the system discarded.
-    static func schedule() {
+    static func schedule(log: ((String) -> Void)? = nil) {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGProcessingTaskRequest(identifier: taskIdentifier)
         // Neither is required. Network is irrelevant to an offline app, and demanding external power
@@ -234,7 +272,13 @@ enum RescoreBackgroundScheduler {
         // likely to be wearing the strap continuously.
         request.requiresNetworkConnectivity = false
         request.requiresExternalPower = false
-        try? BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            let message = "re-score: background task submission failed: \(error.localizedDescription)"
+            logger.error("\(message, privacy: .public)")
+            log?(message)
+        }
     }
 
     /// Holds the background-task identifier so the normal path and the expiry handler can each try to end
@@ -244,17 +288,24 @@ enum RescoreBackgroundScheduler {
     private final class BackgroundAssertion: @unchecked Sendable {
         private let lock = NSLock()
         private var id: UIBackgroundTaskIdentifier = .invalid
+        private var ended = false
 
-        func store(_ newID: UIBackgroundTaskIdentifier) {
+        @MainActor func store(_ newID: UIBackgroundTaskIdentifier) {
             lock.lock()
-            defer { lock.unlock() }
-            id = newID
+            let alreadyEnded = ended
+            if !alreadyEnded { id = newID }
+            lock.unlock()
+            // Expiration can arrive before beginBackgroundTask returns its identifier.
+            if alreadyEnded, newID != .invalid {
+                UIApplication.shared.endBackgroundTask(newID)
+            }
         }
 
         @MainActor func end() {
             lock.lock()
             let current = id
             id = .invalid
+            ended = true
             lock.unlock()
             guard current != .invalid else { return }
             UIApplication.shared.endBackgroundTask(current)
@@ -282,6 +333,6 @@ enum RescoreBackgroundScheduler {
     }
     #else
     /// macOS has no background-task scheduler and no suspension deadline — nothing to schedule.
-    static func schedule() {}
+    static func schedule(log: ((String) -> Void)? = nil) {}
     #endif
 }

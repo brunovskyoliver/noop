@@ -38,7 +38,7 @@ public struct UserProfile: Equatable, Sendable {
 }
 
 /// A detected workout window. All intensity fields are APPROXIMATE.
-public struct ExerciseSession: Equatable, Sendable {
+public struct ExerciseSession: Equatable, Sendable, Codable {
     public let start: Int
     public let end: Int
     public let avgHR: Double
@@ -152,7 +152,7 @@ public enum WorkoutDetector {
     ///
     /// Counted during the detector's OWN walk, never recomputed alongside it: a funnel free to disagree
     /// with the code it describes is worse than no funnel, because it will be believed.
-    public struct DetectionFunnel: Equatable, Sendable {
+    public struct DetectionFunnel: Equatable, Sendable, Codable {
         /// Inputs the day actually had.
         public var hrSamples = 0
         public var motionSamples = 0

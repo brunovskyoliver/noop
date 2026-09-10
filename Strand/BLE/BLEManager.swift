@@ -846,6 +846,11 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Last-offload-attempt time (unix seconds), persisted so the rate limiter survives relaunch
     /// (matches WHOOP's DATA_SYNC_WORKER_LAST_WORK_TIME watermark).
     static let backfillLastAtKey = "backfillLastAt"
+    /// Stores the active device identity; another strap must not inherit an interrupted retry.
+    /// Remains set across a lost connection or process termination. Normal session exits clear it,
+    /// including idle timeout, so empty/stalled straps retain their existing backoff.
+    private static let backfillInterruptedKey = "backfillAttemptInFlight"
+    private var backfillNotificationGate = BackfillNotificationGate()
     /// Prevents a second backfill from starting on a same-process reconnect to the same strap.
     private var backfillStarted = false
     /// #364 auto-continue: how many times we've immediately re-kicked a backfill after a 60s idle-cap OR
@@ -2609,6 +2614,7 @@ public final class BLEManager: NSObject, ObservableObject {
 
     private func exitBackfilling(reason: String) {
         guard backfilling else { return }
+        UserDefaults.standard.removeObject(forKey: Self.backfillInterruptedKey)
         backfilling = false
         state.backfilling = false
         // #174: a backfill just ended. Start (or extend) the deep-packet cooldown from this instant so
@@ -4616,6 +4622,7 @@ public final class BLEManager: NSObject, ObservableObject {
             connected: state.connected, bonded: state.bonded, backfilling: backfilling) else { return }
         let now = Date().timeIntervalSince1970
         let last = UserDefaults.standard.object(forKey: BLEManager.backfillLastAtKey) as? Double
+        let interrupted = UserDefaults.standard.string(forKey: Self.backfillInterruptedKey) == deviceId
         // #160: a future-dated-clock strap's recurring automatic offloads (#928/#1012) are near-useless
         // AND each ~60s session blocks the WHOOP4 realtime-HR keep-alive re-arm (guard !backfilling), so
         // live HR lapses. Feed the already-tracked future-dated signal into BackfillPolicy, which SKIPS
@@ -4626,13 +4633,29 @@ public final class BLEManager: NSObject, ObservableObject {
                                        // plain empty-offload streak incl. idle-timeout stalls — the latter is
                                        // what stops the 15-min poll spinning on a caught-up strap.
                                        emptyStreak: max(emptySyncTracker.consecutiveEmptySyncs, consecutiveEmptyOffloads),
-                                       clockUntrusted: clockUntrusted) else {
+                                       clockUntrusted: clockUntrusted,
+                                       interrupted: interrupted,
+                                       notificationFloor: TimeInterval(nextBackfillInterval())) else {
+            if case .notification = trigger { return }
             log("Backfill: \(trigger) skipped (rate-limited; last \(last.map { Int(now - $0) } ?? -1)s ago)")
             return
         }
         if beginBackfill() {
+            log("Backfill: trigger=\(trigger) resumedInterruptedAttempt=\(interrupted)")
             UserDefaults.standard.set(now, forKey: BLEManager.backfillLastAtKey)
+            UserDefaults.standard.set(deviceId, forKey: Self.backfillInterruptedKey)
         }
+    }
+
+    /// CoreBluetooth can wake a suspended process for a notification; a Dispatch timer cannot.
+    /// Evaluate after routing the packet so it cannot be mistaken for a newly started offload frame.
+    private func evaluateSyncOnNotification() {
+        let ready = Self.shouldRunPeriodicBackfill(connected: state.connected,
+                                                  bonded: state.bonded, backfilling: backfilling)
+            && connectHandshakeDone
+        guard backfillNotificationGate.shouldEvaluate(now: Date().timeIntervalSince1970,
+                                                       ready: ready) else { return }
+        requestSync(.notification)
     }
 
     /// Periodic-timer callback: routes through the rate-limited requestSync entry point.
@@ -6785,6 +6808,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             return
         }
         guard let data = characteristic.value else { return }
+        defer { evaluateSyncOnNotification() }
         let bytes = [UInt8](data)
         lastDataAt = Date()   // feed the liveness watchdog on every notification
         // #1809: count BEFORE the per-characteristic switch below, so the tally covers every inbound

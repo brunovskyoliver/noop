@@ -50,6 +50,7 @@ final class AnalyticsMemoCache<Key: Hashable, Value>: @unchecked Sendable {
         lock.unlock()
 
         let computed = build()
+        guard !Task.isCancelled else { return computed }
 
         lock.lock()
         if let raced = store[key] {
@@ -127,6 +128,7 @@ struct StreamFingerprint: Hashable {
         var firstTs = 0, lastTs = 0
         var sum: UInt64 = fnvBasis
         for e in samples {
+            if count % 1024 == 0 && Task.isCancelled { break }
             let t = ts(e)
             if count == 0 { firstTs = t }
             lastTs = t

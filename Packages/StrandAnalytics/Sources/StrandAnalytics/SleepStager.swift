@@ -40,7 +40,7 @@ public struct StageSegment: Equatable, Sendable, Codable {
 }
 
 /// A detected sleep session (in-bed span) with APPROXIMATE staging.
-public struct SleepSession: Equatable, Sendable {
+public struct SleepSession: Equatable, Sendable, Codable {
     public let start: Int
     public let end: Int
     /// asleep / in-bed in [0, 1] (AASM TST/TIB; asleep = in-bed − wake).
@@ -1356,6 +1356,7 @@ public enum SleepStager {
             band: StreamFingerprint.of(bandSleepState, ts: { $0.ts }, quant: { $0.state }),
             v2: useSleepStagerV2,
             sleepHRBaseline: sleepHRBaseline)
+        guard !Task.isCancelled else { return [] }
         return detectSleepCache.value(key) {
             detectSleepUncached(hr: hr, rr: rr, resp: resp, gravity: gravity,
                                 tzOffsetSeconds: tzOffsetSeconds, wristOff: wristOff,
@@ -1386,6 +1387,7 @@ public enum SleepStager {
                                             useSleepStagerV2: Bool,
                                             sleepHRBaseline: Double? = nil,
                                             traceSink: ((String) -> Void)? = nil) -> [SleepSession] {
+        guard !Task.isCancelled else { return [] }
         let grav = gravity.sorted { $0.ts < $1.ts }
         if grav.count < 2 { return [] }
 
@@ -1400,6 +1402,7 @@ public enum SleepStager {
         // here and follows the exact original path (byte-identical).
         let sparse = isGravitySparse(grav, hr: hrS)
 
+        guard !Task.isCancelled else { return [] }
         let deltas = gravityDeltas(grav)
         let flags = classifyStill(grav, deltas)
         var runs = buildRuns(grav, flags, sparse: sparse, hr: hrS, baseline: baseline)
@@ -1501,6 +1504,7 @@ public enum SleepStager {
         var firstSleepStart = Int.max
         var lastSleepEnd = 0
         for p in runs {
+            guard !Task.isCancelled else { return [] }
             if p.stage != "sleep" { continue }
             runIndex += 1
             sleepRunsSeen += 1

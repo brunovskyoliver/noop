@@ -3,6 +3,7 @@ import Foundation
 /// What prompted a sync attempt. Mirrors WHOOP (15-min periodic floor + event-triggered "process now"
 /// syncs + the strap's own prompt events + manual), adapted to iOS.
 enum BackfillTrigger {
+    case notification  // an incoming characteristic callback while execution is available
     case periodic      // the repeating timer while connected+bonded
     case connect       // a (re)connect / bond confirmation
     case foreground    // the app became active (scenePhase .active)
@@ -19,10 +20,15 @@ enum BackfillTrigger {
 /// (observed: ~15-min periodic + expedited event syncs).
 enum BackfillPolicy {
     static let periodicFloorSeconds: TimeInterval = 900   // 15 min
+    static let interruptedRetrySeconds: TimeInterval = 15
     static let eventFloorSeconds: TimeInterval = 90       // absorbs reconnect-flaps / event bursts
     static let emptyBackoffThreshold = 3                  // empties before the floor starts stretching
     static let maxEmptyBackoff: Double = 4                // cap → ~6-min event / 1-hr periodic floor
 
+    /// `interrupted` is persisted when an offload starts and cleared on normal session exit.
+    /// It permits a bounded retry after a lost transport or process restart. `notificationFloor`
+    /// supplies the battery/low-refresh interval so incoming packets cannot defeat that policy.
+    ///
     /// `emptyStreak` = consecutive COMPLETED offloads that banked no sensor records (EmptySyncTracker).
     /// Past the threshold the AUTOMATIC triggers (.periodic/.strap) stretch their floor — each further
     /// empty doubles it, capped — so an off-wrist / not-banking strap that still emits EVENT packets
@@ -42,7 +48,8 @@ enum BackfillPolicy {
     /// `emptyStreak`, `.connect`/`.foreground`/`.manual`/`.autoContinue` are never affected.
     static func shouldRun(trigger: BackfillTrigger, now: TimeInterval,
                           lastBackfillAt: TimeInterval?, emptyStreak: Int = 0,
-                          clockUntrusted: Bool = false) -> Bool {
+                          clockUntrusted: Bool = false, interrupted: Bool = false,
+                          notificationFloor: TimeInterval = periodicFloorSeconds) -> Bool {
         guard let last = lastBackfillAt else { return true }
         let elapsed = now - last
         let backoff: Double = emptyStreak >= emptyBackoffThreshold
@@ -52,12 +59,33 @@ enum BackfillPolicy {
         // .manual (user-tapped) and .autoContinue (#364 expedited backlog drain) always run — both are
         // deliberately un-floored; .autoContinue's runaway protection lives in BLEManager's cap, not here.
         case .manual, .autoContinue: return true
-        case .connect, .foreground:  return elapsed >= eventFloorSeconds
+        case .connect, .foreground:
+            return elapsed >= (interrupted ? interruptedRetrySeconds : eventFloorSeconds)
         // #160: a future-dated-clock strap's recurring automatic offloads are near-useless (#1012 won't
         // trust the range) but each holds the link ~60s and starves the WHOOP4 realtime-HR re-arm, so skip
         // them entirely — not just stretch the floor. The .connect pass above still re-checks the clock.
+        case .notification:
+            guard !clockUntrusted else { return false }
+            // A transport interruption can resume on the next BLE wake. A completed or timed-out
+            // pass keeps the ordinary adaptive cadence and empty-offload protections.
+            let floor = interrupted ? interruptedRetrySeconds
+                : max(periodicFloorSeconds * backoff, notificationFloor)
+            return elapsed >= floor
         case .strap:                 return !clockUntrusted && elapsed >= eventFloorSeconds * backoff
         case .periodic:              return !clockUntrusted && elapsed >= periodicFloorSeconds * backoff
         }
+    }
+}
+
+/// Keeps characteristic bursts from repeatedly reading preferences or evaluating adaptive policy.
+struct BackfillNotificationGate {
+    private var lastEvaluation: TimeInterval?
+
+    mutating func shouldEvaluate(now: TimeInterval, ready: Bool) -> Bool {
+        guard ready else { return false }
+        if let lastEvaluation, now >= lastEvaluation,
+           now - lastEvaluation < BackfillPolicy.interruptedRetrySeconds { return false }
+        lastEvaluation = now
+        return true
     }
 }

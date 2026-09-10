@@ -91,4 +91,59 @@ final class BackfillPolicyTests: XCTestCase {
         XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .manual, now: 1000, lastBackfillAt: 999, clockUntrusted: true))
         XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .autoContinue, now: 1000, lastBackfillAt: 999, clockUntrusted: true))
     }
+
+    func testInterruptedRestoreRetriesBeforeOrdinaryConnectFloor() {
+        // The phone restored its connection 54s after an interrupted attempt.
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .connect, now: 1054, lastBackfillAt: 1000,
+                                               interrupted: true))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .connect, now: 1054, lastBackfillAt: 1000))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .connect, now: 1014, lastBackfillAt: 1000,
+                                                interrupted: true))
+    }
+
+    func testNotificationResumesInterruptedAttemptAfterCooldown() {
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1014, lastBackfillAt: 1000,
+                                                interrupted: true))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 1015, lastBackfillAt: 1000,
+                                               interrupted: true))
+        // Completion or timeout clears the marker, restoring the ordinary periodic floor.
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1015, lastBackfillAt: 1000,
+                                                interrupted: false))
+    }
+
+    func testNotificationHonorsAdaptiveCadenceAndEmptyBackoff() {
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1899, lastBackfillAt: 1000))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 1900, lastBackfillAt: 1000))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 4599, lastBackfillAt: 1000,
+                                                notificationFloor: 3600))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 4600, lastBackfillAt: 1000,
+                                               notificationFloor: 3600))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 2799, lastBackfillAt: 1000,
+                                                emptyStreak: 3))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 2800, lastBackfillAt: 1000,
+                                               emptyStreak: 3))
+    }
+
+    func testNotificationCannotBypassUntrustedClockProtection() {
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 100000, lastBackfillAt: 1000,
+                                                clockUntrusted: true, interrupted: true))
+    }
+
+    func testNotificationBurstOnlyEvaluatesOncePerCooldown() {
+        var gate = BackfillNotificationGate()
+        XCTAssertTrue(gate.shouldEvaluate(now: 1000, ready: true))
+        for offset in 0..<150 {
+            XCTAssertFalse(gate.shouldEvaluate(now: 1000 + Double(offset) / 10, ready: true))
+        }
+        XCTAssertTrue(gate.shouldEvaluate(now: 1015, ready: true))
+    }
+
+    func testNotReadyNotificationsDoNotDelayFirstReadyEvaluation() {
+        var gate = BackfillNotificationGate()
+        XCTAssertFalse(gate.shouldEvaluate(now: 1000, ready: false))
+        XCTAssertTrue(gate.shouldEvaluate(now: 1001, ready: true))
+        // A backwards wall-clock adjustment must not suppress callbacks indefinitely.
+        XCTAssertTrue(gate.shouldEvaluate(now: 900, ready: true))
+    }
+
 }

@@ -53,7 +53,8 @@ final class AppModel: ObservableObject {
     let profile = ProfileStore()
     /// Behaviour settings: double-tap action, wear automation, zone coaching, smart alarm, illness watch.
     let behavior = BehaviorStore()
-    /// On-device WHOOP-style recovery/strain/sleep computation from raw strap streams.
+    let syncCatchUp = SyncCatchUpTask()
+    /// On-device recovery, strain and sleep computation from raw strap streams.
     let intelligence: IntelligenceEngine
 
     /// Opt-in AI coach (bring-your-own-key) , the one networked feature, off until the user enables it.
@@ -454,27 +455,8 @@ final class AppModel: ObservableObject {
                 // `force: false` skips the heavy 21-day rescore when the raw HR stream is unchanged since the
                 // last run, instead of re-reading ~21×54 h of HR every 15 min on a big-import library. A new
                 // sample (the heal above, or a sync) moves the fingerprint and the tick rescores as before.
-                // #1538: the backstop is subject to the same background reality as the post-offload pass,
-                // and it was the LAST way the livelock could survive. This loop lives as long as the
-                // process, so it keeps ticking while backgrounded as a bluetooth-central, and its own
-                // `force: false` watermark gate cannot save it: a killed pass never advances the
-                // watermark, so the tick still reads the data as new and starts another full pass. The
-                // comment above says the gate also can't skip while the strap streams live HR. Wrapping
-                // it means a tick that cannot finish here does not start.
-                //
-                // `owesOnDefer: false` — a skipped BACKSTOP owes nothing. Every real update forces its
-                // own pass, so conjuring a debt here would send a processing task off to run a forced
-                // full pass when most likely nothing changed. A debt a real pass already recorded is
-                // untouched.
-                // `live = self.live` spelled out: this is nested inside the cadence `Task`, which
-                // requires explicit `self`, so the bare-name capture shorthand used elsewhere in this
-                // type would not resolve here.
-                await RescoreBackgroundScheduler.run(owesOnDefer: false,
-                                                     log: { [live = self.live] line in
-                                                         live.append(log: line)
-                                                     }) {
-                    await self.intelligence.analyzeRecent(force: false)
-                }
+                // The engine applies background limits to every entry point, including this backstop.
+                await self.intelligence.analyzeRecent(force: false)
                 // v5: recompute the skin-temp suite snapshots (cycle phase + body clock) from the
                 // freshly-scored history so the Health hub cards read a ready result.
                 await self.refreshV5Signals()
@@ -631,11 +613,55 @@ final class AppModel: ObservableObject {
         guard RescoreBackgroundScheduler.isRescoreOwed else { return }
         live.append(log: "re-score: resuming a pass an earlier attempt could not finish (#1538)")
         await intelligence.analyzeRecent()
+        guard !Task.isCancelled else { return }
         #if os(iOS)
+        await healthWriteBack?()
         // The deferred pass is the one that finally produces today's score, and it runs with no UI
         // attached — so publish the snapshot here too, for the same reason the post-offload path does.
         await WidgetSnapshot.publish(from: self)
         #endif
+    }
+
+    func startUserSync() {
+        guard live.connected, !syncCatchUp.isRunning else { return }
+        syncCatchUp.start { [weak self] report in
+            guard let self else { return false }
+            let initialSync = self.live.lastSyncedAt
+            self.ble.syncNow()
+            var quietTicks = 0
+            var received = 0
+            var lastChunks = 0
+            for _ in 0..<900 {
+                guard !Task.isCancelled, self.live.connected else { return false }
+                let chunks = self.live.syncChunksThisSession
+                received += max(0, chunks - lastChunks)
+                lastChunks = chunks
+                report(received, "Saved \(received) history chunks")
+                quietTicks = self.live.backfilling ? 0 : quietTicks + 1
+                if quietTicks >= 3 { break }
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return false }
+            }
+            guard !Task.isCancelled, !self.live.backfilling, !self.live.historyPendingSync,
+                  self.live.lastSyncError == nil,
+                  received > 0 || self.live.lastSyncedAt != initialSync else { return false }
+            report(received, "Computing sleep and recovery…")
+            while self.intelligence.computing {
+                do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return false }
+            }
+            guard !Task.isCancelled else { return false }
+            await self.intelligence.analyzeRecent(skipIfUnchanged: true)
+            guard !Task.isCancelled else { return false }
+            #if os(iOS)
+            await self.healthWriteBack?()
+            await WidgetSnapshot.publish(from: self)
+            #endif
+            return !RescoreBackgroundScheduler.isRescoreOwed
+        }
+    }
+
+    func cancelUserSync() {
+        syncCatchUp.cancel()
+        ble.abortBackfill()
     }
 
     private func refreshAfterCompletedBackfill() async {
@@ -657,9 +683,7 @@ final class AppModel: ObservableObject {
         // the #1538 report while never producing a score. Decide first whether this pass can finish here,
         // and hand it to a background-processing task when it cannot. A no-op on macOS, and on iOS a
         // foreground pass is never deferred.
-        await RescoreBackgroundScheduler.run(log: { [live] line in live.append(log: line) }) {
-            await intelligence.analyzeRecent(skipIfUnchanged: true)
-        }
+        await intelligence.analyzeRecent(skipIfUnchanged: true)
         await refreshV5Signals()
         #if os(iOS)
         // #980: a strap backfill routinely completes while the app is BACKGROUNDED (it runs as a

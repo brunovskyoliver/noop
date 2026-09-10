@@ -931,6 +931,29 @@ extension WhoopStore {
                 t.add(column: "baseCode", .integer)
             }
         }
+        // Small, rebuildable analysis checkpoints. Raw-data revisions commit in the same transaction
+        // as ingestion, including in-place corrections that COUNT/MAX fingerprints cannot detect.
+        migrator.registerMigration("v45-analysis-checkpoints") { db in
+            try db.execute(sql: "CREATE TABLE analysisRevision (deviceId TEXT NOT NULL, day INTEGER NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(deviceId, day))")
+            try db.execute(sql: "CREATE TABLE analysisCheckpoint (day TEXT PRIMARY KEY, deviceId TEXT NOT NULL, cacheKey TEXT NOT NULL, payload BLOB NOT NULL)")
+            let streams = ["hrSample", "ppgHrSample", "rrInterval", "respSample", "spo2Sample",
+                           "gravitySample", "stepSample", "skinTempSample", "sleepStateSample", "event", "v18AuxSample"]
+            for table in streams {
+                for (operation, refs) in [("INSERT", ["NEW"]), ("DELETE", ["OLD"]), ("UPDATE", ["OLD", "NEW"])] {
+                    let updates = refs.map { ref in
+                        "INSERT INTO analysisRevision(deviceId, day, revision) VALUES (\(ref).deviceId, \(ref).ts / 86400, 1) ON CONFLICT(deviceId, day) DO UPDATE SET revision = revision + 1;"
+                    }.joined(separator: "\n")
+                    try db.execute(sql: "CREATE TRIGGER analysis_\(table)_\(operation) AFTER \(operation) ON \(table) BEGIN \(updates) END")
+                }
+            }
+        }
+        migrator.registerMigration("v46-checkpoint-device-scope") { db in
+            // Accept databases opened by the first checkpoint development build as well.
+            if !(try db.columns(in: "analysisCheckpoint")).contains(where: { $0.name == "deviceId" }) {
+                try db.execute(sql: "DROP TABLE analysisCheckpoint")
+                try db.execute(sql: "CREATE TABLE analysisCheckpoint (day TEXT PRIMARY KEY, deviceId TEXT NOT NULL, cacheKey TEXT NOT NULL, payload BLOB NOT NULL)")
+            }
+        }
         return migrator
     }
 }

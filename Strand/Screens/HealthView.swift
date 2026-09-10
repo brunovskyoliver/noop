@@ -157,13 +157,15 @@ private struct SyncStatusSection: View {
                     NoopButton(live.backfilling ? "Syncing…" : "Sync now",
                                systemImage: "arrow.triangle.2.circlepath",
                                kind: .secondary, fullWidth: true) {
-                        model.ble.syncNow()
+                        model.startUserSync()
                     }
                     .disabled(!canSync)
                     .accessibilityLabel("Sync now")
                     .accessibilityHint(canSync
                         ? "Pulls your strap's stored history immediately, without waiting for the next automatic sync."
                         : (live.backfilling ? "A sync is already in progress." : "Connect your strap first."))
+
+                    CatchUpStatus(controller: model.syncCatchUp, cancel: model.cancelUserSync)
 
                     Text(helperText)
                         .font(StrandFont.footnote)
@@ -1569,3 +1571,32 @@ struct VitalityDemoScreen: View {
     }
 }
 #endif
+
+/// Observe the finite operation separately from the live heart-rate stream.
+private struct CatchUpStatus: View {
+    @ObservedObject var controller: SyncCatchUpTask
+    let cancel: () -> Void
+
+    var body: some View {
+        if let status = controller.status {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    if controller.isRunning {
+                        ProgressView().controlSize(.small)
+                            .tint(StrandPalette.chargeColor)
+                    }
+                    Text(status)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if controller.isRunning {
+                    Button("Pause catch-up", action: cancel)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.chargeColor)
+                        .accessibilityHint("Ends this catch-up operation and keeps history already saved.")
+                }
+            }
+        }
+    }
+}
