@@ -974,8 +974,14 @@ final class AppModel: ObservableObject {
         w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
                                               method: PuffinExperiment.effortMethod, sex: profile.sex) ?? 0
         activeWorkout = w
-        // Re-snapshot the durable session so a kill keeps the latest accumulated HR window (#529).
-        persistActiveWorkout()
+        // Re-snapshot the durable session so a kill keeps the accumulated HR window (#529) — on a
+        // cadence, not per sample. The snapshot JSON-encodes the WHOLE samples array each write, so
+        // per-sample persistence was O(session²) at the ~1 Hz tick (a 2 h workout re-encoded 7,200
+        // samples every second). 15 samples ≈ 15 s bounds the kill-loss window; start/pause/end
+        // still snapshot immediately via their own persist calls.
+        if w.samples.count.isMultiple(of: 15) {
+            persistActiveWorkout()
+        }
     }
 
     /// Drop the smoothing window and blank the hero number so a resume / re-attach shows ","

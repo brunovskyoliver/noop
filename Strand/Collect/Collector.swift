@@ -89,6 +89,11 @@ final class Collector {
     /// unsynchronized instead, since a stale read there costs one duplicate line.
     private var lastStdRrCensusSec: Int = 0
     private var lastRealtimeRrCensusSec: Int = 0
+    /// Last emit of the per-packet "host received" line. It fired once per 0x2A37 notification
+    /// (~1 Hz for the whole link) and every line ran LiveState's redaction pass plus a @Published
+    /// log write to every observer. Rate-limited to the ~30 s flush cadence: the forensic content
+    /// (transport alive + buffer depth + reject counts) is unchanged, just sampled per batch.
+    private var lastStdHostReceivedLogSec: Int = 0
 
     /// Consecutive live-persist failures per transport, and when each last reported.
     ///
@@ -294,11 +299,15 @@ final class Collector {
                 fromHR: hr, rr: [], contact: contact, at: ts
             ).events)
         }
-        log?(LivePersistTrace.standardHRHostReceivedLine(
-            hostUnixSeconds: ts,
-            acceptedHRRows: acceptedHR, acceptedRRRows: acceptedRR.count,
-            rejectedHRRows: 1 - acceptedHR, rejectedRRRows: rr.count - acceptedRR.count,
-            pendingHRRows: stdHR.count, pendingRRRows: stdRR.count))
+        let nowSec = now()
+        if nowSec - lastStdHostReceivedLogSec >= 30 {
+            lastStdHostReceivedLogSec = nowSec
+            log?(LivePersistTrace.standardHRHostReceivedLine(
+                hostUnixSeconds: ts,
+                acceptedHRRows: acceptedHR, acceptedRRRows: acceptedRR.count,
+                rejectedHRRows: 1 - acceptedHR, rejectedRRRows: rr.count - acceptedRR.count,
+                pendingHRRows: stdHR.count, pendingRRRows: stdRR.count))
+        }
         if stdHR.count + stdRR.count + stdContact.count >= 30 {
             Task { @MainActor in await self.flushStandardHR(reason: .cadence) }
         }

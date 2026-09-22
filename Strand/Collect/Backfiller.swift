@@ -358,7 +358,15 @@ final class Backfiller {
 
     /// Feed one raw BLE frame into the state machine. May trigger async store operations.
     func ingest(_ frame: [UInt8]) async {
-        switch classifyHistoricalMeta(parseFrame(frame, family: family)) {
+        // `classifyHistoricalMeta` returns non-.other ONLY for METADATA frames, so a full
+        // `parseFrame` (FieldBuilder + CRC verify) is wasted on the type-47 data records that make
+        // up ~all of an offload. `frameTypeName` is the documented hot-path pre-filter — same
+        // family-aware type-byte read — so only the rare metadata frames pay the decode. A
+        // malformed frame reads nil here exactly as parseFrame's INVALID read .other before.
+        let meta = frameTypeName(frame, family: family) == "METADATA"
+            ? classifyHistoricalMeta(parseFrame(frame, family: family))
+            : .other
+        switch meta {
         case .start:
             isBackfilling = true
             chunk.removeAll(keepingCapacity: true)

@@ -2554,15 +2554,37 @@ public final class BLEManager: NSObject, ObservableObject {
     /// airtime, so genuine offload frames can arrive in bursts with multi-second lulls between chunks
     /// — a short watchdog cut sessions short mid-drain. Longer = more records drained per session.
     static let backfillIdleTimeoutSeconds = 60
+    /// Arrival time of the most recent offload frame — the deadline is `+backfillIdleTimeoutSeconds`
+    /// from here. Stamped per frame by `armBackfillTimeout`; the single pending work item re-derives
+    /// the true idle time when it fires rather than being cancelled+reallocated per frame (frames
+    /// arrive at hundreds/second during a drain, and the old per-call DispatchWorkItem churn was
+    /// thousands of main-queue allocations per sync).
+    private var lastBackfillFrameAt = Date.distantPast
     private func armBackfillTimeout() {
-        backfillTimeout?.cancel()
+        lastBackfillFrameAt = Date()
+        guard backfillTimeout == nil else { return }
+        scheduleBackfillTimeout(in: TimeInterval(Self.backfillIdleTimeoutSeconds))
+    }
+
+    /// Schedule the one pending watchdog item. When it fires it compares the true idle time against
+    /// the deadline: a drain that kept feeding frames pushes the deadline out, so the item
+    /// reschedules itself for the remainder instead of firing a false timeout. Semantics are
+    /// identical to the old cancel-and-rearm — exit after 60 s of offload silence.
+    private func scheduleBackfillTimeout(in delay: TimeInterval) {
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.backfiller?.timeoutFired()
-            self.exitBackfilling(reason: "timeout")
+            self.backfillTimeout = nil
+            let remaining = Double(Self.backfillIdleTimeoutSeconds)
+                - Date().timeIntervalSince(self.lastBackfillFrameAt)
+            if remaining <= 0 {
+                self.backfiller?.timeoutFired()
+                self.exitBackfilling(reason: "timeout")
+            } else {
+                self.scheduleBackfillTimeout(in: remaining)
+            }
         }
         backfillTimeout = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(BLEManager.backfillIdleTimeoutSeconds), execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     /// Tear down the backfill session. Does NOT auto-start live HR: the periodic type-47 backfill
