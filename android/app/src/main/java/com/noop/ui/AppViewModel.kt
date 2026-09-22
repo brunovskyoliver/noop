@@ -48,6 +48,7 @@ import com.noop.notif.IllnessAlertNotifier
 import com.noop.notif.ScheduledReportNotifier
 import com.noop.notif.StrainTargetNotifier
 import com.noop.notif.ScheduledReportPolicy
+import com.noop.notif.WorkoutDetectedNotifier
 import com.noop.notif.scorePctOrNull
 import com.noop.protocol.CommandNumber
 import com.noop.widget.WidgetSnapshot
@@ -1233,6 +1234,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
                         effortMethod = NoopPrefs.effortMethod(appContext),
                         dayCycleMode = NoopPrefs.dayCycleMode(appContext),
+                        // 2026-09-21 auto-detection: workout classification runs UNGATED — the
+                        // heuristic is a pure function over the already-loaded day streams (no extra
+                        // reads, no BLE), and its suggestedClass label is persisted on the detected
+                        // row and surfaced in the Workouts list. The captured-IMU refinement stays
+                        // gated on the WORKOUTS trace domain: it decodes banked 100 Hz session files,
+                        // real I/O we only spend when the diagnostic is on.
+                        workoutClassifier = com.noop.analytics.HeuristicWorkoutClassifier(),
+                        imuActivityFeatures = run {
+                            if (!com.noop.testcentre.TestCentre.from(appContext)
+                                    .active(com.noop.testcentre.TestDomain.WORKOUTS)) {
+                                null
+                            } else {
+                                val nowSec = System.currentTimeMillis() / 1000L
+                                val prefetch = com.noop.testcentre.ImuSessionFileStore(appContext)
+                                    .rawSamples(nowSec - 22L * 86_400L, nowSec)
+                                if (prefetch.isEmpty()) null else ({ start: Long, end: Long ->
+                                    val samples = ArrayList<com.noop.protocol.RawImuSample>()
+                                    for (ts in start..end) prefetch[ts]?.let(samples::addAll)
+                                    if (samples.isEmpty()) null
+                                    else com.noop.analytics.ImuFeatureExtractor.extract(
+                                        samples, com.noop.testcentre.ImuSessionFileStore.SAMPLE_RATE)
+                                })
+                            }
+                        },
                     )
                     // analyzeRecent now hops to Dispatchers.Default; a scope cancellation surfaces as a
                     // CancellationException that runCatching would otherwise swallow, breaking the loop's
@@ -1252,6 +1277,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 // #1816: clear the motion sink after the pass completes (success or failure) so a stale
                 // callback is never left behind. The next pass sets its own before calling analyzeRecent.
                 IntelligenceEngine.stepsHasMotionSink = null
+                // 2026-09-21 detected-workout FYI: rides EVERY tick, not only ticks that scored — a
+                // bout's 600 s settle window can elapse during a quiet (fingerprint-skipped) tick, and
+                // the notification should still land ~10 min after the session ends. One prefs read
+                // when the toggle is off; two bounded workouts reads when on. Twin of the Swift hook
+                // at the end of the outer IntelligenceEngine.analyzeRecent.
+                runCatching {
+                    WorkoutDetectedNotifier.onAnalysisPass(
+                        appContext, repository, deviceId,
+                        trace = if (com.noop.testcentre.TestCentre.from(appContext)
+                                .active(com.noop.testcentre.TestDomain.WORKOUTS))
+                            { s -> ble.externalLog(s, com.noop.testcentre.TestDomain.WORKOUTS) }
+                        else null,
+                    )
+                }
                 // Opt-in writeback: push the freshly computed nights into Health Connect so other
                 // apps see them. Idempotent (clientRecordId per metric+day), so re-running every
                 // cycle just upserts. Never let an HC hiccup (perm revoked mid-flight, provider

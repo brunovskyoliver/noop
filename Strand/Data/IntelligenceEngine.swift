@@ -619,6 +619,11 @@ final class IntelligenceEngine: ObservableObject {
         }
         guard !Task.isCancelled else { return }
         await analyzeRecentPass(maxDays: maxDays, force: force, skipIfUnchanged: skipIfUnchanged)
+        // 2026-09-21: opt-in detected-workout notification. Runs on EVERY analyze invocation —
+        // including passes the fingerprint gate skipped — because a bout's 600 s settle window can
+        // elapse during quiet ticks with no new data. The notifier's own pref gate (default OFF)
+        // makes this one UserDefaults read when disabled; its settled-token set dedupes the rest.
+        await WorkoutDetectedNotifier.onAnalysisPass(repository: repo)
     }
 
     private func analyzeRecentPass(maxDays: Int, force: Bool, skipIfUnchanged: Bool,
@@ -887,6 +892,34 @@ final class IntelligenceEngine: ObservableObject {
         // into the config signature below rather than the per-day key.
         let effortMethodGlobal = PuffinExperiment.effortMethod
         let dayCycleMode = DayCycleMode.persisted(UserDefaults.standard.string(forKey: DayCycleMode.storageKey))
+
+        // 2026-09-21 auto-detection: workout classification now runs UNGATED — the heuristic is a
+        // pure function over the already-loaded day streams (no extra reads, no BLE), and its
+        // `suggestedClass` label is persisted on the detected row and surfaced in the Workouts list.
+        // The captured-IMU refinement stays gated on the Workouts & GPS test mode: it decodes
+        // banked 100 Hz session files, real I/O we only spend when the diagnostic is on.
+        // The IMU prefetch is ONE batched decode of previously captured session files, on this actor,
+        // BEFORE the detached loop — the pass itself does no file I/O and nothing here opens BLE.
+        let workoutsClassifyActive = TestCentre.active(.workouts)
+        let imuPrefetch: [Int: [RawImuSample]] = workoutsClassifyActive
+            ? ImuSessionFileStore.shared.rawSamples(
+                from: nowLocalMidnight - (maxDays - 1) * 86_400 - StreamReadCap.lookbackSeconds,
+                to: now)
+            : [:]
+        let imuActivityFeatures: (@Sendable (Int, Int) -> ImuActivityFeatures?)?
+        if imuPrefetch.isEmpty {
+            imuActivityFeatures = nil
+        } else {
+            imuActivityFeatures = { start, end in
+                var samples: [RawImuSample] = []
+                for ts in start...end {
+                    if let s = imuPrefetch[ts] { samples.append(contentsOf: s) }
+                }
+                return samples.isEmpty ? nil
+                    : ImuFeatureExtractor.extract(samples, sampleRateHz: ImuSessionFileStore.sampleRate)
+            }
+        }
+        let workoutClassifier: (any WorkoutTypeClassifying)? = HeuristicWorkoutClassifier()
 
         // Zero the per-day probe counters so the line emitted after the steps phase describes THIS pass
         // and never accumulates across the back-to-back passes an offload storm is made of. Must precede
@@ -1375,7 +1408,13 @@ final class IntelligenceEngine: ObservableObject {
                                                      // ring buffer isn't flooded; every night keeps the summary.
                                                      hrvWindowDetail: dayStart == nowLocalMidnight,
                                                      deepHrvWindow: deepHrvWindow,
-                                                     effortMethod: effortMethodGlobal)
+                                                     effortMethod: effortMethodGlobal,
+                                                     // 2026-09-21: advisory classification runs on every
+                                                     // pass (pure, over already-loaded streams); only the
+                                                     // captured-IMU features stay gated on the workouts
+                                                     // trace mode (real file I/O — see above).
+                                                     workoutClassifier: workoutClassifier,
+                                                     imuActivityFeatures: imuActivityFeatures)
                 dayScoreSeconds += Date().timeIntervalSince(tScore0)
                 // #195: whole-night HRV cleaning-pipeline summary for the always-on strap log, so a "reads ~2x
                 // too high" report is triageable without the HRV test mode: RMSSD vs SDNN (rmssd >> sdnn =
@@ -2149,6 +2188,16 @@ final class IntelligenceEngine: ObservableObject {
             for s in night.workouts {
                 let durMin = max(0, (s.end - s.start) / 60)
                 let avgBpm = Int(s.avgHR)
+                // 2026-09-21: the activity tier + advisory classification need their own trace facts —
+                // a walk persisted under "detected" reads exactly like a zone-2 bout in every other
+                // line. Emitted only under the .workouts domain (suggestedClass only exists then);
+                // `tier` names which qualification bar the bout cleared.
+                if workoutsTraceActive && (s.isActivityTier || s.suggestedClass != nil) {
+                    diagnosticSink?(WorkoutsTrace.detectedEnrichmentLine(
+                        tier: s.isActivityTier ? "activity" : "workout",
+                        suggestedClass: s.suggestedClass,
+                        confidence: s.suggestedClassConfidence), .workouts)
+                }
                 // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
                 // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
                 // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
@@ -2172,7 +2221,8 @@ final class IntelligenceEngine: ObservableObject {
                     // sport), so the upsert below updates the existing row in place rather than
                     // duplicating it.
                     let backfilled = WorkoutDetector.backfillWorkout(
-                        hit, avgBpm: avgBpm, peakHR: s.peakHR, caloriesKcal: s.caloriesKcal, strain: s.strain)
+                        hit, avgBpm: avgBpm, peakHR: s.peakHR, caloriesKcal: s.caloriesKcal, strain: s.strain,
+                        zonesJSON: WorkoutDetector.zonesJSON(from: s.zoneTimePct), steps: s.steps)
                     let didBackfill = backfilled != hit
                     if didBackfill {
                         // realWorkouts merges TWO device groups (see above): the strap's own `deviceId`
@@ -2194,7 +2244,14 @@ final class IntelligenceEngine: ObservableObject {
                                               durationS: s.durationS, energyKcal: s.caloriesKcal,
                                               avgHr: avgBpm, maxHr: s.peakHR,
                                               strain: s.strain, distanceM: nil,
-                                              zonesJSON: nil, notes: nil, steps: nil))
+                                              // 2026-09-21: the bout's own zone split + counted steps,
+                                              // so a detected row is self-contained like an import.
+                                              zonesJSON: WorkoutDetector.zonesJSON(from: s.zoneTimePct),
+                                              notes: nil, steps: s.steps,
+                                              // 2026-09-22: the classifier's advisory label rides the
+                                              // row so the Workouts list + notification can name it.
+                                              suggestedClass: s.suggestedClass,
+                                              suggestedClassConfidence: s.suggestedClassConfidence))
                 if workoutsTraceActive {
                     diagnosticSink?(WorkoutsTrace.detectedBoutLine(
                         verdict: "persisted", durMin: durMin, avgBpm: avgBpm), .workouts)
@@ -2987,7 +3044,8 @@ final class IntelligenceEngine: ObservableObject {
                 startTs: row.startTs, endTs: row.endTs, sport: row.sport, source: row.source,
                 durationS: row.durationS, energyKcal: energyKcal, avgHr: s.avgHr, maxHr: s.maxHr,
                 strain: s.strain, distanceM: row.distanceM, zonesJSON: row.zonesJSON, notes: row.notes,
-                steps: row.steps))
+                steps: row.steps, suggestedClass: row.suggestedClass,
+                suggestedClassConfidence: row.suggestedClassConfidence))
         }
         if !updated.isEmpty { _ = try? await store.upsertWorkouts(updated, deviceId: deviceId) }
     }

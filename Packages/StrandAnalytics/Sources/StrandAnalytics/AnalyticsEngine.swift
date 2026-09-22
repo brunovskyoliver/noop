@@ -476,7 +476,22 @@ public enum AnalyticsEngine {
                                   // %HRR with no floor. Threaded rather than read from a global so this
                                   // stays a pure function, and defaulted so every existing caller and
                                   // test is byte-identical.
-                                  effortMethod: StrainScorer.Method = .edwards) -> DayResult {
+                                  effortMethod: StrainScorer.Method = .edwards,
+                                  // 2026-09-21 auto-detection: ADVISORY coarse workout-type classifier
+                                  // run over each detected bout's own window (same already-loaded day
+                                  // streams — no extra reads). nil = zero work, byte-identical default;
+                                  // IntelligenceEngine passes the heuristic only when the workouts
+                                  // trace domain is on, so production pays nothing for an unvalidated
+                                  // signal. The prediction lands on `ExerciseSession.suggestedClass` —
+                                  // instrumentation for the validation path, never the persisted sport.
+                                  workoutClassifier: (any WorkoutTypeClassifying)? = nil,
+                                  // 2026-09-21 phase-4 stretch: per-bout high-rate IMU features from
+                                  // ALREADY-CAPTURED session files, looked up by the caller (app layer
+                                  // owns `ImuSessionFileStore`; this package stays database-free).
+                                  // `(startTs, endTs) -> ImuActivityFeatures?`, nil when nothing
+                                  // captured overlaps — the WHOOP 4.0 / no-capture path. Pure lookup;
+                                  // opens no BLE and decodes only files the caller already banked.
+                                  imuActivityFeatures: ((Int, Int) -> ImuActivityFeatures?)? = nil) -> DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). `dayString(ts, offsetSec:)` formats the UTC
         // calendar day of (ts + offset) with a FIXED offset, so "== day" is exactly membership in
@@ -872,7 +887,7 @@ public enum AnalyticsEngine {
         // to the night window for pure-function callers/tests. restingHR still comes from the night's
         // sleep sessions; nil → WorkoutDetector derives it from the day's own HR floor.
         var detectionFunnel: WorkoutDetector.DetectionFunnel? = nil
-        let workouts = WorkoutDetector.detect(
+        var workouts = WorkoutDetector.detect(
             hr: dayHr ?? hr, gravity: dayGravity ?? gravity,
             restingHR: restingHRDaily.map(Double.init),
             // #1545: the DAY's effective HRmax, not just the override. Passing `maxHROverride` meant an
@@ -896,6 +911,35 @@ public enum AnalyticsEngine {
             // less than the day it sits inside, which is a worse inconsistency than either method.
             effortMethod: effortMethod,
             funnel: { detectionFunnel = $0 })
+
+        // ── Per-bout enrichment + advisory classification (2026-09-21) ────────
+        // Both fills reuse ONLY the day streams this call already loaded — `daySteps`/`steps` for the
+        // wrap-aware tick window, `dayHr`/`hr` + `dayGravity`/`gravity` for the classifier's feature
+        // vector — plus, when the caller supplies it, a lookup over previously captured IMU files.
+        // Nothing here polls the strap, decodes anything new, or runs on a nil/absent input: a WHOOP
+        // 4.0 night is a strict no-op on both fills.
+        let boutSteps = daySteps ?? steps
+        let boutHR = dayHr ?? hr
+        let boutGravity = dayGravity ?? gravity
+        for i in workouts.indices {
+            let w = workouts[i]
+            let inBout = boutSteps.filter { $0.ts >= w.start && $0.ts <= w.end }
+            if let ticks = StepsCounter.stepsInWindow(inBout) {
+                let scaled = Int((Double(ticks) / max(profile.stepTicksPerStep, 0.5)).rounded())
+                workouts[i].steps = scaled > 0 ? scaled : nil
+            }
+            if let classifier = workoutClassifier,
+               let f = WorkoutTypeFeatureExtractor.extract(
+                   hr: boutHR, gravity: boutGravity, steps: boutSteps,
+                   start: w.start, end: w.end,
+                   restingHR: restingHRDaily.map(Double.init), maxHR: w.hrmax,
+                   caloriesKcal: w.caloriesKcal,
+                   imu: imuActivityFeatures?(w.start, w.end)) {
+                let p = classifier.classify(f)
+                workouts[i].suggestedClass = p.predictedClass == .other ? nil : p.predictedClass.rawValue
+                workouts[i].suggestedClassConfidence = p.confidence
+            }
+        }
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────
         // step_motion_counter@57 is a CUMULATIVE u16 running counter (it climbs while you move, holds

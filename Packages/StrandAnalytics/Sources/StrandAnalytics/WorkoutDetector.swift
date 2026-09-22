@@ -61,17 +61,64 @@ public struct ExerciseSession: Equatable, Sendable, Codable {
     /// the metric genuinely not rating the work, or the strap not having seen it. Those deserve opposite
     /// advice, and until now they were indistinguishable from the outside.
     public let hrCoveragePct: Double?
+    /// 2026-09-21 auto-detection: TRUE when this bout cleared the ACTIVITY tier (sustained window at
+    /// ≥ `activityHRRFraction` of heart-rate reserve) rather than the classic ≥50%-zone-2 bar. The tier
+    /// exists because the zone-2 bar silently drops the exact thing WHOOP itself files as "Activity" —
+    /// long walks / hikes / easy rides whose mean HR sits at ~30–50% HRR. An activity-tier session is
+    /// still a real sustained elevation verified by the motion gate; it is persisted under the same
+    /// `sport = "detected"` (rendered "Activity") so the two tiers stay distinguishable in diagnostics.
+    public var isActivityTier: Bool
+    /// 2026-09-21 enrichment: step ticks counted inside the bout by the shared wrap-aware counter and
+    /// scaled by the user's tick calibration — the same derivation the day total uses. nil when the
+    /// window had no @57 motion-counter coverage (WHOOP 4.0, strap off, or pre-#139 firmware).
+    public var steps: Int?
+    /// 2026-09-21 advisory classification: the heuristic `WorkoutTypeClassifier` winner's raw class
+    /// string ("walk"/"run"/"strength"/"cycle"/"ski"), or nil when classification wasn't run or the
+    /// prediction came back `.other`. NEVER written into a persisted workout's sport — it is
+    /// instrumentation for the trace/validation path until the classifier is proven on real labels.
+    public var suggestedClass: String?
+    /// 0...1 confidence that accompanies `suggestedClass`; nil alongside it.
+    public var suggestedClassConfidence: Double?
 
     public init(start: Int, end: Int, avgHR: Double, peakHR: Int, strain: Double?,
                 durationS: Double, zoneTimePct: [Int: Double], avgHRRPct: Double?,
                 hrmax: Double?, hrmaxSource: String,
                 caloriesKcal: Double?, caloriesKJ: Double?,
-                hrCoveragePct: Double? = nil) {
+                hrCoveragePct: Double? = nil,
+                isActivityTier: Bool = false, steps: Int? = nil,
+                suggestedClass: String? = nil, suggestedClassConfidence: Double? = nil) {
         self.start = start; self.end = end; self.avgHR = avgHR; self.peakHR = peakHR
         self.strain = strain; self.durationS = durationS; self.zoneTimePct = zoneTimePct
         self.avgHRRPct = avgHRRPct; self.hrmax = hrmax; self.hrmaxSource = hrmaxSource
         self.caloriesKcal = caloriesKcal; self.caloriesKJ = caloriesKJ
         self.hrCoveragePct = hrCoveragePct
+        self.isActivityTier = isActivityTier; self.steps = steps
+        self.suggestedClass = suggestedClass; self.suggestedClassConfidence = suggestedClassConfidence
+    }
+
+    /// Decode-tolerant for the fields added after this type started living inside the JSON-checkpointed
+    /// `DayScan` (`isActivityTier`, `steps`, `suggestedClass`, `suggestedClassConfidence`): a checkpoint
+    /// written by a build that predates them must still decode, or every cached day is force-rescanned
+    /// on upgrade — an unnecessary battery cost for fields that are pure enrichment.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        start = try c.decode(Int.self, forKey: .start)
+        end = try c.decode(Int.self, forKey: .end)
+        avgHR = try c.decode(Double.self, forKey: .avgHR)
+        peakHR = try c.decode(Int.self, forKey: .peakHR)
+        strain = try c.decodeIfPresent(Double.self, forKey: .strain)
+        durationS = try c.decode(Double.self, forKey: .durationS)
+        zoneTimePct = try c.decode([Int: Double].self, forKey: .zoneTimePct)
+        avgHRRPct = try c.decodeIfPresent(Double.self, forKey: .avgHRRPct)
+        hrmax = try c.decodeIfPresent(Double.self, forKey: .hrmax)
+        hrmaxSource = try c.decode(String.self, forKey: .hrmaxSource)
+        caloriesKcal = try c.decodeIfPresent(Double.self, forKey: .caloriesKcal)
+        caloriesKJ = try c.decodeIfPresent(Double.self, forKey: .caloriesKJ)
+        hrCoveragePct = try c.decodeIfPresent(Double.self, forKey: .hrCoveragePct)
+        isActivityTier = try c.decodeIfPresent(Bool.self, forKey: .isActivityTier) ?? false
+        steps = try c.decodeIfPresent(Int.self, forKey: .steps)
+        suggestedClass = try c.decodeIfPresent(String.self, forKey: .suggestedClass)
+        suggestedClassConfidence = try c.decodeIfPresent(Double.self, forKey: .suggestedClassConfidence)
     }
 }
 
@@ -97,6 +144,31 @@ public enum WorkoutDetector {
     /// most of which then fell under `minExerciseMin` and vanished. A genuine rest
     /// between two separate workouts is gated out by the HR check, not by this window.
     public static let bridgeGapS: Double = 300.0
+
+    // MARK: - 2026-09-21 activity tier (auto-detection plan)
+    //
+    // The classic qualification bar — ≥ `minIntensityZ2Plus` of HR samples in zone 2+ — drops exactly
+    // the bouts WHOOP itself files as "Activity": sustained walks, hikes and easy rides whose mean HR
+    // sits around rest + 30–50% HRR. On a user whose resting HR is ~45–50 with a realistic HRmax the
+    // zone-2 floor lands ~130 bpm, so days with 20–40k steps and hours of walking produced ZERO kept
+    // sessions. The activity tier re-qualifies those runs against a HEART-RATE-RESERVE floor instead
+    // of a fixed bpm margin — a fixed `rest + N` massively over-fires on low-resting-HR users (rest+30
+    // puts the floor in the 70s, where the whole day qualifies).
+    //
+    // A run qualifies for the activity tier when ALL of:
+    //   - duration ≥ `activityMinMin` (longer than the classic bar — sustained ambulation, not stairs)
+    //   - ≥ `activityElevatedFrac` of its in-run HR samples read above
+    //     rest + `activityHRRFraction` × (HRmax − rest)
+    // The motion gate is unchanged — every run already passed it to get here.
+    /// Fraction of heart-rate reserve the activity tier's sustained-HR floor sits at (~40% HRR,
+    /// matching where WHOOP's own auto-detected "Activity" rows land on real data).
+    public static let activityHRRFraction: Double = 0.40
+    /// Minimum run length for the activity tier, minutes. Deliberately longer than `minExerciseMin`:
+    /// the tier exists to catch sustained low-intensity sessions, not brief staircases.
+    public static let activityMinMin: Double = 10.0
+    /// Fraction of the run's HR samples that must read above the activity floor (half — the same
+    /// "majority of the window" shape `minIntensityZ2Plus` uses for zone time).
+    public static let activityElevatedFrac: Double = 0.50
 
     // MARK: - Activity series (activity.py)
 
@@ -194,8 +266,37 @@ public enum WorkoutDetector {
         public var droppedNoHR = 0
         public var droppedLowIntensity = 0
         public var kept = 0
+        /// 2026-09-21 auto-detection: of `kept`, how many sessions survived via the ACTIVITY tier
+        /// (sustained ≥ `activityHRRFraction` HRR elevation) instead of the ≥50%-zone-2 bar. Zero on
+        /// any day whose kept bouts all cleared the classic gate — the field exists so a log can tell
+        /// "the detector is dead" from "the detector found walks, which used to be dropped".
+        public var keptActivity = 0
 
         public init() {}
+
+        /// Decode-tolerant like `ExerciseSession.init(from:)`: `DetectionFunnel` rides inside the same
+        /// JSON-checkpointed `DayResult`, so a pre-`keptActivity` checkpoint must still decode rather
+        /// than force a full re-scan.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            hrSamples = try c.decodeIfPresent(Int.self, forKey: .hrSamples) ?? 0
+            motionSamples = try c.decodeIfPresent(Int.self, forKey: .motionSamples) ?? 0
+            restingHR = try c.decodeIfPresent(Double.self, forKey: .restingHR)
+            hrFloor = try c.decodeIfPresent(Double.self, forKey: .hrFloor)
+            motionPassed = try c.decodeIfPresent(Int.self, forKey: .motionPassed) ?? 0
+            hrMissing = try c.decodeIfPresent(Int.self, forKey: .hrMissing) ?? 0
+            hrTooLow = try c.decodeIfPresent(Int.self, forKey: .hrTooLow) ?? 0
+            active = try c.decodeIfPresent(Int.self, forKey: .active) ?? 0
+            runs = try c.decodeIfPresent(Int.self, forKey: .runs) ?? 0
+            bridged = try c.decodeIfPresent(Int.self, forKey: .bridged) ?? 0
+            longestRunS = try c.decodeIfPresent(Int.self, forKey: .longestRunS) ?? 0
+            meanRunS = try c.decodeIfPresent(Int.self, forKey: .meanRunS) ?? 0
+            droppedShort = try c.decodeIfPresent(Int.self, forKey: .droppedShort) ?? 0
+            droppedNoHR = try c.decodeIfPresent(Int.self, forKey: .droppedNoHR) ?? 0
+            droppedLowIntensity = try c.decodeIfPresent(Int.self, forKey: .droppedLowIntensity) ?? 0
+            kept = try c.decodeIfPresent(Int.self, forKey: .kept) ?? 0
+            keptActivity = try c.decodeIfPresent(Int.self, forKey: .keptActivity) ?? 0
+        }
     }
 
     /// #1545: the always-on per-day line naming where the detector lost every candidate workout.
@@ -209,7 +310,7 @@ public enum WorkoutDetector {
             + "active=\(f.active) runs=\(f.runs) bridged=\(f.bridged) "
             + "longestRunS=\(f.longestRunS) meanRunS=\(f.meanRunS) "
             + "short=\(f.droppedShort) noHR=\(f.droppedNoHR) lowIntensity=\(f.droppedLowIntensity) "
-            + "kept=\(f.kept)"
+            + "kept=\(f.kept) activity=\(f.keptActivity)"
     }
 
     /// #1545: how much of `[start, end]` the HR sensor actually covered, as a percentage of
@@ -514,9 +615,24 @@ public enum WorkoutDetector {
             }
 
             // Intensity qualification: require ≥ MIN_INTENSITY_Z2PLUS in zone 2+.
+            // 2026-09-21 activity tier: a run that fails the zone-2 bar is NOT dropped outright — it is
+            // re-qualified against the sustained-activity floor (rest + `activityHRRFraction` × HRR,
+            // held for ≥ `activityElevatedFrac` of the run over ≥ `activityMinMin`). That tier is where
+            // WHOOP's own auto-detected "Activity" rows live; a fixed bpm margin cannot express it
+            // because the right floor scales with the user's reserve, not their resting HR alone.
+            // Failing BOTH bars drops the run under `droppedLowIntensity`, unchanged.
+            var isActivityTier = false
             if !zonePct.isEmpty {
                 let z2plus = (2...5).reduce(0.0) { $0 + (zonePct[$1] ?? 0.0) } / 100.0
-                if z2plus < minIntensityZ2Plus { f.droppedLowIntensity += 1; continue }
+                if z2plus < minIntensityZ2Plus {
+                    if let m = effMaxHR, m > restHR,
+                       Double(end - start) >= activityMinMin * 60.0 - motionSmoothS {
+                        let activityFloor = restHR + activityHRRFraction * (m - restHR)
+                        let elevated = core.reduce(0) { $0 + ($1.bpm > activityFloor ? 1 : 0) }
+                        isActivityTier = Double(elevated) / Double(core.count) >= activityElevatedFrac
+                    }
+                    if !isActivityTier { f.droppedLowIntensity += 1; continue }
+                }
             }
 
             // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
@@ -548,18 +664,23 @@ public enum WorkoutDetector {
                 durationS: Double(end - effStart), zoneTimePct: zonePct, avgHRRPct: avgHRR,
                 hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
                 hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
-                                             start: effStart, end: end)))
+                                             start: effStart, end: end),
+                isActivityTier: isActivityTier))
         }
         f.kept = sessions.count
+        f.keptActivity = sessions.reduce(0) { $0 + ($1.isActivityTier ? 1 : 0) }
         return sessions
     }
 
-    /// #510: backfill ONLY the avgHr/maxHr/energyKcal/strain fields `real` doesn't already have, from a
-    /// detected bout's own computed values — never touching a field that's already present, whether
-    /// typed by the user, imported, or filled by an earlier pass. `real` unchanged (`==`) means no
-    /// available value was filled, so the caller can tell whether a write is actually needed. Kotlin twin
+    /// #510: backfill ONLY the fields `real` doesn't already have, from a detected bout's own computed
+    /// values — never touching a field that's already present, whether typed by the user, imported, or
+    /// filled by an earlier pass. `real` unchanged (`==`) means no available value was filled, so the
+    /// caller can tell whether a write is actually needed. Kotlin twin
     /// IntelligenceEngine.backfillWorkoutFromDetectedBout.
-    public static func backfillWorkout(_ real: WorkoutRow, avgBpm: Int, peakHR: Int, caloriesKcal: Double?, strain: Double?) -> WorkoutRow {
+    /// 2026-09-21: `zonesJSON`/`steps` join the same fill-only-when-absent rule so a detected bout can
+    /// complete a manual row's missing zone split and step count without ever overwriting either.
+    public static func backfillWorkout(_ real: WorkoutRow, avgBpm: Int, peakHR: Int, caloriesKcal: Double?, strain: Double?,
+                                       zonesJSON: String? = nil, steps: Int? = nil) -> WorkoutRow {
         WorkoutRow(
             startTs: real.startTs, endTs: real.endTs, sport: real.sport, source: real.source,
             durationS: real.durationS,
@@ -567,8 +688,28 @@ public enum WorkoutDetector {
             avgHr: real.avgHr ?? avgBpm,
             maxHr: real.maxHr ?? peakHR,
             strain: real.strain ?? strain,
-            distanceM: real.distanceM, zonesJSON: real.zonesJSON, notes: real.notes,
-            steps: real.steps)
+            distanceM: real.distanceM, zonesJSON: real.zonesJSON ?? zonesJSON, notes: real.notes,
+            steps: real.steps ?? steps,
+            // The suggestion is a property of "detected" rows; the real row being backfilled is
+            // authoritative, so its (always-nil) value carries and a detected bout can't inject one.
+            suggestedClass: real.suggestedClass, suggestedClassConfidence: real.suggestedClassConfidence)
+    }
+
+    /// 2026-09-21: deterministic `{"z1":…,"z5":…}` serialization of a bout's `zoneTimePct` map for
+    /// `WorkoutRow.zonesJSON` — the same object shape the WHOOP CSV importer writes, so a detected row
+    /// renders zones exactly like an imported one. Keys are emitted in fixed z1…z5 order; zone 0
+    /// (below-zone-1 time) is dropped, matching the import contract that exports only z1…z5. Returns
+    /// nil when no zone-1+ content exists so the row keeps `zonesJSON = nil`, the same behavior an
+    /// import with no zone columns has.
+    public static func zonesJSON(from zoneTimePct: [Int: Double]) -> String? {
+        var parts: [String] = []
+        var any = false
+        for z in 1...5 {
+            let v = zoneTimePct[z] ?? 0
+            if v > 0 { any = true }
+            parts.append("\"z\(z)\":\(v)")
+        }
+        return any ? "{" + parts.joined(separator: ",") + "}" : nil
     }
 }
 

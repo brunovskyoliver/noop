@@ -2738,4 +2738,10 @@
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">Ver a tendência da Carga</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">A pontuação de cada dia, ao longo do tempo.</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Um treinador que mantem o fio, a sua frequencia cardiaca no ecra principal e graficos que afirmam menos</string>
+    <string name="workout_detected_channel_name">Treinos detetados</string>
+    <string name="workout_detected_channel_desc">Um aviso quando o NOOP guarda automaticamente um treino que detetou nos dados da sua banda.</string>
+    <string name="workout_detected_action_edit">Editar</string>
+    <string name="workout_detected_action_dismiss">Não é um treino</string>
+    <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Notificações de treinos detetados</string>
+    <string name="workouts_suggested">sugerido</string>
 </resources>

@@ -71,7 +71,7 @@ struct WorkoutDetailView: View {
     @State private var steps: StepReadout?
 
     var body: some View {
-        ScreenScaffold(title: "\(WorkoutSource.displaySport(row.sport))",
+        ScreenScaffold(title: "\(WorkoutSource.displaySport(row))",
                        subtitle: "\(dateLabel(row.startTs))",
                        // PERF: chart/map-heavy column (a MapKit route map, the session HR curve, the
                        // zone-split chart and the effort card). The LazyVStack path builds the off-screen
@@ -224,10 +224,18 @@ struct WorkoutDetailView: View {
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(WorkoutSource.displaySport(row.sport))
-                        .font(StrandFont.title2)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        Text(WorkoutSource.displaySport(row))
+                            .font(StrandFont.title2)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .lineLimit(1)
+                        if WorkoutSource.hasSuggestion(row) {
+                            // Advisory label, not a user pick — kept visually distinct.
+                            Text(String(localized: "suggested"))
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
                     Text("\(dateLabel(row.startTs)) · \(timeRangeLabel(row.startTs, row.endTs))")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
@@ -742,7 +750,8 @@ struct WorkoutRouteMap: View {
             endTs: Int(Date().timeIntervalSince1970),
             sport: "Running", source: "whoop", durationS: 3600, energyKcal: 712,
             avgHr: 152, maxHr: 178, strain: 14.2, distanceM: 10_400,
-            zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil, steps: nil))
+            zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil))
             .environmentObject(Repository(deviceId: "preview"))
     }
     .frame(width: 1040, height: 940)

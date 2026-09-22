@@ -209,10 +209,11 @@ struct RootTabView: View {
                 // so a deep-link lands on the Today tab where that entry lives.
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
                 router.requestedDestination = nil
-            case .coach:
-                // #1862: the Today Coach launcher hands its question here. Coach is a pillar sheet on
-                // iPhone, the same as the Insights hub, so route it that way rather than switching tabs.
-                routedPillar = dest
+            case .workouts:
+                // 2026-09-21: the detected-workout notification's tap/Edit presents Workouts through the
+                // quick-action sheet (same surface as the "+" → Start-workout action); WorkoutsView
+                // consumes `router.pendingWorkout` to focus the notified bout.
+                withAnimation(Self.sheetEase) { quickAction = .workout }
                 router.requestedDestination = nil
             case .journal:
                 // The #627 Today journal widget opens the journal through the quick-action Journal sheet
@@ -290,9 +291,9 @@ struct RootTabView: View {
                 // .journal opens through the quick-action Journal sheet (handled above); this keeps the
                 // switch exhaustive and falls back to the journal's Insights host if it ever reaches here.
                 case .journal: InsightsView()
-                // #1862: Coach IS presented here — the launcher sheet routes to it as a pillar, so unlike
-                // the fallbacks above this arm is the real destination, not a safety net.
-                case .coach: CoachView()
+                // .workouts presents through the quick-action sheet (handled above); this keeps the
+                // switch exhaustive and falls back to the Workouts screen if it ever reaches the host.
+                case .workouts: WorkoutsView()
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a

@@ -56,6 +56,31 @@ object WorkoutDetector {
      */
     const val bridgeGapS: Double = 300.0
 
+    // ---- 2026-09-21 activity tier (auto-detection plan) ----
+    //
+    // The classic qualification bar — ≥ [minIntensityZ2Plus] of HR samples in zone 2+ — drops exactly
+    // the bouts WHOOP itself files as "Activity": sustained walks, hikes and easy rides whose mean HR
+    // sits around rest + 30–50% HRR. On a user whose resting HR is ~45–50 with a realistic HRmax the
+    // zone-2 floor lands ~130 bpm, so days with 20–40k steps and hours of walking produced ZERO kept
+    // sessions. The activity tier re-qualifies those runs against a HEART-RATE-RESERVE floor instead
+    // of a fixed bpm margin — a fixed `rest + N` massively over-fires on low-resting-HR users (rest+30
+    // puts the floor in the 70s, where the whole day qualifies).
+    //
+    // A run qualifies for the activity tier when ALL of:
+    //   - duration ≥ [activityMinMin] (longer than the classic bar — sustained ambulation, not stairs)
+    //   - ≥ [activityElevatedFrac] of its in-run HR samples read above
+    //     rest + [activityHRRFraction] × (HRmax − rest)
+    // The motion gate is unchanged — every run already passed it to get here.
+    /** Fraction of heart-rate reserve the activity tier's sustained-HR floor sits at (~40% HRR,
+     *  matching where WHOOP's own auto-detected "Activity" rows land on real data). */
+    const val activityHRRFraction: Double = 0.40
+    /** Minimum run length for the activity tier, minutes. Deliberately longer than [minExerciseMin]:
+     *  the tier exists to catch sustained low-intensity sessions, not brief staircases. */
+    const val activityMinMin: Double = 10.0
+    /** Fraction of the run's HR samples that must read above the activity floor (half — the same
+     *  "majority of the window" shape [minIntensityZ2Plus] uses for zone time). */
+    const val activityElevatedFrac: Double = 0.50
+
     // ---- Activity series (activity.py) ----
 
     /**
@@ -163,6 +188,13 @@ object WorkoutDetector {
         var droppedNoHR: Int = 0,
         var droppedLowIntensity: Int = 0,
         var kept: Int = 0,
+        /**
+         * 2026-09-21 auto-detection: of [kept], how many sessions survived via the ACTIVITY tier
+         * (sustained ≥ [activityHRRFraction] HRR elevation) instead of the ≥50%-zone-2 bar. Zero on
+         * any day whose kept bouts all cleared the classic gate — the field exists so a log can tell
+         * "the detector is dead" from "the detector found walks, which used to be dropped".
+         */
+        var keptActivity: Int = 0,
     )
 
     /**
@@ -178,7 +210,7 @@ object WorkoutDetector {
             "active=${f.active} runs=${f.runs} bridged=${f.bridged} " +
             "longestRunS=${f.longestRunS} meanRunS=${f.meanRunS} " +
             "short=${f.droppedShort} noHR=${f.droppedNoHR} lowIntensity=${f.droppedLowIntensity} " +
-            "kept=${f.kept}"
+            "kept=${f.kept} activity=${f.keptActivity}"
 
     /**
      * #1545: how much of [start]..[end] the HR sensor actually covered, as a percentage of
@@ -525,9 +557,24 @@ object WorkoutDetector {
                 }
 
                 // Intensity qualification: require ≥ MIN_INTENSITY_Z2PLUS in zone 2+.
+                // 2026-09-21 activity tier: a run that fails the zone-2 bar is NOT dropped outright —
+                // it is re-qualified against the sustained-activity floor (rest + activityHRRFraction
+                // × HRR, held for ≥ activityElevatedFrac of the run over ≥ activityMinMin). That tier
+                // is where WHOOP's own auto-detected "Activity" rows live; a fixed bpm margin cannot
+                // express it because the right floor scales with the user's reserve, not their resting
+                // HR alone. Failing BOTH bars drops the run under droppedLowIntensity, unchanged.
+                var isActivityTier = false
                 if (zonePct.isNotEmpty()) {
                     val z2plus = (2..5).sumOf { zonePct[it] ?: 0.0 } / 100.0
-                    if (z2plus < minIntensityZ2Plus) { f.droppedLowIntensity++; continue }
+                    if (z2plus < minIntensityZ2Plus) {
+                        if (m != null && m > restHR &&
+                            (end - start).toDouble() >= activityMinMin * 60.0 - motionSmoothS) {
+                            val activityFloor = restHR + activityHRRFraction * (m - restHR)
+                            val elevated = core.count { it.bpm.toDouble() > activityFloor }
+                            isActivityTier = elevated.toDouble() / core.size.toDouble() >= activityElevatedFrac
+                        }
+                        if (!isActivityTier) { f.droppedLowIntensity++; continue }
+                    }
                 }
 
                 // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
@@ -567,14 +614,35 @@ object WorkoutDetector {
                         caloriesKcal = kcal,
                         caloriesKJ = kj,
                         hrCoveragePct = hrCoveragePct(window.map { it.ts }, effStart, end),
+                        isActivityTier = isActivityTier,
                     )
                 )
             }
             f.kept = sessions.size
+            f.keptActivity = sessions.count { it.isActivityTier }
             return sessions
         } finally {
             funnel?.invoke(f)
         }
+    }
+
+    /**
+     * 2026-09-21: deterministic `{"z1":…,"z5":…}` serialization of a bout's [zoneTimePct] map for
+     * `WorkoutRow.zonesJSON` — the same object shape the WHOOP CSV importer writes, so a detected row
+     * renders zones exactly like an imported one. Keys are emitted in fixed z1…z5 order; zone 0
+     * (below-zone-1 time) is dropped, matching the import contract that exports only z1…z5. Returns
+     * null when no zone-1+ content exists so the row keeps `zonesJSON = null`, the same behavior an
+     * import with no zone columns has. Byte-parity twin of Swift `WorkoutDetector.zonesJSON(from:)`.
+     */
+    fun zonesJSON(zoneTimePct: Map<Int, Double>): String? {
+        val parts = ArrayList<String>(5)
+        var any = false
+        for (z in 1..5) {
+            val v = zoneTimePct[z] ?: 0.0
+            if (v > 0) any = true
+            parts.add("\"z$z\":$v")
+        }
+        return if (any) "{" + parts.joinToString(",") + "}" else null
     }
 }
 

@@ -516,6 +516,19 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
     // tapped to fix it because it is the thing that is hidden. Reset on every route change so a screen
     // always opens with its navigation present; scrolling down again hides it as before.
     LaunchedEffect(currentRoute) { scrollingDown = false }
+
+    // 2026-09-21: a detected-workout notification (tap or Edit) posted its span to the route bus —
+    // land on Workouts. The span itself stays on the bus; WorkoutsScreen resolves + clears it, so a
+    // cold launch still works when the screen composes after this navigation.
+    LaunchedEffect(Unit) {
+        NoopRouteBus.workoutDetected.collect { route ->
+            // nav.currentDestination (not the composed `currentRoute` val) — this lambda outlives
+            // the frame it was captured in, so it must read the live back stack.
+            if (route != null && nav.currentDestination?.route != Destination.Workouts.route) {
+                nav.navigateTopLevel(Destination.Workouts.route)
+            }
+        }
+    }
     val autoHideScroll = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {

@@ -2629,4 +2629,10 @@
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">Посмотреть динамику Заряда</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Оценка за каждый день во времени.</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Тренер, который не теряет нить, ваш пульс на главном экране и графики, которые меньше домысливают</string>
+    <string name="workout_detected_channel_name">Распознанные тренировки</string>
+    <string name="workout_detected_channel_desc">Уведомление, когда NOOP автоматически сохраняет тренировку, распознанную по данным браслета.</string>
+    <string name="workout_detected_action_edit">Изменить</string>
+    <string name="workout_detected_action_dismiss">Не тренировка</string>
+    <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Уведомления о распознанных тренировках</string>
+    <string name="workouts_suggested">предложено</string>
 </resources>

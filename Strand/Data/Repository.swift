@@ -2797,7 +2797,9 @@ final class Repository: ObservableObject {
             return WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: row.sport,
                               source: row.source, durationS: row.durationS, energyKcal: row.energyKcal,
                               avgHr: r.avg, maxHr: newMax, strain: newStrain, distanceM: row.distanceM,
-                              zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps)
+                              zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps,
+                              suggestedClass: row.suggestedClass,
+                              suggestedClassConfidence: row.suggestedClassConfidence)
         }
     }
 
@@ -2881,7 +2883,10 @@ final class Repository: ObservableObject {
                                 durationS: row.durationS, energyKcal: row.energyKcal,
                                 avgHr: row.avgHr, maxHr: row.maxHr, strain: row.strain,
                                 distanceM: row.distanceM, zonesJSON: row.zonesJSON, notes: row.notes,
-                                steps: row.steps)
+                                steps: row.steps,
+                                // A relabeled row is authoritative now — the classifier's suggestion
+                                // was a property of the "detected" row, not of the user's label.
+                                suggestedClass: nil, suggestedClassConfidence: nil)
         _ = try? await store.upsertWorkouts([manual], deviceId: deviceId)
         _ = try? await store.deleteWorkouts(deviceId: computedDeviceId, sport: "detected",
                                             from: row.startTs, to: row.startTs)
@@ -2898,6 +2903,28 @@ final class Repository: ObservableObject {
         guard let store = await ensureStore() else { return }
         _ = try? await store.deleteWorkouts(deviceId: computedDeviceId, sport: row.sport,
                                             from: row.startTs, to: row.startTs)
+    }
+
+    /// Span-addressed variant for the detected-workout notification's "Not a workout" action, which
+    /// carries only the notified (startTs, endTs) — not a row handle. The marker is written on the
+    /// NOTIFIED span so drifted re-derives still overlap it and stay hidden (isDismissed matches by
+    /// overlap, not the exact token), and every detected row currently overlapping the span is deleted
+    /// — normally exactly one; a re-detect between notify and tap may have drifted its startTs.
+    /// (2026-09-21; Kotlin twin `WhoopRepository.dismissDetectedSpan`.)
+    func dismissDetectedWorkout(startTs: Int, endTs: Int) async {
+        guard endTs > startTs else { return }
+        var spans = dismissedDetectedSpans
+        let token = "\(startTs):\(endTs)"
+        if !spans.contains(token) { spans.append(token); dismissedDetectedSpans = spans }
+        guard let store = await ensureStore() else { return }
+        let rows = ((try? await store.workouts(deviceId: computedDeviceId,
+                                               from: startTs - 86_400, to: endTs + 86_400,
+                                               limit: 500)) ?? [])
+            .filter { $0.sport == "detected" && $0.startTs < endTs && startTs < $0.endTs }
+        for row in rows {
+            _ = try? await store.deleteWorkouts(deviceId: computedDeviceId, sport: row.sport,
+                                                from: row.startTs, to: row.startTs)
+        }
     }
 
     /// Delete ONE workout by natural key. The read model has no deviceId, so reconstruct it from the
@@ -3046,6 +3073,15 @@ final class Repository: ObservableObject {
         let saved = await workoutRows()
         let savedSpans = saved.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
 
+        // 2026-09-21: motion + HRmax now reach the detector. Motion is the stored gravity stream (one
+        // batched read over the same window the HR read already pays for , no new strap traffic), so the
+        // suggestion can require real movement instead of trusting an elevated-HR-only window. maxHR is
+        // the injected strain profile's effective HRmax (user override else Tanaka); when no profile was
+        // injected the detector falls back to its legacy fixed floor, byte-identical to before.
+        let gravity = await gravitySamplesUnion(from: from, to: now)
+        let motion = AutoWorkoutDetector.motionPoints(gravity)
+        let maxHR = strainProfile.map { Int($0.hrMax.rounded()) }.flatMap { $0 > 0 ? $0 : nil }
+
         // Workouts & GPS test mode: when on, run the diagnostic twin which returns the SAME candidates
         // detect(...) does (it reuses detect verbatim) plus the inputs / thresholds / per-window why trace,
         // tagged `.workouts`. Zero-cost when off: the gate is one UserDefaults bool read inside emitWorkouts,
@@ -3053,12 +3089,14 @@ final class Repository: ObservableObject {
         let candidates: [DetectedWorkout]
         if TestCentre.active(.workouts), workoutsLog != nil {
             let (results, trace) = AutoWorkoutDetector.detectTrace(
-                hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: savedSpans, path: "autoDetect")
+                hr: hr, restingBpm: restingBpm, motion: motion, savedSpans: savedSpans,
+                maxHR: maxHR, path: "autoDetect")
             for line in trace { emitWorkouts(line) }
             candidates = results
         } else {
             candidates = AutoWorkoutDetector.detect(hr: hr, restingBpm: restingBpm,
-                                                    motion: nil, savedSpans: savedSpans)
+                                                    motion: motion, savedSpans: savedSpans,
+                                                    maxHR: maxHR)
         }
         // Drop anything the user already dismissed, then take the most recent.
         let dismissed = Set(autoDetectDismissedSpans)

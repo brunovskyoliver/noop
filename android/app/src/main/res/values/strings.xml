@@ -2775,4 +2775,11 @@
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">See the Charge trend</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Every day\'s score, over time.</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">A coach that keeps the thread, your heart rate on the home screen, and charts that claim less</string>
+    <!-- 2026-09-21 detected-workout notification (WorkoutDetectedNotifier): channel + actions. -->
+    <string name="workout_detected_channel_name">Detected workouts</string>
+    <string name="workout_detected_channel_desc">A heads-up when NOOP auto-saves a workout it detected from your strap data.</string>
+    <string name="workout_detected_action_edit">Edit</string>
+    <string name="workout_detected_action_dismiss">Not a workout</string>
+    <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Detected-workout notifications</string>
+    <string name="workouts_suggested">suggested</string>
 </resources>

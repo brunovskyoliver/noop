@@ -66,12 +66,28 @@ struct StrandiOSApp: App {
         // is open, so a user testing the wind-down reminder with NOOP foregrounded sees nothing. Register
         // before the first scene so any early-fired notification is presented.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        // Detected-workout category (Edit / "Not a workout" actions). Merged into whatever is already
+        // registered rather than set outright, so a future category can't be silently dropped here.
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationCategories { existing in
+            center.setNotificationCategories(existing.union([WorkoutDetectedNotifier.category]))
+        }
         // K5: tapping a scheduled morning-brief notification routes to Coach via the shared NavRouter.
         let router = NavRouter()
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        // 2026-09-21: the detected-workout notification's tap/Edit routes to Workouts with the bout's
+        // span; "Not a workout" dismisses durably without navigating (the Workouts row-menu path).
+        NotificationPresenter.shared.onWorkoutDetectedReview = { [weak router] start, end, edit in
+            router?.openWorkouts(edit ? .edit(startTs: start, endTs: end)
+                                     : .detail(startTs: start, endTs: end))
+        }
+        let repo = model.repo
+        NotificationPresenter.shared.onWorkoutDetectedDismiss = { start, end in
+            Task { await repo.dismissDetectedWorkout(startTs: start, endTs: end) }
+        }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being

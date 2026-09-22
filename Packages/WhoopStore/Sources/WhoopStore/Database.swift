@@ -954,6 +954,14 @@ extension WhoopStore {
                 try db.execute(sql: "CREATE TABLE analysisCheckpoint (day TEXT PRIMARY KEY, deviceId TEXT NOT NULL, cacheKey TEXT NOT NULL, payload BLOB NOT NULL)")
             }
         }
+
+        // 2026-09-22: the on-device workout classifier's advisory label + confidence, persisted on
+        // sport="detected" rows (nil for every imported/manual row). Additive, nullable, not part of
+        // the PK; a re-analysis pass refreshes both in place via the upsert's ON CONFLICT.
+        migrator.registerMigration("v47-workout-suggested-class") { db in
+            try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClass TEXT")
+            try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClassConfidence REAL")
+        }
         return migrator
     }
 }

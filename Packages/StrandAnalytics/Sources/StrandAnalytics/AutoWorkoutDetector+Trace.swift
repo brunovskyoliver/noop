@@ -32,24 +32,35 @@ extension AutoWorkoutDetector {
                                    restingBpm: Int?,
                                    motion: [MotionPoint]? = nil,
                                    savedSpans: [SavedWorkoutSpan] = [],
+                                   maxHR: Int? = nil,
                                    path: String = "autoDetect")
         -> (results: [DetectedWorkout], trace: [String]) {
 
         // The result the Today card reads, verbatim, so the trace cannot diverge from it.
-        let results = detect(hr: hr, restingBpm: restingBpm, motion: motion, savedSpans: savedSpans)
+        let results = detect(hr: hr, restingBpm: restingBpm, motion: motion,
+                             savedSpans: savedSpans, maxHR: maxHR)
 
         var lines: [String] = []
-        let floor = (restingBpm ?? defaultRestingHR) + elevatedMarginBPM
+        // 2026-09-21: the SAME effective floor detect computes — rest + max(30, 40% HRR) when an
+        // HRmax was supplied, else the legacy fixed floor. Printed at one decimal so a fractional
+        // HRR floor doesn't read as the integer it isn't.
+        let rest = restingBpm ?? defaultRestingHR
+        let margin = maxHR.map { Swift.max(Double(elevatedMarginBPM), hrrFloorFraction * Double($0 - rest)) }
+            ?? Double(elevatedMarginBPM)
+        let floor = Double(rest) + margin
+        let floorText = margin == Double(elevatedMarginBPM)
+            ? "\(Int(floor))" : String(format: "%.1f", floor)
         let hasMotion = !(motion?.isEmpty ?? true)
 
         // Inputs the detector saw.
         lines.append("autoDetect path=\(path) hrSamples=\(hr.count) "
             + "restingBpm=\(restingBpm.map(String.init) ?? "default(\(defaultRestingHR))") "
-            + "elevatedFloor=\(floor)bpm motion=\(hasMotion ? "supplied" : "hrOnly") savedSpans=\(savedSpans.count)")
+            + "elevatedFloor=\(floorText)bpm motion=\(hasMotion ? "supplied" : "hrOnly") savedSpans=\(savedSpans.count)")
 
         // Thresholds applied (the autoDetectThresholds capture). Stated once so a report carries the
         // calibration the windows were judged against.
         lines.append("autoDetect thresholds elevatedMargin=\(elevatedMarginBPM)bpm "
+            + "hrrFloorFraction=\(hrrFloorFraction) maxHR=\(maxHR.map(String.init) ?? "nil") "
             + "minSustainedMin=\(minSustainedMin) maxDipS=\(maxDipS) mergeGapS=\(mergeGapS) "
             + "motionConfirmMean=\(motionConfirmMean)")
 
@@ -72,7 +83,7 @@ extension AutoWorkoutDetector {
             dipStart = nil
         }
         for sample in seg {
-            if sample.bpm >= floor {
+            if Double(sample.bpm) >= floor {
                 if spanStart == nil { spanStart = sample.ts }
                 spanEnd = sample.ts
                 dipStart = nil
@@ -85,7 +96,7 @@ extension AutoWorkoutDetector {
 
         if spans.isEmpty {
             lines.append("autoDetect why=noSustainedSpan "
-                + "(no contiguous run held >=\(minSustainedMin)min above \(floor)bpm)")
+                + "(no contiguous run held >=\(minSustainedMin)min above \(floorText)bpm)")
             lines.append("autoDetect result windows=0")
             return (results, lines)
         }
@@ -179,6 +190,27 @@ public enum WorkoutsTrace {
         var line = "detectedBout verdict=\(verdict) durMin=\(durMin) avgBpm=\(avgBpm)"
         if let overlapSource { line += " overlapSource=\(overlapSource)" }
         return line
+    }
+
+    /// 2026-09-21: which qualification tier a detected bout cleared (`workout` = the classic zone-2
+    /// bar, `activity` = the 40%-HRR activity tier) plus the advisory classifier's suggestion when the
+    /// workouts trace domain ran it. `suggestedClass`/`confidence` print `nil` when the classifier
+    /// wasn't wired or returned `.other` — the label is instrumentation, never the persisted sport.
+    /// Mirrors the Kotlin `WorkoutsTrace.detectedEnrichmentLine`.
+    public static func detectedEnrichmentLine(tier: String,
+                                              suggestedClass: String?,
+                                              confidence: Double?) -> String {
+        var line = "detectedEnrichment tier=\(tier) suggestedClass=\(suggestedClass ?? "nil")"
+        line += " confidence=\(confidence.map { String(format: "%.2f", $0) } ?? "nil")"
+        return line
+    }
+
+    /// 2026-09-21: the opt-in detected-workout notification fired. `durMin` names the bout; `settledCount`
+    /// is how many eligible span tokens this pass marked (one notification per pass, every eligible span
+    /// settled — so a multi-bout pass can't drip extra notifications out later). No PII (minutes + count).
+    /// Mirrors the Kotlin `WorkoutsTrace.detectedNotifyLine`.
+    public static func detectedNotifyLine(durMin: Int, settledCount: Int) -> String {
+        "detectedNotify durMin=\(durMin) settled=\(settledCount)"
     }
 
     /// A cross-source dedup decision line: two same-activity rows from different sources were collapsed to

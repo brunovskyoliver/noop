@@ -44,7 +44,8 @@ final class HugeImportFirstPaintStressTests: XCTestCase {
             workouts.append(WorkoutRow(startTs: startTs, endTs: startTs + 1_800, sport: "Run",
                                        source: "manual", durationS: 1_800, energyKcal: 300,
                                        avgHr: 140, maxHr: 165, strain: 12, distanceM: 5_000,
-                                       zonesJSON: nil, notes: nil, steps: nil))
+                                       zonesJSON: nil, notes: nil, steps: nil,
+                                       suggestedClass: nil, suggestedClassConfidence: nil))
         }
         _ = try await store.upsertWorkouts(workouts, deviceId: dev)
 

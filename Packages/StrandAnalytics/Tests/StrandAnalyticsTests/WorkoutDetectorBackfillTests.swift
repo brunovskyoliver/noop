@@ -12,7 +12,8 @@ final class WorkoutDetectorBackfillTests: XCTestCase {
                            strain: Double? = nil, steps: Int? = 4_200) -> WorkoutRow {
         WorkoutRow(startTs: 1_000, endTs: 1_600, sport: "Running", source: "manual",
                    durationS: 600, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr,
-                   strain: strain, distanceM: nil, zonesJSON: nil, notes: nil, steps: steps)
+                   strain: strain, distanceM: nil, zonesJSON: nil, notes: nil, steps: steps,
+            suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     func testFillsAllMissingFieldsAndPreservesSteps() {

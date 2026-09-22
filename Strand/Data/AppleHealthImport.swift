@@ -81,7 +81,8 @@ enum AppleHealthImport {
                        durationS: w.durationS, energyKcal: w.energyKcal,
                        avgHr: w.avgHr.map { Int($0.rounded()) },
                        maxHr: w.maxHr.map { Int($0.rounded()) }, strain: nil,
-                       distanceM: w.distanceM, zonesJSON: nil, notes: nil, steps: nil)
+                       distanceM: w.distanceM, zonesJSON: nil, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil)
         }
         let workoutsWritten = try await store.upsertWorkouts(workouts, deviceId: deviceId)
 

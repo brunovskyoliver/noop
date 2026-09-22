@@ -10,7 +10,8 @@ final class RepositorySyncPerformanceTests: XCTestCase {
                    durationS: 3600, energyKcal: rich ? 400 : nil,
                    avgHr: rich ? 130 : nil, maxHr: rich ? 160 : nil,
                    strain: rich ? 12 : nil, distanceM: rich ? 5000 : nil,
-                   zonesJSON: nil, notes: nil, steps: nil)
+                   zonesJSON: nil, notes: nil, steps: nil,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     private func repository(_ store: WhoopStore) -> Repository {

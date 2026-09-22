@@ -331,6 +331,9 @@ struct RootView: View {
             // #1862: the Today Coach card's launcher hands off here, so the send/stream/consent surface
             // stays in exactly one place.
             case .coach: selection = .coach
+            // 2026-09-21: the detected-workout notification's tap/Edit routes to the Workouts sidebar
+            // row; `WorkoutsView` consumes `router.pendingWorkout` to focus the notified bout.
+            case .workouts: selection = .workouts
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }

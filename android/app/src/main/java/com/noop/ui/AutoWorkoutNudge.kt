@@ -261,6 +261,14 @@ private suspend fun autoDetectCandidate(
             repo.workouts("lifting", fromSec, nowSec)
         ).map { it.startTs to it.endTs }
 
+    // 2026-09-21: motion + HRmax now reach the detector. Gravity is the stored union stream (one batched
+    // read over the same window the HR read already pays for — no new strap traffic), so the suggestion
+    // can require real movement instead of trusting an elevated-HR-only window. maxHR is the profile's
+    // effective HRmax (user override else Tanaka); when the profile resolves <= 0 the detector falls
+    // back to its legacy fixed floor, byte-identical to before.
+    val gravity = repo.gravitySamplesUnion(viewModel.deviceId, fromSec, nowSec)
+    val maxHR = ProfileStore.from(context).hrMax.takeIf { it > 0 }
+
     // Workouts & GPS test mode (Test Centre): when on, run the diagnostic twin which returns the SAME
     // candidates detect(...) does (it reuses detect verbatim) plus the inputs / thresholds / per-window why
     // trace, routed to the .workouts-tagged strap log. Zero-cost when off: one SharedPreferences bool read,
@@ -271,8 +279,9 @@ private suspend fun autoDetectCandidate(
         val (results, trace) = AutoWorkoutDetectorTrace.detectTrace(
             hr = hr,
             restingHR = restingHr,
-            gravity = emptyList(),
+            gravity = gravity,
             savedWorkouts = saved,
+            maxHR = maxHR,
             path = "autoDetect",
         )
         for (line in trace) viewModel.ble.externalLog(line, com.noop.testcentre.TestDomain.WORKOUTS)
@@ -281,8 +290,9 @@ private suspend fun autoDetectCandidate(
         AutoWorkoutDetector.detect(
             hr = hr,
             restingHR = restingHr,
-            gravity = emptyList(), // HR-only MVP (matches iOS passing motion: nil)
+            gravity = gravity,
             savedWorkouts = saved,
+            maxHR = maxHR,
         )
     }
     // Drop anything the user already dismissed, then take the most recent. Mirrors iOS exactly.

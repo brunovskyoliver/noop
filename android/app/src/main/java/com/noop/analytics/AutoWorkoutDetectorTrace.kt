@@ -31,23 +31,40 @@ object AutoWorkoutDetectorTrace {
         restingHR: Int? = null,
         gravity: List<GravitySample> = emptyList(),
         savedWorkouts: List<Pair<Long, Long>> = emptyList(),
+        maxHR: Int? = null,
         path: String = "autoDetect",
     ): Pair<List<AutoWorkoutDetector.DetectedWorkout>, List<String>> {
         // The result the Today card reads, verbatim, so the trace cannot diverge from it.
-        val results = AutoWorkoutDetector.detect(hr, restingHR, gravity, savedWorkouts)
+        val results = AutoWorkoutDetector.detect(hr, restingHR, gravity, savedWorkouts, maxHR)
 
         val lines = ArrayList<String>()
-        val floor = (restingHR ?: AutoWorkoutDetector.defaultRestingHR) + AutoWorkoutDetector.elevatedMarginBPM
+        // 2026-09-21: the SAME effective floor detect computes — rest + max(30, 40% HRR) when an
+        // HRmax was supplied, else the legacy fixed floor. Printed at one decimal so a fractional
+        // HRR floor doesn't read as the integer it isn't.
+        val rest = restingHR ?: AutoWorkoutDetector.defaultRestingHR
+        val margin = if (maxHR != null) {
+            maxOf(AutoWorkoutDetector.elevatedMarginBPM.toDouble(),
+                  AutoWorkoutDetector.hrrFloorFraction * (maxHR - rest).toDouble())
+        } else {
+            AutoWorkoutDetector.elevatedMarginBPM.toDouble()
+        }
+        val floor = rest + margin
+        val floorText = if (margin == AutoWorkoutDetector.elevatedMarginBPM.toDouble()) {
+            floor.toLong().toString()
+        } else {
+            String.format(java.util.Locale.US, "%.1f", floor)
+        }
         val hasMotion = gravity.isNotEmpty()
 
         lines.add(
             "autoDetect path=$path hrSamples=${hr.size} " +
                 "restingBpm=${restingHR?.toString() ?: "default(${AutoWorkoutDetector.defaultRestingHR})"} " +
-                "elevatedFloor=${floor}bpm motion=${if (hasMotion) "supplied" else "hrOnly"} " +
+                "elevatedFloor=${floorText}bpm motion=${if (hasMotion) "supplied" else "hrOnly"} " +
                 "savedSpans=${savedWorkouts.size}",
         )
         lines.add(
             "autoDetect thresholds elevatedMargin=${AutoWorkoutDetector.elevatedMarginBPM}bpm " +
+                "hrrFloorFraction=${AutoWorkoutDetector.hrrFloorFraction} maxHR=${maxHR?.toString() ?: "nil"} " +
                 "minSustainedMin=${AutoWorkoutDetector.minSustainedMin} maxDipS=${AutoWorkoutDetector.maxDipS} " +
                 "mergeGapS=${AutoWorkoutDetector.mergeGapS} motionConfirmMean=${AutoWorkoutDetector.motionConfirmMean}",
         )
@@ -70,7 +87,7 @@ object AutoWorkoutDetectorTrace {
             dipStart = null
         }
         for (sample in seg) {
-            if (sample.bpm >= floor) {
+            if (sample.bpm.toDouble() >= floor) {
                 if (spanStart == null) spanStart = sample.ts
                 spanEnd = sample.ts
                 dipStart = null
@@ -84,7 +101,7 @@ object AutoWorkoutDetectorTrace {
         if (spans.isEmpty()) {
             lines.add(
                 "autoDetect why=noSustainedSpan " +
-                    "(no contiguous run held >=${AutoWorkoutDetector.minSustainedMin}min above ${floor}bpm)",
+                    "(no contiguous run held >=${AutoWorkoutDetector.minSustainedMin}min above ${floorText}bpm)",
             )
             lines.add("autoDetect result windows=0")
             return results to lines
@@ -168,6 +185,32 @@ object WorkoutsTrace {
     fun gpsLine(rawFixes: Int?, acceptedPoints: Int, distanceM: Double): String =
         "gps rawFixes=${rawFixes?.toString() ?: "n/a"} accepted=$acceptedPoints " +
             "distanceM=${Math.round(distanceM)} (filter: accuracy+speed gate)"
+
+    /**
+     * 2026-09-21: which qualification tier a detected bout cleared ("workout" = the classic zone-2
+     * bar, "activity" = the 40%-HRR activity tier) plus the advisory classifier's suggestion when the
+     * workouts trace domain ran it. `suggestedClass`/`confidence` print `nil` when the classifier
+     * wasn't wired or returned OTHER — the label is instrumentation, never the persisted sport.
+     * Swift twin WorkoutsTrace.detectedEnrichmentLine.
+     */
+    fun detectedEnrichmentLine(
+        tier: String,
+        suggestedClass: String?,
+        confidence: Double?,
+    ): String {
+        var line = "detectedEnrichment tier=$tier suggestedClass=${suggestedClass ?: "nil"}"
+        line += " confidence=${confidence?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "nil"}"
+        return line
+    }
+
+    /**
+     * 2026-09-21: the opt-in detected-workout notification fired. `durMin` names the bout; `settledCount`
+     * is how many eligible span tokens this pass marked (one notification per pass, every eligible span
+     * settled — so a multi-bout pass can't drip extra notifications out later). No PII (minutes + count).
+     * Swift twin WorkoutsTrace.detectedNotifyLine.
+     */
+    fun detectedNotifyLine(durMin: Int, settledCount: Int): String =
+        "detectedNotify durMin=$durMin settled=$settledCount"
 
     /** A cross-source dedup decision line: two same-activity rows collapsed to the richer one. */
     fun dedupLine(

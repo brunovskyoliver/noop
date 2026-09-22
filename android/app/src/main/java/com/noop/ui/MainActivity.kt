@@ -156,6 +156,16 @@ class MainActivity : ComponentActivity() {
                 NoopRoot()
             }
         }
+        // A detected-workout notification tap (or Edit action) lands here on a cold launch; the
+        // route bus holds it until the shell + Workouts screen are composed to consume it.
+        com.noop.notif.dispatchWorkoutDetectedRoute(intent)
+    }
+
+    /** appLaunchIntent is SINGLE_TOP|CLEAR_TOP, so a notification tap while the app is alive reuses
+     *  this Activity and delivers the span extras here instead of through onCreate. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        com.noop.notif.dispatchWorkoutDetectedRoute(intent)
     }
 
     /** Request the BLE permissions appropriate to the running OS version. */
@@ -1304,6 +1314,32 @@ object NoopPrefs {
 
     fun setReportLastWorkoutTs(context: Context, ts: Long) {
         of(context).edit().putLong(KEY_REPORT_LAST_WORKOUT_TS, ts).apply()
+    }
+
+    /** 2026-09-21 detected-workout notification (Swift `WorkoutDetectedNotifier` twin): opt-in,
+     *  default OFF. The engine auto-SAVES `sport="detected"` bouts on every analysis pass regardless;
+     *  this toggle gates only the FYI notification posted once a bout has settled (~10 min after it
+     *  ends). Same key string as the iOS UserDefaults key so the toggle reads identically. */
+    const val KEY_WORKOUT_DETECTED_NOTIFY = "workoutDetectedNotify"
+
+    /** Settled span tokens ("startTs:endTs") for the detected-workout notification — the dedupe
+     *  survives process death so a re-detect drifting a bout's boundary can never re-notify. Same
+     *  token shape + overlap semantics as the dismissed-detected markers (and the same key string as
+     *  the iOS UserDefaults list). */
+    const val KEY_WORKOUT_DETECTED_SETTLED = "workouts.detectedNotified"
+
+    fun workoutDetectedNotifyEnabled(context: Context): Boolean =
+        of(context).getBoolean(KEY_WORKOUT_DETECTED_NOTIFY, false)
+
+    fun setWorkoutDetectedNotifyEnabled(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_WORKOUT_DETECTED_NOTIFY, enabled).apply()
+    }
+
+    fun workoutDetectedSettledTokens(context: Context): Set<String> =
+        of(context).getStringSet(KEY_WORKOUT_DETECTED_SETTLED, emptySet())?.toSet() ?: emptySet()
+
+    fun setWorkoutDetectedSettledTokens(context: Context, tokens: Collection<String>) {
+        of(context).edit().putStringSet(KEY_WORKOUT_DETECTED_SETTLED, tokens.toSet()).apply()
     }
 
     /** Caffeine late-intake nudge (PR#566, mvanhorn), opt-in, default OFF. When on, the Caffeine card

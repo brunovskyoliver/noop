@@ -20,7 +20,8 @@ final class TodayWorkoutsWindowTests: XCTestCase {
     private func row(startingAt ts: Int) -> WorkoutRow {
         WorkoutRow(startTs: ts, endTs: ts + 1_800, sport: "Running", source: "whoop",
                    durationS: 1_800, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
-                   distanceM: nil, zonesJSON: nil, notes: nil, steps: nil)
+                   distanceM: nil, zonesJSON: nil, notes: nil, steps: nil,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     private var cutoffTs: Int {

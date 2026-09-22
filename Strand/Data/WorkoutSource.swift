@@ -71,6 +71,34 @@ enum WorkoutSource: Equatable {
         sport == "detected" ? "Activity" : splitCamelCase(sport)
     }
 
+    /// 2026-09-22: the classifier's advisory label for a `detected` row, as a localized sport name.
+    /// nil for any other sport or an unrecognized token — the suggestion only ever stands in for
+    /// "Activity". Kotlin twin `WorkoutEditing.suggestedClassRes`.
+    static func suggestedClassName(_ token: String?) -> String? {
+        switch token {
+        case "walk":     return String(localized: "Walking")
+        case "run":      return String(localized: "Running")
+        case "strength": return String(localized: "Strength Training")
+        case "cycle":    return String(localized: "Cycling")
+        case "ski":      return String(localized: "Skiing")
+        default:         return nil
+        }
+    }
+
+    /// Row title: for a still-"detected" bout carrying a classifier suggestion, the suggested name
+    /// stands in for "Activity" (the "Detected" source badge keeps the provenance honest). Every
+    /// other row — including any user-applied label — renders its stored sport unchanged.
+    static func displaySport(_ row: WorkoutRow) -> String {
+        if row.sport == "detected", let name = suggestedClassName(row.suggestedClass) { return name }
+        return displaySport(row.sport)
+    }
+
+    /// True when a row carries a visible classifier suggestion (drives the "suggested" marker in
+    /// the list rows). Only ever true while sport is still "detected".
+    static func hasSuggestion(_ row: WorkoutRow) -> Bool {
+        row.sport == "detected" && suggestedClassName(row.suggestedClass) != nil
+    }
+
     // MARK: - Dismissed detected bouts (durable across re-detection)
     //
     // The engine wipes + re-derives "detected" rows every run, so deleting a detected row from the
@@ -329,11 +357,16 @@ enum WorkoutSource: Equatable {
     /// from `old`. `steps` (#1058) has no sheet field at all, so it is carried like the others (#1444).
     static func preservingCaptured(_ row: WorkoutRow, from old: WorkoutRow?) -> WorkoutRow {
         guard let old else { return row }
+        // The classifier suggestion is captured analysis — carry it ONLY while the row stays
+        // sport="detected". An edit that relabels the session makes the suggestion stale metadata.
+        let stillDetected = row.sport == "detected"
         return WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: row.sport,
                           source: row.source, durationS: row.durationS,
                           energyKcal: row.energyKcal, avgHr: row.avgHr,
                           maxHr: old.maxHr, strain: old.strain, distanceM: row.distanceM,
-                          zonesJSON: old.zonesJSON, notes: old.notes, steps: old.steps)
+                          zonesJSON: old.zonesJSON, notes: old.notes, steps: old.steps,
+                          suggestedClass: stillDetected ? old.suggestedClass : nil,
+                          suggestedClassConfidence: stillDetected ? old.suggestedClassConfidence : nil)
     }
 
     /// Build a retroactive manual workout (source "manual", persisted under the strap deviceId by the
@@ -362,7 +395,8 @@ enum WorkoutSource: Equatable {
         return WorkoutRow(startTs: s, endTs: end, sport: trimmed, source: "manual",
                           durationS: Double(durationSeconds), energyKcal: energyKcal,
                           avgHr: avgHr, maxHr: nil, strain: nil, distanceM: distanceM,
-                          zonesJSON: nil, notes: nil, steps: nil)
+                          zonesJSON: nil, notes: nil, steps: nil,
+                          suggestedClass: nil, suggestedClassConfidence: nil)
     }
 }
 
@@ -505,6 +539,7 @@ enum WorkoutMerge {
         return WorkoutRow(startTs: start, endTs: end, sport: mergedSport, source: "manual",
                           durationS: durationS, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr,
                           strain: nil, distanceM: distanceM, zonesJSON: nil, notes: mergedNotes,
-                          steps: mergedSteps)
+                          steps: mergedSteps,
+                          suggestedClass: nil, suggestedClassConfidence: nil)
     }
 }

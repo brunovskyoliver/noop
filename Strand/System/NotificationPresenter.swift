@@ -23,6 +23,14 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// root has wired it.
     var onCoachBriefTapped: (() -> Void)?
 
+    /// 2026-09-21 detected-workout notification actions, wired at launch beside `onCoachBriefTapped`.
+    /// `onWorkoutDetectedReview` routes to the Workouts screen focusing the bout's row (.detail on a
+    /// plain tap, .edit on the Edit action); `onWorkoutDetectedDismiss` runs the durable
+    /// "not a workout" dismissal without navigating. The span arrives as (startTs, endTs) userInfo —
+    /// the handlers re-resolve the row by overlap, so a re-detected drift can't strand the action.
+    var onWorkoutDetectedReview: ((_ startTs: Int, _ endTs: Int, _ edit: Bool) -> Void)?
+    var onWorkoutDetectedDismiss: ((_ startTs: Int, _ endTs: Int) -> Void)?
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -31,16 +39,32 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound, .list])
     }
 
-    /// Handle a tap on a delivered notification. Only the scheduled morning-brief category (K5) routes
-    /// anywhere; every other notification (wind-down, smart-alarm, battery/illness) just opens the app
-    /// to wherever it was, matching the pre-K5 behaviour.
+    /// Handle a tap on a delivered notification. The scheduled morning-brief category (K5) routes to
+    /// Coach; the detected-workout category routes to Workouts (tap/Edit) or dismisses the bout
+    /// ("Not a workout"). Every other notification (wind-down, smart-alarm, battery/illness) just
+    /// opens the app to wherever it was, matching the pre-K5 behaviour.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        if response.notification.request.content.categoryIdentifier == CoachBriefScheduler.notificationCategoryId {
+        let category = response.notification.request.content.categoryIdentifier
+        if category == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        } else if category == WorkoutDetectedNotifier.categoryId {
+            let info = response.notification.request.content.userInfo
+            let startTs = info[WorkoutDetectedNotifier.infoStartTs] as? Int
+            let endTs = info[WorkoutDetectedNotifier.infoEndTs] as? Int
+            switch response.actionIdentifier {
+            case WorkoutDetectedNotifier.actionDismissId:
+                if let startTs, let endTs { onWorkoutDetectedDismiss?(startTs, endTs) }
+            case WorkoutDetectedNotifier.actionEditId:
+                if let startTs, let endTs { onWorkoutDetectedReview?(startTs, endTs, true) }
+            default:
+                // A plain tap on the body: open the row's detail. Missing/foreign userInfo still
+                // routes to the list (0,0 resolves to no row — the list is the fallback).
+                onWorkoutDetectedReview?(startTs ?? 0, endTs ?? 0, false)
+            }
         }
         completionHandler()
     }

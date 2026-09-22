@@ -22,10 +22,26 @@ struct StrandApp: App {
         // Foreground presentation: without a delegate, macOS suppresses a notification's banner while the
         // app is frontmost, so a reminder tested with NOOP open would show nothing. Mirrors iOS.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        // Detected-workout category (Edit / "Not a workout" actions). Merged into whatever is already
+        // registered rather than set outright, so a future category can't be silently dropped here.
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationCategories { existing in
+            center.setNotificationCategories(existing.union([WorkoutDetectedNotifier.category]))
+        }
         // K5: tapping a scheduled morning-brief notification routes to Coach via the shared NavRouter.
         let router = NavRouter()
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
+        // 2026-09-21: the detected-workout notification's tap/Edit routes to Workouts with the bout's
+        // span; "Not a workout" dismisses durably without navigating (the Workouts row-menu path).
+        NotificationPresenter.shared.onWorkoutDetectedReview = { [weak router] start, end, edit in
+            router?.openWorkouts(edit ? .edit(startTs: start, endTs: end)
+                                     : .detail(startTs: start, endTs: end))
+        }
+        let repo = model.repo
+        NotificationPresenter.shared.onWorkoutDetectedDismiss = { start, end in
+            Task { await repo.dismissDetectedWorkout(startTs: start, endTs: end) }
+        }
     }
 
     @StateObject private var model = AppModel()

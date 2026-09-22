@@ -116,6 +116,50 @@ class ImuSessionFileStore(private val context: Context) {
         writes
     }
 
+    /**
+     * 2026-09-21 (workout auto-detection phase 4): decoded 100 Hz samples for EVERY captured second
+     * overlapping [from, to], across ALL registered capture sessions — the analysis engine's one-shot
+     * prefetch so a scoring pass does zero file I/O per bout. Returns an EMPTY map when no capture
+     * window overlaps (the common case — capture is an explicit Test Centre action), and opens no
+     * BLE: only files this store already banked are decoded. Duplicate timestamps across sessions
+     * resolve first-writer-wins for determinism. Columns are scaled to physical units here
+     * ([Whoop5RawImu.accelScale]/[Whoop5RawImu.gyroScale]) so callers never see raw LSBs.
+     * Kotlin twin of Swift `ImuSessionFileStore.rawSamples(from:to:)`.
+     */
+    fun rawSamples(from: Long, to: Long): Map<Long, List<com.noop.protocol.RawImuSample>> = synchronized(lock) {
+        val overlapping = ids().filter { id ->
+            val wFrom = prefs.getLong("$id.from", Long.MAX_VALUE)
+            val wTo = if (prefs.contains("$id.to")) prefs.getLong("$id.to", Long.MIN_VALUE) else Long.MAX_VALUE
+            wFrom <= to && wTo >= from
+        }
+        if (overlapping.isEmpty()) return@synchronized emptyMap()
+        val out = HashMap<Long, List<com.noop.protocol.RawImuSample>>()
+        for (id in overlapping) {
+            flushSession(id)
+            for (record in readRecords(id, from, to, includePending = false)) {
+                out.putIfAbsent(record.ts, decodeColumns(record.columns))
+            }
+        }
+        out
+    }
+
+    /** Rebuild the 100 scaled [RawImuSample]s one stored record carries — [ax,ay,az,gx,gy,gz] × 100
+     * columnar, the same layout [Whoop5RawImu.rawColumns] writes. Swift twin `recordSamples`. */
+    private fun decodeColumns(columns: ShortArray): List<com.noop.protocol.RawImuSample> {
+        val n = SAMPLE_RATE
+        if (columns.size < AXES * n) return emptyList()
+        return (0 until n).map { i ->
+            com.noop.protocol.RawImuSample(
+                ax = columns[0 * n + i] * Whoop5RawImu.accelScale,
+                ay = columns[1 * n + i] * Whoop5RawImu.accelScale,
+                az = columns[2 * n + i] * Whoop5RawImu.accelScale,
+                gx = columns[3 * n + i] * Whoop5RawImu.gyroScale,
+                gy = columns[4 * n + i] * Whoop5RawImu.gyroScale,
+                gz = columns[5 * n + i] * Whoop5RawImu.gyroScale,
+            )
+        }
+    }
+
     /** Exact selected interval, still in the canonical decoded .imus format. */
     fun exportSegments(id: String, from: Long, to: Long): List<ExportSegment> = synchronized(lock) {
         flushSession(id)

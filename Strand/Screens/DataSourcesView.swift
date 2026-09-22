@@ -472,7 +472,8 @@ struct DataSourcesView: View {
                         strain: nil,                 // never a fabricated cardiovascular strain
                         distanceM: nil,
                         zonesJSON: nil,
-                        notes: s.volumeLoadNote(), steps: nil
+                        notes: s.volumeLoadNote(), steps: nil,
+                        suggestedClass: nil, suggestedClassConfidence: nil
                     )
                 }
                 try await store.upsertWorkouts(rows, deviceId: LiftingImporter.sourceId)
@@ -562,7 +563,8 @@ struct DataSourcesView: View {
                     distanceM: activity.distanceM,
                     zonesJSON: nil,
                     notes: activity.importNote(),
-                    steps: activity.steps                 // #1058: per-session steps, summed into the day below
+                    steps: activity.steps,                // #1058: per-session steps, summed into the day below
+                    suggestedClass: nil, suggestedClassConfidence: nil
                 )
                 try await store.upsertWorkouts([row], deviceId: ActivityFileImporter.sourceId)
 

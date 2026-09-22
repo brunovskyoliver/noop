@@ -32,8 +32,19 @@ object AutoWorkoutDetector {
 
     // ---- Constants (keep byte-identical with the Swift twin) ----
 
-    /** Elevated gate: bpm must be at least restingHR + this margin to count as "working". */
+    /** Elevated gate: bpm must be at least restingHR + this margin to count as "working" — the
+     *  FIXED part of the floor. When [maxHR] is supplied the floor is raised to the larger of this
+     *  and [hrrFloorFraction] of heart-rate reserve (see [detect]). */
     const val elevatedMarginBPM: Int = 30
+
+    /**
+     * 2026-09-21: the HRR-relative share of the elevated floor. A fixed `rest + 30` massively
+     * over-fires on low-resting-HR users (rest 45 → floor 75, where the whole day qualifies as a
+     * "workout"); `rest + 40% HRR` is where WHOOP's own auto-detected "Activity" rows land on real
+     * data. Applied only when the caller can supply an HRmax — without one the legacy fixed floor
+     * is the only honest bar available.
+     */
+    const val hrrFloorFraction: Double = 0.40
 
     /** A candidate must hold the elevated gate for a contiguous span of at least this long. */
     const val minSustainedMin: Double = 12.0
@@ -116,17 +127,28 @@ object AutoWorkoutDetector {
      * @param restingHR the nightly resting HR for the day; null → [defaultRestingHR] (60).
      * @param gravity OPTIONAL continuous motion series for confirmation; empty/omitted → HR-only.
      * @param savedWorkouts already-saved workout windows as (startSec, endSec) pairs to exclude by overlap.
+     * @param maxHR 2026-09-21 — effective HRmax (user override, else Tanaka). When supplied the
+     *   elevated floor is `rest + max(elevatedMarginBPM, hrrFloorFraction × (maxHR − rest))`, so the
+     *   suggestion bar scales with the user's reserve instead of over-firing on a low resting HR.
+     *   null → the legacy fixed floor, byte-identical for every caller that can't resolve one.
      */
     fun detect(
         hr: List<HrSample>,
         restingHR: Int? = null,
         gravity: List<GravitySample> = emptyList(),
         savedWorkouts: List<Pair<Long, Long>> = emptyList(),
+        maxHR: Int? = null,
     ): List<DetectedWorkout> {
         val seg = cleanHR(hr)
         if (seg.isEmpty()) return emptyList()
 
-        val floor = (restingHR ?: defaultRestingHR) + elevatedMarginBPM
+        val rest = restingHR ?: defaultRestingHR
+        val margin = if (maxHR != null) {
+            maxOf(elevatedMarginBPM.toDouble(), hrrFloorFraction * (maxHR - rest).toDouble())
+        } else {
+            elevatedMarginBPM.toDouble()
+        }
+        val floor = rest + margin
 
         // --- 1+2+3: grow sustained spans tolerating brief dips ---
         // A span is [spanStart, spanEnd] over ELEVATED-sample timestamps. `dipStart` marks where the
@@ -146,7 +168,7 @@ object AutoWorkoutDetector {
         }
 
         for (sample in seg) {
-            val elevated = sample.bpm >= floor
+            val elevated = sample.bpm.toDouble() >= floor
             if (elevated) {
                 if (spanStart == null) spanStart = sample.ts
                 spanEnd = sample.ts

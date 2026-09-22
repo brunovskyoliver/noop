@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -245,7 +246,18 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
     var morningReport by remember { mutableStateOf(NoopPrefs.morningReportEnabled(context)) }
     var postWorkoutReport by remember { mutableStateOf(NoopPrefs.postWorkoutReportEnabled(context)) }
     var strainTargetReport by remember { mutableStateOf(NoopPrefs.strainTargetEnabled(context)) }
+    // 2026-09-21: detected-workout FYI — the engine auto-saves `sport="detected"` bouts regardless;
+    // this only gates the notification posted ~10 min after one ends. Opt-in, default OFF.
+    var workoutDetectedReport by remember { mutableStateOf(NoopPrefs.workoutDetectedNotifyEnabled(context)) }
     var phonePermissionDenied by remember { mutableStateOf(false) }
+    // API 33+: flipping the toggle ON is the just-in-time moment to ask for POST_NOTIFICATIONS —
+    // the same request the onboarding/background flow makes, never at launch or silently.
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        workoutDetectedReport = granted
+        NoopPrefs.setWorkoutDetectedNotifyEnabled(context, granted)
+    }
     val phonePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -517,6 +529,28 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
                 onChange = {
                     strainTargetReport = it
                     NoopPrefs.setStrainTargetEnabled(context, it)
+                },
+            )
+            RowDivider()
+            // 2026-09-21: NOOP's own auto-detected activity FYI. The detector already SAVES bouts as
+            // "detected" rows in Workouts; this only adds the ~10-min-later heads-up with Edit /
+            // "Not a workout" actions. One per analysis pass at most, after your strap syncs.
+            FormToggleRow(
+                label = uiString(R.string.l10n_notifications_settings_screen_detected_workout_notifications_950393c8),
+                help = "When NOOP auto-saves a workout it detected from your strap data, a notification " +
+                    "about ten minutes after it ends — one per sync at most. Open it to edit or relabel, " +
+                    "or mark it not a workout.",
+                checked = workoutDetectedReport,
+                onChange = { on ->
+                    if (on && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                            PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        workoutDetectedReport = on
+                        NoopPrefs.setWorkoutDetectedNotifyEnabled(context, on)
+                    }
                 },
             )
         }

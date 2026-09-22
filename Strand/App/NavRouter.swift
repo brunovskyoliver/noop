@@ -34,6 +34,9 @@ final class NavRouter: ObservableObject {
         /// surface of its own — it hands the question to the one screen that already has them.
         /// Also the K5 scheduled morning-brief notification's tap-through target.
         case coach
+        /// The Workouts screen — the detected-workout notification's Edit/tap-through target
+        /// (2026-09-21). Which row to focus rides in `pendingWorkout`, consumed by `WorkoutsView`.
+        case workouts
 
         var id: String { rawValue }
 
@@ -85,6 +88,35 @@ final class NavRouter: ObservableObject {
     /// directly today; this route exists for deep-link parity so a future shell/inbox item can raise it
     /// the same way as every other destination.
     func openLiveSession() { requestedDestination = .liveSession }
+
+    /// How `WorkoutsView` should focus the row a detected-workout notification named. `.detail` opens
+    /// the read-only session sheet (a plain tap on the notification); `.edit` opens the edit/relabel
+    /// sheet straight away (the notification's Edit action). The span rides along so the consumer can
+    /// match the row by OVERLAP — re-detection can drift the stored startTs between passes, so an
+    /// exact-key match would miss the very row the notification meant.
+    enum PendingWorkoutRoute: Equatable {
+        case detail(startTs: Int, endTs: Int)
+        case edit(startTs: Int, endTs: Int)
+
+        var startTs: Int {
+            switch self { case .detail(let s, _), .edit(let s, _): return s }
+        }
+        var endTs: Int {
+            switch self { case .detail(_, let e), .edit(_, let e): return e }
+        }
+    }
+
+    /// One-shot row focus for `.workouts` routes, consumed (and cleared) by `WorkoutsView` once its
+    /// rows load — the `pendingJournalDayOffset` idiom.
+    @Published var pendingWorkout: PendingWorkoutRoute?
+
+    /// Open the Workouts screen, optionally focusing one detected bout. The detected-workout
+    /// notification's default tap passes `.detail`, its Edit action `.edit`, both carrying the bout's
+    /// span; a bare call lands on the plain list.
+    func openWorkouts(_ route: PendingWorkoutRoute? = nil) {
+        pendingWorkout = route
+        requestedDestination = .workouts
+    }
     /// A journal day-offset (daysBack; -1 = Tomorrow) the Today journal widget deep-linked to, so tapping
     /// a SPECIFIC day's bar opens the journal at THAT day instead of always today (#656). InsightsView
     /// consumes it on appear and clears it back to nil. nil = open at today (the default).

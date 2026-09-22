@@ -159,6 +159,30 @@ data class ExerciseSession(
      *  gripping — exactly what lifting is — so a low Effort has two very different causes: the metric not
      *  rating the work, or the strap not having seen it. Those deserve opposite advice. */
     val hrCoveragePct: Double? = null,
+    /**
+     * 2026-09-21 auto-detection: TRUE when this bout cleared the ACTIVITY tier (sustained window at
+     * ≥ `activityHRRFraction` of heart-rate reserve) rather than the classic ≥50%-zone-2 bar. The tier
+     * exists because the zone-2 bar silently drops the exact thing WHOOP itself files as "Activity" —
+     * long walks / hikes / easy rides whose mean HR sits at ~30–50% HRR. An activity-tier session is
+     * still a real sustained elevation verified by the motion gate; it is persisted under the same
+     * `sport = "detected"` (rendered "Activity") so the two tiers stay distinguishable in diagnostics.
+     */
+    var isActivityTier: Boolean = false,
+    /**
+     * 2026-09-21 enrichment: step ticks counted inside the bout by the shared wrap-aware counter and
+     * scaled by the user's tick calibration — the same derivation the day total uses. null when the
+     * window had no @57 motion-counter coverage (WHOOP 4.0, strap off, or pre-#139 firmware).
+     */
+    var steps: Int? = null,
+    /**
+     * 2026-09-21 advisory classification: the heuristic `WorkoutTypeClassifier` winner's raw class
+     * string ("walk"/"run"/"strength"/"cycle"/"ski"), or null when classification wasn't run or the
+     * prediction came back OTHER. NEVER written into a persisted workout's sport — it is
+     * instrumentation for the trace/validation path until the classifier is proven on real labels.
+     */
+    var suggestedClass: String? = null,
+    /** 0...1 confidence that accompanies [suggestedClass]; null alongside it. */
+    var suggestedClassConfidence: Double? = null,
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

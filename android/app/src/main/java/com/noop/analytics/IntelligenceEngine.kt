@@ -480,6 +480,18 @@ object IntelligenceEngine {
         // every existing test relies on. Read/written under [analyzeGate] with the cache they back.
         stepsMotionCacheGet: (() -> String?)? = null,
         stepsMotionCacheSet: ((String) -> Unit)? = null,
+        // 2026-09-21 auto-detection: ADVISORY coarse workout-type classifier run over each detected
+        // bout's own window (same already-loaded day streams — no extra reads). null = zero work,
+        // byte-identical default; the Context-aware caller passes the heuristic only when the workouts
+        // trace domain is on, so production pays nothing for an unvalidated signal. The prediction
+        // lands on ExerciseSession.suggestedClass — instrumentation for the validation path, never
+        // the persisted sport. Mirrors the Swift analyzeDay workoutClassifier wiring.
+        workoutClassifier: WorkoutTypeClassifying? = null,
+        // 2026-09-21 phase-4 stretch: per-bout high-rate IMU features from ALREADY-CAPTURED session
+        // files, looked up by the caller (app layer owns ImuSessionFileStore). `(startTs, endTs) ->
+        // ImuActivityFeatures?`, null when nothing captured overlaps — the WHOOP 4.0 / no-capture
+        // path. Pure lookup; opens no BLE and decodes only files the caller already banked.
+        imuActivityFeatures: ((Long, Long) -> ImuActivityFeatures?)? = null,
     ): List<Computed> = withContext(Dispatchers.Default) {
         // #1005: time the whole pass so a re-score STORM is visible in the strap log (the trigger lines
         // record WHY each pass runs; this records how many nights and how long — the CPU cost per run).
@@ -511,7 +523,7 @@ object IntelligenceEngine {
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
-                spo2CandidateDisplay, effortMethod, dayCycleMode)
+                spo2CandidateDisplay, effortMethod, dayCycleMode, workoutClassifier, imuActivityFeatures)
             val result = if (healed == 0) out
             // #899 heal re-pass: the pass above deleted overlapping duplicate sleep sessions AFTER its days
             // were scored, and the read-side dedup those days consumed had no bank-recency witness (the fresh
@@ -522,7 +534,7 @@ object IntelligenceEngine {
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
-                spo2CandidateDisplay, effortMethod, dayCycleMode).first
+                spo2CandidateDisplay, effortMethod, dayCycleMode, workoutClassifier, imuActivityFeatures).first
             // Write the pruned cache back, after the heal re-pass so the payload reflects whichever pass ran
             // last, and only when it moved. `serialize` renders sorted, so a pass that reused every day
             // produces the string already stored and skips the write entirely.
@@ -646,6 +658,11 @@ object IntelligenceEngine {
         // #1545: the Effort TRIMP recipe, threaded from the public wrapper.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
         dayCycleMode: DayCycleMode = DayCycleMode.SLEEP_ONSET,
+        // 2026-09-21 auto-detection: advisory workout-type classifier + already-captured IMU lookup,
+        // threaded verbatim into analyzeDay per scored night. null (the default) = byte-identical
+        // default path. Mirrors the Swift engine wiring.
+        workoutClassifier: WorkoutTypeClassifying? = null,
+        imuActivityFeatures: ((Long, Long) -> ImuActivityFeatures?)? = null,
         // #899 heal re-pass: the second component of the return is how many overlapping duplicate sleep
         // sessions the heal below deleted this pass. The public wrapper re-runs ONCE when it is non-zero
         // so the affected days re-score against the cleaned store.
@@ -1184,6 +1201,8 @@ object IntelligenceEngine {
                 hrvWindowDetail = dayStart == nowLocalMidnight,
                 deepHrvWindow = deepHrvWindow,
                 effortMethod = effortMethod,
+                workoutClassifier = workoutClassifier,
+                imuActivityFeatures = imuActivityFeatures,
             )
             dayScoreNanos += System.nanoTime() - tScore0
 
@@ -1765,6 +1784,19 @@ object IntelligenceEngine {
             for (s in res.workouts) {
                 val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
                 val avgBpm = s.avgHR.toInt()
+                // 2026-09-21: the activity tier + advisory classification need their own trace facts —
+                // a walk persisted under "detected" reads exactly like a zone-2 bout in every other
+                // line. Emitted only under the .workouts domain (suggestedClass only exists then);
+                // `tier` names which qualification bar the bout cleared. Mirrors the Swift line.
+                if (workoutsTraceSink != null && (s.isActivityTier || s.suggestedClass != null)) {
+                    workoutsTraceSink.invoke(
+                        WorkoutsTrace.detectedEnrichmentLine(
+                            tier = if (s.isActivityTier) "activity" else "workout",
+                            suggestedClass = s.suggestedClass,
+                            confidence = s.suggestedClassConfidence,
+                        ),
+                    )
+                }
                 // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
                 // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
                 // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
@@ -1791,7 +1823,9 @@ object IntelligenceEngine {
                     // sport), so the upsert below updates the existing row in place rather than
                     // duplicating it.
                     val backfilled = backfillWorkoutFromDetectedBout(
-                        collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal, strain = s.strain,
+                        collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal,
+                        strain = s.strain, zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
+                        steps = s.steps,
                     )
                     val didBackfill = backfilled != collider
                     if (didBackfill) workoutRows.add(backfilled)
@@ -1816,6 +1850,15 @@ object IntelligenceEngine {
                         avgHr = avgBpm,
                         maxHr = s.peakHR,
                         strain = s.strain,
+                        // 2026-09-21: persist the bout's own zone split + counted steps so a detected
+                        // row is self-contained (imported rows carry both from the export). zonesJSON
+                        // renders the same {"z1":…,"z5":…} shape the WHOOP importer writes.
+                        zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
+                        steps = s.steps,
+                        // 2026-09-22: the classifier's advisory label rides the row so the Workouts
+                        // list + notification can name it.
+                        suggestedClass = s.suggestedClass,
+                        suggestedClassConfidence = s.suggestedClassConfidence,
                     ),
                 )
                 workoutsTraceSink?.invoke(
@@ -2265,11 +2308,17 @@ object IntelligenceEngine {
         peakHR: Int,
         caloriesKcal: Double?,
         strain: Double?,
+        // 2026-09-21: the bout's zone split + counted steps join the same fill-only-when-absent rule,
+        // so a detected bout can complete a manual row's missing fields without ever overwriting one.
+        zonesJSON: String? = null,
+        steps: Int? = null,
     ): WorkoutRow = real.copy(
         avgHr = real.avgHr ?: avgBpm,
         maxHr = real.maxHr ?: peakHR,
         energyKcal = real.energyKcal ?: caloriesKcal,
         strain = real.strain ?: strain,
+        zonesJSON = real.zonesJSON ?: zonesJSON,
+        steps = real.steps ?: steps,
     )
 
     /**

@@ -57,8 +57,16 @@ public enum AutoWorkoutDetector {
 
     // MARK: - Constants (keep byte-identical with the Kotlin twin)
 
-    /// Elevated gate: bpm must be at least restingHR + this margin to count as "working".
+    /// Elevated gate: bpm must be at least restingHR + this margin to count as "working" — the
+    /// FIXED part of the floor. When `maxHR` is supplied the floor is raised to the larger of this
+    /// and `hrrFloorFraction` of heart-rate reserve (see `detect`).
     public static let elevatedMarginBPM = 30
+    /// 2026-09-21: the HRR-relative share of the elevated floor. A fixed `rest + 30` massively
+    /// over-fires on low-resting-HR users (rest 45 → floor 75, where the whole day qualifies as a
+    /// "workout"); `rest + 40% HRR` is where WHOOP's own auto-detected "Activity" rows land on real
+    /// data. Applied only when the caller can supply an HRmax — without one the legacy fixed floor
+    /// is the only honest bar available.
+    public static let hrrFloorFraction = 0.40
     /// A candidate must hold the elevated gate for a contiguous span of at least this long (12 min).
     public static let minSustainedMin: Double = 12.0
     /// A dip below the gate no longer than this does NOT break the span (a red light, a sip of water).
@@ -135,14 +143,22 @@ public enum AutoWorkoutDetector {
     ///   - restingBpm: the nightly resting HR for the day; nil → `defaultRestingHR` (60).
     ///   - motion: OPTIONAL continuous motion series for confirmation; nil/empty → HR-only.
     ///   - savedSpans: already-saved workout windows to exclude by overlap.
+    ///   - maxHR: 2026-09-21 — effective HRmax (user override, else Tanaka). When supplied the
+    ///     elevated floor is `rest + max(elevatedMarginBPM, hrrFloorFraction × (maxHR − rest))`, so
+    ///     the suggestion bar scales with the user's reserve instead of over-firing on a low resting
+    ///     HR. nil → the legacy fixed floor, byte-identical for every caller that can't resolve one.
     public static func detect(hr: [(ts: Int, bpm: Int)],
                               restingBpm: Int?,
                               motion: [MotionPoint]? = nil,
-                              savedSpans: [SavedWorkoutSpan] = []) -> [DetectedWorkout] {
+                              savedSpans: [SavedWorkoutSpan] = [],
+                              maxHR: Int? = nil) -> [DetectedWorkout] {
         let seg = hr.sorted { $0.ts < $1.ts }
         if seg.isEmpty { return [] }
 
-        let floor = (restingBpm ?? defaultRestingHR) + elevatedMarginBPM
+        let rest = restingBpm ?? defaultRestingHR
+        let margin = maxHR.map { Swift.max(Double(elevatedMarginBPM), hrrFloorFraction * Double($0 - rest)) }
+            ?? Double(elevatedMarginBPM)
+        let floor = Double(rest) + margin
 
         // --- 1 + 2 + 3: grow sustained spans tolerating brief dips ---
         // A span is [spanStart, spanEnd] over ELEVATED-sample timestamps. `dipStart` marks where the
@@ -161,7 +177,7 @@ public enum AutoWorkoutDetector {
         }
 
         for sample in seg {
-            if sample.bpm >= floor {
+            if Double(sample.bpm) >= floor {
                 if spanStart == nil { spanStart = sample.ts }
                 spanEnd = sample.ts
                 dipStart = nil   // the dip (if any) is bridged

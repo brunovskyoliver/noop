@@ -90,6 +90,45 @@ final class ImuSessionFileStore {
                      firstTs: records.map(\.ts).min())
     }
 
+    /// 2026-09-21 (workout auto-detection phase 4): decoded 100 Hz samples for EVERY captured second
+    /// overlapping [from, to], across ALL registered capture sessions — the analysis engine's one-shot
+    /// prefetch so a scoring pass does zero file I/O per bout. Returns an EMPTY dict when no capture
+    /// window overlaps (the common case — capture is an explicit Test Centre action), and opens no
+    /// BLE: only files this store already banked are decoded. Duplicate timestamps across sessions
+    /// resolve first-writer-wins for determinism. Columns are scaled to physical units here
+    /// (`Whoop5RawImu.accelScale`/`gyroScale`) so callers never see raw LSBs. Main-actor: the prefetch
+    /// runs before the detached scoring pass and the returned value is `Sendable`.
+    /// Kotlin twin `ImuSessionFileStore.rawSamples(from, to)`.
+    func rawSamples(from: Int, to: Int) -> [Int: [RawImuSample]] {
+        let overlapping = windows().filter { $0.from <= Int64(to) && ($0.to ?? Int64.max) >= Int64(from) }
+        guard !overlapping.isEmpty else { return [:] }
+        var out: [Int: [RawImuSample]] = [:]
+        for window in overlapping {
+            flushSession(window.id)
+            for record in readRecords(window.id, from: from, to: to, includePending: false)
+            where out[Int(record.ts)] == nil {
+                out[Int(record.ts)] = Self.recordSamples(record.columns)
+            }
+        }
+        return out
+    }
+
+    /// Rebuild the 100 scaled `RawImuSample`s one stored record carries — [ax,ay,az,gx,gy,gz] × 100
+    /// columnar, the same layout `Whoop5RawImu.rawColumns` writes. Kotlin twin `decodeColumns`.
+    private static func recordSamples(_ columns: [Int16]) -> [RawImuSample] {
+        let n = Self.sampleRate
+        guard columns.count >= Self.axes * n else { return [] }
+        return (0..<n).map { i in
+            RawImuSample(
+                ax: Double(columns[0 * n + i]) * Whoop5RawImu.accelScale,
+                ay: Double(columns[1 * n + i]) * Whoop5RawImu.accelScale,
+                az: Double(columns[2 * n + i]) * Whoop5RawImu.accelScale,
+                gx: Double(columns[3 * n + i]) * Whoop5RawImu.gyroScale,
+                gy: Double(columns[4 * n + i]) * Whoop5RawImu.gyroScale,
+                gz: Double(columns[5 * n + i]) * Whoop5RawImu.gyroScale)
+        }
+    }
+
     func exportSegments(_ id: String, from: Int, to: Int) -> [ExportSegment] {
         flushSession(id)
         let records = Dictionary(grouping: readRecords(id, from: from, to: to, includePending: false), by: \.ts)

@@ -3,6 +3,7 @@ package com.noop.ui
 import com.noop.analytics.WorkoutsTrace
 import com.noop.data.DismissedWorkout
 import com.noop.data.WorkoutRow
+import com.noop.notif.WorkoutDetectedPolicy
 import kotlin.math.roundToInt
 
 /*
@@ -47,7 +48,9 @@ object WorkoutEditing {
      * path can reach. Re-seeding keeps every delete that save can issue inside "my-whoop". (#1488)
      */
     fun asManualCopy(row: WorkoutRow): WorkoutRow =
-        row.copy(source = "manual", deviceId = "my-whoop", sport = displaySport(row.sport))
+        row.copy(source = "manual", deviceId = "my-whoop", sport = displaySport(row.sport),
+                 // The copy is a manual row, never "detected" — no suggestion applies.
+                 suggestedClass = null, suggestedClassConfidence = null)
 
     /**
      * Sport-cell text. "detected" reads as a neutral "Activity". WHOOP sport names arrive as
@@ -68,6 +71,29 @@ object WorkoutEditing {
         }
         return out.toString()
     }
+
+    /**
+     * English display name for a classifier token, reusing the notification policy's mapping so the
+     * row title and the notification can never disagree. null for "other"/unknown tokens.
+     * Android renders sport names unlocalized today ([displaySport] returns literals), so the
+     * suggestion matches that register; the Swift twin localizes.
+     */
+    fun suggestedClassName(token: String?): String? = WorkoutDetectedPolicy.classLabel(token)
+
+    /**
+     * Row title: for a still-"detected" bout carrying a classifier suggestion, the suggested name
+     * stands in for "Activity" (the "Detected" source badge keeps the provenance honest). Every
+     * other row — including any user-applied label — renders its stored sport unchanged.
+     * Twin of Swift `WorkoutSource.displaySport(row)`.
+     */
+    fun displaySport(row: WorkoutRow): String =
+        if (row.sport == "detected") suggestedClassName(row.suggestedClass) ?: displaySport(row.sport)
+        else displaySport(row.sport)
+
+    /** True when a row carries a visible classifier suggestion (drives the "suggested" marker in
+     *  the list rows). Only ever true while sport is still "detected". */
+    fun hasSuggestion(row: WorkoutRow): Boolean =
+        row.sport == "detected" && suggestedClassName(row.suggestedClass) != null
 
     // MARK: - Dismissed detected bouts (durable across re-detection)
 
@@ -359,6 +385,10 @@ object WorkoutEditing {
             // (#1058) is a captured field the sheet never exposes, so it is restored from `old` like
             // the rest. Twin of Swift WorkoutSource.preservingCaptured.
             steps = old.steps,
+            // The classifier suggestion is captured analysis — carry it ONLY while the row stays
+            // sport="detected". An edit that relabels the session makes the suggestion stale metadata.
+            suggestedClass = if (row.sport == "detected") old.suggestedClass else null,
+            suggestedClassConfidence = if (row.sport == "detected") old.suggestedClassConfidence else null,
         )
     }
 

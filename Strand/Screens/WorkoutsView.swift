@@ -30,6 +30,9 @@ struct WorkoutsView: View {
     /// Quick-action FAB or the tab) had no way to begin one from the obvious place. Injected here so the
     /// header/empty-state can start a live session and present the in-exercise view directly.
     @EnvironmentObject var model: AppModel
+    /// Shared shell router — consumed for `pendingWorkout` (the detected-workout notification's
+    /// deep-link: tap → row detail, Edit action → edit sheet). Present in both shells' environments.
+    @EnvironmentObject var router: NavRouter
     @State private var showLiveWorkout = false
     @State private var showStartSport = false
 
@@ -231,7 +234,12 @@ struct WorkoutsView: View {
                 range = defaultRange(for: allRows)
                 seededInitialRange = true
             }
+            consumePendingWorkoutRoute()
         }
+        // 2026-09-21: a detected-workout notification routed here via `router.pendingWorkout` — retry
+        // on every row load until the span resolves (the first paint may still be in flight).
+        .onChange(of: router.pendingWorkout) { _ in consumePendingWorkoutRoute() }
+        .onChange(of: allRows) { _ in consumePendingWorkoutRoute() }
         // #797: when the user picks a range wider than the bounded first-paint window (typically "All"),
         // page the full history in. A pick that fits the loaded window is a no-op. Also covers the
         // auto-widen: if the selected window is sparse and `effectiveRange` falls back to `.all`, the
@@ -303,6 +311,24 @@ struct WorkoutsView: View {
     /// Present the read-only detail for a tapped row. The primary affordance; the ••• menu stays the
     /// secondary path for edit/relabel/delete.
     private func openDetail(_ row: WorkoutRow) { detail = WorkoutDetailTarget(row: row) }
+
+    /// Consume `router.pendingWorkout`: find the row overlapping the notified span (OVERLAP, not the
+    /// exact startTs — re-detection drifts boundaries between passes) and open its detail or edit
+    /// sheet. A detected row is preferred; any overlapping row is the fallback so a just-relabeled
+    /// bout still lands on its manual copy. When nothing matches (the bout was dismissed/re-derived
+    /// away), the pending route clears and the plain list is the destination.
+    private func consumePendingWorkoutRoute() {
+        guard let pending = router.pendingWorkout, loaded else { return }
+        let overlapping = allRows.filter { $0.startTs < pending.endTs && pending.startTs < $0.endTs }
+        let row = overlapping.first(where: { WorkoutSource.classify($0.source) == .detected })
+            ?? overlapping.max(by: { $0.endTs < $1.endTs })
+        guard let row else { router.pendingWorkout = nil; return }
+        router.pendingWorkout = nil
+        switch pending {
+        case .detail: openDetail(row)
+        case .edit: sheet = WorkoutSheetTarget(editing: row)
+        }
+    }
 
     /// Re-read every source after a mutation so the screen reflects the new state immediately.
     /// Keeps the user's current range — only the initial load picks a default — and the auto-widen
@@ -1371,16 +1397,23 @@ struct WorkoutsView: View {
             }
             .frame(width: ColWidth.date, alignment: .leading)
 
-            // Sport ("detected" reads as "Activity")
+            // Sport ("detected" reads as "Activity"; a classifier suggestion names it instead —
+            // marked "suggested" so it never reads as a user-picked label)
             HStack(spacing: 7) {
                 Image(systemName: sportIcon(row.sport))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(StrandPalette.textSecondary)
                     .frame(width: 16)
-                Text(WorkoutSource.displaySport(row.sport))
+                Text(WorkoutSource.displaySport(row))
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
+                if WorkoutSource.hasSuggestion(row) {
+                    Text(String(localized: "suggested"))
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                }
             }
             .frame(width: ColWidth.sport, alignment: .leading)
 
@@ -1459,10 +1492,16 @@ struct WorkoutsView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text(WorkoutSource.displaySport(row.sport))
+                        Text(WorkoutSource.displaySport(row))
                             .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textPrimary)
                             .lineLimit(1)
+                        if WorkoutSource.hasSuggestion(row) {
+                            Text(String(localized: "suggested"))
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .lineLimit(1)
+                        }
                         Spacer(minLength: 0)
                         Text(Self.effortCellLabel(strain: row.strain, scale: effortScale))
                             .font(StrandFont.number(15))
@@ -1542,7 +1581,11 @@ struct WorkoutsView: View {
         let effort = row.strain != nil
             ? String(localized: "Effort \(Self.effortCellLabel(strain: row.strain, scale: effortScale))")
             : String(localized: "no Effort recorded")
-        let base = String(localized: "\(WorkoutSource.displaySport(row.sport)), \(compactRowSubtitle(row)), \(effort)")
+        let name = WorkoutSource.displaySport(row)
+        let sport = WorkoutSource.hasSuggestion(row)
+            ? String(localized: "\(name) (suggested)")
+            : name
+        let base = String(localized: "\(sport), \(compactRowSubtitle(row)), \(effort)")
         guard selectionMode else { return base }
         if !selectable { return String(localized: "\(base). Imported, can't be merged.") }
         return isSelected ? String(localized: "\(base). Selected.") : String(localized: "\(base). Not selected.")
@@ -1597,7 +1640,9 @@ struct WorkoutsView: View {
         WorkoutRow(startTs: row.startTs, endTs: row.endTs, sport: WorkoutSource.displaySport(row.sport),
                    source: "manual", durationS: row.durationS, energyKcal: row.energyKcal,
                    avgHr: row.avgHr, maxHr: row.maxHr, strain: row.strain, distanceM: row.distanceM,
-                   zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps)
+                   zonesJSON: row.zonesJSON, notes: row.notes, steps: row.steps,
+                   // The copy is a manual row, never "detected" — no suggestion applies.
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     /// #796 - the per-session Effort cell label: the stored 0-100 strain mapped to the user's Effort scale
@@ -1935,28 +1980,34 @@ private func previewWorkoutRows() -> [WorkoutRow] {
         WorkoutRow(startTs: now - day * 0 - 3600, endTs: now - day * 0,
                    sport: "Running", source: "whoop", durationS: 3600, energyKcal: 712,
                    avgHr: 152, maxHr: 178, strain: 14.2, distanceM: 10_400,
-                   zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil, steps: nil),
+                   zonesJSON: #"{"z1":12.5,"z2":28.0,"z3":33.5,"z4":18.0,"z5":6.0}"#, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
         WorkoutRow(startTs: now - day * 1 - 2700, endTs: now - day * 1,
                    sport: "Strength Training", source: "whoop", durationS: 2700, energyKcal: 388,
                    avgHr: 118, maxHr: 156, strain: 9.4, distanceM: nil,
-                   zonesJSON: nil, notes: nil, steps: nil),
+                   zonesJSON: nil, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
         WorkoutRow(startTs: now - day * 2 - 1800, endTs: now - day * 2,
                    sport: "Cycling", source: "apple_health", durationS: 1800, energyKcal: 240,
                    avgHr: nil, maxHr: nil, strain: nil, distanceM: 12_800,
-                   zonesJSON: nil, notes: nil, steps: nil),
+                   zonesJSON: nil, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
         WorkoutRow(startTs: now - day * 3 - 1500, endTs: now - day * 3,
                    sport: "Running", source: "apple_health", durationS: 1500, energyKcal: 310,
                    avgHr: nil, maxHr: nil, strain: nil, distanceM: 5_100,
-                   zonesJSON: nil, notes: nil, steps: nil),
+                   zonesJSON: nil, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
         WorkoutRow(startTs: now - day * 4 - 3300, endTs: now - day * 4,
                    sport: "Cycling", source: "whoop", durationS: 3300, energyKcal: 540,
                    avgHr: 134, maxHr: 162, strain: 11.8, distanceM: 24_600,
                    // Android key shape on purpose — exercises the cross-platform parser.
-                   zonesJSON: #"{"zone1":20.0,"zone2":35.0,"zone3":30.0,"zone4":10.0}"#, notes: nil, steps: nil),
+                   zonesJSON: #"{"zone1":20.0,"zone2":35.0,"zone3":30.0,"zone4":10.0}"#, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
         WorkoutRow(startTs: now - day * 6 - 2400, endTs: now - day * 6,
                    sport: "Yoga", source: "whoop", durationS: 2400, energyKcal: 165,
                    avgHr: 92, maxHr: 118, strain: 5.1, distanceM: nil,
-                   zonesJSON: nil, notes: nil, steps: nil),
+                   zonesJSON: nil, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil),
     ]
 }
 

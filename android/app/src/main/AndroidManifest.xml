@@ -355,6 +355,13 @@
             android:name="com.noop.alarm.WindDownReceiver"
             android:exported="false" />
 
+        <!-- Detected-workout notification's "Not a workout" action (2026-09-21): durably suppresses
+             the notified span without opening the app. Not exported — only our own PendingIntent
+             fires it. -->
+        <receiver
+            android:name="com.noop.notif.WorkoutDetectedActionReceiver"
+            android:exported="false" />
+
         <!-- Shares the strap log (a cache file) for bug reports. Not exported; read access is granted
              per-share via FLAG_GRANT_READ_URI_PERMISSION. Authority is applicationId-scoped so the
              full + demo flavors don't collide. -->

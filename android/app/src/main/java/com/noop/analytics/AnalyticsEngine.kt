@@ -411,6 +411,18 @@ object AnalyticsEngine {
         // Threaded rather than read from a global so this stays a pure function, and defaulted so every
         // existing caller and test is byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
+        // 2026-09-21 auto-detection: ADVISORY coarse workout-type classifier run over each detected
+        // bout's own window (same already-loaded day streams — no extra reads). null = zero work,
+        // byte-identical default; IntelligenceEngine passes the heuristic only when the workouts
+        // trace domain is on, so production pays nothing for an unvalidated signal. The prediction
+        // lands on `ExerciseSession.suggestedClass` — instrumentation for the validation path,
+        // never the persisted sport.
+        workoutClassifier: WorkoutTypeClassifying? = null,
+        // 2026-09-21 phase-4 stretch: per-bout high-rate IMU features from ALREADY-CAPTURED session
+        // files, looked up by the caller (app layer owns ImuSessionFileStore). `(startTs, endTs) ->
+        // ImuActivityFeatures?`, null when nothing captured overlaps — the WHOOP 4.0 / no-capture
+        // path. Pure lookup; opens no BLE and decodes only files the caller already banked.
+        imuActivityFeatures: ((Long, Long) -> ImuActivityFeatures?)? = null,
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -817,6 +829,39 @@ object AnalyticsEngine {
             effortMethod = effortMethod,
             funnel = { detectionFunnel = it },
         )
+
+        // ── Per-bout enrichment + advisory classification (2026-09-21) ────────
+        // Both fills reuse ONLY the day streams this call already loaded — `daySteps`/`steps` for the
+        // wrap-aware tick window, `dayHr`/`hr` + `dayGravity`/`gravity` for the classifier's feature
+        // vector — plus, when the caller supplies it, a lookup over previously captured IMU files.
+        // Nothing here polls the strap, decodes anything new, or runs on a null/absent input: a WHOOP
+        // 4.0 night is a strict no-op on both fills.
+        val boutSteps = daySteps ?: steps
+        val boutHR = dayHr ?: hr
+        val boutGravity = dayGravity ?: gravity
+        for (w in workouts) {
+            val inBout = boutSteps.filter { it.ts >= w.start && it.ts <= w.end }
+            StepsCounter.stepsInWindow(inBout)?.let { ticks ->
+                val scaled = (ticks.toDouble() / max(profile.stepTicksPerStep, 0.5)).roundToLong()
+                    .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                w.steps = if (scaled > 0) scaled else null
+            }
+            if (workoutClassifier != null) {
+                val f = WorkoutTypeFeatureExtractor.extract(
+                    hr = boutHR, gravity = boutGravity, steps = boutSteps,
+                    start = w.start, end = w.end,
+                    restingHR = restingHRDaily?.toDouble(), maxHR = w.hrmax,
+                    caloriesKcal = w.caloriesKcal,
+                    imu = imuActivityFeatures?.invoke(w.start, w.end),
+                )
+                if (f != null) {
+                    val p = workoutClassifier.classify(f)
+                    w.suggestedClass =
+                        if (p.predictedClass == CoarseWorkoutClass.OTHER) null else p.predictedClass.raw
+                    w.suggestedClassConfidence = p.confidence
+                }
+            }
+        }
 
         // ── Steps (APPROXIMATE) ───────────────────────────────────────────────
         // step_motion_counter@57 is a CUMULATIVE u16 running counter (it climbs while you move, holds

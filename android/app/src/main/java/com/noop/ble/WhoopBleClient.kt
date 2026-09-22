@@ -3268,6 +3268,29 @@ class WhoopBleClient(
                         spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(context),
                         effortMethod = NoopPrefs.effortMethod(context),
                         dayCycleMode = NoopPrefs.dayCycleMode(context),
+                        // 2026-09-21 auto-detection: workout classification runs UNGATED — the
+                        // heuristic is a pure function over the already-loaded day streams (no extra
+                        // reads, no BLE), and its suggestedClass label is persisted on the detected
+                        // row and surfaced in the Workouts list. The captured-IMU refinement stays
+                        // gated on the WORKOUTS trace domain: it decodes banked 100 Hz session files,
+                        // real I/O we only spend when the diagnostic is on.
+                        workoutClassifier = com.noop.analytics.HeuristicWorkoutClassifier(),
+                        imuActivityFeatures = run {
+                            if (!testCentre.active(com.noop.testcentre.TestDomain.WORKOUTS)) {
+                                null
+                            } else {
+                                val nowSec = System.currentTimeMillis() / 1000L
+                                val prefetch = com.noop.testcentre.ImuSessionFileStore(context)
+                                    .rawSamples(nowSec - 22L * 86_400L, nowSec)
+                                if (prefetch.isEmpty()) null else ({ start: Long, end: Long ->
+                                    val samples = ArrayList<com.noop.protocol.RawImuSample>()
+                                    for (ts in start..end) prefetch[ts]?.let(samples::addAll)
+                                    if (samples.isEmpty()) null
+                                    else com.noop.analytics.ImuFeatureExtractor.extract(
+                                        samples, com.noop.testcentre.ImuSessionFileStore.SAMPLE_RATE)
+                                })
+                            }
+                        },
                     )
                 }.onSuccess {
                     // Advance the shared watermark so the next 15-min tick sees no change and skips (#836).
@@ -3299,6 +3322,18 @@ class WhoopBleClient(
                 }
                 // #1816: clear the motion sink after the post-backfill pass completes.
                 IntelligenceEngine.stepsHasMotionSink = null
+                // 2026-09-21 detected-workout FYI: the post-offload pass is where newly-synced HR
+                // lands, so the settle check rides it too — not only passes that scored (a bout's
+                // 600 s window can elapse while the next offload brings nothing new). One prefs
+                // read when the toggle is off. Twin of the AppViewModel 15-min tick hook.
+                runCatching {
+                    com.noop.notif.WorkoutDetectedNotifier.onAnalysisPass(
+                        context, repository, deviceId,
+                        trace = if (testCentre.active(com.noop.testcentre.TestDomain.WORKOUTS))
+                            { s -> log(s, com.noop.testcentre.TestDomain.WORKOUTS) }
+                        else null,
+                    )
+                }
                 // Keep the opt-in Health Connect writeback fresh in background-only operation too.
                 if (NoopPrefs.hcWriteback(context)) {
                     // #660: log the count AND any PII-safe failure categories (the writer also persists

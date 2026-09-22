@@ -563,6 +563,13 @@ data class WorkoutRow(
     // recomputed as SUM over that day's sessions, so a second file for a day adds instead of clobbering.
     // Declared LAST so the v27 ALTER-appended column matches this fresh-schema order. Swift `WorkoutRow.steps`.
     val steps: Int? = null,
+    // 2026-09-22 auto-detection: the on-device classifier's advisory label ("walk"/"run"/"strength"/
+    // "cycle"/"ski") + its 0..1 confidence, written only for sport="detected" rows. `sport` stays
+    // "detected" until the USER picks a label — a suggestion, never an authority; a re-analysis pass
+    // refreshes it in place. Declared LAST so the v39 ALTER-appended columns match fresh-schema order.
+    // Swift `WorkoutRow.suggestedClass` / `suggestedClassConfidence` (WhoopStore v47).
+    val suggestedClass: String? = null,
+    val suggestedClassConfidence: Double? = null,
 )
 
 /**

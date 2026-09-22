@@ -227,6 +227,11 @@ struct SettingsView: View {
     /// Nothing is ever created automatically. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = false
 
+    /// Opt-in "Detected-workout notifications" (default OFF, 2026-09-21). The always-on detector
+    /// auto-SAVES bouts as `sport="detected"` rows; this toggle only controls the FYI notification
+    /// after one lands. Mirrors the Android `NoopPrefs.KEY_WORKOUT_DETECTED_NOTIFY`.
+    @AppStorage(WorkoutDetectedNotifier.enabledDefaultsKey) private var workoutDetectedNotifyEnabled = false
+
     /// "Journal reminder" (#627, default ON). When ON, Today shows the persistent journal widget
     /// (last-7-days strip + tap-through). Mirrors the Android `NoopPrefs.KEY_JOURNAL_REMINDER_ENABLED`.
     @AppStorage(PuffinExperiment.journalReminderKey) private var journalReminderEnabled = true
@@ -1722,6 +1727,25 @@ struct SettingsView: View {
                 .accessibilityHint("Offers to save a workout when it spots sustained elevated heart rate")
 
                 Text("After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Deliberately conservative, so the odd workout may be missed. On \(Platform.deviceNounPhrase) only.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                rowDivider
+
+                Toggle(isOn: $workoutDetectedNotifyEnabled) {
+                    Text("Detected-workout notifications")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .accessibilityHint("Notify after NOOP auto-saves a detected activity")
+                .onChangeCompat(of: workoutDetectedNotifyEnabled) { on in
+                    if on { WorkoutDetectedNotifier.requestAuthorization() }
+                }
+
+                Text("NOOP already saves sessions it detects on its own. With this on, it lets you know about ten minutes after one ends — one notification per sync at most. Open it to edit or relabel, or mark it not a workout. On \(Platform.deviceNounPhrase) only.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

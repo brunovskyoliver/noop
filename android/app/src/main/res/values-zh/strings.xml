@@ -2659,4 +2659,10 @@
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">查看充能趋势</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">每天的分数，随时间变化。</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">能接住话头的教练、主屏幕上的心率，以及不再过度断言的图表</string>
+    <string name="workout_detected_channel_name">检测到的运动记录</string>
+    <string name="workout_detected_channel_desc">当 NOOP 根据你的腕带数据自动保存检测到的运动记录时提醒。</string>
+    <string name="workout_detected_action_edit">编辑</string>
+    <string name="workout_detected_action_dismiss">不是运动记录</string>
+    <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">检测到运动记录的通知</string>
+    <string name="workouts_suggested">建议</string>
 </resources>

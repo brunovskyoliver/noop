@@ -12,7 +12,8 @@ final class WorkoutSourceTests: XCTestCase {
                      avgHr: Int? = nil, maxHr: Int? = nil, strain: Double? = nil) -> WorkoutRow {
         WorkoutRow(startTs: start, endTs: end, sport: sport, source: source,
                    durationS: Double(end - start), energyKcal: nil, avgHr: avgHr, maxHr: maxHr,
-                   strain: strain, distanceM: nil, zonesJSON: nil, notes: nil, steps: nil)
+                   strain: strain, distanceM: nil, zonesJSON: nil, notes: nil, steps: nil,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     // MARK: - classify
@@ -83,13 +84,15 @@ final class WorkoutSourceTests: XCTestCase {
         // A live strap session: HR trace, peak, strain, zones, distance, energy all captured.
         WorkoutRow(startTs: start, endTs: end, sport: sport, source: source,
                    durationS: Double(end - start), energyKcal: 600, avgHr: 150, maxHr: 178,
-                   strain: 14.0, distanceM: 10_000, zonesJSON: #"{"z1":10}"#, notes: nil, steps: nil)
+                   strain: 14.0, distanceM: 10_000, zonesJSON: #"{"z1":10}"#, notes: nil, steps: nil,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
     private func thinImport(start: Int, end: Int, sport: String, source: String) -> WorkoutRow {
         // A thin Health Connect / Apple import: only duration + calories.
         WorkoutRow(startTs: start, endTs: end, sport: sport, source: source,
                    durationS: Double(end - start), energyKcal: 590, avgHr: nil, maxHr: nil,
-                   strain: nil, distanceM: nil, zonesJSON: nil, notes: nil, steps: nil)
+                   strain: nil, distanceM: nil, zonesJSON: nil, notes: nil, steps: nil,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     func testSportKeyFoldsCamelCaseAndSpacing() {
@@ -360,7 +363,8 @@ final class WorkoutSourceTests: XCTestCase {
                          steps: Int? = nil) -> WorkoutRow {
         WorkoutRow(startTs: start, endTs: end, sport: sport, source: source,
                    durationS: Double(end - start), energyKcal: kcal, avgHr: avgHr, maxHr: maxHr,
-                   strain: strain, distanceM: dist, zonesJSON: nil, notes: notes, steps: steps)
+                   strain: strain, distanceM: dist, zonesJSON: nil, notes: notes, steps: steps,
+                   suggestedClass: nil, suggestedClassConfidence: nil)
     }
 
     func testFilterInactiveWhenEmptyPassesEverythingUntouched() {

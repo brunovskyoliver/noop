@@ -1433,7 +1433,10 @@ class WhoopRepository(
     suspend fun relabelDetected(row: WorkoutRow, sport: String, strapDeviceId: String = "my-whoop") {
         val trimmed = sport.trim()
         if (trimmed.isEmpty()) return
-        val manual = row.copy(deviceId = strapDeviceId, sport = trimmed, source = "manual")
+        // A relabeled row is authoritative now — the classifier's suggestion was a property of the
+        // "detected" row, not of the user's label (Swift twin Repository.relabelDetected clears it too).
+        val manual = row.copy(deviceId = strapDeviceId, sport = trimmed, source = "manual",
+                              suggestedClass = null, suggestedClassConfidence = null)
         dao.upsertWorkouts(listOf(manual))
         dao.deleteWorkoutsBySport(computedDeviceId(strapDeviceId), "detected", row.startTs, row.startTs)
     }
@@ -1449,6 +1452,25 @@ class WhoopRepository(
         // still overlaps it and stays hidden (matches macOS dismissed-span semantics).
         dao.insertDismissed(listOf(DismissedWorkout(row.deviceId, row.startTs, row.endTs)))
         dao.deleteWorkoutsBySport(row.deviceId, row.sport, row.startTs, row.startTs)
+    }
+
+    /**
+     * Span-addressed variant of [dismissDetected] for the detected-workout notification's
+     * "Not a workout" action, which carries only the notified (startTs, endTs) — not a row handle.
+     * The marker is written on the NOTIFIED span so drifted re-derives still overlap it and stay
+     * hidden (the read-time filter matches by overlap, not the exact token), and every detected row
+     * currently overlapping the span is deleted — normally exactly one; a re-detect between notify
+     * and tap may have drifted its startTs. (2026-09-21; Swift twin `Repository.dismissDetectedWorkout`.)
+     */
+    suspend fun dismissDetectedSpan(startTs: Long, endTs: Long, strapDeviceId: String = "my-whoop") {
+        if (endTs <= startTs) return
+        val computedId = computedDeviceId(strapDeviceId)
+        dao.insertDismissed(listOf(DismissedWorkout(computedId, startTs, endTs)))
+        val rows = detectedWorkoutsUnion(strapDeviceId, startTs - 86_400L, endTs + 86_400L)
+            .filter { it.sport == "detected" && it.startTs < endTs && startTs < it.endTs }
+        for (row in rows) {
+            dao.deleteWorkoutsBySport(row.deviceId, row.sport, row.startTs, row.startTs)
+        }
     }
 
     /**

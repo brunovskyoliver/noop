@@ -178,7 +178,8 @@ enum WhoopImporter {
                               avgHr: w.avgHeartRate.map { Int($0.rounded()) },
                               maxHr: w.maxHeartRate.map { Int($0.rounded()) },
                               strain: WhoopExportImporter.effortFromImportedDayStrain(w.activityStrain), distanceM: w.distanceMeters,
-                              zonesJSON: zjson, notes: nil, steps: nil)
+                              zonesJSON: zjson, notes: nil, steps: nil,
+            suggestedClass: nil, suggestedClassConfidence: nil)
         }
         let workoutsWritten = try await store.upsertWorkouts(workouts, deviceId: deviceId)
 

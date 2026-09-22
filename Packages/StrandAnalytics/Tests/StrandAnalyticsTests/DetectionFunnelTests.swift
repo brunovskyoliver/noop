@@ -125,8 +125,8 @@ final class DetectionFunnelTests: XCTestCase {
             let f = try funnelOf(hr, grav)
             XCTAssertEqual(f.motionPassed, f.hrMissing + f.hrTooLow + f.active,
                            "\(name): motionOK must equal hrMissing + hrTooLow + active (\(f))")
-            XCTAssertEqual(f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.kept,
-                           "\(name): bridged runs must equal short + noHR + lowIntensity + kept (\(f))")
+            XCTAssertEqual(f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.kept + f.keptActivity,
+                           "\(name): bridged runs must equal short + noHR + lowIntensity + kept + activity (\(f))")
         }
     }
 
@@ -139,6 +139,7 @@ final class DetectionFunnelTests: XCTestCase {
         f.runs = 6; f.bridged = 4
         f.longestRunS = 212; f.meanRunS = 74
         f.droppedShort = 4; f.droppedNoHR = 0; f.droppedLowIntensity = 0; f.kept = 0
+        f.keptActivity = 0
         XCTAssertEqual(
             WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: f),
             // Renamed from "effort detect": this funnel is WORKOUT-BOUT detection, and sitting under
@@ -148,7 +149,7 @@ final class DetectionFunnelTests: XCTestCase {
             "workout detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 "
                 + "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 "
                 + "longestRunS=212 meanRunS=74 "
-                + "short=4 noHR=0 lowIntensity=0 kept=0")
+                + "short=4 noHR=0 lowIntensity=0 kept=0 activity=0")
     }
 
     /// The field case these two fields exist for, with the gate ORDER that makes them necessary.

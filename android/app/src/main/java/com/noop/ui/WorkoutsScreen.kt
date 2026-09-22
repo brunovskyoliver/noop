@@ -247,6 +247,33 @@ fun WorkoutsScreen(vm: AppViewModel) {
         }
     }
 
+    // 2026-09-21: a detected-workout notification routed its (startTs, endTs) span here via the
+    // route bus. Resolve by OVERLAP, not an exact startTs match — the engine's re-detect can drift
+    // a bout's boundary between the pass that notified and the row now loaded. A detected ("-noop")
+    // row is preferred; the newest overlapping row is the fallback so a just-relabeled bout still
+    // lands on its manual copy. Tap opens the detail sheet; the Edit action opens the edit dialog.
+    val pendingDetectedRoute by NoopRouteBus.workoutDetected.collectAsStateWithLifecycle()
+    var deepLinkRow by remember { mutableStateOf<WorkoutRow?>(null) }
+    LaunchedEffect(pendingDetectedRoute, allRows) {
+        val route = pendingDetectedRoute ?: return@LaunchedEffect
+        val overlapping = allRows.filter { it.startTs < route.endTs && route.startTs < it.endTs }
+        val row = overlapping.firstOrNull { it.source.lowercase().endsWith("-noop") }
+            ?: overlapping.maxByOrNull { it.endTs }
+        when {
+            row != null -> {
+                NoopRouteBus.consumeWorkoutDetected()
+                if (route.edit) dialog = DialogTarget(row) else deepLinkRow = row
+            }
+            // Rows may still be loading on a cold start — give the first publish a beat before
+            // declaring the bout gone (dismissed, or re-derived away) and clearing the route.
+            allRows.isNotEmpty() -> NoopRouteBus.consumeWorkoutDetected()
+            else -> {
+                kotlinx.coroutines.delay(1_500)
+                if (allRows.isEmpty()) NoopRouteBus.consumeWorkoutDetected()
+            }
+        }
+    }
+
     // PERF (#707): migrate the eager ScreenScaffold to its lazy twin so each top-level section is its own
     // `item { }` and only the on-screen cards compose + get semantics-walked (the Compose accessibility
     // copy on scroll was a contributor to the OOM). Order / padding / 20dp spacing are unchanged: the
@@ -382,6 +409,13 @@ fun WorkoutsScreen(vm: AppViewModel) {
                 dialog = null
             },
         )
+    }
+
+    // 2026-09-21: the detected-workout notification's plain tap lands here — the same read-only
+    // detail sheet a session-row tap presents inside SessionsSection, hoisted to screen level so the
+    // deep-link doesn't depend on the row being inside the paginated window.
+    deepLinkRow?.let { row ->
+        WorkoutDetailSheet(vm = vm, row = row, onDismiss = { deepLinkRow = null })
     }
 }
 
@@ -1390,7 +1424,9 @@ private fun SessionRow(
 ) {
     // #64: only MANUAL / DETECTED rows are selectable — imported history is read-only.
     val selectable = WorkoutMerge.isMergeable(row)
-    val rowLabel = "${WorkoutEditing.displaySport(row.sport)}, ${dateLabel(row.startTs)}" +
+    val rowSport = WorkoutEditing.displaySport(row) +
+        if (WorkoutEditing.hasSuggestion(row)) " (${uiString(R.string.workouts_suggested)})" else ""
+    val rowLabel = "$rowSport, ${dateLabel(row.startTs)}" +
         if (selectionMode) {
             when {
                 !selectable -> ". Imported, can't be merged."
@@ -1453,12 +1489,21 @@ private fun SessionRow(
             )
             Spacer(Modifier.width(7.dp))
             Text(
-                WorkoutEditing.displaySport(row.sport),
+                WorkoutEditing.displaySport(row),
                 style = NoopType.subhead,
                 color = Palette.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (WorkoutEditing.hasSuggestion(row)) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    uiString(R.string.workouts_suggested),
+                    style = NoopType.footnote,
+                    color = Palette.textTertiary,
+                    maxLines = 1,
+                )
+            }
         }
         Cell(durationLabel(row.durationS), Modifier.weight(1f))
         Cell(
@@ -1537,7 +1582,15 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(WorkoutEditing.displaySport(row.sport), style = NoopType.title2, color = Palette.textPrimary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(WorkoutEditing.displaySport(row), style = NoopType.title2, color = Palette.textPrimary)
+                        if (WorkoutEditing.hasSuggestion(row)) {
+                            Spacer(Modifier.width(8.dp))
+                            // Advisory label, not a user pick — kept visually distinct.
+                            Text(uiString(R.string.workouts_suggested),
+                                 style = NoopType.footnote, color = Palette.textTertiary)
+                        }
+                    }
                     Text(dateLabel(row.startTs), style = NoopType.footnote, color = Palette.textTertiary)
                 }
                 val (srcLabel, srcTint) = row.sourceBadge
