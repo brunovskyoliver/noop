@@ -666,28 +666,76 @@ public final class LiveState: ObservableObject {
 
     /// The in-memory `log` lives only for the life of the process, so a scheduled debug auto-export that
     /// fires hours after the last live session (the Apple analogue of Android's `StrapLogBuffer`) would
-    /// otherwise find nothing to write. We mirror the rolling log to a single UserDefaults key so the
-    /// scheduled export can read the last day's lines even with no live BLE session open. Small and
-    /// bounded: capped to the tail (`tailLimit`, well under `maxLogLines`) of short redacted strings, so
-    /// the persisted blob stays a few hundred KB at most. On-device only; nothing is sent anywhere.
+    /// otherwise find nothing to write. We mirror the rolling log to a small plist file so the scheduled
+    /// export can read the last day's lines even with no live BLE session open. Small and bounded: capped
+    /// to the tail (`tailLimit`, well under `maxLogLines`) of short redacted strings, so the persisted
+    /// blob stays a few hundred KB at most. On-device only; nothing is sent anywhere.
+    ///
+    /// NOT UserDefaults (it was until 2026-09): a `UserDefaults.standard` write re-runs the body of every
+    /// view holding an `@AppStorage`, so this mirror, fired every 32 strap-log lines from the BLE callback,
+    /// rebuilt RootTabView and every tab root, hidden ones included. On-device traces showed a 250–400 ms
+    /// main-thread stall each time, mostly Trends. The legacy keys are migrated once (`logStoreMigrated`).
     private static let tailKey = "strapLog.tail"
     /// How many recent lines the durable tail retains — a sensible day's worth for a scheduled export,
     /// smaller than the live `maxLogLines` ring so the persisted copy stays modest.
     static let tailLimit = 2_000
 
-    /// Mirror the most recent `tailLimit` lines to UserDefaults (called from `append`). Synchronous and
-    /// cheap (a single small array write); UserDefaults coalesces the disk flush. `nonisolated` (touches
-    /// only UserDefaults, no actor state) so the background/static export path can read the twin getter.
+    /// Serial queue owning the log files: writes are async (off the BLE callback), reads are `sync` so
+    /// they always observe every write queued before them.
+    nonisolated private static let logIO = DispatchQueue(label: "noop.strapLog.io", qos: .utility)
+
+    nonisolated private static func logFile(_ key: String) -> URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("StrapLog", isDirectory: true)
+        return dir.appendingPathComponent(key + ".plist")
+    }
+
+    /// Call on `logIO` only.
+    nonisolated private static func readLog(_ key: String) -> Any? {
+        guard let data = try? Data(contentsOf: logFile(key)) else { return nil }
+        return try? PropertyListSerialization.propertyList(from: data, format: nil)
+    }
+
+    /// Call on `logIO` only. `nil` deletes the file.
+    nonisolated private static func writeLog(_ value: Any?, _ key: String) {
+        let url = logFile(key)
+        guard let value else { try? FileManager.default.removeItem(at: url); return }
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: value, format: .binary, options: 0)
+        else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// One-time move of the pre-2026-09 UserDefaults keys into the files, so an update keeps the
+    /// previous session's tail. A lazy static runs once, thread-safely, on first touch.
+    nonisolated private static let logStoreMigrated: Void = logIO.sync {
+        for key in [tailKey, generationsKey] {
+            guard let old = UserDefaults.standard.object(forKey: key) else { continue }
+            if readLog(key) == nil { writeLog(old, key) }
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    /// Mirror the most recent `tailLimit` lines to the tail file (called from `append`). The write is
+    /// queued on `logIO`, so the BLE callback only pays for the array copy.
     nonisolated private static func persistTail(_ lines: [String]) {
         let tail = lines.count > tailLimit ? Array(lines.suffix(tailLimit)) : lines
-        UserDefaults.standard.set(tail, forKey: tailKey)
+        _ = logStoreMigrated
+        logIO.async { writeLog(tail, tailKey) }
     }
 
     /// The persisted log tail, newest-last — what a scheduled export reads when no live session is open.
     /// Empty if nothing has ever been logged on this device. `nonisolated` so a background task with no
     /// main-actor instance can read it.
     nonisolated public static func persistedLogTail() -> [String] {
-        (UserDefaults.standard.array(forKey: tailKey) as? [String]) ?? []
+        _ = logStoreMigrated
+        return logIO.sync { readLog(tailKey) as? [String] } ?? []
+    }
+
+    /// Tests only: seed the durable tail synchronously (`nil` clears it), standing in for a previous process.
+    nonisolated static func setPersistedLogTailForTesting(_ lines: [String]?) {
+        _ = logStoreMigrated
+        logIO.sync { writeLog(lines, tailKey) }
     }
 
     // MARK: - Previous-process log generations (the "why did the app stop" record)
@@ -712,7 +760,7 @@ public final class LiveState: ObservableObject {
     /// occasionally two) without turning a debug tail into a database.
     static let maxLogGenerations = 3
     /// Per-generation line cap — smaller than the live `tailLimit` because what explains a stop is the END
-    /// of the previous session. 3 × 1,000 short redacted lines ≈ 300 KB of UserDefaults, bounded.
+    /// of the previous session. 3 × 1,000 short redacted lines ≈ 300 KB on disk, bounded.
     static let generationTailLimit = 1_000
     /// Once-per-process latch: the roll must happen BEFORE the first `persistTail` of this process, and
     /// exactly once, or a second roll would push this process's own partial tail in as a "previous" one.
@@ -744,15 +792,18 @@ public final class LiveState: ObservableObject {
         var gens = persistedLogGenerations()
         gens.append([header] + clipped)
         if gens.count > maxLogGenerations { gens.removeFirst(gens.count - maxLogGenerations) }
-        UserDefaults.standard.set(gens, forKey: generationsKey)
         // Clear the live slot: this tail now belongs to a generation, and leaving it would duplicate it in
         // every export until 32 fresh lines happen to overwrite it.
-        UserDefaults.standard.set([String](), forKey: tailKey)
+        logIO.sync {
+            writeLog(gens, generationsKey)
+            writeLog([String](), tailKey)
+        }
     }
 
     /// The stored generations, oldest-first. Each element's first line is its own separator header.
     nonisolated static func persistedLogGenerations() -> [[String]] {
-        (UserDefaults.standard.array(forKey: generationsKey) as? [[String]]) ?? []
+        _ = logStoreMigrated
+        return logIO.sync { readLog(generationsKey) as? [[String]] } ?? []
     }
 
     /// The previous processes' lines, oldest-first, ready to sit AHEAD of the current session in an export.
@@ -766,7 +817,8 @@ public final class LiveState: ObservableObject {
 
     /// Drop every stored generation (Settings → the same place the log is cleared from).
     nonisolated static func clearLogGenerations() {
-        UserDefaults.standard.removeObject(forKey: generationsKey)
+        _ = logStoreMigrated
+        logIO.sync { writeLog(nil, generationsKey) }
     }
 
     /// Tests only: clear the once-per-process latch so a test can stand in for a fresh app launch.

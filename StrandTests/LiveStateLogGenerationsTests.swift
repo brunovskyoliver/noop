@@ -7,19 +7,16 @@ import XCTest
 /// generation ring that rescues the tail at first append.
 @MainActor
 final class LiveStateLogGenerationsTests: XCTestCase {
-    private let tailKey = "strapLog.tail"
-    private let gensKey = "strapLog.generations"
-
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: tailKey)
-        UserDefaults.standard.removeObject(forKey: gensKey)
+        LiveState.setPersistedLogTailForTesting(nil)
+        LiveState.clearLogGenerations()
         LiveState.resetGenerationRollLatchForTesting()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: tailKey)
-        UserDefaults.standard.removeObject(forKey: gensKey)
+        LiveState.setPersistedLogTailForTesting(nil)
+        LiveState.clearLogGenerations()
         LiveState.resetGenerationRollLatchForTesting()
         super.tearDown()
     }
@@ -27,7 +24,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// THE ONE THAT MATTERS: a surviving tail is moved into a generation, and the live slot is cleared so
     /// the next `persistTail` cannot destroy it.
     func testRollMovesTheSurvivingTailIntoAGeneration() {
-        UserDefaults.standard.set(["22:01 connected", "22:02 drain done"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["22:01 connected", "22:02 drain done"])
 
         LiveState.rollLogGenerationsIfNeeded()
 
@@ -41,9 +38,9 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// Idempotent per process: a second call must NOT push this process's own partial tail in as a
     /// "previous" session (which would evict a real one and mislabel the current lines).
     func testRollIsOncePerProcess() {
-        UserDefaults.standard.set(["old line"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["old line"])
         LiveState.rollLogGenerationsIfNeeded()
-        UserDefaults.standard.set(["a line this process just wrote"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["a line this process just wrote"])
 
         LiveState.rollLogGenerationsIfNeeded()
 
@@ -61,7 +58,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// The ring is bounded and drops the OLDEST, keeping the most recent restarts.
     func testRingKeepsTheMostRecentGenerations() {
         for i in 1...(LiveState.maxLogGenerations + 2) {
-            UserDefaults.standard.set(["session \(i)"], forKey: tailKey)
+            LiveState.setPersistedLogTailForTesting(["session \(i)"])
             LiveState.resetGenerationRollLatchForTesting()   // stands in for a fresh process
             LiveState.rollLogGenerationsIfNeeded()
         }
@@ -75,7 +72,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// the clip keeps the TAIL — what explains a stop is the end of the previous session, not its start.
     func testGenerationIsClippedToItsTail() {
         let many = (0..<(LiveState.generationTailLimit + 50)).map { "line \($0)" }
-        UserDefaults.standard.set(many, forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(many)
 
         LiveState.rollLogGenerationsIfNeeded()
 
@@ -89,7 +86,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// and the dropped head then measures as silence in the log tools.
     func testClippedGenerationHeaderSaysWhatWasKept() {
         let many = (0..<(LiveState.generationTailLimit + 50)).map { "line \($0)" }
-        UserDefaults.standard.set(many, forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(many)
 
         LiveState.rollLogGenerationsIfNeeded()
 
@@ -101,7 +98,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
 
     /// ...and an UNCLIPPED one must not cry wolf: no "head clipped", just the count.
     func testUnclippedGenerationHeaderClaimsNoLoss() {
-        UserDefaults.standard.set(["22:01 connected", "22:02 drain done"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["22:01 connected", "22:02 drain done"])
 
         LiveState.rollLogGenerationsIfNeeded()
 
@@ -113,7 +110,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// The export puts previous sessions AHEAD of the current one, so `report.txt` stays chronological and
     /// the log-parsing tools keep working on it unchanged.
     func testPreviousSessionsTextPrecedesTheCurrentMarker() {
-        UserDefaults.standard.set(["last night 03:00 disconnected"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["last night 03:00 disconnected"])
         LiveState.rollLogGenerationsIfNeeded()
 
         let text = LiveState.previousSessionsText()
@@ -132,7 +129,7 @@ final class LiveStateLogGenerationsTests: XCTestCase {
     /// session. `exportableLogText()` rolls the surviving tail itself (not only `append`), so an
     /// instant post-restart Report is not empty — the exact case the generation ring exists for.
     func testExportBeforeFirstAppendStillCarriesThePreviousSession() {
-        UserDefaults.standard.set(["last night 03:14 reconnect storm", "03:15 gave up"], forKey: tailKey)
+        LiveState.setPersistedLogTailForTesting(["last night 03:14 reconnect storm", "03:15 gave up"])
         // Fresh process: setUp reset the roll latch and the in-memory `log` is empty (no append yet).
         let text = LiveState().exportableLogText()
         XCTAssertTrue(text.contains("last night 03:14 reconnect storm"),
