@@ -664,9 +664,38 @@ final class AppModel: ObservableObject {
         ble.abortBackfill()
     }
 
+    /// Post-offload analysis throttle. A connected strap completes an offload every few minutes, and each
+    /// analysis pass re-fingerprints every stream per day and re-folds steps/strain: on-device (2026-09-23)
+    /// that kept two background threads at ~30% CPU continuously and the phone in the Serious/Critical
+    /// thermal state, which throttled the whole UI. The dashboard cache still refreshes on every offload;
+    /// only the analysis waits, and a call inside the interval schedules ONE trailing pass so nothing banked
+    /// is left unscored. The first offload after a quiet spell (a morning sync) is analysed immediately.
+    private static let minBackfillAnalysisInterval: TimeInterval = 15 * 60
+    private var lastBackfillAnalysisAt: Date?
+    private var trailingBackfillAnalysis: Task<Void, Never>?
+
     private func refreshAfterCompletedBackfill() async {
         live.append(log: "Backfill: refreshing dashboard cache from completed sync")
         await repo.refresh(days: 120)
+        if let last = lastBackfillAnalysisAt,
+           Date().timeIntervalSince(last) < Self.minBackfillAnalysisInterval {
+            if trailingBackfillAnalysis == nil {
+                let wait = Self.minBackfillAnalysisInterval - Date().timeIntervalSince(last)
+                live.append(log: "Backfill: analysis deferred \(Int(wait))s (throttled)")
+                trailingBackfillAnalysis = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(max(0, wait) * 1_000_000_000))
+                    guard let self else { return }
+                    self.trailingBackfillAnalysis = nil
+                    await self.analyzeAfterBackfill()
+                }
+            }
+            return
+        }
+        await analyzeAfterBackfill()
+    }
+
+    private func analyzeAfterBackfill() async {
+        lastBackfillAnalysisAt = Date()
         // Score the freshly-offloaded raw data RIGHT NOW rather than waiting for the next 15-minute
         // analyzeRecent tick , otherwise a just-synced night's Charge / Effort / Rest can take up to
         // 15 minutes to appear on a strap-only (no-import) dashboard. analyzeRecent no-ops if a tick is

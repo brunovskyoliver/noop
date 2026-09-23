@@ -323,6 +323,7 @@ public enum SleepStagerV2 {
         }
         var raws: [Raw] = []
         var allJerks: [Double] = []
+        var respTrig: [Int: RespTrig] = [:]
         let firstE = ((start + 29) / 30) * 30
         var e = firstE
         while e < end {
@@ -354,7 +355,7 @@ public enum SleepStagerV2 {
                 if let vs = rrBy[s] { for v in vs { beats.append((Double(s), min(max(v, 300), 2000))) } }
             }
             beats.sort { $0.0 != $1.0 ? $0.0 < $1.0 : $0.1 < $1.1 }
-            let respReg = respRegularity(beats)
+            let respReg = respRegularity(beats, trig: &respTrig)
 
             raws.append(Raw(start: e, hr: hrMean, hrVar: hrVar, hrFlat11: hrFlat11,
                             jerks: jerks, gapSec: max(1, gseq.count - 1), jerkMax: jerkMax,
@@ -390,7 +391,12 @@ public enum SleepStagerV2 {
     /// RSA respiration regularity: tachogram → 4 Hz resample → detrend → power spectrum → peak/sum of the
     /// 0.15–0.40 Hz (9–24 brpm) band. Returns spectral peakedness (higher = more regular breathing) or nil
     /// when there are too few beats. A direct band-limited DFT (only the ~50 in-band bins are needed).
-    static func respRegularity(_ beats: [(Double, Double)]) -> Double? {
+    ///
+    /// `trig` caches each grid length's twiddle table across epochs. The window is always ~210 s, so a night
+    /// needs only a handful of distinct `n`, and this skips ~45k `cos`/`sin` calls per epoch. Each entry is
+    /// the same `cos(w * Double(j))` the loop used to evaluate, so the result is bit-identical to the direct
+    /// form (and to the Kotlin twin).
+    static func respRegularity(_ beats: [(Double, Double)], trig: inout [Int: RespTrig]) -> Double? {
         if beats.count < 12 { return nil }
         let t0 = beats.first!.0, tN = beats.last!.0
         if tN <= t0 { return nil }
@@ -414,17 +420,33 @@ public enum SleepStagerV2 {
         let kLo = Int(ceil(0.15 * 0.25 * Double(n)))
         let kHi = Int(floor(0.40 * 0.25 * Double(n)))
         if kHi < kLo || kLo < 0 { return nil }
+        let table: RespTrig
+        if let cached = trig[n] { table = cached } else { table = RespTrig(n: n, kLo: kLo, kHi: kHi); trig[n] = table }
         var maxP = 0.0, sumP = 0.0
         for k in kLo...kHi {
             var re = 0.0, im = 0.0
-            let w = -2.0 * Double.pi * Double(k) / Double(n)
-            for j in 0..<n { let a = w * Double(j); re += y[j] * cos(a); im += y[j] * sin(a) }
+            let row = (k - kLo) * n
+            for j in 0..<n { re += y[j] * table.cos[row + j]; im += y[j] * table.sin[row + j] }
             let p = re * re + im * im
             sumP += p
             if p > maxP { maxP = p }
         }
         if sumP == 0 { return nil }
         return maxP / sumP
+    }
+
+    /// `cos`/`sin` of `-2πkj/n` for the resp band bins `kLo...kHi` of one grid length `n`, row-major by k.
+    struct RespTrig {
+        let cos: [Double], sin: [Double]
+        init(n: Int, kLo: Int, kHi: Int) {
+            var c = [Double](), s = [Double]()
+            c.reserveCapacity((kHi - kLo + 1) * n); s.reserveCapacity((kHi - kLo + 1) * n)
+            for k in kLo...kHi {
+                let w = -2.0 * Double.pi * Double(k) / Double(n)
+                for j in 0..<n { let a = w * Double(j); c.append(Foundation.cos(a)); s.append(Foundation.sin(a)) }
+            }
+            cos = c; sin = s
+        }
     }
 
     // MARK: - Recipe staging

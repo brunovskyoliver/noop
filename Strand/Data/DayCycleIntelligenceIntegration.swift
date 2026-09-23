@@ -3,7 +3,10 @@ import StrandAnalytics
 import WhoopProtocol
 import WhoopStore
 
-@MainActor enum DayCycleIntelligenceIntegration {
+// Deliberately NOT `@MainActor`: `compute` reads every step/HR page of each cycle and folds it through the
+// step counter, strain and calorie scorers. Nonisolated, that CPU work runs on the cooperative pool instead
+// of between main-actor hops. The engine's `computing` lock serialises passes, so `Cache` is never shared.
+enum DayCycleIntelligenceIntegration {
     static let onsetKey = "day_cycle_onset_ts"
     static let pageSize = 10_000
 
@@ -91,7 +94,7 @@ import WhoopStore
                         mode: DayCycleMode, cache: Cache,
                         profile: UserProfile, maxHROverride: Double?, effortMethod: StrainScorer.Method,
                         recoveryReader: BoundaryRecoveryReader? = nil,
-                        trace: ((String) -> Void)? = nil) async -> Result {
+                        trace: (@MainActor (String) -> Void)? = nil) async -> Result {
         guard mode == .sleepOnset else {
             return Result(stepsByWakeDay: [:], strainByWakeDay: [:], caloriesByWakeDay: [:],
                           workoutCountByWakeDay: [:], onsetByWakeDay: [:], firstWakeDay: nil,
@@ -149,7 +152,7 @@ import WhoopStore
         } catch {
             // Fail closed: an unread namespace is unknown, not empty. Returning no replacement source IDs
             // prevents the persistence transaction from deleting valid markers after a transient read error.
-            trace?("stepsCycle status=error error=boundaryRecoveryRead")
+            await trace?("stepsCycle status=error error=boundaryRecoveryRead")
             return Result(stepsByWakeDay: [:], strainByWakeDay: [:], caloriesByWakeDay: [:],
                           workoutCountByWakeDay: [:], onsetByWakeDay: [:], firstWakeDay: nil,
                           markerUpdate: .preserve)
@@ -294,7 +297,7 @@ import WhoopStore
             let scaled = Int((Double(result.count.totalTicks) / max(ticksPerStep, 0.5)).rounded())
             steps[day] = scaled
             let status = active ? "active" : "closed"
-            trace?("stepsCycle wakeDay=\(day) status=\(status) onsetTs=\(window.onset) "
+            await trace?("stepsCycle wakeDay=\(day) status=\(status) onsetTs=\(window.onset) "
                 + "endTs=\(window.endExclusive) owner=\(identity) pages=\(result.pages) samples=\(result.samples) "
                 + "totalTicks=\(result.count.totalTicks) outside=\(result.count.acceptedOutsideSleepTicks) "
                 + "awakeGap=\(result.count.acceptedAwakeGapTicks) sleepBout=\(result.count.acceptedSleepBoutTicks) "
@@ -304,7 +307,7 @@ import WhoopStore
                 + "gravitySamples=\(result.count.gravitySamplesAvailable) auxSamples=\(result.count.auxSamplesAvailable) "
                 + "ticksPerStep=\(ticksPerStep) scaledSteps=\(scaled)")
             } catch {
-                trace?("stepsCycle wakeDay=\(day) status=error error=databaseRead")
+                await trace?("stepsCycle wakeDay=\(day) status=error error=databaseRead")
                 continue windowLoop
             }
         }

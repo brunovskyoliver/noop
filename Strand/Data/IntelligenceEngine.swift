@@ -1980,6 +1980,8 @@ final class IntelligenceEngine: ObservableObject {
             if !$0.contains($1) { $0.append($1) }
         }
         let cycleWorkouts = await repo.workoutRows(days: maxDays + 2)
+        var stepsTrace: (@MainActor (String) -> Void)?
+        if stepsTraceActive { stepsTrace = { [weak self] line in self?.diagnosticSink?(line, .steps) } }
         let physiologicalSteps = await DayCycleIntelligenceIntegration.compute(
             nights: scoredNights.map { night in
                 DayCycleIntelligenceIntegration.Night(
@@ -2003,7 +2005,7 @@ final class IntelligenceEngine: ObservableObject {
             profile: up,
             maxHROverride: maxHR,
             effortMethod: effortMethodGlobal,
-            trace: stepsTraceActive ? { self.diagnosticSink?($0, .steps) } : nil)
+            trace: stepsTrace)
         // #299: `editsByStart` is now built PER DAY inside the scoring loop (scoped to the day each edit
         // belongs to), NOT window-wide here. sleepEditedDaily folds any edited row that isn't a twin of THIS
         // day's detected sessions in as a "manual" block, so a window-wide edit set let ONE user edit /
