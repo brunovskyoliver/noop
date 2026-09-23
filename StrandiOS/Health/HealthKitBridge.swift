@@ -34,6 +34,14 @@ final class HealthKitBridge: ObservableObject {
     /// Without this, a strap offload finishing during the foreground read/write pass was deferred until
     /// the next app open even though the newly-banked rows were already available locally.
     private var writeBackPending = false
+    /// Write-back throttle. Every pass deletes and re-saves ~48 h of 1-minute HR plus 14 days of vitals,
+    /// and a connected strap completes an offload every few minutes. On-device (2026-09-23) that kept
+    /// `healthd` above iOS's CPU limit (7 `cpu_resource` reports overnight) and the phone in the "Serious"
+    /// thermal state, which throttled the whole UI. A call inside the interval schedules ONE trailing pass
+    /// for when it expires, so the newest data still reaches Health, at most this late.
+    private static let minWriteBackInterval: TimeInterval = 20 * 60
+    private var lastWriteBackAt: Date?
+    private var trailingWriteBack: Task<Void, Never>?
     /// How many days the last COMPLETED sync covered, so an observer wake can tell whether a sync that
     /// just ran already read its window. Paired with `lastSync` (the time). Reset to 0 by a failed sync,
     /// so a failure never lets a later wake be skipped on the strength of it.
@@ -710,6 +718,17 @@ final class HealthKitBridge: ObservableObject {
         // No authorization is a successful no-op for a background task. The scheduler is cancelled by
         // its app-owned operation after observing this state, so it does not keep waking unnecessarily.
         guard auth == .authorized else { return true }
+        if let last = lastWriteBackAt, Date().timeIntervalSince(last) < Self.minWriteBackInterval {
+            if trailingWriteBack == nil {
+                let wait = Self.minWriteBackInterval - Date().timeIntervalSince(last)
+                trailingWriteBack = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: UInt64(max(0, wait) * 1_000_000_000))
+                    self?.trailingWriteBack = nil
+                    await self?.writeBackAfterNewData()
+                }
+            }
+            return true
+        }
         guard !syncing else {
             writeBackPending = true
             return true
@@ -717,6 +736,7 @@ final class HealthKitBridge: ObservableObject {
         syncing = true
         defer { finishHealthPass() }
         guard let store = await repo.storeHandle() else { return false }
+        lastWriteBackAt = Date()
         do {
             try await writeBack(whoopStore: store)
             lastError = nil
