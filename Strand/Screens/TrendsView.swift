@@ -79,7 +79,15 @@ struct TrendsView: View {
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
-    private func date(_ day: String) -> Date? { Self.dayParser.date(from: day) }
+    /// Memo for `date(_:)`: `resolve` re-parses every held day per metric per body, and on-device traces
+    /// put that DateFormatter work at ~21% of a Trends rebuild. Day keys are few (one per day of history).
+    @MainActor private static var dayCache: [String: Date] = [:]
+    private func date(_ day: String) -> Date? {
+        if let d = Self.dayCache[day] { return d }
+        let d = Self.dayParser.date(from: day)
+        if let d { Self.dayCache[day] = d }
+        return d
+    }
 
     // MARK: Window selection (relative to the LATEST day, with auto-expand)
 
@@ -292,32 +300,37 @@ struct TrendsView: View {
                 // Rest = the sleep_performance composite — the same number the Today Rest score shows
                 // (#732); see sleepPerfByDay. resolve() still does the windowing/widening.
                 let rest = resolve { sleepPerfByDay[$0.day] }
-                VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
-                    // The main card list ripples in once on appear (Reduce-Motion safe).
-                    Group {
-                        // Week-in-review digest (#208) with prev/next week browsing (#710) — self-hides
-                        // only when NO week in history has data. Past weeks render in the same format.
-                        weeklyDigestNav
-                            .staggeredAppear(index: 0)
-                        // The Charge / Effort / Rest trio, presented in NOOP's pip language.
-                        weekInReview(charge: recovery, effort: strain, rest: rest)
-                            .staggeredAppear(index: 1)
-                        rangeBar(recovery: recovery)
-                            .staggeredAppear(index: 2)
-                        heroRecovery(recovery: recovery)
-                            .staggeredAppear(index: 3)
-                        smallMultiples(hrv: hrv, rhr: rhr, strain: strain)
-                            .staggeredAppear(index: 4)
-                        // Long-horizon training load (CTL/ATL/TSB). Uses the FULL history, not the
-                        // range window — chronic load is inherently a 42-day horizon. Self-hides its
-                        // chart behind an honest "needs N more days" state until enough history exists.
-                        TrainingLoadCard(days: repo.days)
-                            .staggeredAppear(index: 5)
-                        yearStrip
-                            .staggeredAppear(index: 6)
-                        exportReportRow
-                            .staggeredAppear(index: 7)
-                    }
+                // PERF (tab switch, 2026-09-23): the cards are DIRECT children of the scaffold's LazyVStack, not
+                // one inner VStack, so only the on-screen cards are built and laid out. The single VStack made
+                // every Trends appearance a ~300 ms main-thread stall. The padding keeps the old section gap
+                // (the scaffold stack spaces at 20). Only the cards visible on open still stagger in; later ones
+                // would otherwise fade in with a multi-second delay when first scrolled to.
+                Group {
+                    // Week-in-review digest (#208) with prev/next week browsing (#710) — self-hides
+                    // only when NO week in history has data. Past weeks render in the same format.
+                    weeklyDigestNav
+                        .staggeredAppear(index: 0)
+                    // The Charge / Effort / Rest trio, presented in NOOP's pip language.
+                    weekInReview(charge: recovery, effort: strain, rest: rest)
+                        .staggeredAppear(index: 1)
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    rangeBar(recovery: recovery)
+                        .staggeredAppear(index: 2)
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    heroRecovery(recovery: recovery)
+                        .staggeredAppear(index: 3)
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    smallMultiples(hrv: hrv, rhr: rhr, strain: strain)
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    // Long-horizon training load (CTL/ATL/TSB). Uses the FULL history, not the
+                    // range window — chronic load is inherently a 42-day horizon. Self-hides its
+                    // chart behind an honest "needs N more days" state until enough history exists.
+                    TrainingLoadCard(days: repo.days)
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    yearStrip
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
+                    exportReportRow
+                        .padding(.top, NoopMetrics.sectionSpacing - 20)
                 }
             }
         }

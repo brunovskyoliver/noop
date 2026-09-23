@@ -78,14 +78,15 @@ public struct NoopPanelSurface: View {
                 }
             }
             .overlay(
-                shape.strokeBorder(
-                    LinearGradient(
-                        colors: [NoopVisualStyle.borderHighlight.opacity(0.72), NoopVisualStyle.border.opacity(0.52)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 0.8
+                // Gradient VIEW masked by a solid stroke, not `strokeBorder(LinearGradient)`: a gradient-painted
+                // stroke is rasterized on the CPU, and on-device (2026-09-23) these card borders were replayed
+                // every scroll frame, ~half the main thread. This form stays on the GPU and looks the same.
+                LinearGradient(
+                    colors: [NoopVisualStyle.borderHighlight.opacity(0.72), NoopVisualStyle.border.opacity(0.52)],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
+                .mask(shape.strokeBorder(lineWidth: 0.8))
             )
             .shadow(
                 color: scheme == .dark ? .black.opacity(elevated ? 0.34 : 0.18) : .black.opacity(0.10),

@@ -130,9 +130,9 @@ struct RootTabView: View {
         // system owns the behaviour — iOS 26's tab bar MINIMISES to a pill on scroll down rather than
         // sliding away entirely, so this is the platform's read of the same intent, not a copy of ours.
         .noopTabBarAutoHide(bottomBarAutoHide)
-            // Tab crossfade — README §Motion: ~240ms opacity swap between tab roots, global calm
-            // easing cubic-bezier(0.22,1,0.36,1).
-            .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24), value: selectedTab)
+            // No `.animation(value: selectedTab)` here (removed 2026-09-23): an implicit animation on the
+            // TabView turned every tab switch into an animated transaction across the whole shell, part of a
+            // ~300 ms main-thread stall per switch on-device. The swipe gesture keeps its own `withAnimation`.
             // Swipe left/right anywhere to move between tabs (2026-07-02), but ONLY while the current
             // tab is at its root. Attaching this ancestor drag gesture unconditionally defeated the
             // edge-restriction of a pushed NavigationStack screen's native interactive-pop gesture —

@@ -96,10 +96,11 @@ public struct Sparkline: View {
                             )
                     }
                     if pts.count > 1 {
-                        linePath(pts)
-                            .stroke(
-                                LinearGradient(gradient: gradient, startPoint: .leading, endPoint: .trailing),
-                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+                        // GPU-friendly gradient stroke (gradient view masked by a solid stroke), see NoopPanelSurface.
+                        LinearGradient(gradient: gradient, startPoint: .leading, endPoint: .trailing)
+                            .mask(
+                                linePath(pts)
+                                    .stroke(style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
                             )
                     }
                     if showsHead, let head = pts.last {

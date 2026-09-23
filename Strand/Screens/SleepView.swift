@@ -28,9 +28,9 @@ import UIKit
 
 struct SleepView: View {
     @EnvironmentObject var repo: Repository
-    /// For `circadianPhase` only (the body-clock dial). Named `appModel` because `model` on this screen is
-    /// already the built `SleepModel`.
-    @EnvironmentObject var appModel: AppModel
+    // NOTE: no `AppModel` here either. It publishes live `bpm`, so observing it re-ran this whole body
+    // (hypnogram, motion trace, every card) about once a second, even with the tab hidden. The one reader,
+    // the body-clock dial, observes it in its own leaf, `BodyClockDialLeaf`.
     // NOTE: SleepView itself deliberately does NOT observe `LiveState`. A connected strap publishes
     // at ~1 Hz; observing here would re-evaluate this heavy body on every tick. The only two live
     // dependencies — the "going to sleep / awake" mark card (it appends to the strap log) and the
@@ -423,13 +423,8 @@ struct SleepView: View {
     /// night against, and an empty ring would read as a broken chart rather than as "not enough data". The
     /// card is a reorderable Sleep section, so anyone who does not want it hides it in Arrange — the same
     /// affordance every other card on this screen already has, rather than a new setting of its own.
-    @ViewBuilder
     private func bodyClockDial(_ model: SleepModel) -> some View {
-        if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
-            BodyClockDialCard(estimate: phase,
-                              actualBedHour: Self.localClockHour(model.night.session.effectiveStartTs),
-                              actualWakeHour: Self.localClockHour(model.night.session.endTs))
-        }
+        BodyClockDialLeaf(bedTs: model.night.session.effectiveStartTs, wakeTs: model.night.session.endTs)
     }
 
     /// A unix second as a fractional local clock hour — the dial's only input beyond the phase estimate.
@@ -2956,3 +2951,18 @@ private extension Repository {
     }
 }
 #endif
+
+/// The only `AppModel` reader on the Sleep screen, so a live `bpm` tick re-renders this leaf and not the
+/// whole screen.
+private struct BodyClockDialLeaf: View {
+    @EnvironmentObject var appModel: AppModel
+    let bedTs: Int, wakeTs: Int
+
+    var body: some View {
+        if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
+            BodyClockDialCard(estimate: phase,
+                              actualBedHour: SleepView.localClockHour(bedTs),
+                              actualWakeHour: SleepView.localClockHour(wakeTs))
+        }
+    }
+}

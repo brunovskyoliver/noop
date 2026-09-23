@@ -36,10 +36,14 @@ public extension Color {
         // always dark, so a token resolves straight to its dark hex. No per-scheme plumbing on the wrist.
         self.init(hex: dark)
         #elseif canImport(UIKit)
-        self.init(UIColor { trait in
-            let c = Color.sRGBComponents(hex: trait.userInterfaceStyle == .dark ? dark : light)
+        // Parse both hexes once here, not in the provider: the provider runs on every resolve, and a
+        // live Canvas resolves its token colours every frame.
+        func ui(_ hex: String) -> UIColor {
+            let c = Color.sRGBComponents(hex: hex)
             return UIColor(red: CGFloat(c.r), green: CGFloat(c.g), blue: CGFloat(c.b), alpha: CGFloat(c.a))
-        })
+        }
+        let lightColor = ui(light), darkColor = ui(dark)
+        self.init(UIColor { trait in trait.userInterfaceStyle == .dark ? darkColor : lightColor })
         #elseif canImport(AppKit)
         self.init(nsColor: NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua

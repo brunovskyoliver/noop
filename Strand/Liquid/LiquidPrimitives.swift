@@ -249,6 +249,9 @@ struct LiquidVessel: View {
     @ObservedObject private var motion = NoopMotionState.shared
     @State private var sim: LiquidSim
     @State private var splashes = 0
+    /// True while `sim.level` is still chasing `value`. The vessel draws nothing but that level, so once it
+    /// has settled a 60 fps redraw repaints an identical picture; the posed gauge takes over instead.
+    @State private var chasing = true
 
     // The custom init exists to seed `_sim` from `value`, which also means the memberwise init is NOT
     // synthesised: any new stored property has to be threaded through here or callers cannot pass it.
@@ -261,7 +264,18 @@ struct LiquidVessel: View {
     }
 
     var body: some View {
-        if animated && !motion.poseStill(reduceMotion) { gauge } else { staticGauge }
+        if animated && !motion.poseStill(reduceMotion) {
+            Group { if chasing { gauge } else { staticGauge } }
+                .modifier(LiquidSplashTap(passesThrough: tapPassesThrough) { sim.splash(12); splashes &+= 1 })
+                .liquidTapHaptic(trigger: splashes)   // light tap feedback (guarded so the primitives compile on macOS 13)
+                // `step` closes 2.6/s of the gap, so 3.5 s leaves < 0.01% of it: the swap to the posed
+                // gauge is invisible.
+                .task(id: value) {
+                    chasing = true
+                    try? await Task.sleep(nanoseconds: 3_500_000_000)
+                    if !Task.isCancelled { chasing = false }
+                }
+        } else { staticGauge }
     }
 
     private var gauge: some View {
@@ -274,11 +288,12 @@ struct LiquidVessel: View {
                 sim.step(now: now, tilt: LiquidMotion.shared.tilt, target: value ?? 0)
                 LiquidRender.vessel(context, size, sim, now: now, tint: tint)
             }
+            // GPU: a Canvas rasterizes on the CPU, and these gradient fills redrawn every frame were over half
+            // the main thread on-device (2026-09-23, `argb32_shade_axial_RGB`). drawingGroup renders via Metal.
+            .drawingGroup()
         }
         .aspectRatio(1, contentMode: .fit)
         .contentShape(Circle())
-        .modifier(LiquidSplashTap(passesThrough: tapPassesThrough) { sim.splash(12); splashes &+= 1 })
-        .liquidTapHaptic(trigger: splashes)   // light tap feedback (guarded so the primitives compile on macOS 13)
         .onAppear { LiquidMotion.shared.acquire() }
         .onDisappear { LiquidMotion.shared.release() }
     }
@@ -322,6 +337,7 @@ struct LiquidTube: View {
                                   tint: tint, showsHighlight: showsHighlight,
                                   usesCleanFill: usesCleanFill)
             }
+            .drawingGroup()   // GPU, see LiquidVessel.gauge
         }
         .frame(height: height)
         .onAppear { LiquidMotion.shared.acquire() }
@@ -353,11 +369,14 @@ struct LiquidThread: View {
     }
 
     private var liveThread: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in   // 60fps to flow smoothly on ProMotion
+        // 60fps to flow smoothly on ProMotion; 30fps once iOS reports serious heat, where every frame here
+        // adds to the throttling that makes scrolling stutter (9% of the main thread on 2026-09-23 traces).
+        TimelineView(.animation(minimumInterval: ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue ? 1.0 / 30.0 : 1.0 / 60.0)) { tl in
             let now = liquidSeconds(tl.date)
             Canvas { context, size in
                 LiquidRender.thread(context, size, values: bpm, now: now, tint: tint)
             }
+            .drawingGroup()   // GPU, see LiquidVessel.gauge
         }
         .frame(height: height)
     }

@@ -89,6 +89,7 @@ public struct MotionTrace: View {
         guard n >= 2, peak > 0 else { return [] }
         let h = size.height
         let usable = h - 2   // leave 1px top/bottom padding so the crest isn't clipped
+        let peak = self.peak   // hoisted: `peak` is an O(n) scan, and re-reading it per epoch made this O(n²)
         return epochs.enumerated().map { i, v in
             let x = CGFloat(i) / CGFloat(n - 1) * size.width
             let frac = CGFloat(max(0, min(v / peak, 1)))
@@ -99,6 +100,7 @@ public struct MotionTrace: View {
     /// A coarse VoiceOver summary — the share of epochs with above-half-peak movement — since a per-epoch
     /// trace can't be voiced point by point. "Calm" when nothing crosses the threshold.
     private var accessibilitySummary: String {
+        let peak = self.peak
         guard peak > 0, !epochs.isEmpty else { return "no movement data" }
         let restless = epochs.filter { $0 >= peak * 0.5 }.count
         if restless == 0 { return "calm throughout" }

@@ -104,6 +104,9 @@ struct LiquidSky: View {
             Canvas { ctx, size in
                 render(ctx, size, hour: h, now: now, settle: settle, light: !dark)
             }
+            // GPU: several full-width gradients redrawn 20x/s on the CPU were most of the main thread while
+            // scrolling on-device (2026-09-23, `argb32_shade_axial_RGB`). drawingGroup renders via Metal.
+            .drawingGroup()
         }
     }
 

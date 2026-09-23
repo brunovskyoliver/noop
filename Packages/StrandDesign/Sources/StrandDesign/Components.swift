@@ -526,14 +526,13 @@ public struct SegmentedPillControl<T: Hashable>: View {
                     )
                 )
                 .overlay(
-                    trackShape.strokeBorder(
-                        LinearGradient(
-                            colors: [NoopVisualStyle.borderHighlight.opacity(0.48), NoopVisualStyle.border],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.8
+                    // GPU-friendly gradient stroke, see NoopPanelSurface.
+                    LinearGradient(
+                        colors: [NoopVisualStyle.borderHighlight.opacity(0.48), NoopVisualStyle.border],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
+                    .mask(trackShape.strokeBorder(lineWidth: 0.8))
                 )
         }
     }
