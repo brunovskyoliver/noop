@@ -32,4 +32,4 @@ Tools/ios-personal-refresh/refresh-noop.sh --force
 Tools/ios-personal-refresh/uninstall.sh
 ```
 
-The generated app uses the existing Debug configuration and Personal Team. It is not archived, uploaded, or distributed.
+The generated app uses the Release configuration (a Debug `-Onone` build measured ~21% more CPU on device) and the Personal Team. It is not archived, uploaded, or distributed.

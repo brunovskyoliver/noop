@@ -11,7 +11,7 @@ readonly STATE_ROOT="${NOOP_REFRESH_STATE_ROOT:-${HOME}/Library/Application Supp
 readonly DERIVED_DATA_ROOT="${NOOP_REFRESH_DERIVED_DATA:-${HOME}/Library/Caches/NOOPPersonalRefresh/DerivedData}"
 readonly PROFILE_DIR_XCODE="${NOOP_PROFILE_DIR_XCODE:-${HOME}/Library/Developer/Xcode/UserData/Provisioning Profiles}"
 readonly PROFILE_DIR_LEGACY="${NOOP_PROFILE_DIR_LEGACY:-${HOME}/Library/MobileDevice/Provisioning Profiles}"
-readonly APP_PATH="${DERIVED_DATA_ROOT}/Build/Products/Debug-iphoneos/NOOP Staging.app"
+readonly APP_PATH="${DERIVED_DATA_ROOT}/Build/Products/Release-iphoneos/NOOP Staging.app"
 readonly LOCK_DIR="${STATE_ROOT}/refresh.lock"
 readonly PENDING_INSTALL_FILE="${STATE_ROOT}/install-pending"
 readonly -a EXPECTED_PROFILE_KINDS=('main' 'widgets' 'watch' 'complications')
@@ -257,7 +257,7 @@ run_refresh() {
     if ! /usr/bin/xcodebuild \
         -project "${PROJECT_ROOT}/Strand.xcodeproj" \
         -scheme NOOPiOS \
-        -configuration Debug \
+        -configuration Release \
         -destination "platform=iOS,id=${DEVICE_ID}" \
         -derivedDataPath "$DERIVED_DATA_ROOT" \
         -allowProvisioningUpdates \
