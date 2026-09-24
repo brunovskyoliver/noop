@@ -1777,9 +1777,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
         // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
         // Effort and the manual rescore (#972) already thread this, so the stored number used to
-        // disagree with its own re-score. Read once here, at save time; the live readout during the
-        // session is a transient running estimate and deliberately left alone.
-        val restingHR = _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
+        // disagree with its own re-score. The live readout reads the same funnel, so the Effort shown
+        // during the session and the one saved at the end use one resting HR.
+        val restingHR = workoutRestingHR()
         val strain = if (samples.size >= 2)
             StrainScorer.strain(samples, maxHR = profileStore.hrMax.toDouble(),
                 restingHR = restingHR, method = NoopPrefs.effortMethod(appContext),
@@ -1830,6 +1830,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The resting HR a manual workout's Effort is scored against, live and at save: today's measured
+     *  value, else the scorer's default. One funnel so the live readout and the saved number agree.
+     *  Twin of iOS `AppModel.workoutRestingHR`. */
+    private fun workoutRestingHR(): Double =
+        _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
+
     /** Append the current smoothed bpm to the active workout and recompute its running strain. Called
      *  from ingestHr on every fresh sample; a no-op when no workout is running. */
     private fun captureWorkoutSample(bpm: Int) {
@@ -1854,7 +1860,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         val s = w.samples + HrSample(deviceId = deviceId, ts = ts, bpm = bpm)
         val strain = StrainScorer.strain(
-            s, maxHR = profileStore.hrMax.toDouble(),
+            s, maxHR = profileStore.hrMax.toDouble(), restingHR = workoutRestingHR(),
             method = NoopPrefs.effortMethod(appContext), sex = profileStore.sex) ?: 0.0
         val updated = w.copy(
             // Grown by comparison, not recomputed from `s`, so a peak folded in from a repeated second is kept.

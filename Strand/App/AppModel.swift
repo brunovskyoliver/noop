@@ -111,6 +111,12 @@ final class AppModel: ObservableObject {
     /// Android's `ActiveWorkout.gpsEnabled`.
     private var activeWorkoutIsGps = false
 
+    /// The resting HR a manual workout's Effort is scored against, live and at save: today's measured
+    /// value, else the scorer's default. One funnel so the live readout and the saved number agree.
+    var workoutRestingHR: Double {
+        repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
+    }
+
     /// A manual workout in progress. `samples` accumulate from the smoothed live `bpm`; `liveStrain`
     /// is recomputed as the window grows so the active card can show strain building in real time.
     struct ActiveWorkout: Equatable {
@@ -1078,9 +1084,9 @@ final class AppModel: ObservableObject {
         // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
         // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
         // Effort and the manual rescore (#972) already thread this, so the stored number used to
-        // disagree with its own re-score. Read once here, at save time; the live readout during the
-        // session is a transient running estimate and deliberately left alone.
-        let restingHR = repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
+        // disagree with its own re-score. The live readout reads the same funnel, so the Effort shown
+        // during the session and the one saved at the end use one resting HR.
+        let restingHR = workoutRestingHR
         let strain = samples.count >= 2
             ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax),
                                   restingHR: restingHR,
@@ -1144,6 +1150,7 @@ final class AppModel: ObservableObject {
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())
         w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
+                                              restingHR: workoutRestingHR,
                                               method: PuffinExperiment.effortMethod, sex: profile.sex) ?? 0
         activeWorkout = w
         // Re-snapshot the durable session so a kill keeps the accumulated HR window (#529) — on a
