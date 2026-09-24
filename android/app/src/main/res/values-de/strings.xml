@@ -2846,4 +2846,19 @@
     <string name="vitality_pace_accelerating">Beschleunigt</string>
     <string name="vitality_pace_needs_history">Das Alterungstempo erscheint nach etwa zwei Monaten Tragezeit.</string>
     <string name="vitality_pace_caption">Deine letzten 30 Tage im Vergleich zu deinen letzten 6 Monaten.</string>
+    <string name="hrv_status_title">HRV-Status</string>
+    <string name="hrv_status_overline">7-Nächte-Trend</string>
+    <string name="hrv_status_calibrating">Dein üblicher Bereich wird ermittelt: %1$d von %2$d Nächten.</string>
+    <string name="hrv_status_no_recent">Keine HRV aus den letzten Nächten. Trage das Band im Schlaf, um dies zu aktualisieren.</string>
+    <string name="hrv_status_values">7-Nächte-Schnitt %1$d ms · üblich %2$d–%3$d ms</string>
+    <string name="hrv_status_unwell">Diese Woche könnte davon beeinflusst sein, dass du dich unwohl fühlst.</string>
+    <string name="hrv_status_tentative">Basierend auf %1$d der letzten 7 Nächte.</string>
+    <string name="hrv_status_balanced">Ausgeglichen</string>
+    <string name="hrv_status_above">Über deinem üblichen Bereich</string>
+    <string name="hrv_status_below">Unter deinem üblichen Bereich</string>
+    <string name="hrv_status_low">Niedrig</string>
+    <string name="hrv_status_balanced_detail">Deine HRV der letzten 7 Nächte liegt in deinem üblichen Bereich.</string>
+    <string name="hrv_status_above_detail">Höher als üblich. Das kann auf Erholung folgen oder auf starke Ermüdung.</string>
+    <string name="hrv_status_below_detail">Niedriger als üblich. Behalte Erholung und Trainingsbelastung im Blick.</string>
+    <string name="hrv_status_low_detail">Deutlich unter deinem üblichen Bereich. Ein leichterer Tag kann helfen.</string>
 </resources>

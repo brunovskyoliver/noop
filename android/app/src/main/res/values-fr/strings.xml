@@ -2832,4 +2832,19 @@
     <string name="vitality_pace_accelerating">En accélération</string>
     <string name="vitality_pace_needs_history">Le rythme de vieillissement apparaît après environ deux mois de port.</string>
     <string name="vitality_pace_caption">Vos 30 derniers jours comparés à vos 6 derniers mois.</string>
+    <string name="hrv_status_title">État HRV</string>
+    <string name="hrv_status_overline">Tendance sur 7 nuits</string>
+    <string name="hrv_status_calibrating">Apprentissage de votre plage habituelle : %1$d nuits sur %2$d.</string>
+    <string name="hrv_status_no_recent">Aucune HRV ces dernières nuits. Portez le bracelet la nuit pour mettre à jour.</string>
+    <string name="hrv_status_values">Moyenne sur 7 nuits %1$d ms · habituel %2$d–%3$d ms</string>
+    <string name="hrv_status_unwell">Cette semaine peut refléter un état de malaise.</string>
+    <string name="hrv_status_tentative">Basé sur %1$d des 7 dernières nuits.</string>
+    <string name="hrv_status_balanced">Équilibré</string>
+    <string name="hrv_status_above">Au-dessus de votre plage habituelle</string>
+    <string name="hrv_status_below">En dessous de votre plage habituelle</string>
+    <string name="hrv_status_low">Bas</string>
+    <string name="hrv_status_balanced_detail">Votre HRV sur 7 nuits est dans votre plage habituelle.</string>
+    <string name="hrv_status_above_detail">Plus élevée que d\'habitude. Cela peut suivre du repos, ou une forte fatigue.</string>
+    <string name="hrv_status_below_detail">Plus basse que d\'habitude. Surveillez votre récupération et votre charge d\'entraînement.</string>
+    <string name="hrv_status_low_detail">Bien en dessous de votre plage habituelle. Une journée plus légère peut aider.</string>
 </resources>

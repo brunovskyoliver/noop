@@ -2863,4 +2863,19 @@
     <string name="vitality_pace_accelerating">Accelerating</string>
     <string name="vitality_pace_needs_history">Pace of Aging appears after about two months of wear.</string>
     <string name="vitality_pace_caption">Your last 30 days compared with your last 6 months.</string>
+    <string name="hrv_status_title">HRV Status</string>
+    <string name="hrv_status_overline">7-night trend</string>
+    <string name="hrv_status_calibrating">Learning your usual range: %1$d of %2$d nights.</string>
+    <string name="hrv_status_no_recent">No HRV from the last few nights. Wear the strap to sleep to update this.</string>
+    <string name="hrv_status_values">7-night average %1$d ms · usual %2$d–%3$d ms</string>
+    <string name="hrv_status_unwell">This week may reflect feeling unwell.</string>
+    <string name="hrv_status_tentative">Based on %1$d of the last 7 nights.</string>
+    <string name="hrv_status_balanced">Balanced</string>
+    <string name="hrv_status_above">Above your usual range</string>
+    <string name="hrv_status_below">Below your usual range</string>
+    <string name="hrv_status_low">Low</string>
+    <string name="hrv_status_balanced_detail">Your 7-night HRV is within your usual range.</string>
+    <string name="hrv_status_above_detail">Higher than usual. This can follow rest, or heavy fatigue.</string>
+    <string name="hrv_status_below_detail">Lower than usual. Keep an eye on recovery and training load.</string>
+    <string name="hrv_status_low_detail">Well below your usual range. An easier day may help.</string>
 </resources>

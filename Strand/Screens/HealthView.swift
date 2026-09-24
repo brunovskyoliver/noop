@@ -72,6 +72,8 @@ private struct HealthSectionsStack: View {
             // Vitality / Body Age (weekly, computed by IntelligenceEngine from the mortality-
             // hazard model). Its own view depending only on repo/profile.
             VitalitySection()
+            // 7-night HRV against the usual range (HRVStatus). Depends on repo/model snapshots only.
+            HRVStatusSection()
             // Screen-5 recovery detail: the CONTRIBUTORS to today's recovery as
             // labelled progress bars (HRV / Resting HR / Sleep / Respiratory), each
             // scored against the on-device baseline. Depends only on `repo`.
@@ -1347,6 +1349,110 @@ private struct VitalitySection: View {
         contributions = VitalityEngine.healthspan(days: days, asOf: today, chronoAge: Double(profile.age),
                                                   sex: profile.sex)?.bodyAge.contributions ?? []
         loaded = true
+    }
+}
+
+// MARK: - HRV status (7-night trend vs usual range)
+
+/// The 7-night HRV status (`HRVStatus`): balanced / above / below / low against the usual range from the 60
+/// days before this week. Recovery shows last night's HRV; this is the trend, labelled as such so the two
+/// readouts never read as one number that disagrees with itself.
+private struct HRVStatusSection: View {
+    @EnvironmentObject var repo: Repository
+    @EnvironmentObject var model: AppModel
+
+    private var outcome: HRVStatus.Outcome {
+        let nights = repo.days.map { HRVStatus.Night(day: $0.day, rmssd: $0.avgHrv) }
+        let today = Repository.dayString(Date())
+        // Only today's illness heads-up exists (no per-day history), so only it can mark the reading.
+        let flagged: Set<String> = model.illnessSignal.map { $0.level == .raised || $0.level == .alreadyUnwell } == true
+            ? [today] : []
+        return HRVStatus.evaluate(nights: nights, asOf: today, flaggedDays: flagged)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("HRV Status", overline: "7-night trend")
+            content(outcome)
+                .padding(NoopMetrics.space5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: NoopMetrics.cardRadius)
+        }
+    }
+
+    @ViewBuilder private func content(_ o: HRVStatus.Outcome) -> some View {
+        switch o {
+        case .calibrating(let n):
+            Text("Learning your usual range: \(n) of \(HRVStatus.minBaselineNights) nights.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+        case .noRecentData:
+            Text("No HRV from the last few nights. Wear the strap to sleep to update this.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+        case .status(let r):
+            VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+                Text(title(r.band)).font(StrandFont.title2).foregroundStyle(color(r.band))
+                Text("7-night average \(Int(r.mean7Ms.rounded())) ms · usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                rangeBar(r)
+                Text(detail(r.band)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                if r.mayReflectFlaggedDays {
+                    Text("This week may reflect feeling unwell.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.statusWarning)
+                }
+                if r.tentative {
+                    Text("Based on \(r.shortNights) of the last 7 nights.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+    }
+
+    /// A track spanning the low threshold to past the usual range, the usual band shaded, a dot at the
+    /// 7-night average.
+    private func rangeBar(_ r: HRVStatus.Reading) -> some View {
+        let lo = min(r.lowMs, r.mean7Ms) * 0.95, hi = max(r.usualHighMs, r.mean7Ms) * 1.05
+        func x(_ v: Double, _ w: CGFloat) -> CGFloat { CGFloat((v - lo) / (hi - lo)) * w }
+        return GeometryReader { g in
+            let w = g.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(StrandPalette.hairline).frame(height: 6)
+                Capsule().fill(StrandPalette.chargeColor.opacity(0.35))
+                    .frame(width: max(2, x(r.usualHighMs, w) - x(r.usualLowMs, w)), height: 6)
+                    .offset(x: x(r.usualLowMs, w))
+                Circle().fill(color(r.band)).frame(width: 12, height: 12)
+                    .offset(x: min(max(0, x(r.mean7Ms, w) - 6), w - 12))
+            }
+            .frame(height: 12)
+        }
+        .frame(height: 12)
+        .accessibilityHidden(true)
+    }
+
+    private func title(_ b: HRVStatus.Band) -> String {
+        switch b {
+        case .balanced: return String(localized: "Balanced")
+        case .above:    return String(localized: "Above your usual range")
+        case .below:    return String(localized: "Below your usual range")
+        case .low:      return String(localized: "Low")
+        }
+    }
+
+    private func detail(_ b: HRVStatus.Band) -> String {
+        switch b {
+        case .balanced: return String(localized: "Your 7-night HRV is within your usual range.")
+        case .above:    return String(localized: "Higher than usual. This can follow rest, or heavy fatigue.")
+        case .below:    return String(localized: "Lower than usual. Keep an eye on recovery and training load.")
+        case .low:      return String(localized: "Well below your usual range. An easier day may help.")
+        }
+    }
+
+    private func color(_ b: HRVStatus.Band) -> Color {
+        switch b {
+        case .balanced: return StrandPalette.statusPositive
+        case .above:    return StrandPalette.textPrimary
+        case .below:    return StrandPalette.statusWarning
+        case .low:      return StrandPalette.statusCritical
+        }
     }
 }
 

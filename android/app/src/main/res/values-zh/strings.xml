@@ -2804,4 +2804,19 @@
     <string name="vitality_pace_accelerating">加速中</string>
     <string name="vitality_pace_needs_history">佩戴约两个月后将显示衰老速度。</string>
     <string name="vitality_pace_caption">你最近 30 天与最近 6 个月的对比。</string>
+    <string name="hrv_status_title">HRV 状态</string>
+    <string name="hrv_status_overline">7 晚趋势</string>
+    <string name="hrv_status_calibrating">正在了解你的常规范围：%1$d / %2$d 晚。</string>
+    <string name="hrv_status_no_recent">最近几晚没有 HRV 数据。睡觉时佩戴手环即可更新。</string>
+    <string name="hrv_status_values">7 晚平均 %1$d 毫秒 · 常规 %2$d–%3$d 毫秒</string>
+    <string name="hrv_status_unwell">本周数据可能受身体不适影响。</string>
+    <string name="hrv_status_tentative">基于最近 7 晚中的 %1$d 晚。</string>
+    <string name="hrv_status_balanced">平衡</string>
+    <string name="hrv_status_above">高于常规范围</string>
+    <string name="hrv_status_below">低于常规范围</string>
+    <string name="hrv_status_low">偏低</string>
+    <string name="hrv_status_balanced_detail">你的 7 晚 HRV 在常规范围内。</string>
+    <string name="hrv_status_above_detail">高于平时。这可能出现在休息之后，也可能出现在严重疲劳时。</string>
+    <string name="hrv_status_below_detail">低于平时。留意恢复情况和训练负荷。</string>
+    <string name="hrv_status_low_detail">明显低于常规范围。安排轻松一点的一天可能有帮助。</string>
 </resources>

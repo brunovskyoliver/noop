@@ -2825,4 +2825,19 @@
     <string name="vitality_pace_accelerating">A acelerar</string>
     <string name="vitality_pace_needs_history">O ritmo de envelhecimento aparece após cerca de dois meses de utilização.</string>
     <string name="vitality_pace_caption">Os teus últimos 30 dias comparados com os últimos 6 meses.</string>
+    <string name="hrv_status_title">Estado da HRV</string>
+    <string name="hrv_status_overline">Tendência de 7 noites</string>
+    <string name="hrv_status_calibrating">A aprender o teu intervalo habitual: %1$d de %2$d noites.</string>
+    <string name="hrv_status_no_recent">Sem HRV das últimas noites. Usa a banda a dormir para atualizar.</string>
+    <string name="hrv_status_values">Média de 7 noites %1$d ms · habitual %2$d–%3$d ms</string>
+    <string name="hrv_status_unwell">Esta semana pode refletir mal-estar.</string>
+    <string name="hrv_status_tentative">Com base em %1$d das últimas 7 noites.</string>
+    <string name="hrv_status_balanced">Equilibrado</string>
+    <string name="hrv_status_above">Acima do teu intervalo habitual</string>
+    <string name="hrv_status_below">Abaixo do teu intervalo habitual</string>
+    <string name="hrv_status_low">Baixo</string>
+    <string name="hrv_status_balanced_detail">A tua HRV de 7 noites está dentro do intervalo habitual.</string>
+    <string name="hrv_status_above_detail">Mais alta do que o habitual. Pode seguir-se ao descanso, ou a fadiga intensa.</string>
+    <string name="hrv_status_below_detail">Mais baixa do que o habitual. Atenção à recuperação e à carga de treino.</string>
+    <string name="hrv_status_low_detail">Bem abaixo do teu intervalo habitual. Um dia mais leve pode ajudar.</string>
 </resources>

@@ -2847,4 +2847,19 @@
     <string name="vitality_pace_accelerating">Przyspiesza</string>
     <string name="vitality_pace_needs_history">Tempo starzenia pojawi się po około dwóch miesiącach noszenia.</string>
     <string name="vitality_pace_caption">Twoje ostatnie 30 dni w porównaniu z ostatnimi 6 miesiącami.</string>
+    <string name="hrv_status_title">Status HRV</string>
+    <string name="hrv_status_overline">Trend z 7 nocy</string>
+    <string name="hrv_status_calibrating">Poznajemy Twój zwykły zakres: %1$d z %2$d nocy.</string>
+    <string name="hrv_status_no_recent">Brak HRV z ostatnich nocy. Noś opaskę podczas snu, aby to zaktualizować.</string>
+    <string name="hrv_status_values">Średnia z 7 nocy %1$d ms · zwykle %2$d–%3$d ms</string>
+    <string name="hrv_status_unwell">Ten tydzień może odzwierciedlać złe samopoczucie.</string>
+    <string name="hrv_status_tentative">Na podstawie %1$d z ostatnich 7 nocy.</string>
+    <string name="hrv_status_balanced">Zrównoważony</string>
+    <string name="hrv_status_above">Powyżej Twojego zwykłego zakresu</string>
+    <string name="hrv_status_below">Poniżej Twojego zwykłego zakresu</string>
+    <string name="hrv_status_low">Niski</string>
+    <string name="hrv_status_balanced_detail">Twoja HRV z 7 nocy mieści się w zwykłym zakresie.</string>
+    <string name="hrv_status_above_detail">Wyższa niż zwykle. Może to wynikać z odpoczynku lub dużego zmęczenia.</string>
+    <string name="hrv_status_below_detail">Niższa niż zwykle. Obserwuj regenerację i obciążenie treningowe.</string>
+    <string name="hrv_status_low_detail">Wyraźnie poniżej zwykłego zakresu. Lżejszy dzień może pomóc.</string>
 </resources>
