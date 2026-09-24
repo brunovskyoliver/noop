@@ -79,6 +79,28 @@ final class CyclePhaseEngineTests: XCTestCase {
         }
     }
 
+    /// Temperature-only mode (no logged start): the anchor is the shift near ovulation, so the next
+    /// period is about one luteal phase later. 4 cycles of 28 days, luteal = last 12 days: the last shift
+    /// is day 100, the next period starts on day 112. The old anchor + cycle length landed on day 128.
+    func testTemperatureOnlyWindowIsOneLutealPhaseAfterTheShift() {
+        let nights = biphasic(cycles: 4)
+        let r = CyclePhaseEngine.classify(nights, baselineUsable: true)
+        let w = r.nextPeriodWindow!
+        let expected = CyclePhaseEngine.shiftDay("2026-01-01", by: 112)!
+        XCTAssertLessThanOrEqual(w.earliestDay, expected)
+        XCTAssertGreaterThanOrEqual(w.latestDay, expected)
+        XCTAssertEqual(w.latestDay, CyclePhaseEngine.shiftDay("2026-01-01", by: 114)!)
+    }
+
+    /// A logged period start is day 1: the window sits one cycle length later.
+    func testLoggedStartWindowIsOneCycleAfterTheLog() {
+        let nights = biphasic(cycles: 4)
+        let lastStart = CyclePhaseEngine.shiftDay("2026-01-01", by: 84)!
+        let r = CyclePhaseEngine.classify(nights, baselineUsable: true, loggedPeriodStarts: [lastStart])
+        let w = r.nextPeriodWindow!
+        XCTAssertEqual(w.latestDay, CyclePhaseEngine.shiftDay("2026-01-01", by: 84 + 28 + 2)!)
+    }
+
     // MARK: - Flat / irregular → "no clear pattern", never a fabricated phase
 
     func testFlatSeriesYieldsUnknownNotAPhase() {

@@ -27,6 +27,8 @@ object CyclePhaseEngine {
     const val minCycleDays: Int = 21
     const val maxCycleDays: Int = 40
     const val defaultCycleDays: Int = 28
+    /** Typical luteal length (Bull 2019: 12.4 ± 2.4 d); next-period offset from a temperature-shift anchor. */
+    const val lutealDays: Int = 12
     const val minNightsToClassify: Int = 42
     const val periOvulatoryHalfWidth: Int = 2
 
@@ -172,8 +174,11 @@ object CyclePhaseEngine {
 
         var window: NextPeriodWindow? = null
         if (cycleLength != null) {
-            val earliest = shiftDay(anchorDay, cycleLength - 2)
-            val latest = shiftDay(anchorDay, cycleLength + 2)
+            // A logged start is day 1 (next ≈ one cycle on); a temperature-shift anchor sits near ovulation
+            // (next ≈ one luteal phase on). Twin of the Swift window.
+            val ahead = if (anchoredByLog) cycleLength else lutealDays
+            val earliest = shiftDay(anchorDay, ahead - 2)
+            val latest = shiftDay(anchorDay, ahead + 2)
             if (earliest != null && latest != null && latest >= lastNightDay) {
                 window = NextPeriodWindow(maxOf(lastNightDay, earliest), latest)
             }
