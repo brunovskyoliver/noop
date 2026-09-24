@@ -32,4 +32,28 @@ final class TonightPlanInputsTests: XCTestCase {
         XCTAssertEqual(inputs.recentBedMinutes, [23 * 60 + 30, 23 * 60 + 30, 23 * 60 + 30])
         XCTAssertEqual(inputs.wakeMinute, 420)
     }
+
+    /// A wake-day holding a main night and an afternoon nap: the night's start is the bedtime, never the
+    /// nap's. (Nap credit counts decoded asleep minutes, so a stage-less fixture credits 0; that rule is
+    /// the Sleep tab's own and is covered by its tests.)
+    func testNapIsCreditedAndNotReadAsABedtime() {
+        let cal = Calendar.current
+        let day = cal.date(from: DateComponents(year: 2026, month: 9, day: 20))!
+        func at(_ h: Int, _ m: Int = 0, dayOffset: Int = 0) -> Int {
+            Int(cal.date(byAdding: .minute, value: (dayOffset * 24 + h) * 60 + m, to: day)!.timeIntervalSince1970)
+        }
+        let night = CachedSleepSession(startTs: at(23, 15, dayOffset: -1), endTs: at(6, 45), efficiency: 0.9,
+                                       restingHr: nil, avgHrv: nil, stagesJSON: nil)
+        let nap = CachedSleepSession(startTs: at(14), endTs: at(14, 40), efficiency: 0.9,
+                                     restingHr: nil, avgHrv: nil, stagesJSON: nil)
+        let navDays = SleepModel.navDays(navSessions: [night, nap])
+        let starts = AppModel.mainNightStarts(navDays: navDays, habitualMidsleepSec: nil)
+        XCTAssertEqual(starts.map(\.startTs), [night.startTs])
+        let inputs = AppModel.tonightPlanInputs(days: [], mainSleeps: starts,
+                                                napSleepMinByDay: [Repository.localDayKey(day): 35],
+                                                today: Repository.localDayKey(day), wakeMinute: 420,
+                                                timeZone: .current)
+        XCTAssertEqual(inputs.recentBedMinutes, [23 * 60 + 15])
+        XCTAssertEqual(inputs.napMin, 35)
+    }
 }

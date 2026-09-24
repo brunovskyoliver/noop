@@ -32,14 +32,29 @@ extension AppModel {
     /// reminder. Cheap (a month of sessions); called when the data refreshes.
     func refreshTonightPlan() async {
         let sessions = await repo.allSleepSessions(days: 30)
-        let naps = SleepModel.napSleepMinutesByDay(navDays: SleepModel.navDays(navSessions: sessions),
-                                                   habitualMidsleepSec: nil)
-        let inputs = Self.tonightPlanInputs(days: repo.days, mainSleeps: repo.sleeps,
+        // Main night vs nap per wake-day with the Sleep tab's own selector and the learned habitual
+        // mid-sleep, so a nap beside a short night is credited as a nap (and its start is never read as a
+        // bedtime). Same inputs Android's `tonightPlanInputs` groups by.
+        let habitual = await repo.habitualMidsleepSec()
+        let navDays = SleepModel.navDays(navSessions: sessions)
+        let naps = SleepModel.napSleepMinutesByDay(navDays: navDays, habitualMidsleepSec: habitual)
+        let mainStarts = Self.mainNightStarts(navDays: navDays, habitualMidsleepSec: habitual)
+        let inputs = Self.tonightPlanInputs(days: repo.days, mainSleeps: mainStarts,
                                             napSleepMinByDay: naps, today: Repository.dayString(Date()),
                                             wakeMinute: tonightWakeMinute(), timeZone: .current)
         let plan = SleepPlanner.plan(inputs)
         tonightPlan = plan
         WindDownNudge.syncPlannedWindow(((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440)
+    }
+
+    /// The first block of each wake-day's main sleep (the Sleep tab's `mainNightGroup` selector), one per
+    /// day: the session whose start is that night's bedtime.
+    nonisolated static func mainNightStarts(navDays: [[CachedSleepSession]],
+                                            habitualMidsleepSec: Int?) -> [CachedSleepSession] {
+        navDays.compactMap { blocks in
+            SleepView.mainNightGroup(blocks, habitualMidsleepSec: habitualMidsleepSec)
+                .min { $0.effectiveStartTs < $1.effectiveStartTs }
+        }
     }
 
     /// The planner inputs from stored data. Base need and debt are the Sleep tab's own
