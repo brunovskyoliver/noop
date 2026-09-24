@@ -2861,4 +2861,21 @@
     <string name="hrv_status_above_detail">Höher als üblich. Das kann auf Erholung folgen oder auf starke Ermüdung.</string>
     <string name="hrv_status_below_detail">Niedriger als üblich. Behalte Erholung und Trainingsbelastung im Blick.</string>
     <string name="hrv_status_low_detail">Deutlich unter deinem üblichen Bereich. Ein leichterer Tag kann helfen.</string>
+    <string name="tonight_plan_title">Heute Nacht</string>
+    <string name="tonight_plan_overline">Schlafplaner</string>
+    <string name="tonight_plan_loading">Die heutige Schlafenszeit wird berechnet…</string>
+    <string name="tonight_plan_bed_by">Ins Bett bis</string>
+    <string name="tonight_plan_full">für deinen gesamten Schlafbedarf heute Nacht, %1$s</string>
+    <string name="tonight_plan_capped">so früh, wie es zu deiner üblichen Schlafenszeit passt, etwa %1$s Schlaf</string>
+    <string name="tonight_plan_capped_note">Dein gesamter Bedarf hieße, viel früher als sonst ins Bett zu gehen. Verteile den Rest auf die nächsten Nächte.</string>
+    <string name="tonight_plan_most">Der Großteil deines Bedarfs (85 %%)</string>
+    <string name="tonight_plan_minimum">Das Minimum (70 %%)</string>
+    <string name="tonight_plan_base">Grundbedarf</string>
+    <string name="tonight_plan_debt">Schlafschuld</string>
+    <string name="tonight_plan_naps">Nickerchen</string>
+    <string name="tonight_plan_wake">Aufwachen</string>
+    <string name="tonight_plan_assumes">Angenommen werden %1$d %% Schlafeffizienz und %2$d Min. zum Einschlafen. Die Weckzeit ist dein nächster Wecker oder die Zeit deines Handy-Weckers.</string>
+    <string name="caffeine_log_intro">Trage einen Kaffee, Tee oder Energydrink ein, und NOOP schätzt grob, wie viel davon noch wirkt. Das ist eine Orientierung anhand des durchschnittlichen Koffeinabbaus, keine Messung.</string>
+    <string name="caffeine_cutoff_from_plan">Letzter normaler Kaffee (95 mg) bis etwa %1$s, für Schlafenszeit %2$s laut dem heutigen Schlafplan. Eine größere Dosis braucht einen früheren Stopp.</string>
+    <string name="caffeine_mg_at_bedtime">Etwa %1$d mg aus deinen Einträgen wirken zur Schlafenszeit noch.</string>
 </resources>

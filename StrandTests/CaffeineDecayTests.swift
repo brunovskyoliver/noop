@@ -7,7 +7,7 @@ import XCTest
 /// amplify a dose, and the estimate is a deterministic function of what was logged.
 final class CaffeineDecayTests: XCTestCase {
 
-    private let hl = CaffeineDecay.defaultHalfLifeHours   // 5.5 h
+    private let hl = CaffeineDecay.defaultHalfLifeHours   // 4.3 h (fitted; see CaffeineDecay)
 
     // MARK: - fractionRemaining
 
@@ -163,22 +163,28 @@ final class CaffeineDecayTests: XCTestCase {
         XCTAssertFalse(store.estimate().hasActive)
     }
 
-    // MARK: - Cutoff window (PR#566) — parity with the Kotlin CaffeineCutoffTest
+    // MARK: - Cutoff window (PR#566) — dose-aware; parity with the Kotlin CaffeineCutoffTest
 
-    func testCutoffLeadIsTwoHalfLivesForQuarterResidual() {
-        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(), 2 * hl, accuracy: 1e-9)
+    /// The fitted pair reproduces both Gardiner 2023 cutoffs: 107 mg ≥ 8.8 h, 217.5 mg ≥ 13.2 h.
+    func testLeadReproducesTheMetaAnalysisCutoffs() {
+        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(doseMg: 107), 8.8, accuracy: 0.05)
+        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(doseMg: 217.5), 13.2, accuracy: 0.05)
+        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(), 8.038488, accuracy: 1e-5)   // 95 mg default
+    }
+
+    func testLeadIsClamped() {
+        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(doseMg: 20), CaffeineDecay.minCutoffLeadHours)
+        XCTAssertEqual(CaffeineDecay.cutoffLeadHours(doseMg: 5000), CaffeineDecay.maxCutoffLeadHours)
     }
 
     func testCutoffIsBedtimeMinusLead() {
-        // Bedtime 23:00 (1380), lead 11 h → cutoff 12:00 (720).
-        let bed = 23 * 60
-        let expected = bed - Int(2 * hl * 60)
-        XCTAssertEqual(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bed), expected)
+        // Bedtime 23:00 (1380), 95 mg lead 496 min → cutoff 14:44 (898).
+        XCTAssertEqual(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: 23 * 60), 898)
     }
 
     func testEarlyBedtimeWrapsToPreviousEvening() {
-        // Bedtime 09:00 (540): 540 - 660 = -120 → normalised to 22:00 (1320).
-        XCTAssertEqual(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: 9 * 60), 1320)
+        // Bedtime 06:00 (360): 360 − 482 = −122 → 21:58 (1318) the evening before.
+        XCTAssertEqual(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: 6 * 60), 1318)
     }
 
     func testMorningCoffeeIsNotLateAndAfternoonIs() {
@@ -187,9 +193,13 @@ final class CaffeineDecayTests: XCTestCase {
     }
 
     func testIntakeExactlyAtCutoffIsNotLate() {
-        let bed = 23 * 60
-        let cutoffRaw = bed - Int(2 * hl * 60)
-        XCTAssertFalse(CaffeineDecay.isPastCutoff(intakeMinutes: cutoffRaw, bedtimeMinutes: bed))
-        XCTAssertTrue(CaffeineDecay.isPastCutoff(intakeMinutes: cutoffRaw + 1, bedtimeMinutes: bed))
+        XCTAssertFalse(CaffeineDecay.isPastCutoff(intakeMinutes: 898, bedtimeMinutes: 23 * 60))
+        XCTAssertTrue(CaffeineDecay.isPastCutoff(intakeMinutes: 899, bedtimeMinutes: 23 * 60))
+    }
+
+    /// The dose matters: at 10:00 a coffee is fine for a 23:00 bedtime, a 400 mg pre-workout is not.
+    func testBigDoseNeedsALongerLead() {
+        XCTAssertFalse(CaffeineDecay.isPastCutoff(intakeMinutes: 10 * 60, bedtimeMinutes: 23 * 60, doseMg: 95))
+        XCTAssertTrue(CaffeineDecay.isPastCutoff(intakeMinutes: 10 * 60, bedtimeMinutes: 23 * 60, doseMg: 400))
     }
 }

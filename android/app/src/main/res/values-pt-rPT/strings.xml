@@ -2840,4 +2840,21 @@
     <string name="hrv_status_above_detail">Mais alta do que o habitual. Pode seguir-se ao descanso, ou a fadiga intensa.</string>
     <string name="hrv_status_below_detail">Mais baixa do que o habitual. Atenção à recuperação e à carga de treino.</string>
     <string name="hrv_status_low_detail">Bem abaixo do teu intervalo habitual. Um dia mais leve pode ajudar.</string>
+    <string name="tonight_plan_title">Esta noite</string>
+    <string name="tonight_plan_overline">Planeador de sono</string>
+    <string name="tonight_plan_loading">A calcular a hora de deitar desta noite…</string>
+    <string name="tonight_plan_bed_by">Na cama até</string>
+    <string name="tonight_plan_full">para toda a tua necessidade de sono desta noite, %1$s</string>
+    <string name="tonight_plan_capped">o mais cedo compatível com a tua hora habitual, cerca de %1$s de sono</string>
+    <string name="tonight_plan_capped_note">Cobrir toda a necessidade significaria deitar-te muito mais cedo do que o habitual. Distribui o resto pelas próximas noites.</string>
+    <string name="tonight_plan_most">A maior parte da necessidade (85%%)</string>
+    <string name="tonight_plan_minimum">O mínimo (70%%)</string>
+    <string name="tonight_plan_base">Necessidade base</string>
+    <string name="tonight_plan_debt">Défice de sono</string>
+    <string name="tonight_plan_naps">Sestas</string>
+    <string name="tonight_plan_wake">Acordar</string>
+    <string name="tonight_plan_assumes">Pressupõe %1$d%% de eficiência do sono e %2$d min para adormecer. A hora de acordar é o teu próximo alarme, ou a hora do alarme do telemóvel.</string>
+    <string name="caffeine_log_intro">Regista um café, chá ou bebida energética e o NOOP mostra uma estimativa aproximada de quanto ainda pode estar ativo. É uma referência baseada na eliminação média da cafeína, não uma medição.</string>
+    <string name="caffeine_cutoff_from_plan">Último café normal (95 mg) até cerca das %1$s, para deitar às %2$s segundo o plano de sono desta noite. Uma dose maior precisa de um limite mais cedo.</string>
+    <string name="caffeine_mg_at_bedtime">Cerca de %1$d mg do que registaste ainda estarão ativos à hora de deitar.</string>
 </resources>

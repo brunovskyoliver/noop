@@ -190,6 +190,9 @@ final class AppModel: ObservableObject {
     @Published var cycleCurve: [Double] = []
     /// Body-clock phase estimate (circadian). nil until a usable activity profile exists.
     @Published var circadianPhase: CircadianEngine.PhaseEstimate?
+    /// Tonight's sleep plan (SleepPlanner): the ONE bedtime the Sleep tab, the caffeine cutoff and the
+    /// wind-down reminder all read. Rebuilt by `refreshTonightPlan()`; nil until the first build.
+    @Published var tonightPlan: SleepPlanner.Plan?
 
     /// The L3 passive-nudge surface (haptic biofeedback "stress check-in"). The detector fires onto this
     /// from `evaluateStress`; both app roots inject it into the environment so the Breathe screen's card
@@ -1285,6 +1288,11 @@ final class AppModel: ObservableObject {
     /// armed until Experimental is on" copy, instead of hardcoding WHOOP 4.0. Mirrors the Android
     /// `LiveState.whoop5Detected` field the equivalent screen reads.
     var whoop5Detected: Bool { ble.isWhoop5 }
+
+    /// Whether the strap alarm will actually be armed when it is enabled. False only on a WHOOP 5/MG with the
+    /// experimental alarm path off, where nothing fires at the chosen time. Shared by the Alarms screen and
+    /// the sleep planner so neither plans around an alarm that will not ring.
+    var strapAlarmWillArm: Bool { !(whoop5Detected && !PuffinExperiment.isEnabled) }
 
     /// Point the WHOOP scan at a specific family, then present nearby straps WITHOUT auto-connecting.
     /// `prepareForModelSwitch()` first clears any sticky bond/connection so the engine is idle, then

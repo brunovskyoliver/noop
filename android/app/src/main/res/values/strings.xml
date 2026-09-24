@@ -2878,4 +2878,21 @@
     <string name="hrv_status_above_detail">Higher than usual. This can follow rest, or heavy fatigue.</string>
     <string name="hrv_status_below_detail">Lower than usual. Keep an eye on recovery and training load.</string>
     <string name="hrv_status_low_detail">Well below your usual range. An easier day may help.</string>
+    <string name="tonight_plan_title">Tonight</string>
+    <string name="tonight_plan_overline">Sleep planner</string>
+    <string name="tonight_plan_loading">Working out tonight\'s bedtime…</string>
+    <string name="tonight_plan_bed_by">Bed by</string>
+    <string name="tonight_plan_full">for all of tonight\'s sleep need, %1$s</string>
+    <string name="tonight_plan_capped">the earliest that fits your usual bedtime, about %1$s of sleep</string>
+    <string name="tonight_plan_capped_note">All of your need would mean going to bed much earlier than usual. Spread the rest over the next few nights.</string>
+    <string name="tonight_plan_most">Most of your need (85%%)</string>
+    <string name="tonight_plan_minimum">The minimum (70%%)</string>
+    <string name="tonight_plan_base">Base need</string>
+    <string name="tonight_plan_debt">Sleep debt</string>
+    <string name="tonight_plan_naps">Naps</string>
+    <string name="tonight_plan_wake">Wake</string>
+    <string name="tonight_plan_assumes">Assumes %1$d%% sleep efficiency and %2$d min to fall asleep. The wake time is your next alarm, or your phone alarm time.</string>
+    <string name="caffeine_log_intro">Log a coffee, tea, or energy drink and NOOP shows a rough estimate of how much may still be active. It\'s a guide based on average caffeine clearance, not a measurement.</string>
+    <string name="caffeine_cutoff_from_plan">Last regular coffee (95 mg) by about %1$s, for bed at %2$s from tonight\'s sleep plan. A bigger dose needs an earlier cutoff.</string>
+    <string name="caffeine_mg_at_bedtime">About %1$d mg from what you logged will still be active at bedtime.</string>
 </resources>

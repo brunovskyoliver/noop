@@ -128,10 +128,25 @@ internal fun localMinutesOfDay(epochSec: Long): Int {
  *  active at bedtime). Delegates the decay math to [CaffeineDecay.isPastCutoff]; only the clock mapping
  *  lives here. */
 internal fun isIntakePastCutoff(intake: CaffeineIntake, bedtimeMinutes: Int): Boolean =
-    CaffeineDecay.isPastCutoff(localMinutesOfDay(intake.atEpochSec), bedtimeMinutes)
+    CaffeineDecay.isPastCutoff(localMinutesOfDay(intake.atEpochSec), bedtimeMinutes, intake.mg)
 
 // MARK: - The logging card (hosted in Insights, in the "log today" block)
 
+/** Estimated mg still active at tonight's bedtime from intakes with a known dose; null when none has one.
+ *  Twin of the iOS `CaffeineLogCard.mgAtBedtime`: a bedtime before noon is read as after midnight. */
+internal fun caffeineMgAtBedtime(intakes: List<CaffeineIntake>, bedtimeMinutes: Int, nowSec: Long): Double? {
+    val known = intakes.filter { it.mg != null }
+    if (known.isEmpty()) return null
+    val cal = java.util.Calendar.getInstance().apply {
+        timeInMillis = nowSec * 1000L
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        add(java.util.Calendar.MINUTE, bedtimeMinutes)
+        if (bedtimeMinutes < 12 * 60) add(java.util.Calendar.DAY_OF_YEAR, 1)
+    }
+    val bedSec = cal.timeInMillis / 1000L
+    return CaffeineDecay.totalRemainingMg(known.map { it.mg!! to (bedSec - it.atEpochSec) / 3600.0 })
+}
 /**
  * Log a caffeine intake (time + OPTIONAL mg) and see a plain on-device "still active" hint. OPT-IN:
  * shows the empty-state line until the user logs one. Self-contained — owns its own SharedPreferences
@@ -139,7 +154,7 @@ internal fun isIntakePastCutoff(intake: CaffeineIntake, bedtimeMinutes: Int): Bo
  * claim. Twin of macOS CaffeineLogCard.
  */
 @Composable
-fun CaffeineLogCard() {
+fun CaffeineLogCard(bedtimeMinutes: Int) {
     val context = LocalContext.current
     var intakes by remember { mutableStateOf(loadCaffeineIntakes(context)) }
     var mgDraft by remember { mutableStateOf("") }
@@ -148,11 +163,13 @@ fun CaffeineLogCard() {
     val estimate = CaffeineActiveEstimate.compute(intakes, nowSec)
 
     // Cutoff nudge (PR#566, mvanhorn) — opt-in, default OFF. SharedPreferences isn't reactive, so the
-    // toggle + bedtime mirror into local state and write straight through. The cutoff time is derived
-    // purely from the bedtime via CaffeineDecay; no notification — a quiet inline hint only.
+    // toggle mirrors into local state and writes straight through. The bedtime is tonight's sleep plan
+    // ([AppViewModel.tonightPlan]), the same one the Sleep tab and wind-down use; each drink's cutoff is
+    // its own dose's lead from it. No notification — a quiet inline hint only.
     var cutoffEnabled by remember { mutableStateOf(NoopPrefs.caffeineCutoffEnabled(context)) }
-    var bedtimeMinutes by remember { mutableStateOf(NoopPrefs.caffeineBedtimeMinutes(context)) }
     val cutoffMinutes = CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes)
+    val today = localDayString(nowSec)
+    val mgAtBedtime = remember(intakes, bedtimeMinutes, nowSec / 60) { caffeineMgAtBedtime(intakes, bedtimeMinutes, nowSec) }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -164,7 +181,7 @@ fun CaffeineLogCard() {
         NoopCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    uiString(R.string.l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b),
+                    uiString(R.string.caffeine_log_intro),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
@@ -202,25 +219,18 @@ fun CaffeineLogCard() {
                     )
                 }
                 if (cutoffEnabled) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(uiString(R.string.l10n_caffeine_log_bedtime_e3cb8bd6), style = NoopType.footnote, color = Palette.textSecondary)
-                        Spacer(Modifier.weight(1f))
-                        TimeChip(
-                            minutes = bedtimeMinutes,
-                            accessibilityLabel = "Bedtime for the caffeine cutoff",
-                            onPicked = {
-                                bedtimeMinutes = it
-                                NoopPrefs.setCaffeineBedtimeMinutes(context, it)
-                            },
-                        )
-                    }
                     Text(
-                        uiString(R.string.l10n_caffeine_log_have_your_last_caffeine_by_about_16b09033, clockLabel(cutoffMinutes)) +
-                            "by ${clockLabel(bedtimeMinutes)}. A rough guide from a typical 5 to 6 hour " +
-                            "half-life, not a rule.",
+                        uiString(R.string.caffeine_cutoff_from_plan, clockLabel(cutoffMinutes), clockLabel(bedtimeMinutes)),
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
                     )
+                    if (mgAtBedtime != null && mgAtBedtime >= 1.0) {
+                        Text(
+                            uiString(R.string.caffeine_mg_at_bedtime, mgAtBedtime.roundToInt()),
+                            style = NoopType.footnote,
+                            color = if (mgAtBedtime > CaffeineDecay.BEDTIME_RESIDUAL_MG) Palette.statusWarning else Palette.textTertiary,
+                        )
+                    }
                 }
 
                 CaffeineDivider()
@@ -263,7 +273,11 @@ fun CaffeineLogCard() {
                     CaffeineDivider()
                     Text(uiString(R.string.l10n_caffeine_log_logged_today_0071a46c), style = NoopType.caption, color = Palette.textTertiary)
                     intakes.forEach { intake ->
-                        val late = cutoffEnabled && isIntakePastCutoff(intake, bedtimeMinutes)
+                        // Only today's drinks are about tonight (the list keeps 48 h); each has its own dose's cutoff.
+                        val late = cutoffEnabled && localDayString(intake.atEpochSec) == today &&
+                            isIntakePastCutoff(intake, bedtimeMinutes)
+                        val intakeCutoff = CaffeineDecay.cutoffMinutesSinceMidnight(
+                            bedtimeMinutes, intake.mg ?: CaffeineDecay.TYPICAL_DOSE_MG)
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -273,7 +287,7 @@ fun CaffeineLogCard() {
                                 )
                                 if (late) {
                                     Text(
-                                        uiString(R.string.l10n_caffeine_log_after_your_clocklabel_cutoffminutes_cutoff_may_3c023900, clockLabel(cutoffMinutes)),
+                                        uiString(R.string.l10n_caffeine_log_after_your_clocklabel_cutoffminutes_cutoff_may_3c023900, clockLabel(intakeCutoff)),
                                         style = NoopType.caption,
                                         color = Palette.statusWarning,
                                     )
@@ -337,7 +351,7 @@ private fun caffeineIntakeLabel(intake: CaffeineIntake, context: Context): Strin
 /** A minutes-since-midnight value as a wall-clock label (e.g. "2:30 PM" / "14:30"), respecting the
  *  device's 12/24-hour preference — used for the caffeine cutoff + bedtime hints. */
 @Composable
-private fun clockLabel(minutesOfDay: Int): String {
+internal fun clockLabel(minutesOfDay: Int): String {
     val context = LocalContext.current
     val cal = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, (minutesOfDay / 60) % 24)

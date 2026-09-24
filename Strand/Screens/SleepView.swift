@@ -418,6 +418,7 @@ struct SleepView: View {
     @ViewBuilder
     private func sleepSectionView(_ section: SleepSection, _ model: SleepModel) -> some View {
         switch section {
+        case .tonight:         TonightPlanCard()
         case .sleepMarks:      SleepMarkCard()
         case .stages:          hero(model)
         case .bodyClock:       bodyClockDial(model)

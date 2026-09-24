@@ -176,7 +176,7 @@ a cutoff of bedtime − 11 h *whatever the dose*, with its own bedtime setting.
 **Recommended method** (move into `StrandAnalytics`)
 - Remaining caffeine: `residual(t) = Σ dose·0.5^((t−tᵢ)/h)`.
 - Cutoff for a drink of D mg: `bedtime − h·log2(D/R)`, clamped to 4–16 h before bed.
-- Defaults: h = 4.3 h and R = 25 mg. This fit is our own back-derivation: it reproduces both Gardiner
+- Defaults: h = 4.3 h and R = 26 mg. This fit is our own back-derivation: it reproduces both Gardiner
   cutoffs (107 mg → 8.8 h, 217.5 mg → 13.2 h). Default drink = 95 mg.
 - User-chosen presets for sensitivity multiply the half-life: ×0.7 / ×1 / ×2 / ×3. Never inferred.
 - Bedtime comes from the sleep planner's resolver.

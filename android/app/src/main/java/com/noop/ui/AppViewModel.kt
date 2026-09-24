@@ -705,6 +705,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Whether the strap should also buzz at the phone smart alarm's earliest wake time (#536). */
     val buzzWhoop4Enabled: StateFlow<Boolean> = _buzzWhoop4Enabled.asStateFlow()
 
+    /** Tonight's sleep plan ([SleepPlanner]): the ONE bedtime the Sleep tab, the caffeine cutoff and the
+     *  wind-down reminder read. Twin of iOS `AppModel.tonightPlan`; rebuilt by [refreshTonightPlan]. */
+    private val _tonightPlan = MutableStateFlow<com.noop.analytics.SleepPlanner.Plan?>(null)
+    val tonightPlan: StateFlow<com.noop.analytics.SleepPlanner.Plan?> = _tonightPlan.asStateFlow()
+
     // Wind-down nudge (#207) — cross-platform, NON-safety-critical. A gentle evening notification
     // derived from the user's earliest wake time. Inexact daily alarm; no exact-alarm permission.
     private val windDownStore = WindDownStore.from(appContext)
@@ -1835,6 +1840,67 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  Twin of iOS `AppModel.workoutRestingHR`. */
     private fun workoutRestingHR(): Double =
         _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
+
+    /**
+     * Tomorrow morning's wake, minutes after midnight: the earliest alarm that will ring within 24 h
+     * (phone alarm, or strap smart alarm; same weekday/override resolver the alarms arm from), else the
+     * phone alarm's time for that weekday, which is what the wind-down reminder already uses.
+     */
+    private fun tonightWakeMinute(nowMs: Long = System.currentTimeMillis()): Int {
+        val candidates = listOfNotNull(
+            if (phoneAlarmStore.enabled) nextSmartAlarmEpochSec(
+                phoneAlarmStore.targetMinutes, phoneAlarmStore.weekdays, nowMs,
+                dayOverrides = phoneAlarmStore.targetOverrides) else null,
+            if (_smartAlarmEnabled.value) nextSmartAlarmEpochSec(
+                _smartAlarmMinutes.value, _smartAlarmWeekdays.value, nowMs,
+                dayOverrides = _smartAlarmDayOverrides.value) else null,
+        ).filter { it * 1000L - nowMs < 24L * 3600_000L }
+        val cal = java.util.Calendar.getInstance()
+        candidates.minOrNull()?.let { epoch ->
+            cal.timeInMillis = epoch * 1000L
+            return cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+        }
+        for (offset in 0..1) {
+            cal.timeInMillis = nowMs
+            cal.add(java.util.Calendar.DAY_OF_YEAR, offset)
+            val minute = phoneAlarmStore.targetFor(cal.get(java.util.Calendar.DAY_OF_WEEK))
+            cal.set(java.util.Calendar.HOUR_OF_DAY, minute / 60); cal.set(java.util.Calendar.MINUTE, minute % 60)
+            cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
+            if (cal.timeInMillis > nowMs) return minute
+        }
+        return phoneAlarmStore.targetMinutes
+    }
+
+    /** Rebuild [tonightPlan] from the last month of nights and push its bed-to-wake window to the wind-down
+     *  reminder, so the reminder fires its lead before the planned bedtime. Twin of iOS `refreshTonightPlan`. */
+    fun refreshTonightPlan() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis() / 1000L
+            val lo = now - 30L * 86_400L
+            val sleeps = runCatching {
+                val imported = repository.sleepSessionsUnion(activeStrapId, lo, now)
+                val computed = repository.computedSleepSessionsUnion(activeStrapId, lo, now)
+                WhoopRepository.mergeSleepRichness(imported, computed) { localDayString(it.endTs) }
+                    .sortedBy { it.effectiveStartTs }
+            }.getOrDefault(emptyList())
+            val habitual = runCatching { repository.habitualMidsleepSec(activeStrapId) }.getOrNull()
+            val inputs = tonightPlanInputs(
+                days = recentDays.value, sleeps = sleeps, habitualMidsleepSec = habitual,
+                today = java.time.LocalDate.now().toString(), wakeMinute = tonightWakeMinute(),
+                timeZone = java.util.TimeZone.getDefault(),
+            )
+            val plan = com.noop.analytics.SleepPlanner.plan(inputs)
+            _tonightPlan.value = plan
+            val window = ((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440
+            val clamped = window.coerceIn(300, 660)
+            if (windDownStore.sleepNeedMinutes != clamped) {
+                windDownStore.sleepNeedMinutes = clamped
+                if (windDownStore.enabled) WindDownScheduler.schedule(
+                    appContext, windDownStore, phoneAlarmStore.targetMinutes, phoneAlarmStore.targetOverrides,
+                )
+            }
+        }
+    }
 
     /** Append the current smoothed bpm to the active workout and recompute its running strain. Called
      *  from ingestHr on every fresh sample; a no-op when no workout is running. */

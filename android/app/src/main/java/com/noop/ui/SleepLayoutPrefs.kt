@@ -25,6 +25,7 @@ import com.noop.R
  * macOS `SleepSection` enum so a backup/restore reads the same layout on either OS.
  */
 enum class SleepSection(val raw: String, val title: String) {
+    TONIGHT("tonight", "Tonight"),
     SLEEP_MARKS("sleepMarks", "Sleep marks"),
     STAGES("stages", "Stages"),
     BODY_CLOCK("bodyClock", "Body clock"),
@@ -50,7 +51,7 @@ enum class SleepSection(val raw: String, val title: String) {
          *  rides with Stages for now — drawn inside the stages hero; making it an independently arrangeable
          *  card is a follow-up that requires hoisting the hero's edit/delete callbacks.) */
         val defaultOrder: List<SleepSection> = listOf(
-            SLEEP_MARKS, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
+            TONIGHT, SLEEP_MARKS, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
             HOURS_VS_NEEDED, CONSISTENCY,
         )
     }
@@ -64,6 +65,7 @@ enum class SleepSection(val raw: String, val title: String) {
  */
 @Composable
 fun SleepSection.localizedTitle(): String = when (this) {
+    SleepSection.TONIGHT -> stringResource(R.string.tonight_plan_title)
     SleepSection.SLEEP_MARKS -> stringResource(R.string.l10n_sleep_screen_sleep_marks_8e9b86f0)
     SleepSection.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
     SleepSection.BODY_CLOCK -> stringResource(R.string.l10n_body_clock_dial_card_body_clock_b0b9b988)

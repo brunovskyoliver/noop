@@ -2847,4 +2847,21 @@
     <string name="hrv_status_above_detail">Plus élevée que d\'habitude. Cela peut suivre du repos, ou une forte fatigue.</string>
     <string name="hrv_status_below_detail">Plus basse que d\'habitude. Surveillez votre récupération et votre charge d\'entraînement.</string>
     <string name="hrv_status_low_detail">Bien en dessous de votre plage habituelle. Une journée plus légère peut aider.</string>
+    <string name="tonight_plan_title">Ce soir</string>
+    <string name="tonight_plan_overline">Planificateur de sommeil</string>
+    <string name="tonight_plan_loading">Calcul de l\'heure du coucher de ce soir…</string>
+    <string name="tonight_plan_bed_by">Au lit avant</string>
+    <string name="tonight_plan_full">pour tout votre besoin de sommeil de cette nuit, %1$s</string>
+    <string name="tonight_plan_capped">le plus tôt compatible avec votre coucher habituel, environ %1$s de sommeil</string>
+    <string name="tonight_plan_capped_note">Couvrir tout votre besoin impliquerait de vous coucher bien plus tôt que d\'habitude. Répartissez le reste sur les prochaines nuits.</string>
+    <string name="tonight_plan_most">L\'essentiel de votre besoin (85 %%)</string>
+    <string name="tonight_plan_minimum">Le minimum (70 %%)</string>
+    <string name="tonight_plan_base">Besoin de base</string>
+    <string name="tonight_plan_debt">Dette de sommeil</string>
+    <string name="tonight_plan_naps">Siestes</string>
+    <string name="tonight_plan_wake">Réveil</string>
+    <string name="tonight_plan_assumes">Suppose %1$d %% d\'efficacité du sommeil et %2$d min pour vous endormir. L\'heure de réveil est votre prochaine alarme, ou l\'heure de l\'alarme du téléphone.</string>
+    <string name="caffeine_log_intro">Enregistrez un café, un thé ou une boisson énergisante et NOOP estime grossièrement la quantité encore active. C\'est un repère basé sur l\'élimination moyenne de la caféine, pas une mesure.</string>
+    <string name="caffeine_cutoff_from_plan">Dernier café normal (95 mg) vers %1$s, pour un coucher à %2$s selon le plan de sommeil de ce soir. Une dose plus forte demande une limite plus tôt.</string>
+    <string name="caffeine_mg_at_bedtime">Environ %1$d mg de ce que vous avez noté seront encore actifs au coucher.</string>
 </resources>

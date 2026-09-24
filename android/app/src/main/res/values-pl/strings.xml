@@ -2862,4 +2862,21 @@
     <string name="hrv_status_above_detail">Wyższa niż zwykle. Może to wynikać z odpoczynku lub dużego zmęczenia.</string>
     <string name="hrv_status_below_detail">Niższa niż zwykle. Obserwuj regenerację i obciążenie treningowe.</string>
     <string name="hrv_status_low_detail">Wyraźnie poniżej zwykłego zakresu. Lżejszy dzień może pomóc.</string>
+    <string name="tonight_plan_title">Dziś w nocy</string>
+    <string name="tonight_plan_overline">Planer snu</string>
+    <string name="tonight_plan_loading">Obliczamy dzisiejszą porę snu…</string>
+    <string name="tonight_plan_bed_by">Do łóżka o</string>
+    <string name="tonight_plan_full">na całe dzisiejsze zapotrzebowanie na sen, %1$s</string>
+    <string name="tonight_plan_capped">najwcześniej, jak pozwala Twoja zwykła pora snu, około %1$s snu</string>
+    <string name="tonight_plan_capped_note">Pokrycie całego zapotrzebowania oznaczałoby pójście spać dużo wcześniej niż zwykle. Rozłóż resztę na kolejne noce.</string>
+    <string name="tonight_plan_most">Większość zapotrzebowania (85%%)</string>
+    <string name="tonight_plan_minimum">Minimum (70%%)</string>
+    <string name="tonight_plan_base">Potrzeba bazowa</string>
+    <string name="tonight_plan_debt">Dług snu</string>
+    <string name="tonight_plan_naps">Drzemki</string>
+    <string name="tonight_plan_wake">Pobudka</string>
+    <string name="tonight_plan_assumes">Zakłada %1$d%% efektywności snu i %2$d min na zaśnięcie. Godzina pobudki to Twój najbliższy budzik lub godzina budzika w telefonie.</string>
+    <string name="caffeine_log_intro">Zapisz kawę, herbatę lub napój energetyczny, a NOOP pokaże przybliżoną ilość, która może nadal działać. To wskazówka oparta na przeciętnym tempie usuwania kofeiny, a nie pomiar.</string>
+    <string name="caffeine_cutoff_from_plan">Ostatnia zwykła kawa (95 mg) do około %1$s, przy pójściu spać o %2$s według dzisiejszego planu snu. Większa dawka wymaga wcześniejszej granicy.</string>
+    <string name="caffeine_mg_at_bedtime">Około %1$d mg z tego, co zapisano, będzie nadal działać w porze snu.</string>
 </resources>

@@ -247297,6 +247297,818 @@
           }
         }
       }
+    },
+    "Sleep planner" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafplaner"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planificador de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planificateur de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pianificatore del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planer snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planeador de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Планировщик сна"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠规划"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠規劃"
+          }
+        }
+      }
+    },
+    "Working out tonight's bedtime…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die heutige Schlafenszeit wird berechnet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calculando la hora de acostarte de esta noche…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calcul de l'heure du coucher de ce soir…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sto calcolando l'ora di andare a letto di stanotte…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obliczamy dzisiejszą porę snu…"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A calcular a hora de deitar desta noite…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рассчитываем время отхода ко сну…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在计算今晚的就寝时间…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在計算今晚的就寢時間…"
+          }
+        }
+      }
+    },
+    "Bed by" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ins Bett bis"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A la cama antes de"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Au lit avant"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A letto entro"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do łóżka o"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na cama até"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лечь до"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就寝时间"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就寢時間"
+          }
+        }
+      }
+    },
+    "for all of tonight's sleep need, %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "für deinen gesamten Schlafbedarf heute Nacht, %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "para toda tu necesidad de sueño de esta noche, %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pour tout votre besoin de sommeil de cette nuit, %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per tutto il tuo fabbisogno di sonno di stanotte, %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "na całe dzisiejsze zapotrzebowanie na sen, %@"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "para toda a tua necessidade de sono desta noite, %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "чтобы покрыть всю потребность во сне, %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "满足今晚全部睡眠需求（%@）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滿足今晚全部睡眠需求（%@）"
+          }
+        }
+      }
+    },
+    "the earliest that fits your usual bedtime, about %@ of sleep" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "so früh, wie es zu deiner üblichen Schlafenszeit passt, etwa %@ Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lo más pronto que encaja con tu hora habitual, unos %@ de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le plus tôt compatible avec votre coucher habituel, environ %@ de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "il più presto compatibile con il tuo orario abituale, circa %@ di sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "najwcześniej, jak pozwala Twoja zwykła pora snu, około %@ snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o mais cedo compatível com a tua hora habitual, cerca de %@ de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "самое раннее, что подходит к вашему обычному времени, около %@ сна"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与你平时就寝时间相符的最早时间，约 %@ 睡眠"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與你平時就寢時間相符的最早時間，約 %@ 睡眠"
+          }
+        }
+      }
+    },
+    "All of your need would mean going to bed much earlier than usual. Spread the rest over the next few nights." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein gesamter Bedarf hieße, viel früher als sonst ins Bett zu gehen. Verteile den Rest auf die nächsten Nächte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cubrir toda tu necesidad supondría acostarte mucho antes de lo habitual. Reparte el resto en las próximas noches."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couvrir tout votre besoin impliquerait de vous coucher bien plus tôt que d'habitude. Répartissez le reste sur les prochaines nuits."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coprire tutto il fabbisogno vorrebbe dire andare a letto molto prima del solito. Distribuisci il resto nelle prossime notti."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokrycie całego zapotrzebowania oznaczałoby pójście spać dużo wcześniej niż zwykle. Rozłóż resztę na kolejne noce."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cobrir toda a necessidade significaria deitar-te muito mais cedo do que o habitual. Distribui o resto pelas próximas noites."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы покрыть всю потребность, пришлось бы лечь намного раньше обычного. Распределите остаток на следующие ночи."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要满足全部需求，就得比平时早很多上床。把剩余部分分摊到接下来几晚。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要滿足全部需求，就得比平時早很多上床。把剩餘部分分攤到接下來幾晚。"
+          }
+        }
+      }
+    },
+    "Most of your need (85%)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Großteil deines Bedarfs (85 %)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La mayor parte de tu necesidad (85 %)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'essentiel de votre besoin (85 %)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gran parte del fabbisogno (85%)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Większość zapotrzebowania (85%)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A maior parte da necessidade (85%)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Большая часть потребности (85%)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大部分需求（85%）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大部分需求（85%）"
+          }
+        }
+      }
+    },
+    "The minimum (70%)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Minimum (70 %)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El mínimo (70 %)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le minimum (70 %)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il minimo (70%)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum (70%)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O mínimo (70%)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Минимум (70%)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低（70%）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低（70%）"
+          }
+        }
+      }
+    },
+    "Base need" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grundbedarf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesidad base"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Besoin de base"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabbisogno base"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Potrzeba bazowa"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necessidade base"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Базовая потребность"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础需求"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基礎需求"
+          }
+        }
+      }
+    },
+    "Sleep debt" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafschuld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deuda de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debito di sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dług snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Défice de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недосып"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠债"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠債"
+          }
+        }
+      }
+    },
+    "Assumes %lld%% sleep efficiency and %lld min to fall asleep. The wake time is your strap alarm, or your usual wake time in Alarms." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angenommen werden %lld %% Schlafeffizienz und %lld Min. zum Einschlafen. Die Weckzeit ist dein Band-Wecker oder deine übliche Weckzeit unter Wecker."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supone un %lld %% de eficiencia del sueño y %lld min para dormirte. La hora de despertar es la alarma de la banda o tu hora habitual en Alarmas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suppose %lld %% d'efficacité du sommeil et %lld min pour vous endormir. L'heure de réveil est l'alarme du bracelet, ou votre heure habituelle dans Alarmes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presuppone un'efficienza del sonno del %lld%% e %lld min per addormentarti. L'orario di sveglia è la sveglia della fascia, o il tuo orario abituale in Sveglie."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zakłada %lld%% efektywności snu i %lld min na zaśnięcie. Godzina pobudki to budzik opaski lub Twoja zwykła godzina w Budzikach."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressupõe %lld%% de eficiência do sono e %lld min para adormecer. A hora de acordar é o alarme da banda, ou a tua hora habitual em Alarmes."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предполагается эффективность сна %lld%% и %lld мин на засыпание. Время подъёма — будильник браслета или ваше обычное время в разделе «Будильники»."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "假设睡眠效率为 %lld%%，入睡需要 %lld 分钟。起床时间取自手环闹钟，或“闹钟”中你平常的起床时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "假設睡眠效率為 %lld%%，入睡需要 %lld 分鐘。起床時間取自手環鬧鐘，或「鬧鐘」中你平常的起床時間。"
+          }
+        }
+      }
+    },
+    "Log a coffee, tea, or energy drink and NOOP shows a rough estimate of how much may still be active. It's a guide based on average caffeine clearance, not a measurement." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trage einen Kaffee, Tee oder Energydrink ein, und NOOP schätzt grob, wie viel davon noch wirkt. Das ist eine Orientierung anhand des durchschnittlichen Koffeinabbaus, keine Messung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra un café, té o bebida energética y NOOP muestra una estimación aproximada de cuánto puede seguir activo. Es una guía basada en la eliminación media de la cafeína, no una medición."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez un café, un thé ou une boisson énergisante et NOOP estime grossièrement la quantité encore active. C'est un repère basé sur l'élimination moyenne de la caféine, pas une mesure."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra un caffè, un tè o una bevanda energetica e NOOP mostra una stima approssimativa di quanto può essere ancora attivo. È un'indicazione basata sullo smaltimento medio della caffeina, non una misura."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz kawę, herbatę lub napój energetyczny, a NOOP pokaże przybliżoną ilość, która może nadal działać. To wskazówka oparta na przeciętnym tempie usuwania kofeiny, a nie pomiar."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regista um café, chá ou bebida energética e o NOOP mostra uma estimativa aproximada de quanto ainda pode estar ativo. É uma referência baseada na eliminação média da cafeína, não uma medição."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметьте кофе, чай или энергетик, и NOOP примерно оценит, сколько кофеина ещё действует. Это ориентир на основе среднего выведения кофеина, а не измерение."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录一杯咖啡、茶或能量饮料，NOOP 会粗略估算仍在起作用的咖啡因量。这是基于平均咖啡因代谢的参考，而非测量。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄一杯咖啡、茶或能量飲料，NOOP 會粗略估算仍在作用的咖啡因量。這是基於平均咖啡因代謝的參考，而非測量。"
+          }
+        }
+      }
+    },
+    "Last regular coffee (95 mg) by about %@, for bed at %@ from tonight's sleep plan. A bigger dose needs an earlier cutoff." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzter normaler Kaffee (95 mg) bis etwa %@, für Schlafenszeit %@ laut dem heutigen Schlafplan. Eine größere Dosis braucht einen früheren Stopp."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último café normal (95 mg) hacia las %@, para acostarte a las %@ según el plan de sueño de esta noche. Una dosis mayor necesita un límite más temprano."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernier café normal (95 mg) vers %@, pour un coucher à %@ selon le plan de sommeil de ce soir. Une dose plus forte demande une limite plus tôt."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultimo caffè normale (95 mg) entro le %@ circa, per andare a letto alle %@ secondo il piano di stanotte. Una dose maggiore richiede un limite più anticipato."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnia zwykła kawa (95 mg) do około %@, przy pójściu spać o %@ według dzisiejszego planu snu. Większa dawka wymaga wcześniejszej granicy."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último café normal (95 mg) até cerca das %@, para deitar às %@ segundo o plano de sono desta noite. Uma dose maior precisa de um limite mais cedo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний обычный кофе (95 мг) — примерно до %@, если ложиться в %@ по сегодняшнему плану сна. Для большей дозы граница раньше."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普通咖啡（95 毫克）最晚约 %@ 喝完，以便按今晚的睡眠计划在 %@ 就寝。剂量越大，截止时间越早。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般咖啡（95 毫克）最晚約 %@ 喝完，以便按今晚的睡眠計畫在 %@ 就寢。劑量越大，截止時間越早。"
+          }
+        }
+      }
+    },
+    "About %lld mg from what you logged will still be active at bedtime." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwa %lld mg aus deinen Einträgen wirken zur Schlafenszeit noch."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unos %lld mg de lo que registraste seguirán activos a la hora de dormir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Environ %lld mg de ce que vous avez noté seront encore actifs au coucher."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Circa %lld mg di quanto registrato saranno ancora attivi all'ora di andare a letto."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Około %lld mg z tego, co zapisano, będzie nadal działać w porze snu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerca de %lld mg do que registaste ainda estarão ativos à hora de deitar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Около %lld мг из отмеченного ещё будет действовать перед сном."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你记录的咖啡因中约有 %lld 毫克在就寝时仍在起作用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你記錄的咖啡因中約有 %lld 毫克在就寢時仍在作用。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -2819,4 +2819,21 @@
     <string name="hrv_status_above_detail">高于平时。这可能出现在休息之后，也可能出现在严重疲劳时。</string>
     <string name="hrv_status_below_detail">低于平时。留意恢复情况和训练负荷。</string>
     <string name="hrv_status_low_detail">明显低于常规范围。安排轻松一点的一天可能有帮助。</string>
+    <string name="tonight_plan_title">今晚</string>
+    <string name="tonight_plan_overline">睡眠规划</string>
+    <string name="tonight_plan_loading">正在计算今晚的就寝时间…</string>
+    <string name="tonight_plan_bed_by">就寝时间</string>
+    <string name="tonight_plan_full">满足今晚全部睡眠需求（%1$s）</string>
+    <string name="tonight_plan_capped">与你平时就寝时间相符的最早时间，约 %1$s 睡眠</string>
+    <string name="tonight_plan_capped_note">要满足全部需求，就得比平时早很多上床。把剩余部分分摊到接下来几晚。</string>
+    <string name="tonight_plan_most">大部分需求（85%%）</string>
+    <string name="tonight_plan_minimum">最低（70%%）</string>
+    <string name="tonight_plan_base">基础需求</string>
+    <string name="tonight_plan_debt">睡眠债</string>
+    <string name="tonight_plan_naps">小睡</string>
+    <string name="tonight_plan_wake">起床</string>
+    <string name="tonight_plan_assumes">假设睡眠效率为 %1$d%%，入睡需要 %2$d 分钟。起床时间取自你的下一个闹钟，或手机闹钟时间。</string>
+    <string name="caffeine_log_intro">记录一杯咖啡、茶或能量饮料，NOOP 会粗略估算仍在起作用的咖啡因量。这是基于平均咖啡因代谢的参考，而非测量。</string>
+    <string name="caffeine_cutoff_from_plan">普通咖啡（95 毫克）最晚约 %1$s 喝完，以便按今晚的睡眠计划在 %2$s 就寝。剂量越大，截止时间越早。</string>
+    <string name="caffeine_mg_at_bedtime">你记录的咖啡因中约有 %1$d 毫克在就寝时仍在起作用。</string>
 </resources>
