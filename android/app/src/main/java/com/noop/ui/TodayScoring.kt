@@ -60,6 +60,7 @@ internal fun recoveryCalibrationNights(
 internal fun recoveryChargeDrivers(
     days: List<DailyMetric>,
     displayDay: DailyMetric?,
+    hrvBaselineEpoch: Double = 0.0,
 ): List<ChargeDriver> {
     val day = displayDay ?: return emptyList()
     val hrv = day.avgHrv ?: return emptyList()
@@ -67,7 +68,13 @@ internal fun recoveryChargeDrivers(
 
     // Whole-history fold (oldest first), exactly as the engine seeds baselines2.
     val ordered = days.sortedBy { it.day }
-    val hrvBase = Baselines.foldHistory(ordered.map { it.avgHrv }, Baselines.hrvCfg)
+    // #2315: fold with the recalibration epoch, exactly as the engine does. Without it these rows
+    // scored against the WHOLE history while the headline scored against the post-Recalibrate nights,
+    // so the Charge page showed two different baselines for the same metric. `0.0` (no recalibration)
+    // delegates to the plain fold, so a user who never recalibrated sees no change at all.
+    val hrvBase = Baselines.foldHistory(
+        ordered.map { it.avgHrv }, ordered.map { it.day }, Baselines.hrvCfg, hrvBaselineEpoch,
+    )
     if (!hrvBase.usable) return emptyList()
     // Passed on ungated, unlike respBase below, and that is deliberate since #1988: chargeDrivers
     // gates this one itself, for its score AND for the row it builds from the baseline directly.
@@ -100,9 +107,14 @@ internal fun recoveryChargeDrivers(
 internal fun chargeConfidenceTier(
     days: List<DailyMetric>,
     displayDay: DailyMetric?,
+    hrvBaselineEpoch: Double = 0.0,
 ): ScoreConfidence {
-    val hrvBase: BaselineState =
-        Baselines.foldHistory(days.sortedBy { it.day }.map { it.avgHrv }, Baselines.hrvCfg)
+    // #2315: epoch-aware for the same reason as the drivers above. The tier is read off the baseline
+    // the ring rides, so folding a different history here could badge a scored day as CALIBRATING.
+    val ordered = days.sortedBy { it.day }
+    val hrvBase: BaselineState = Baselines.foldHistory(
+        ordered.map { it.avgHrv }, ordered.map { it.day }, Baselines.hrvCfg, hrvBaselineEpoch,
+    )
     return ScoreConfidence.forCharge(displayDay?.recovery, hrvBase)
 }
 
@@ -416,7 +428,13 @@ internal fun recordingStateFor(
  *  [Hidden] only on a true cold start (the building-scores note owns that case). Previously this
  *  priority order lived inline inside the `@Composable`, where it could not be unit-tested. */
 sealed class SyncChipState {
-    data class Syncing(val chunks: Int) : SyncChipState()
+    /** #689/#815 follow-up: [pagesBehind] is the strap's GET_DATA_RANGE ring backlog, sampled ONCE at
+     *  connect (`LiveState.pagesBehindAtConnect`) and never re-polled, so it is a figure "at connect"
+     *  rather than a live one — the copy says so. null when no reply has landed this session, when the
+     *  frame did not decode, AND when the backlog is zero: a chip that is actively syncing while
+     *  claiming "0 pages behind" contradicts itself, and a zero sample carries nothing a reader can
+     *  act on. [resolve] applies that rule so both platforms drop the same case. */
+    data class Syncing(val chunks: Int, val pagesBehind: Int? = null) : SyncChipState()
     data class Synced(val agoText: String) : SyncChipState()
     object ExperimentalLive : SyncChipState()
     object Hidden : SyncChipState()
@@ -439,8 +457,12 @@ sealed class SyncChipState {
             lastSyncAtSec: Long?,
             historySyncExperimental: Boolean,
             nowSec: Long,
+            pagesBehind: Int? = null,
         ): SyncChipState = when {
-            backfilling -> Syncing(chunks)
+            // `takeIf { it > 0 }` is the zero rule from [Syncing.pagesBehind], applied here so the
+            // decision is pure and testable rather than sitting in the composable. Negative can't come
+            // off the wire (the decoder returns a ring delta), but the bound reads the same either way.
+            backfilling -> Syncing(chunks, pagesBehind?.takeIf { it > 0 })
             lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec, nowSec))
             historySyncExperimental -> ExperimentalLive
             else -> Hidden

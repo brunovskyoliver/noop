@@ -53,8 +53,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
         CoachMessageRow::class,
+        LiftExerciseRow::class,
+        LiftProgramRow::class,
+        LiftProgramItemRow::class,
+        LiftSessionRow::class,
+        LiftSetEntity::class,
     ],
-    version = 39,
+    version = 41,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -74,7 +79,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 39
+        const val SCHEMA_VERSION = 41
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -129,9 +134,10 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
-         * v4 -> v5: ADDITIVE, adds the `dismissedWorkout` table (#107): a durable marker that keeps a
-         * dismissed auto-detected bout hidden after the engine re-derives it. CREATE TABLE only (no
-         * data touched), so existing workouts/history are untouched. The SQL MUST match Room's
+         * v4 -> v5: ADDITIVE, adds the `dismissedWorkout` table (#107): a durable marker for a rejected
+         * detected bout. Generic detected-row reconciliation is retired, but the table remains part of
+         * grandfathered history and suggestion suppression. CREATE TABLE only (no data touched), so existing
+         * workouts/history are untouched. The SQL MUST match Room's
          * generated schema for the [DismissedWorkout] entity exactly, all three PK columns NOT NULL,
          * composite PRIMARY KEY in declaration order. Guarded by MigrationRoundTripTest like the others.
          */
@@ -970,18 +976,31 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
-         * v38 -> v39: ADDITIVE, adds `workout.suggestedClass` (TEXT) + `workout.suggestedClassConfidence`
+         * v40 -> v41: ADDITIVE, adds `workout.suggestedClass` (TEXT) + `workout.suggestedClassConfidence`
          * (REAL) — the on-device classifier's advisory label and its 0..1 confidence, written only for
          * sport="detected" rows (2026-09-22). `sport` stays "detected" until the user picks a label;
          * every imported/manual row keeps NULL, which is the true statement about it (no suggestion
          * exists). Nullable, additive, not part of the PK — the MIGRATION_27_28 form. The ALTERs append
          * the columns LAST, matching [WorkoutRow]'s field order (declared after `steps`). Byte-parity
-         * with Swift WhoopStore `v47-workout-suggested-class`.
+         * with Swift WhoopStore `v49-workout-suggested-class`.
          */
-        internal val MIGRATION_38_39 = object : Migration(38, 39) {
+        internal val MIGRATION_40_41 = object : Migration(40, 41) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `workout` ADD COLUMN `suggestedClass` TEXT")
-                db.execSQL("ALTER TABLE `workout` ADD COLUMN `suggestedClassConfidence` REAL")
+                // A fork build shipped these columns as 38 -> 39 before upstream claimed that number, so a
+                // database may already carry them. Guard both ALTERs; re-issue upstream's IF NOT EXISTS
+                // index in case that database skipped upstream's 38 -> 39.
+                val existing = mutableSetOf<String>()
+                db.query("PRAGMA table_info(`workout`)").use { c ->
+                    val name = c.getColumnIndexOrThrow("name")
+                    while (c.moveToNext()) existing += c.getString(name)
+                }
+                if ("suggestedClass" !in existing) {
+                    db.execSQL("ALTER TABLE `workout` ADD COLUMN `suggestedClass` TEXT")
+                }
+                if ("suggestedClassConfidence" !in existing) {
+                    db.execSQL("ALTER TABLE `workout` ADD COLUMN `suggestedClassConfidence` REAL")
+                }
+                db.execSQL(RR_SOURCE_INDEX_SQL)
             }
         }
 
@@ -1002,6 +1021,103 @@ abstract class WhoopDatabase : RoomDatabase() {
                     )"""
                 )
             }
+        }
+
+        /** Covers the source-promotion cache witnesses. Twin of GRDB v45-rr-source-index. */
+        internal const val RR_SOURCE_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS rrInterval_source_suspect ON rrInterval(srcChannel, tsSuspect)"
+
+        internal val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) { db.execSQL(RR_SOURCE_INDEX_SQL) }
+        }
+
+        /**
+         * The in-app strength log. Twin of GRDB `v46-lift-log`; see `LiftEntities.kt` for what these
+         * tables hold and for why the Android half is schema-only for now.
+         *
+         * Column order matches the entity declaration order, which matches GRDB's `create(table:)`,
+         * and `SchemaOracleTest` fails on any of the three drifting apart. Every statement is
+         * `IF NOT EXISTS`, matching the GRDB side: a database that already carries these tables
+         * converges rather than throwing.
+         */
+        internal val LIFT_LOG_SQL: List<String> = listOf(
+            """CREATE TABLE IF NOT EXISTS `liftExercise` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `primaryMuscle` TEXT,
+                `secondaryMuscles` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `lastUsedTs` INTEGER,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftExercise_natural` ON `liftExercise` (`deviceId`, `name`)",
+            """CREATE TABLE IF NOT EXISTS `liftProgram` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `note` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                `archived` INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgram_device_updatedAt` ON `liftProgram` (`deviceId`, `updatedAt`)",
+            """CREATE TABLE IF NOT EXISTS `liftProgramItem` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `programId` TEXT NOT NULL,
+                `ord` INTEGER NOT NULL,
+                `exercise` TEXT NOT NULL,
+                `targetSets` INTEGER,
+                `targetRepsLow` INTEGER,
+                `targetRepsHigh` INTEGER,
+                `targetRpe` REAL,
+                `targetWeightKg` REAL,
+                `restSec` INTEGER,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgramItem_device` ON `liftProgramItem` (`deviceId`)",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgramItem_program_ord` ON `liftProgramItem` (`programId`, `ord`)",
+            """CREATE TABLE IF NOT EXISTS `liftSession` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `startTs` INTEGER NOT NULL,
+                `endTs` INTEGER,
+                `sport` TEXT NOT NULL,
+                `programId` TEXT,
+                `programName` TEXT,
+                `sessionRpe` REAL,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftSession_natural` ON `liftSession` (`deviceId`, `startTs`, `sport`)",
+            """CREATE TABLE IF NOT EXISTS `liftSet` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `sessionId` TEXT NOT NULL,
+                `ord` INTEGER NOT NULL,
+                `exercise` TEXT NOT NULL,
+                `primaryMuscle` TEXT,
+                `secondaryMuscles` TEXT,
+                `setIndex` INTEGER NOT NULL,
+                `weightKg` REAL,
+                `reps` INTEGER,
+                `rpe` REAL,
+                `isWarmup` INTEGER NOT NULL DEFAULT 0,
+                `startTs` INTEGER,
+                `endTs` INTEGER,
+                `restSec` INTEGER,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftSet_device_exercise` ON `liftSet` (`deviceId`, `exercise`)",
+            "CREATE INDEX IF NOT EXISTS `idx_liftSet_session_ord` ON `liftSet` (`sessionId`, `ord`)",
+        )
+
+        internal val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) { LIFT_LOG_SQL.forEach(db::execSQL) }
         }
 
         /**
@@ -1030,7 +1146,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
-            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39,
+            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

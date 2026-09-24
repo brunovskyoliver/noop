@@ -59,7 +59,7 @@ public struct WorkoutRow: Equatable, Codable {
     public init(startTs: Int, endTs: Int, sport: String, source: String, durationS: Double?,
                 energyKcal: Double?, avgHr: Int?, maxHr: Int?, strain: Double?, distanceM: Double?,
                 zonesJSON: String?, notes: String?, steps: Int?,
-                suggestedClass: String?, suggestedClassConfidence: Double?) {
+                suggestedClass: String? = nil, suggestedClassConfidence: Double? = nil) {
         self.startTs = startTs; self.endTs = endTs; self.sport = sport; self.source = source
         self.durationS = durationS; self.energyKcal = energyKcal; self.avgHr = avgHr
         self.maxHr = maxHr; self.strain = strain; self.distanceM = distanceM
@@ -161,39 +161,67 @@ extension WhoopStore {
         try syncWrite { db in
             var n = 0
             for r in rows {
-                try db.execute(sql: """
-                    INSERT INTO workout
-                        (deviceId, startTs, endTs, sport, source, durationS, energyKcal,
-                         avgHr, maxHr, strain, distanceM, zonesJSON, notes, steps,
-                         suggestedClass, suggestedClassConfidence)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(deviceId, startTs, sport) DO UPDATE SET
-                        endTs = excluded.endTs,
-                        source = excluded.source,
-                        durationS = excluded.durationS,
-                        energyKcal = excluded.energyKcal,
-                        avgHr = excluded.avgHr,
-                        maxHr = excluded.maxHr,
-                        strain = excluded.strain,
-                        distanceM = excluded.distanceM,
-                        zonesJSON = excluded.zonesJSON,
-                        notes = excluded.notes,
-                        steps = excluded.steps,
-                        suggestedClass = excluded.suggestedClass,
-                        suggestedClassConfidence = excluded.suggestedClassConfidence
-                    """, arguments: [deviceId, r.startTs, r.endTs, r.sport, r.source, r.durationS,
-                                     r.energyKcal, r.avgHr, r.maxHr, r.strain, r.distanceM,
-                                     r.zonesJSON, r.notes, r.steps,
-                                     r.suggestedClass, r.suggestedClassConfidence])
+                try Self.upsertWorkout(r, deviceId: deviceId, in: db)
                 n += db.changesCount
             }
             return n
         }
     }
 
-    /// Delete one source's workouts of a given sport whose startTs is in [from, to]
-    /// (makes detected-workout re-derivation idempotent). Returns rows deleted.
-    /// Port of Android WhoopDao.deleteWorkoutsBySport (#78).
+    /// Publish re-derived `sport = "detected"` rows in ONE transaction. A previously stored detected row
+    /// is removed only when a fresh row overlaps it under a different start (the bout's start drifted as
+    /// more HR arrived), so a pass that derives nothing — a missing stream, an HR gap, an early return —
+    /// leaves history alone, and a failed insert rolls the deletes back with it (#2187).
+    @discardableResult
+    public func replaceDriftedDetectedWorkouts(_ rows: [WorkoutRow], deviceId: String,
+                                               from: Int, to: Int) async throws -> Int {
+        try syncWrite { db in
+            var n = 0
+            for r in rows where r.sport == "detected" {
+                try db.execute(sql: """
+                    DELETE FROM workout
+                    WHERE deviceId = ? AND sport = 'detected' AND startTs >= ? AND startTs <= ?
+                      AND startTs != ? AND startTs < ? AND endTs > ?
+                    """, arguments: [deviceId, from, to, r.startTs, r.endTs, r.startTs])
+            }
+            for r in rows {
+                try Self.upsertWorkout(r, deviceId: deviceId, in: db)
+                n += db.changesCount
+            }
+            return n
+        }
+    }
+
+    private static func upsertWorkout(_ r: WorkoutRow, deviceId: String, in db: Database) throws {
+        try db.execute(sql: """
+            INSERT INTO workout
+                (deviceId, startTs, endTs, sport, source, durationS, energyKcal,
+                 avgHr, maxHr, strain, distanceM, zonesJSON, notes, steps,
+                 suggestedClass, suggestedClassConfidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(deviceId, startTs, sport) DO UPDATE SET
+                endTs = excluded.endTs,
+                source = excluded.source,
+                durationS = excluded.durationS,
+                energyKcal = excluded.energyKcal,
+                avgHr = excluded.avgHr,
+                maxHr = excluded.maxHr,
+                strain = excluded.strain,
+                distanceM = excluded.distanceM,
+                zonesJSON = excluded.zonesJSON,
+                notes = excluded.notes,
+                steps = excluded.steps,
+                suggestedClass = excluded.suggestedClass,
+                suggestedClassConfidence = excluded.suggestedClassConfidence
+            """, arguments: [deviceId, r.startTs, r.endTs, r.sport, r.source, r.durationS,
+                             r.energyKcal, r.avgHr, r.maxHr, r.strain, r.distanceM,
+                             r.zonesJSON, r.notes, r.steps,
+                             r.suggestedClass, r.suggestedClassConfidence])
+    }
+
+    /// Delete one source's workouts of a given sport whose startTs is in [from, to]. Automatic
+    /// detected-workout reconciliation no longer calls this; explicit edit/dismiss paths still do.
+    /// Returns rows deleted. Port of Android WhoopDao.deleteWorkoutsBySport (#78/#2187).
     @discardableResult
     public func deleteWorkouts(deviceId: String, sport: String, from: Int, to: Int) async throws -> Int {
         try syncWrite { db in

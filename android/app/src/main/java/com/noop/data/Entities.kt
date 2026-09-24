@@ -81,6 +81,15 @@ data class PpgHrSample(
 data class HrBucket(
     val bucket: Long,
     val avgBpm: Double,
+    /** The lowest and highest sample IN the bucket, not the bucket's mean.
+     *
+     *  The card plots [avgBpm], which is what makes a day read as a curve rather than a spike field, but
+     *  a Min/Max readout taken from that series describes the calmest and busiest FIVE MINUTES rather than
+     *  the day. A forty-second interval is averaged against the four minutes around it before the reader
+     *  ever sees it, which is why a workout's max could exceed the day's (#2032). Same scan, same
+     *  grouping, so carrying them costs nothing. */
+    val minBpm: Double,
+    val maxBpm: Double,
 )
 
 /** The per-day gravity witness the steps-calibration motion cache keys on: [c] rows in the window and
@@ -149,7 +158,8 @@ data class HrWindowStats(
  * as `v30-rr-ord`, and `srcChannel` as `v32-rr-src-channel`. (An earlier revision of this note said the
  * Swift widening was still pending; it had already shipped.)
  */
-@Entity(tableName = "rrInterval", primaryKeys = ["deviceId", "ts", "rrMs", "seq"])
+@Entity(tableName = "rrInterval", primaryKeys = ["deviceId", "ts", "rrMs", "seq"],
+    indices = [Index(value = ["srcChannel", "tsSuspect"], name = "rrInterval_source_suspect")])
 data class RrInterval(
     val deviceId: String,
     val ts: Long,
@@ -386,7 +396,7 @@ data class SleepSession(
     //     Interpreter's `(sb shr 4) and 3` (H2 persist half).
     // Both nullable TEXT (no SQL DEFAULT, a Kotlin construction default never reaches the schema), so old
     // rows read back null. HONESTY: an absent signal stays null, never a fabricated zero series. Written/read
-    // through the targeted DAO methods (not the @Upsert path, which never names them and so preserves them).
+    // through targeted DAO methods; [SleepSessionUpsertPolicy] carries the stored values through cache refreshes.
     val motionJSON: String? = null,
     val sleepStateJSON: String? = null,
     // v34 (Swift WhoopStore v34-sleep-staging-sparse parity, MIGRATION_27_28). True when this night was
@@ -566,19 +576,17 @@ data class WorkoutRow(
     // 2026-09-22 auto-detection: the on-device classifier's advisory label ("walk"/"run"/"strength"/
     // "cycle"/"ski") + its 0..1 confidence, written only for sport="detected" rows. `sport` stays
     // "detected" until the USER picks a label — a suggestion, never an authority; a re-analysis pass
-    // refreshes it in place. Declared LAST so the v39 ALTER-appended columns match fresh-schema order.
-    // Swift `WorkoutRow.suggestedClass` / `suggestedClassConfidence` (WhoopStore v47).
+    // refreshes it in place. Declared LAST so the v41 ALTER-appended columns match fresh-schema order.
+    // Swift `WorkoutRow.suggestedClass` / `suggestedClassConfidence` (WhoopStore v49).
     val suggestedClass: String? = null,
     val suggestedClassConfidence: Double? = null,
 )
 
 /**
- * Durable "this detected bout is not a workout" marker (#107). The IntelligenceEngine wipes +
- * re-derives sport="detected" rows under "<deviceId>-noop" every run, so a plain delete only hides a
- * bout until the next re-detect recreates it. This table is INDEPENDENT of that churn: a detected row
- * is filtered out at read time whenever it OVERLAPS a marker's [startTs, endTs] span, so dismissal is
- * permanent, and span-overlap (not an exact-key match) survives the small startTs DRIFT a bout's
- * boundary can take as more HR arrives, matching the macOS dismissed-span semantics exactly.
+ * Durable "this detected bout is not a workout" marker (#107). The engine no longer creates or
+ * reconciles generic detected rows (#2187), but grandfathered rows and their dismissal controls remain.
+ * A detected row and the opt-in suggestion path are filtered whenever they OVERLAP a marker's
+ * [startTs, endTs] span, so span drift cannot resurrect a candidate the user rejected.
  *
  * PK (deviceId, startTs), one marker per detected start; `endTs` is the span end. Android-only table
  * (no GRDB twin): the macOS read model can't add a column to its shared workout struct, so macOS

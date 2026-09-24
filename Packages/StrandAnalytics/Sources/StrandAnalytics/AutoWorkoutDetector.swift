@@ -8,17 +8,22 @@ import WhoopProtocol
 // outputs), verified by the mirrored unit tests on each platform.
 //
 // This is DELIBERATELY SEPARATE from `WorkoutDetector` (the exercise.py port that computes
-// calories / zones / strain and writes the durable "detected" rows the IntelligenceEngine
-// churns). This one is the lightweight, OPT-IN, NON-DESTRUCTIVE MVP that only ever SUGGESTS a
+// calories / zones / strain for daily analytics and enriches already logged workouts). This one
+// is the lightweight, OPT-IN, NON-DESTRUCTIVE confirmation detector that only ever SUGGESTS a
 // workout via a dismissible Today card — it never writes a row on its own. The user taps "Save"
-// to turn a suggestion into a manual workout, or X to dismiss it forever.
+// to turn a suggestion into a manual workout, or X to dismiss it forever. Its published policy
+// remains frozen while the duration alternatives collect local shadow evidence.
 //
-// The thresholds here are intentionally CONSERVATIVE (low sensitivity): a sustained ≥ 12-min
+// The published thresholds here are intentionally CONSERVATIVE (low sensitivity): a sustained ≥ 12-min
 // elevation of HR ≥ resting + 30 bpm, brief (≤ 90 s) dips tolerated, near windows merged. Tuned
 // to avoid false positives from stress / caffeine / a brief flight of stairs, at the cost of
 // missing the odd short or gentle session — exactly right for a SUGGESTION you can decline. An
 // OPTIONAL continuous motion signal, when one is readily available, is required as confirmation;
 // with no motion series it runs HR-only.
+//
+// The 10- and 15-minute alternatives are SHADOW policies only. Test Centre may run them beside the
+// published 12-minute result to compare against labelled workouts, but they must not drive the Today
+// card, persistence, classification, or downstream scores until real-world validation supports a change.
 //
 // Pure / headless: no I/O, no clock. All ts/start/end are unix SECONDS. NOT medical advice.
 
@@ -69,6 +74,9 @@ public enum AutoWorkoutDetector {
     public static let hrrFloorFraction = 0.40
     /// A candidate must hold the elevated gate for a contiguous span of at least this long (12 min).
     public static let minSustainedMin: Double = 12.0
+    /// Candidate duration policies evaluated only by local Test Centre shadow diagnostics.
+    /// The published confirmation path continues to use `minSustainedMin` (12 minutes).
+    public static let shadowSustainedMinutes: [Double] = [10.0, 15.0]
     /// A dip below the gate no longer than this does NOT break the span (a red light, a sip of water).
     public static let maxDipS = 90
     /// Two detected windows whose gap is strictly less than this are merged into one (5 min).
@@ -131,7 +139,7 @@ public enum AutoWorkoutDetector {
     ///     (does not end the span) ONLY while the dip's wall-clock duration (from the first sub-threshold
     ///     sample) stays <= `maxDipS`; a longer dip closes the span. The span's [start, end] are the
     ///     first/last ELEVATED sample timestamps.
-    ///  3. Keep a span only when it lasts >= `minSustainedMin` (applied per-span, BEFORE merge).
+    ///  3. Keep a span only when it lasts >= `minimumSustainedMinutes` (applied per-span, BEFORE merge).
     ///  4. Merge two kept spans when the gap between them is strictly < `mergeGapS`.
     ///  5. If a motion series is supplied, drop a window unless its mean motion intensity over the
     ///     window is >= `motionConfirmMean` (confirmation). With no motion series, HR-only — keep it.
@@ -147,11 +155,14 @@ public enum AutoWorkoutDetector {
     ///     elevated floor is `rest + max(elevatedMarginBPM, hrrFloorFraction × (maxHR − rest))`, so
     ///     the suggestion bar scales with the user's reserve instead of over-firing on a low resting
     ///     HR. nil → the legacy fixed floor, byte-identical for every caller that can't resolve one.
+    ///   - minimumSustainedMinutes: duration policy. The default is the published 12-minute policy;
+    ///     callers may pass values from `shadowSustainedMinutes` only for local shadow diagnostics.
     public static func detect(hr: [(ts: Int, bpm: Int)],
                               restingBpm: Int?,
                               motion: [MotionPoint]? = nil,
                               savedSpans: [SavedWorkoutSpan] = [],
-                              maxHR: Int? = nil) -> [DetectedWorkout] {
+                              maxHR: Int? = nil,
+                              minimumSustainedMinutes: Double = minSustainedMin) -> [DetectedWorkout] {
         let seg = hr.sorted { $0.ts < $1.ts }
         if seg.isEmpty { return [] }
 
@@ -169,7 +180,7 @@ public enum AutoWorkoutDetector {
         var dipStart: Int? = nil
 
         func closeSpan() {
-            if let s = spanStart, Double(spanEnd - s) >= minSustainedMin * 60.0 {
+            if let s = spanStart, Double(spanEnd - s) >= minimumSustainedMinutes * 60.0 {
                 spans.append((s, spanEnd))
             }
             spanStart = nil

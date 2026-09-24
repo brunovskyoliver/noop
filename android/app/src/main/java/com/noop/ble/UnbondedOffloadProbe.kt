@@ -140,7 +140,12 @@ internal fun unbondedProbeSkippedLine(
 internal fun unbondedProbeRetired(
     previouslyRefused: Boolean,
     silentLinksSoFar: Int,
-    inconclusiveLinksSoFar: Int = 0,
+    /** No default: it had one, and BOTH consumers in WhoopBleClient silently took it, so a strap
+     *  retired only by the inconclusive budget (#1804's case, where every link is a local teardown)
+     *  reported NOT retired. The handshake stayed suppressed for a probe that would never run, which is
+     *  the exact harm `unbondedProbeSupersedesHandshake.probeRetired` exists to prevent. Required, so
+     *  the next consumer cannot omit it in silence. */
+    inconclusiveLinksSoFar: Int,
 ): Boolean =
     previouslyRefused
         || !unbondedProbeStillWorthAsking(silentLinksSoFar)
@@ -277,10 +282,16 @@ internal fun unbondedProbeSupersedesLine(explicitBondOptedIn: Boolean): String =
         else "") +
         " (#1635, experimental)"
 
+/** Prefix of every persisted refusal latch, so opting back in can clear them all without knowing which
+ *  straps carry one (#2135). Same reason [UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX] is a constant, and the
+ *  key below is built FROM it so the writer and the sweeper cannot drift apart. */
+internal const val UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX = "noop.unbondedOffloadRefused."
+
 /** Persisted key for "this strap refused the unbonded puffin subscriptions". Per device and lowercased,
  *  for the same reason [firmwarePrefKey] is. */
 internal fun unbondedOffloadRefusedPrefKey(peripheralId: String?): String? =
-    peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "noop.unbondedOffloadRefused.${it.lowercase()}" }
+    peripheralId?.trim()?.takeIf { it.isNotEmpty() }
+        ?.let { UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX + it.lowercase() }
 
 /**
  * Does writing [PuffinExperiment.unbondedOffload] hand every strap's silence budget back?
@@ -352,10 +363,22 @@ internal const val COMMAND_RESPONSE_TYPE_NAME = "COMMAND_RESPONSE"
 /**
  * Classify one parsed puffin frame as probe evidence.
  *
- * CRC-gated, and deliberately strict about it. A frame whose CRC does not verify is noise on a link we are
- * testing precisely because we do not know whether it is allowed to carry this traffic, and counting noise
- * as proof would let the probe conclude the opposite of the truth. `crcOk == null` (no CRC to check) is
- * not a pass either — [ok] alone is an envelope check.
+ * INTEGRITY-gated, and deliberately strict about it. A frame that does not verify is noise on a link we
+ * are testing precisely because we do not know whether it is allowed to carry this traffic, and counting
+ * noise as proof would let the probe conclude the opposite of the truth.
+ *
+ * WHAT [ok] NOW MEANS, and what that changed here. It used to say only "the envelope was well-formed"
+ * (start-of-frame present, minimum length) — which is why the separate `crcOk != true` condition carried
+ * the whole weight of the check, and why the sentence that used to stand here, "`ok` alone is an envelope
+ * check", was true. It is the verifier's FULL verdict now: header checksum, payload CRC32 and the exact
+ * declared length together. So `crcOk != true` no longer adds a rule; it is kept because it is the
+ * narrower statement of the two and a reader should not have to know that to trust the gate.
+ *
+ * The evidence effect DID change, in one direction only, and it is the direction the probe wants: a frame
+ * whose payload CRC32 verifies while its header checksum or declared length does not used to count as
+ * proof that the strap serves this link unbonded, and no longer does. That class is precisely what a
+ * confused or foreign transmitter on a shared channel produces, and the probe's output is a claim about
+ * the STRAP. Nothing that verified before stops counting: an intact frame satisfies both spellings.
  */
 internal fun unbondedProbeEvidenceOf(
     ok: Boolean,

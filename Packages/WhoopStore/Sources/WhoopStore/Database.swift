@@ -931,11 +931,175 @@ extension WhoopStore {
                 t.add(column: "baseCode", .integer)
             }
         }
+        // Source promotions change scoring without adding rows. Cover their cache witnesses so
+        // legacy/non-WHOOP installs do not scan the entire R-R table on every analysis tick.
+        migrator.registerMigration("v45-rr-source-index") { db in
+            try db.create(index: "rrInterval_source_suspect", on: "rrInterval", columns: ["srcChannel", "tsSuspect"])
+        }
+        // v46-lift-log: the in-app strength log — saved programs and the sessions run from them.
+        //
+        // NOOP can already IMPORT a lifting history (Hevy CSV / Liftosaur JSON via LiftingImporter), but
+        // that path collapses each workout to a session summary — volume load, set count, top set —
+        // because there has never been anywhere to put an individual set. These five tables are that
+        // place. A logged session still lands in `workout` like any other (so Workouts / Today / Effort
+        // are unchanged); these rows hang beside it and carry the detail the workout row cannot.
+        //
+        // Deliberately NO load/strain column anywhere here: `workout.strain` stays the HR-measured
+        // number the analytics engine computes, and lifting volume is derived on read from the sets
+        // themselves. Nothing in this migration feeds a score.
+        //
+        // Shape notes:
+        //   • Five flat, deviceId-keyed tables joined manually by id — this schema has no foreign keys
+        //     anywhere and does not start here. Every table carries `deviceId` so `deleteAllData`
+        //     (DeviceRegistryStore.deviceScopedTables) clears the whole feature; a child table keyed
+        //     only by its parent's id would silently survive a delete.
+        //   • `id` is a client-generated TEXT identifier so a row can be edited/deleted by id and a
+        //     backup round-trips — the labMarker (v17) idiom.
+        //   • `liftSession` is keyed to its workout row by the same natural key the workout table uses,
+        //     (deviceId, startTs, sport), enforced UNIQUE. One session per workout row, no orphan pairs.
+        //   • Sets are ROWS, not a JSON blob on the session. "What did I lift for this exercise last
+        //     time" is the read the whole feature exists for, and it must be answerable by an index
+        //     rather than by decoding every session ever recorded.
+        //   • Timestamps are unix seconds (Int) like every other table; booleans are `.integer` 0/1,
+        //     never `.boolean` (GRDB declares that BOOLEAN → NUMERIC affinity, which diverges from
+        //     Room's INTEGER — see `grdb-boolean-affinity` in schema_oracle.json).
+        //   • Every create here is `ifNotExists` — tables AND indexes, consistently — so the
+        //     migration is a no-op against a database that already carries the schema (the v38
+        //     idiom). GRDB keys applied migrations by identifier, so a fork carrying these tables
+        //     under a different one converges instead of failing the migrator.
+        //
+        // Pinned in schema_oracle.json as `ios_only` with a stated reason: the Room twin is a follow-up,
+        // not part of this change.
+        migrator.registerMigration("v46-lift-log") { db in
+            // The user's own exercise vocabulary. NOOP ships NO exercise catalogue: an exercise is
+            // whatever the user typed, and it is remembered here the first time they use it so it can
+            // be offered back later with the muscle group they gave it. That consistency is what makes
+            // a per-muscle-group rollup honest — the same name always resolves to the same group,
+            // rather than to whatever was typed on the day.
+            try db.create(table: "liftExercise", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("name", .text).notNull()
+                // Canonical LiftMuscle tokens, never free text — a rollup only means something if
+                // the same muscle always lands in the same bucket. Nullable so an exercise can be
+                // recorded before it has been classified.
+                t.column("primaryMuscle", .text)
+                // Comma-joined LiftMuscle tokens, or NULL. Short, never queried alone, trivially
+                // mirrorable in Room — a join table would be three tables of ceremony for a list of
+                // two or three.
+                t.column("secondaryMuscles", .text)
+                t.column("createdAt", .integer).notNull()   // unix seconds
+                t.column("lastUsedTs", .integer)            // unix seconds; recency for the picker
+            }
+            // One entry per name per device, so recording a name twice updates rather than duplicates.
+            try db.create(index: "idx_liftExercise_natural", on: "liftExercise",
+                          columns: ["deviceId", "name"], options: [.unique, .ifNotExists])
+
+            // A saved program: "Upper A", "Lower A". Held separately from the sessions run from it so
+            // editing a program never rewrites history — a session snapshots the name it ran under.
+            try db.create(table: "liftProgram", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("note", .text)
+                t.column("createdAt", .integer).notNull()   // unix seconds
+                t.column("updatedAt", .integer).notNull()   // unix seconds; drives most-recent-first
+                t.column("archived", .integer).notNull().defaults(to: 0)  // 0/1, hidden not deleted
+            }
+            // Programs list most-recently-touched first.
+            try db.create(index: "idx_liftProgram_device_updatedAt",
+                          on: "liftProgram", columns: ["deviceId", "updatedAt"], options: [.ifNotExists])
+
+            // One exercise line inside a program: the TARGETS (what you intend to do). The session
+            // records what actually happened. `ord` is the position in the program; deliberately NOT
+            // unique with programId, because reordering two lines would collide mid-swap on a unique
+            // index and the id primary key already guarantees row identity.
+            try db.create(table: "liftProgramItem", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("programId", .text).notNull()
+                t.column("ord", .integer).notNull()
+                t.column("exercise", .text).notNull()
+                // No muscle column here on purpose: `liftExercise` owns an exercise's classification,
+                // and duplicating it on the program line is a second place for it to drift.
+                t.column("targetSets", .integer)
+                t.column("targetRepsLow", .integer)        // rep range low end, e.g. 8 of "8-10"
+                t.column("targetRepsHigh", .integer)       // rep range high end
+                t.column("targetRpe", .double)             // 1-10, the user's own scale
+                // A program line plans a WEIGHT, not just a rep range — it is the number actually
+                // written on a program. Kilograms, like every stored weight; display converts.
+                t.column("targetWeightKg", .double)
+                t.column("restSec", .integer)              // intended rest after each set
+                t.column("note", .text)                    // the user's technique cue, verbatim
+            }
+            try db.create(index: "idx_liftProgramItem_device", on: "liftProgramItem",
+                          columns: ["deviceId"], options: [.ifNotExists])
+            try db.create(index: "idx_liftProgramItem_program_ord", on: "liftProgramItem",
+                          columns: ["programId", "ord"], options: [.ifNotExists])
+
+            // One gym session. (deviceId, startTs, sport) is the workout table's natural key, so this
+            // row and its `workout` row identify each other without a foreign key. `programId` is
+            // nullable: a session can be logged freehand with no program behind it.
+            try db.create(table: "liftSession", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("startTs", .integer).notNull()     // unix seconds; matches workout.startTs
+                t.column("endTs", .integer)                 // nil while the session is still running
+                t.column("sport", .text).notNull()          // matches workout.sport
+                t.column("programId", .text)                // nil for a freehand session
+                t.column("programName", .text)              // snapshot: renaming a program never rewrites history
+                // 0-10 Borg CR10, as rated by the user. Foster's session load is sRPE x duration, so
+                // the rating has to be a number in its own column or the metric cannot be derived at
+                // all. Nullable: a session whose rating was skipped simply has no session load, and a
+                // 0 would read as "effortless" rather than "unrated".
+                t.column("sessionRpe", .double)
+                t.column("note", .text)
+            }
+            // One lift session per workout row, and the index that serves date-ordered history reads.
+            try db.create(index: "idx_liftSession_natural", on: "liftSession",
+                          columns: ["deviceId", "startTs", "sport"], options: [.unique, .ifNotExists])
+
+            // One set. `ord` is the position within the whole session (so the tap-through order is
+            // reconstructible); `setIndex` is 1-based within its exercise (so "set 3 of 4" survives).
+            // `exercise` is denormalised rather than pointing at a program item, because a session must
+            // stay readable after its program is edited or deleted.
+            try db.create(table: "liftSet", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("deviceId", .text).notNull()
+                t.column("sessionId", .text).notNull()
+                t.column("ord", .integer).notNull()          // order within the session
+                t.column("exercise", .text).notNull()
+                // The classification AS IT WAS when the set was logged, snapshotted like `exercise`
+                // itself. Reclassifying an exercise later is an explicit bulk action, not a silent
+                // rewrite of what past weeks were counted as.
+                t.column("primaryMuscle", .text)
+                t.column("secondaryMuscles", .text)
+                t.column("setIndex", .integer).notNull()     // 1-based within the exercise
+                t.column("weightKg", .double)                // kilograms; display units convert
+                t.column("reps", .integer)
+                t.column("rpe", .double)                     // 1-10 as rated by the user
+                t.column("isWarmup", .integer).notNull().defaults(to: 0)  // 0/1; warmups excluded from volume
+                t.column("startTs", .integer)                // when the set began (unix seconds)
+                t.column("endTs", .integer)                  // when it ended
+                t.column("restSec", .integer)                // rest ACTUALLY taken after this set
+                t.column("note", .text)
+            }
+            // "What did I lift for this exercise last time" — the read the feature exists for.
+            try db.create(index: "idx_liftSet_device_exercise", on: "liftSet",
+                          columns: ["deviceId", "exercise"], options: [.ifNotExists])
+            // Replaying one session in order.
+            try db.create(index: "idx_liftSet_session_ord", on: "liftSet",
+                          columns: ["sessionId", "ord"], options: [.ifNotExists])
+        }
+
+        // Fork-local migrations. A fork build first shipped these as v45/v46/v47, before upstream claimed
+        // those numbers; they are renumbered to follow upstream's chain and made idempotent, so a database
+        // that already ran them under the old names converges here instead of failing on existing tables.
         // Small, rebuildable analysis checkpoints. Raw-data revisions commit in the same transaction
         // as ingestion, including in-place corrections that COUNT/MAX fingerprints cannot detect.
-        migrator.registerMigration("v45-analysis-checkpoints") { db in
-            try db.execute(sql: "CREATE TABLE analysisRevision (deviceId TEXT NOT NULL, day INTEGER NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(deviceId, day))")
-            try db.execute(sql: "CREATE TABLE analysisCheckpoint (day TEXT PRIMARY KEY, deviceId TEXT NOT NULL, cacheKey TEXT NOT NULL, payload BLOB NOT NULL)")
+        migrator.registerMigration("v47-analysis-checkpoints") { db in
+            try db.execute(sql: "CREATE TABLE IF NOT EXISTS analysisRevision (deviceId TEXT NOT NULL, day INTEGER NOT NULL, revision INTEGER NOT NULL, PRIMARY KEY(deviceId, day))")
+            try db.execute(sql: "CREATE TABLE IF NOT EXISTS analysisCheckpoint (day TEXT PRIMARY KEY, deviceId TEXT NOT NULL, cacheKey TEXT NOT NULL, payload BLOB NOT NULL)")
             let streams = ["hrSample", "ppgHrSample", "rrInterval", "respSample", "spo2Sample",
                            "gravitySample", "stepSample", "skinTempSample", "sleepStateSample", "event", "v18AuxSample"]
             for table in streams {
@@ -943,11 +1107,11 @@ extension WhoopStore {
                     let updates = refs.map { ref in
                         "INSERT INTO analysisRevision(deviceId, day, revision) VALUES (\(ref).deviceId, \(ref).ts / 86400, 1) ON CONFLICT(deviceId, day) DO UPDATE SET revision = revision + 1;"
                     }.joined(separator: "\n")
-                    try db.execute(sql: "CREATE TRIGGER analysis_\(table)_\(operation) AFTER \(operation) ON \(table) BEGIN \(updates) END")
+                    try db.execute(sql: "CREATE TRIGGER IF NOT EXISTS analysis_\(table)_\(operation) AFTER \(operation) ON \(table) BEGIN \(updates) END")
                 }
             }
         }
-        migrator.registerMigration("v46-checkpoint-device-scope") { db in
+        migrator.registerMigration("v48-checkpoint-device-scope") { db in
             // Accept databases opened by the first checkpoint development build as well.
             if !(try db.columns(in: "analysisCheckpoint")).contains(where: { $0.name == "deviceId" }) {
                 try db.execute(sql: "DROP TABLE analysisCheckpoint")
@@ -958,9 +1122,14 @@ extension WhoopStore {
         // 2026-09-22: the on-device workout classifier's advisory label + confidence, persisted on
         // sport="detected" rows (nil for every imported/manual row). Additive, nullable, not part of
         // the PK; a re-analysis pass refreshes both in place via the upsert's ON CONFLICT.
-        migrator.registerMigration("v47-workout-suggested-class") { db in
-            try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClass TEXT")
-            try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClassConfidence REAL")
+        migrator.registerMigration("v49-workout-suggested-class") { db in
+            let existing = Set(try db.columns(in: "workout").map(\.name))
+            if !existing.contains("suggestedClass") {
+                try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClass TEXT")
+            }
+            if !existing.contains("suggestedClassConfidence") {
+                try db.execute(sql: "ALTER TABLE workout ADD COLUMN suggestedClassConfidence REAL")
+            }
         }
         return migrator
     }
