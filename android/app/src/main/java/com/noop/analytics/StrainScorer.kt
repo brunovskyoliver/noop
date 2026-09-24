@@ -338,6 +338,14 @@ object StrainScorer {
 
     // ---- Logarithmic map ----
 
+    /** Inverse of [trimpToStrain]: the TRIMP a stored 0–100 Effort stands for, D^(strain/100) − 1. Load
+     *  models (ACWR, monotony, CTL/ATL) average THIS, not the log-compressed Effort. Strain ≤ 0 or D ≤ 1 → 0.
+     *  Twin of Swift `StrainScorer.strainToTrimp`. */
+    fun strainToTrimp(strain: Double, denominator: Double = strainDenominator): Double {
+        if (!(strain > 0) || !(denominator > 1)) return 0.0
+        return Math.pow(denominator, strain / maxStrain) - 1.0
+    }
+
     /**
      * Map accumulated TRIMP onto [0, 100] via 100 × ln(TRIMP+1) / ln(D), 2 dp.
      * TRIMP ≤ 0 → 0, and D ≤ 1 (or NaN) → 0, being outside the map's domain. The output is

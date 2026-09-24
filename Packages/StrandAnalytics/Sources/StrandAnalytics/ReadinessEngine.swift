@@ -84,7 +84,23 @@ public enum ReadinessEngine {
     private static let minBaseline    = 7    // need at least this many baseline nights
     private static let acuteWindow    = 7
     private static let chronicWindow  = 28
-    private static let minChronic     = 14   // need at least this much strain history for ACWR
+    private static let minChronic     = 14   // observed load days needed in the 28-day window for ACWR
+    private static let minAcute       = 4    // observed load days needed in the 7-day window
+
+    /// Daily TRIMP (from stored Effort, Edwards scale) for the calendar days ending on `day`: the last
+    /// `acuteWindow` and `chronicWindow` days, oldest first, skipping days with no Effort. Days outside the
+    /// window never count, however few rows there are.
+    static func calendarLoads(_ sorted: [DailyMetric], through day: String) -> (acute: [Double], chronic: [Double]) {
+        guard let end = VitalityEngine.epochDay(day) else { return ([], []) }
+        var acute: [Double] = [], chronic: [Double] = []
+        for d in sorted {
+            guard let strain = d.strain, let e = VitalityEngine.epochDay(d.day), e <= end else { continue }
+            let load = StrainScorer.strainToTrimp(strain)
+            if e > end - chronicWindow { chronic.append(load) }
+            if e > end - acuteWindow { acute.append(load) }
+        }
+        return (acute, chronic)
+    }
 
     // MARK: Entry point
 
@@ -201,20 +217,25 @@ public enum ReadinessEngine {
         }
 
         // Training Stress Balance (ACWR) + monotony --------------------------
-        let strainSeries = sorted.compactMap { $0.strain }
+        // Both run on TRIMP recovered from the stored Effort (`StrainScorer.strainToTrimp`), not on the
+        // log-compressed Effort itself, and over CALENDAR windows ending on the target day: a week off the
+        // strap leaves the acute window short instead of reaching back past the gap.
+        let (acuteLoads, chronicLoads) = calendarLoads(sorted, through: latest.day)
         var acwr: Double? = nil
         var monotony: Double? = nil
-        if strainSeries.count >= minChronic {
-            let acute = mean(Array(strainSeries.suffix(acuteWindow)))!
-            let chronic = mean(Array(strainSeries.suffix(chronicWindow)))!
+        if chronicLoads.count >= minChronic, acuteLoads.count >= minAcute {
+            let acute = mean(acuteLoads)!
+            let chronic = mean(chronicLoads)!
             if chronic > 0 {
                 let ratio = acute / chronic
                 acwr = ratio
                 signals.append(acwrSignal(ratio, acute: acute, chronic: chronic))
             }
-            // Foster monotony over the last week of strain.
-            let week = Array(strainSeries.suffix(acuteWindow))
-            if week.count >= 4, let sd = sampleSD(week), sd > 0, let m = mean(week) {
+            // Foster monotony over the last week of load.
+            let week = acuteLoads
+            // A relative floor on SD: identical Efforts map to identical TRIMP, but their mean can sit one
+            // rounding step off, leaving an SD of ~1e-16 and a meaningless monotony in the quadrillions.
+            if week.count >= 4, let sd = sampleSD(week), let m = mean(week), sd > 1e-9 * max(1, abs(m)) {
                 let mono = m / sd
                 monotony = mono
                 if mono >= 2.0 {

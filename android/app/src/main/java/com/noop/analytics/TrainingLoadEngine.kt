@@ -75,6 +75,11 @@ object TrainingLoadEngine {
         val isAvailable: Boolean get() = state != State.UNAVAILABLE
     }
 
+    /** Daily TRIMP loads from stored daily metrics: each day's Effort through [StrainScorer.strainToTrimp].
+     *  A day without Effort stays null. Twin of Swift `TrainingLoadEngine.dailyTrimp`. */
+    fun dailyTrimp(days: List<com.noop.data.DailyMetric>): List<DailyLoad> =
+        days.map { DailyLoad(it.day, it.strain?.let { s -> StrainScorer.strainToTrimp(s) }) }
+
     /**
      * Evaluate the latest day in the input, or an explicit target day. Inputs may be in any order. Only
      * the longest fully observed contiguous suffix ending on the target is modeled; older history before a

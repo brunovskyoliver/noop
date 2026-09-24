@@ -12,8 +12,9 @@ import WhoopStore
 // fitness proxy) and acute load (ATL, the 7-day fatigue proxy); the gap between the two lines IS the
 // TSB / "form" (CTL − ATL), surfaced as the headline number and a footer stat.
 //
-// Descriptive only: CTL/ATL/TSB never feed the Readiness level or any score, and the loads are NOOP's
-// daily Effort/strain — NOT TRIMP. Long-horizon by nature, so the card models the full history rather
+// Descriptive only: CTL/ATL/TSB never feed the Readiness level or any score. The loads are daily TRIMP
+// recovered from each day's stored Effort (`TrainingLoadEngine.dailyTrimp`), not the log-compressed
+// Effort itself. Long-horizon by nature, so the card models the full history rather
 // than the Trends range window (14+ contiguous days are needed before anything is drawn).
 //
 // Isolated in its own file on purpose: TrendsView already sits near the iOS type-check budget, so this
@@ -72,10 +73,9 @@ struct TrainingLoadCard: View {
     }
 
     /// Model straight from the training-load engine — NOT the paired `evaluateWithTrainingLoad`, which
-    /// would also run the full Readiness synthesis this card never uses. `DailyMetric.strain` is the load.
+    /// would also run the full Readiness synthesis this card never uses. Load = TRIMP from each day's Effort.
     private static func computeResult(days: [DailyMetric]) -> TrainingLoadEngine.Result {
-        let loads = days.map { TrainingLoadEngine.DailyLoad(day: $0.day, load: $0.strain) }
-        return TrainingLoadEngine.evaluate(days: loads)
+        TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(days))
     }
 
     /// Cached accessor used by `body`. Mirrors `CompareView.currentModel`: returns the memoized result
@@ -96,8 +96,8 @@ struct TrainingLoadCard: View {
     private static let established = TrainingLoadEngine.Configuration.standard.establishedDays
     private static let minimum = TrainingLoadEngine.Configuration.standard.minimumDays
 
-    private func fmt(_ v: Double) -> String { String(format: "%.1f", v) }
-    private func signed(_ v: Double) -> String { String(format: "%+.1f", v) }
+    private func fmt(_ v: Double) -> String { String(format: "%.0f", v) }
+    private func signed(_ v: Double) -> String { String(format: "%+.0f", v) }
 
     var body: some View {
         let tl = result

@@ -85,6 +85,6 @@ class ReadinessTrainingLoadTest {
 
         assertEquals("2026-01-20", paired.trainingLoad.endDay)
         assertEquals(20, paired.trainingLoad.contiguousDays)
-        assertEquals(10.0, paired.trainingLoad.points.last().load, 0.0)
+        assertEquals(StrainScorer.strainToTrimp(10.0), paired.trainingLoad.points.last().load, 0.0)   // TRIMP, not Effort
     }
 }
