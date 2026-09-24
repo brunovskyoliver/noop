@@ -2797,4 +2797,11 @@
     <string name="workout_detected_action_dismiss">不是运动记录</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">检测到运动记录的通知</string>
     <string name="workouts_suggested">建议</string>
+    <string name="vitality_pace_of_aging">衰老速度</string>
+    <string name="vitality_pace_reversing">逆转中</string>
+    <string name="vitality_pace_slowing">减缓中</string>
+    <string name="vitality_pace_steady">稳定</string>
+    <string name="vitality_pace_accelerating">加速中</string>
+    <string name="vitality_pace_needs_history">佩戴约两个月后将显示衰老速度。</string>
+    <string name="vitality_pace_caption">你最近 30 天与最近 6 个月的对比。</string>
 </resources>

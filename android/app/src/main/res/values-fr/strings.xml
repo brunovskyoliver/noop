@@ -2825,4 +2825,11 @@
     <string name="workout_detected_action_dismiss">Pas un entraînement</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Notifications d\'entraînements détectés</string>
     <string name="workouts_suggested">suggéré</string>
+    <string name="vitality_pace_of_aging">Rythme de vieillissement</string>
+    <string name="vitality_pace_reversing">En inversion</string>
+    <string name="vitality_pace_slowing">En ralentissement</string>
+    <string name="vitality_pace_steady">Stable</string>
+    <string name="vitality_pace_accelerating">En accélération</string>
+    <string name="vitality_pace_needs_history">Le rythme de vieillissement apparaît après environ deux mois de port.</string>
+    <string name="vitality_pace_caption">Vos 30 derniers jours comparés à vos 6 derniers mois.</string>
 </resources>

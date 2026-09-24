@@ -2856,4 +2856,11 @@
     <string name="workout_detected_action_dismiss">Not a workout</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Detected-workout notifications</string>
     <string name="workouts_suggested">suggested</string>
+    <string name="vitality_pace_of_aging">Pace of Aging</string>
+    <string name="vitality_pace_reversing">Reversing</string>
+    <string name="vitality_pace_slowing">Slowing</string>
+    <string name="vitality_pace_steady">Steady</string>
+    <string name="vitality_pace_accelerating">Accelerating</string>
+    <string name="vitality_pace_needs_history">Pace of Aging appears after about two months of wear.</string>
+    <string name="vitality_pace_caption">Your last 30 days compared with your last 6 months.</string>
 </resources>

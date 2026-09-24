@@ -2719,4 +2719,11 @@
     <string name="workout_detected_action_dismiss">Не тренировка</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Уведомления о распознанных тренировках</string>
     <string name="workouts_suggested">предложено</string>
+    <string name="vitality_pace_of_aging">Темп старения</string>
+    <string name="vitality_pace_reversing">Обращается вспять</string>
+    <string name="vitality_pace_slowing">Замедляется</string>
+    <string name="vitality_pace_steady">Стабильно</string>
+    <string name="vitality_pace_accelerating">Ускоряется</string>
+    <string name="vitality_pace_needs_history">Темп старения появится примерно через два месяца ношения.</string>
+    <string name="vitality_pace_caption">Ваши последние 30 дней в сравнении с последними 6 месяцами.</string>
 </resources>

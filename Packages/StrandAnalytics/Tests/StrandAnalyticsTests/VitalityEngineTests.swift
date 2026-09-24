@@ -14,23 +14,26 @@ final class VitalityEngineTests: XCTestCase {
         XCTAssertEqual(r.factorsUsed, 6)
     }
 
-    /// A clearly healthy person reads younger + higher vitality (hand-computed Δage ≈ −7.58).
+    /// A clearly healthy person reads younger + higher vitality. VO₂max (−0.39) dominates the fitness
+    /// domain, so resting HR (−0.13) counts at half: Δage = 0.75·(−0.39 − 0.065 − 0.068 − 0.032 − 0.256)
+    /// / (ln2/8) ≈ −7.02.
     func testHealthyPersonIsYounger() {
         let r = VitalityEngine.compute(.init(
             chronoAge: 40, restingHR: 52, vo2max: 55.5, expectedVO2max: 45,
             sleepHours: 7.5, sleepConsistency: 0.9, rmssd: 54, rmssdNorm: 45, steps: 11000))!
-        XCTAssertEqual(r.bodyAge, 32.42, accuracy: 0.1)
-        XCTAssertEqual(r.vitality, 68.95, accuracy: 0.2)
+        XCTAssertEqual(r.bodyAge, 32.98, accuracy: 0.01)
+        XCTAssertEqual(r.vitality, 67.54, accuracy: 0.01)
         XCTAssertGreaterThan(r.deltaYears, 0)   // younger than chrono age
     }
 
-    /// A clearly unhealthy person reads older + lower vitality (hand-computed Δage ≈ +9.71).
+    /// A clearly unhealthy person reads older + lower vitality. Resting HR (+0.15) sits under VO₂max (+0.39)
+    /// in the fitness domain and counts at half: Δage ≈ +9.06.
     func testUnhealthyPersonIsOlder() {
         let r = VitalityEngine.compute(.init(
             chronoAge: 40, restingHR: 80, vo2max: 34.5, expectedVO2max: 45,
             sleepHours: 5.5, sleepConsistency: 0.5, rmssd: 31.5, rmssdNorm: 45, steps: 3000))!
-        XCTAssertEqual(r.bodyAge, 49.71, accuracy: 0.1)
-        XCTAssertEqual(r.vitality, 25.73, accuracy: 0.2)
+        XCTAssertEqual(r.bodyAge, 49.06, accuracy: 0.01)
+        XCTAssertEqual(r.vitality, 27.35, accuracy: 0.01)
         XCTAssertLessThan(r.deltaYears, 0)      // older than chrono age
     }
 

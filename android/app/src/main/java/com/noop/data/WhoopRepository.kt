@@ -2123,6 +2123,43 @@ class WhoopRepository(
     suspend fun dailyMetrics(deviceId: String, from: String, to: String): List<DailyMetric> =
         dao.dailyMetricsRange(deviceId, from, to)
 
+    /**
+     * The 180 days of Vitality / Body Age / Pace of Aging inputs ending on [newestDay]: merged dailies
+     * ([fresh] rows win per day), the dismissal-filtered, cross-source-deduped workout list the Workouts
+     * screen shows, and VO₂max (measured import preferred over the estimate). One reader for the analysis
+     * pass and the Health screen breakdown. Twin of Swift `Repository.vitalityDays(endingOn:fresh:)`.
+     */
+    suspend fun vitalityDays(
+        activeDeviceId: String,
+        newestDay: String,
+        fresh: List<DailyMetric> = emptyList(),
+    ): List<com.noop.analytics.VitalityWindow.Day> {
+        val from = com.noop.analytics.VitalityWindow.windowStart(newestDay)
+        val byDay = LinkedHashMap<String, DailyMetric>()
+        for (d in daysMerged(activeDeviceId)) if (d.day in from..newestDay) byDay[d.day] = d
+        for (d in fresh) if (d.day in from..newestDay) byDay[d.day] = d
+        val lookbackDays = com.noop.analytics.VitalityWindow.longWindowDays + 8
+        val now = System.currentTimeMillis() / 1000
+        val lo = now - lookbackDays * 86_400L
+        val hi = now + 86_400L
+        val rows = workoutsUnion(activeDeviceId, lo, hi) +
+            workouts("apple-health", lo, hi) + workouts("health-connect", lo, hi) +
+            detectedWorkoutsUnion(activeDeviceId, lo, hi) +
+            workouts(ACTIVITY_FILE_SOURCE, lo, hi) + workouts(com.noop.ingest.LiftingImporter.SOURCE_ID, lo, hi)
+        val workouts = com.noop.ui.WorkoutEditing.dedupCrossSource(
+            com.noop.ui.WorkoutEditing.filterDismissed(rows, dismissedDetectedUnion(activeDeviceId)))
+        val vo2 = com.noop.analytics.VitalityWindow.vo2Points(
+            measured = metricSeries("apple-health", "vo2max", from, newestDay).map { it.day to it.value },
+            estimated = metricSeriesComputedUnion(activeDeviceId, "vo2max_est", from, newestDay)
+                .map { it.day to it.value },
+            from = from, to = newestDay,
+        )
+        return com.noop.analytics.VitalityWindow.days(byDay.values.toList(), workouts, vo2) { ts ->
+            val offsetSec = (java.util.TimeZone.getDefault().getOffset(ts * 1000) / 1000).toLong()
+            com.noop.analytics.AnalyticsEngine.dayString(ts, offsetSec)
+        }.filter { it.day in from..newestDay }
+    }
+
     // MARK: - Cross-source resolver (PR#196 , freshest-wins charts/metrics)
     //
     // Product surfaces (Compare/Insights/Stress/Explore/Today) historically read rows under the EXACT

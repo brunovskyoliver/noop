@@ -2840,4 +2840,11 @@
     <string name="workout_detected_action_dismiss">Nie trening</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Powiadomienia o wykrytych treningach</string>
     <string name="workouts_suggested">sugerowane</string>
+    <string name="vitality_pace_of_aging">Tempo starzenia</string>
+    <string name="vitality_pace_reversing">Odwraca się</string>
+    <string name="vitality_pace_slowing">Zwalnia</string>
+    <string name="vitality_pace_steady">Stabilne</string>
+    <string name="vitality_pace_accelerating">Przyspiesza</string>
+    <string name="vitality_pace_needs_history">Tempo starzenia pojawi się po około dwóch miesiącach noszenia.</string>
+    <string name="vitality_pace_caption">Twoje ostatnie 30 dni w porównaniu z ostatnimi 6 miesiącami.</string>
 </resources>

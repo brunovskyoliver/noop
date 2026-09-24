@@ -13,8 +13,8 @@ import kotlin.math.abs
 // own age, healthier = younger. Presented with a ±band and a hard "wellness, not a clinical age" rule.
 object VitalityEngine {
 
-    private const val lnHazardPerYear = 0.6931471805599453 / 8.0   // ln(2)/8 ≈ 0.0866
-    private const val overlapShrink = 0.75
+    const val lnHazardPerYear = 0.6931471805599453 / 8.0   // ln(2)/8 ≈ 0.0866
+    const val overlapShrink = 0.75
     const val minBodyAge = 20.0
     const val maxBodyAge = 90.0
     private const val vitalityPerYear = 2.5
@@ -31,9 +31,15 @@ object VitalityEngine {
         val rmssd: Double? = null,
         val rmssdNorm: Double? = null,
         val steps: Double? = null,
+        val zone13MinPerWeek: Double? = null,   // workout minutes in HR zones 1–3 (%HRR), per week
+        val zone45MinPerWeek: Double? = null,   // workout minutes in HR zones 4–5 (%HRR), per week
     )
 
-    data class Contribution(val key: String, val label: String, val lnHazard: Double)
+    /** [weight] is the within-domain overlap weight (1 for a domain's dominant factor, 0.5 otherwise). */
+    data class Contribution(val key: String, val label: String, val lnHazard: Double, val weight: Double = 1.0) {
+        /** Years this factor adds to (+) or takes off (−) Body Age after both overlap corrections. */
+        val ageImpactYears: Double get() = lnHazard * weight * overlapShrink / lnHazardPerYear
+    }
 
     data class Result(
         val vitality: Double,
@@ -72,6 +78,62 @@ object VitalityEngine {
         return (1 - cv).coerceIn(0.0, 1.0)
     }
 
+    /** WHOOP's published minimum-recommended VO₂max by age 20…100 (5-year steps), Healthspan white paper
+     *  rev. Sep 2025, Figure 4. Linear between anchors, flat outside; other sex values read the mean. */
+    private val vo2RecFemale = doubleArrayOf(40.0, 40.0, 38.0, 36.0, 34.0, 32.0, 30.0, 29.0, 27.0, 26.0, 25.0, 23.0, 22.0, 21.0, 20.0, 19.0, 18.0)
+    private val vo2RecMale = doubleArrayOf(46.0, 46.0, 44.0, 42.0, 40.0, 37.0, 36.0, 34.0, 32.0, 30.0, 29.0, 27.0, 26.0, 25.0, 23.0, 22.0, 21.0)
+
+    fun expectedVO2max(age: Double, sex: String): Double {
+        fun interp(row: DoubleArray): Double {
+            val pos = ((age - 20) / 5).coerceIn(0.0, (row.size - 1).toDouble())
+            val i = kotlin.math.floor(pos).toInt()
+            if (i >= row.size - 1) return row[row.size - 1]
+            val f = pos - i
+            return row[i] + (row[i + 1] - row[i]) * f
+        }
+        return when (sex.lowercase()) {
+            "male" -> interp(vo2RecMale)
+            "female" -> interp(vo2RecFemale)
+            else -> (interp(vo2RecMale) + interp(vo2RecFemale)) / 2
+        }
+    }
+
+    /** ln(HR) of activity volume vs none (Arem 2015 JAMA IM), knots at bin midpoints in moderate-equivalent
+     *  min/week; linear between, flat past the last. See the Swift twin for the bins. */
+    private val activityKnots = listOf(
+        0.0 to 0.0, 75.0 to -0.2231435513142097, 225.0 to -0.37106368139083207,
+        375.0 to -0.4620354595965587, 600.0 to -0.4942963218147801,
+    )
+    private const val activityReferenceMin = 150.0
+
+    internal fun activityLnHazard(moderateEquivalentMin: Double): Double {
+        val x = maxOf(0.0, moderateEquivalentMin)
+        val k = activityKnots
+        if (x >= k.last().first) return k.last().second
+        for (i in 1 until k.size) {
+            if (x <= k[i].first) {
+                val (x0, y0) = k[i - 1]; val (x1, y1) = k[i]
+                return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+            }
+        }
+        return k.last().second
+    }
+
+    /** Overlapping factors: the largest-magnitude member of a domain counts in full, the rest at half. */
+    private val overlapDomains = listOf(listOf("rhr", "vo2max"), listOf("steps", "zones"))
+
+    private fun domainWeighted(contribs: List<Contribution>): List<Contribution> {
+        val weights = HashMap<String, Double>()
+        for (domain in overlapDomains) {
+            val members = contribs.filter { it.key in domain }.sortedWith { a, b ->
+                val aa = abs(a.lnHazard); val bb = abs(b.lnHazard)
+                if (aa != bb) bb.compareTo(aa) else a.key.compareTo(b.key)
+            }
+            members.forEachIndexed { i, c -> weights[c.key] = if (i == 0) 1.0 else 0.5 }
+        }
+        return contribs.map { it.copy(weight = weights[it.key] ?: 1.0) }
+    }
+
     /** Per-factor signed log-hazard vs the population reference (positive ages you, negative protective).
      *  Conservative published per-unit hazard ratios — see the Swift file for citations. */
     fun contributions(inputs: Inputs): List<Contribution> {
@@ -98,7 +160,13 @@ object VitalityEngine {
             val deficit = (7000 - it.coerceIn(0.0, 11000.0)) / 1000
             out.add(Contribution("steps", "Daily steps", deficit.coerceIn(-4.0, 4.0) * 0.064))
         }
-        return out
+        val z13 = inputs.zone13MinPerWeek; val z45 = inputs.zone45MinPerWeek
+        if (z13 != null && z45 != null) {
+            val m = maxOf(0.0, z13) + 2 * maxOf(0.0, z45)
+            out.add(Contribution("zones", "Heart-rate zone time",
+                activityLnHazard(m) - activityLnHazard(activityReferenceMin)))
+        }
+        return domainWeighted(out)
     }
 
     /** Full Vitality + Body Age. Returns null until at least [minFactors] inputs are present. */
@@ -106,7 +174,9 @@ object VitalityEngine {
         if (inputs.chronoAge <= 0) return null
         val contribs = contributions(inputs)
         if (contribs.size < minFactors) return null
-        val sumLn = contribs.sumOf { it.lnHazard } * overlapShrink
+        var sum = 0.0
+        for (c in contribs) sum += c.lnHazard * c.weight
+        val sumLn = sum * overlapShrink
         val deltaAge = sumLn / lnHazardPerYear
         val bodyAge = (inputs.chronoAge + deltaAge).coerceIn(minBodyAge, maxBodyAge)
         val delta = inputs.chronoAge - bodyAge

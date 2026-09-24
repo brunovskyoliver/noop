@@ -1195,38 +1195,19 @@ private struct ReadinessChecklistCard: View {
 
 // MARK: - Vitality / Body Age
 
-/// The "Vitality" section: a weekly wellness score (0–100) + a Body Age in years, computed by
-/// IntelligenceEngine from the published mortality-hazard model and read back from the metricSeries.
-/// A wellness trend from your habits — NOT a clinical biological age. Recomputes the live best/worst
-/// factor the same way the engine does, for the plain-English "why".
+/// The "Vitality" section: a weekly wellness score (0–100), a Body Age in years and Pace of Aging, computed
+/// by IntelligenceEngine from the published mortality-hazard model over the last 180 days and read back
+/// from the metricSeries. A wellness trend from your habits — NOT a clinical biological age. The "what's
+/// driving this" lines recompute the factors from the same 180-day reader the engine uses
+/// (`Repository.vitalityDays`), so they explain the stored headline rather than a different window.
 private struct VitalitySection: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var profile: ProfileStore
     @State private var vitality: Double?
     @State private var bodyAge: Double?
+    @State private var pace: Double?
+    @State private var contributions: [VitalityEngine.Contribution] = []
     @State private var loaded = false
-
-    private var contributions: [VitalityEngine.Contribution] {
-        let last7 = repo.days.suffix(7)
-        let nights = last7.compactMap { $0.totalSleepMin }.map { Double($0) / 60.0 }.filter { $0 > 0 }
-        let hrvs = last7.compactMap { $0.avgHrv }
-        let rhrs = last7.compactMap { $0.restingHr }.map(Double.init)
-        let steps = last7.compactMap { $0.steps }.map(Double.init)
-        func mean(_ a: [Double]) -> Double? { a.isEmpty ? nil : a.reduce(0, +) / Double(a.count) }
-        // Aggregate EXACTLY as the stored headline does (IntelligenceEngine), so this "what's driving it"
-        // breakdown reconciles with the Vitality / Body Age number it explains rather than being recomputed
-        // on different statistics: resting HR + HRV are MEDIANED (robust to one outlier night), sleep +
-        // steps are MEANED. Using the mean for all four let a single bad RHR/HRV reading drift the breakdown
-        // out of step with the median-based headline (code review).
-        return VitalityEngine.contributions(.init(
-            chronoAge: Double(profile.age),
-            restingHR: rhrs.isEmpty ? nil : IntelligenceEngine.medianOf(rhrs),
-            sleepHours: mean(nights),
-            sleepConsistency: VitalityEngine.sleepConsistency(nightlyHours: nights),
-            rmssd: hrvs.isEmpty ? nil : IntelligenceEngine.medianOf(hrvs),
-            rmssdNorm: VitalityEngine.rmssdNorm(forAge: Double(profile.age)),
-            steps: mean(steps)))
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
@@ -1247,7 +1228,7 @@ private struct VitalitySection: View {
         let delta = Double(profile.age) - ba
         let younger = delta >= 0
         let yrs = Int(abs(delta).rounded())
-        let sorted = contributions.sorted { $0.lnHazard < $1.lnHazard }
+        let sorted = contributions.sorted { $0.ageImpactYears < $1.ageImpactYears }
         let best = sorted.first
         let worst = sorted.last
         return VStack(alignment: .leading, spacing: NoopMetrics.space4) {
@@ -1283,6 +1264,7 @@ private struct VitalitySection: View {
                         .foregroundStyle(younger ? StrandPalette.statusPositive : StrandPalette.statusWarning)
                 }
             }
+            paceRow
             if (best?.lnHazard ?? 0) < 0 || (worst?.lnHazard ?? 0) > 0 {
                 Divider().overlay(StrandPalette.hairline)
                 if let best, best.lnHazard < 0 {
@@ -1307,6 +1289,39 @@ private struct VitalitySection: View {
         .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
     }
 
+    /// Pace of Aging: how fast Body Age would move if the last 30 days' habits held for six months
+    /// (1.0× = one year per calendar year). Needs about two months of wear before it appears.
+    @ViewBuilder private var paceRow: some View {
+        Divider().overlay(StrandPalette.hairline)
+        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
+            Text("Pace of Aging").strandOverline()
+            Spacer(minLength: 0)
+            if let p = pace {
+                let band = VitalityEngine.paceBand(p)
+                Text(verbatim: p.formatted(.number.precision(.fractionLength(1))) + "×")
+                    .font(StrandFont.number(22))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(paceBandLabel(band))
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(band == .accelerated ? StrandPalette.statusWarning : StrandPalette.statusPositive)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        Text(pace == nil
+             ? String(localized: "Pace of Aging appears after about two months of wear.")
+             : String(localized: "Your last 30 days compared with your last 6 months."))
+            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+    }
+
+    private func paceBandLabel(_ band: VitalityEngine.PaceBand) -> String {
+        switch band {
+        case .reversing:   return String(localized: "Reversing")
+        case .slowing:     return String(localized: "Slowing")
+        case .steady:      return String(localized: "Steady")
+        case .accelerated: return String(localized: "Accelerating")
+        }
+    }
+
     /// The Body Age delta as whole-phrase variants per count and direction, so translators see
     /// complete phrases (never a stitched plural or direction fragment).
     private func bodyAgeDeltaLine(yrs: Int, younger: Bool) -> String {
@@ -1321,7 +1336,16 @@ private struct VitalitySection: View {
 
     private func load() async {
         vitality = (await repo.exploreSeries(key: "vitality", source: "my-whoop")).last?.value
-        bodyAge = (await repo.exploreSeries(key: "body_age", source: "my-whoop")).last?.value
+        let latestAge = (await repo.exploreSeries(key: "body_age", source: "my-whoop")).last
+        bodyAge = latestAge?.value
+        // Only the pace written alongside the current Body Age: an older week's pace must not sit next
+        // to a newer Body Age after history drops below the pace threshold.
+        pace = (await repo.exploreSeries(key: "pace_of_aging", source: "my-whoop"))
+            .last { $0.day == latestAge?.day }?.value
+        let today = Repository.dayString(Date())
+        let days = await repo.vitalityDays(endingOn: today)
+        contributions = VitalityEngine.healthspan(days: days, asOf: today, chronoAge: Double(profile.age),
+                                                  sex: profile.sex)?.bodyAge.contributions ?? []
         loaded = true
     }
 }

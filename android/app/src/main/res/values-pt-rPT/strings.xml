@@ -2818,4 +2818,11 @@
     <string name="workout_detected_action_dismiss">Não é um treino</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Notificações de treinos detetados</string>
     <string name="workouts_suggested">sugerido</string>
+    <string name="vitality_pace_of_aging">Ritmo de envelhecimento</string>
+    <string name="vitality_pace_reversing">A reverter</string>
+    <string name="vitality_pace_slowing">A abrandar</string>
+    <string name="vitality_pace_steady">Estável</string>
+    <string name="vitality_pace_accelerating">A acelerar</string>
+    <string name="vitality_pace_needs_history">O ritmo de envelhecimento aparece após cerca de dois meses de utilização.</string>
+    <string name="vitality_pace_caption">Os teus últimos 30 dias comparados com os últimos 6 meses.</string>
 </resources>

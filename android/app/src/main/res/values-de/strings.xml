@@ -2839,4 +2839,11 @@
     <string name="workout_detected_action_dismiss">Kein Workout</string>
     <string name="l10n_notifications_settings_screen_detected_workout_notifications_950393c8">Mitteilungen zu erkannten Workouts</string>
     <string name="workouts_suggested">vorgeschlagen</string>
+    <string name="vitality_pace_of_aging">Alterungstempo</string>
+    <string name="vitality_pace_reversing">Rückläufig</string>
+    <string name="vitality_pace_slowing">Verlangsamt</string>
+    <string name="vitality_pace_steady">Stabil</string>
+    <string name="vitality_pace_accelerating">Beschleunigt</string>
+    <string name="vitality_pace_needs_history">Das Alterungstempo erscheint nach etwa zwei Monaten Tragezeit.</string>
+    <string name="vitality_pace_caption">Deine letzten 30 Tage im Vergleich zu deinen letzten 6 Monaten.</string>
 </resources>
