@@ -277,4 +277,67 @@ final class WorkoutDetectorTests: XCTestCase {
         XCTAssertGreaterThan(sessions[1].start, sessions[0].end,
             "second workout (\(sessions[1].start)) overlaps the first (ends \(sessions[0].end))")
     }
+
+    // MARK: - Elevated cores of a diluted run (2026-09-23)
+
+    /// A day of moving HR segments `(seconds, bpm)` starting at `start`, framed by 10 still minutes at 55
+    /// bpm either side. Motion is on for every segment, so the whole stretch forms one bridged run.
+    private func movingDay(start: Int, _ segs: [(Int, Int)]) -> (hr: [HRSample], grav: [GravitySample]) {
+        var hr: [HRSample] = [], grav: [GravitySample] = []
+        var t = start - 600
+        for _ in 0..<600 { hr.append(HRSample(ts: t, bpm: 55)); grav.append(GravitySample(ts: t, x: 0, y: 0, z: 1)); t += 1 }
+        for (dur, bpm) in segs {
+            for _ in 0..<dur {
+                hr.append(HRSample(ts: t, bpm: bpm))
+                grav.append(GravitySample(ts: t, x: Double(t % 2) * 0.5, y: 0, z: 1))
+                t += 1
+            }
+        }
+        for _ in 0..<600 { hr.append(HRSample(ts: t, bpm: 55)); grav.append(GravitySample(ts: t, x: 0, y: 0, z: 1)); t += 1 }
+        return (hr, grav)
+    }
+
+    /// Ten sets of 150 s at 125 bpm with 90 s rests at 95 bpm (40 min), the shape of a lifting session.
+    private let liftSets: [(Int, Int)] = Array(repeating: [(150, 125), (90, 95)], count: 10).flatMap { $0 }
+
+    /// The field case (2026-09-21): a 40 min lift bridged onto an afternoon of pottering at 90 bpm reads
+    /// ~18% above the activity floor as a whole run and used to be dropped outright. Its elevated core
+    /// must now qualify on its own, starting at the first set rather than back-dated over the pottering.
+    func testLiftDilutedByPotteringIsKeptAsItsElevatedCore() {
+        let start = 9_000_000
+        let (hr, grav) = movingDay(start: start, [(3000, 90)] + liftSets + [(3000, 90)])
+        var f: WorkoutDetector.DetectionFunnel?
+        // rest 60, HRmax 190 → activity floor 112, zone-2 floor 138: the sets clear only the first.
+        let sessions = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190,
+                                              funnel: { f = $0 })
+        XCTAssertEqual(sessions.count, 1, "\(String(describing: f))")
+        let liftStart = start + 3000
+        XCTAssertEqual(sessions[0].start, liftStart, "core must start at the first set, not the pottering")
+        XCTAssertEqual(sessions[0].end, liftStart + 2400 - 90 - 1, "core ends with the last set")
+        XCTAssertTrue(sessions[0].isActivityTier)
+        XCTAssertEqual(f?.splitRuns, 1)
+        XCTAssertEqual(f?.splitKept, 1)
+        XCTAssertEqual(f?.droppedLowIntensity, 0)
+    }
+
+    /// A stretch below the floor longer than `bridgeGapS` ends a core, so two efforts separated by an
+    /// eight-minute easy spell come back as two sessions, not one.
+    func testLongDipSplitsElevatedCores() {
+        let (hr, grav) = movingDay(start: 9_500_000,
+                                   [(3600, 90), (1200, 125), (480, 90), (1200, 125), (3600, 90)])
+        let sessions = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190)
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertGreaterThan(sessions[1].start, sessions[0].end)
+    }
+
+    /// A brief elevated blip is no core worth keeping: the run stays dropped as low intensity.
+    func testShortElevatedBlipIsStillDroppedAsLowIntensity() {
+        let (hr, grav) = movingDay(start: 9_900_000, [(3600, 90), (180, 125), (3600, 90)])
+        var f: WorkoutDetector.DetectionFunnel?
+        let sessions = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190,
+                                              funnel: { f = $0 })
+        XCTAssertTrue(sessions.isEmpty)
+        XCTAssertEqual(f?.droppedLowIntensity, 1)
+        XCTAssertEqual(f?.splitRuns, 0)
+    }
 }

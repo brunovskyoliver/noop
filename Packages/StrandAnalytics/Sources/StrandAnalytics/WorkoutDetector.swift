@@ -279,6 +279,13 @@ public enum WorkoutDetector {
         /// any day whose kept bouts all cleared the classic gate — the field exists so a log can tell
         /// "the detector is dead" from "the detector found walks, which used to be dropped".
         public var keptActivity = 0
+        /// 2026-09-23: runs that failed both intensity bars as a whole and were retried as their
+        /// elevated cores instead (see `elevatedCores`). Such a run is not counted in
+        /// `droppedLowIntensity`; whatever its cores yield lands in `kept`.
+        public var splitRuns = 0
+        /// Of `kept`, how many sessions came from those cores. Keeps the accounting exact: every bridged
+        /// run is one of short / noHR / lowIntensity / split / (kept − splitKept).
+        public var splitKept = 0
 
         public init() {}
 
@@ -304,6 +311,8 @@ public enum WorkoutDetector {
             droppedLowIntensity = try c.decodeIfPresent(Int.self, forKey: .droppedLowIntensity) ?? 0
             kept = try c.decodeIfPresent(Int.self, forKey: .kept) ?? 0
             keptActivity = try c.decodeIfPresent(Int.self, forKey: .keptActivity) ?? 0
+            splitRuns = try c.decodeIfPresent(Int.self, forKey: .splitRuns) ?? 0
+            splitKept = try c.decodeIfPresent(Int.self, forKey: .splitKept) ?? 0
         }
     }
 
@@ -318,7 +327,7 @@ public enum WorkoutDetector {
             + "active=\(f.active) runs=\(f.runs) bridged=\(f.bridged) "
             + "longestRunS=\(f.longestRunS) meanRunS=\(f.meanRunS) "
             + "short=\(f.droppedShort) noHR=\(f.droppedNoHR) lowIntensity=\(f.droppedLowIntensity) "
-            + "kept=\(f.kept) activity=\(f.keptActivity)"
+            + "kept=\(f.kept) activity=\(f.keptActivity) split=\(f.splitRuns) splitKept=\(f.splitKept)"
     }
 
     /// #1545: how much of `[start, end]` the HR sensor actually covered, as a percentage of
@@ -485,6 +494,25 @@ public enum WorkoutDetector {
         return merged
     }
 
+    /// 2026-09-23: the stretches of a run where HR sits above `floor`, as `(firstTs, lastTs)` spans.
+    /// Consecutive above-floor samples join while they are at most `bridgeGapS` apart, so the dips of a
+    /// sets-and-rest session (HR falls under the floor for a minute or two between sets) stay inside one
+    /// core, while a longer stretch below the floor ends it. `hrSeries` must be sorted by ts.
+    static func elevatedCores(_ hrSeries: [(ts: Int, bpm: Double)], floor: Double) -> [(Int, Int)] {
+        var cores: [(Int, Int)] = []
+        var cur: (Int, Int)? = nil
+        for s in hrSeries where s.bpm > floor {
+            if let c = cur, Double(s.ts - c.1) <= bridgeGapS {
+                cur = (c.0, s.ts)
+            } else {
+                if let c = cur { cores.append(c) }
+                cur = (s.ts, s.ts)
+            }
+        }
+        if let c = cur { cores.append(c) }
+        return cores
+    }
+
     /// #148: back-date a confirmed run's start over the warm-up. Motion leads HR at the onset of the
     /// first effort — cardiac warm-up climbs over minutes, so the HR-AND-motion gate clips the leading
     /// "moving but HR not yet elevated" stretch. Once a run has ALREADY QUALIFIED on its HR-elevated
@@ -607,10 +635,22 @@ public enum WorkoutDetector {
 
         let minDurS = minExerciseMin * 60.0
         var sessions: [ExerciseSession] = []
-        for (idx, run) in runs.enumerated() {
-            let (start, end) = run
+        // 2026-09-23: a worklist rather than a plain walk over `runs`, so a run that fails both intensity
+        // bars can queue its elevated cores (see `elevatedCores`) right behind itself. `prevRunEnd` is the
+        // previous BRIDGED run's end — cores sit inside their parent, so they never move it.
+        var queue = runs.map { (start: $0.0, end: $0.1, isCore: false) }
+        var qi = 0
+        var prevRunEnd = Int.min
+        while qi < queue.count {
+            let (start, end, isCore) = queue[qi]
+            qi += 1
+            let backdateFloor = prevRunEnd
+            if !isCore { prevRunEnd = end + 1 }
             // Onset latency tolerance equal to the smoothing window.
-            if Double(end - start) < minDurS - motionSmoothS { f.droppedShort += 1; continue }
+            if Double(end - start) < minDurS - motionSmoothS {
+                if !isCore { f.droppedShort += 1 }
+                continue
+            }
             // Qualify on the HR-elevated CORE (unchanged gates) so the warm-up's low intensity
             // can't dilute a real workout below the zone-2 bar and drop it (#148).
             let core = hrSeg.filter { $0.ts >= start && $0.ts <= end }
@@ -639,15 +679,31 @@ public enum WorkoutDetector {
                         let elevated = core.reduce(0) { $0 + ($1.bpm > activityFloor ? 1 : 0) }
                         isActivityTier = Double(elevated) / Double(core.count) >= activityElevatedFrac
                     }
-                    if !isActivityTier { f.droppedLowIntensity += 1; continue }
+                    if !isActivityTier {
+                        // 2026-09-23: the span floor (rest + `hrMarginBPM`) sits far below the activity
+                        // floor, so an hour of pottering around can bridge onto a real session and
+                        // dilute it under the bar — a 40 min lift merged into a 142 min afternoon read
+                        // 41% elevated and the whole run was dropped. Before giving up, retry the run's
+                        // elevated cores on their own. A core never splits again.
+                        if !isCore, let m = effMaxHR {
+                            let cores = elevatedCores(core, floor: restHR + activityHRRFraction * (m - restHR))
+                            if cores.contains(where: { Double($0.1 - $0.0) >= activityMinMin * 60.0 - motionSmoothS }) {
+                                f.splitRuns += 1
+                                queue.insert(contentsOf: cores.map { (start: $0.0, end: $0.1, isCore: true) }, at: qi)
+                                continue
+                            }
+                        }
+                        if !isCore { f.droppedLowIntensity += 1 }
+                        continue
+                    }
                 }
             }
 
             // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
             // Never back-date past the previous run's end: a continuous-motion stretch whose HR dipped to
             // resting BETWEEN two efforts (so bridgeRuns kept them separate) must not overlap the earlier one.
-            let floor = idx > 0 ? runs[idx - 1].1 + 1 : Int.min
-            let effStart = max(Self.backdatedStart(start, motionTs, smooth), floor)
+            // A core is never back-dated: the motion before it is exactly the pottering it was cut from.
+            let effStart = isCore ? start : max(Self.backdatedStart(start, motionTs, smooth), backdateFloor)
             let window = hrSeg.filter { $0.ts >= effStart && $0.ts <= end }
             if window.isEmpty { f.droppedNoHR += 1; continue }
             let bpms = window.map { $0.bpm }
@@ -674,6 +730,7 @@ public enum WorkoutDetector {
                 hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
                                              start: effStart, end: end),
                 isActivityTier: isActivityTier))
+            if isCore { f.splitKept += 1 }
         }
         f.kept = sessions.count
         f.keptActivity = sessions.reduce(0) { $0 + ($1.isActivityTier ? 1 : 0) }
