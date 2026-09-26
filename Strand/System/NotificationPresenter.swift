@@ -51,6 +51,10 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         let category = response.notification.request.content.categoryIdentifier
         if category == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        } else if category == StandReminderNotifier.categoryId {
+            if response.actionIdentifier == StandReminderNotifier.actionPauseId {
+                Task { @MainActor in StandReminderNotifier.pauseToday() }
+            }
         } else if category == WorkoutDetectedNotifier.categoryId {
             let info = response.notification.request.content.userInfo
             let startTs = info[WorkoutDetectedNotifier.infoStartTs] as? Int

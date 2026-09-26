@@ -1276,6 +1276,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// pick so restoration/reconnect after a relaunch target the right strap.
     private var selectedModel: WhoopModel = .persisted
     private var lastStandardHRLogAt: Date?
+    /// The stand reminder fire time already buzzed for, so a withdrawn-then-rescheduled hour buzzes once.
+    private var lastStandBuzzFireAt = 0
     /// Counts unreadable standard heart-rate samples in a row, so a run of them clears the shown heart rate.
     private var heartRateReadability = LiveHeartRateReadability()
     /// The skin-contact flag the last standard heart-rate sample carried, so a change is logged once.
@@ -2717,7 +2719,7 @@ public final class BLEManager: NSObject, ObservableObject {
                                              bankedRows: (backfiller?.sessionRowsPersisted ?? 0) > 0))
         // Inactivity reminder (#419): read-only hook on the natural offload completion (no cadence
         // change). Only on a true HISTORY_COMPLETE — a timeout/disconnect didn't bring a fresh window.
-        if reason == "HISTORY_COMPLETE" { maybeBuzzInactivity() }
+        if reason == "HISTORY_COMPLETE" { maybeBuzzInactivity(); maybeRemindStand() }
         // Success-side summary (#150 forensics): we logged failures (decoded-to-0) but never successes,
         // so a strap log couldn't tell a banking strap from a broken one. Emit the per-session persistence
         // tally whenever anything actually landed — the win-rate signal a log previously lacked.
@@ -5540,6 +5542,68 @@ public final class BLEManager: NSObject, ObservableObject {
                 AppModel.postInactivity(minutes: mins)   // #577 — local notification (iOS-only, self-gated on notif.masterEnabled)
             }
         }
+    }
+
+    /// Hourly stand reminder (2026-09-26): on the same offload completion as the inactivity reminder, fold
+    /// the last few hours of motion into up/still minutes and let `StandReminderNotifier` schedule, withdraw
+    /// or post the hour's reminder. The strap buzz mirrors the notification: at once for `.remindNow`, or
+    /// at the scheduled time if no later sync withdrew it. Read-only on BLE apart from that buzz.
+    private func maybeRemindStand() {
+        guard UserDefaults.standard.bool(forKey: StandReminderNotifier.K.enabled) else { return }
+        Task { @MainActor in
+            let nowSec = Int(Date().timeIntervalSince1970)
+            let from = nowSec - BLEManager.standLookbackSeconds
+            let gravity = await collector?.recentGravity(from: from, to: nowSec) ?? []
+            let steps = await collector?.recentSteps(from: from, to: nowSec) ?? []
+            let minutes = await Task.detached(priority: .utility) {
+                StandReminder.minutes(gravity: gravity, steps: steps)
+            }.value
+            let before = StandReminderNotifier.loadState()
+            let d = StandReminderNotifier.evaluate(minutes: minutes, worn: state.worn, nowSec: nowSec)
+            // Log changes only: a reminder scheduled, withdrawn, or sent, and each resolved outcome.
+            switch d.action {
+            case .keep: break
+            case .clear:
+                if before.scheduledFireAt > 0 { log("Stand: withdrew the :\(StandReminderNotifier.loadConfig().remindAtMinute) reminder, \(d.reason).") }
+            case .schedule(let fireAt):
+                log("Stand: reminder set for \(Date(timeIntervalSince1970: TimeInterval(fireAt)).formatted(date: .omitted, time: .shortened)), \(d.reason).")
+                scheduleStandBuzz(at: fireAt)
+            case .remindNow:
+                log("Stand: reminded, \(d.reason).")
+                buzzStand()
+            }
+            if let o = d.nextState.outcomes.last, o.ts != before.outcomes.last?.ts {
+                log("Stand: reminder at \(o.hour):xx \(o.responded ? "answered" : "ignored").")
+            }
+            let days = await StandReminderNotifier.backfillIfDue(nowSec: nowSec) { [weak self] a, b in
+                (await self?.collector?.recentGravity(from: a, to: b) ?? [],
+                 await self?.collector?.recentSteps(from: a, to: b) ?? [])
+            }
+            if days > 0 { log("Stand: learned from \(days) days of past motion.") }
+        }
+    }
+
+    /// Hours of motion each stand evaluation reads: the current hour, the last reminder's outcome, and the
+    /// finished hours since the last sync.
+    static let standLookbackSeconds = 3 * 3600
+
+    /// Buzz at `fireAt` if the reminder is still standing then. The check against the saved state is what
+    /// makes a later sync's withdrawal also cancel the buzz; a process suspended past the moment skips it.
+    private func scheduleStandBuzz(at fireAt: Int) {
+        let delay = Double(fireAt) - Date().timeIntervalSince1970
+        guard delay > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, StandReminderNotifier.loadState().scheduledFireAt == fireAt,
+                  Date().timeIntervalSince1970 - Double(fireAt) < 300, self.lastStandBuzzFireAt != fireAt else { return }
+            self.lastStandBuzzFireAt = fireAt
+            self.buzzStand()
+        }
+    }
+
+    private func buzzStand() {
+        guard StandReminderNotifier.buzzEnabled,
+              UserDefaults.standard.bool(forKey: AppModel.wristAlertsMasterKey), state.worn else { return }
+        send(.runHapticsPattern, payload: [2, 2, 0, 0, 0])
     }
 
     /// Parse a standard BLE Heart Rate Measurement (0x2A37) via the pure StandardHeartRate parser.

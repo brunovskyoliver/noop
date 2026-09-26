@@ -182,6 +182,12 @@ final class Collector {
         return (try? await s.gravitySamples(deviceId: deviceId, from: from, to: to, limit: limit)) ?? []
     }
 
+    /// Recent step samples (counter + activity class) for the stand reminder, beside `recentGravity`.
+    func recentSteps(from: Int, to: Int, limit: Int = 100_000) async -> [StepSample] {
+        guard let s = concreteStore else { return [] }
+        return (try? await s.stepSamples(deviceId: deviceId, from: from, to: to, limit: limit)) ?? []
+    }
+
     /// Apply the raw-retention policy. Returns rows pruned (0 if no concrete store).
     @discardableResult
     func prune() async -> Int {
