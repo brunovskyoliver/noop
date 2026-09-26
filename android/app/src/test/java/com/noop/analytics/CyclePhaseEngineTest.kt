@@ -33,6 +33,21 @@ class CyclePhaseEngineTest {
         return nights
     }
 
+    /** Temperature-only anchor sits near ovulation: next period ≈ one luteal phase on (day 112, not 128). */
+    @Test fun temperatureOnlyWindowIsOneLutealPhaseAfterTheShift() {
+        val w = CyclePhaseEngine.classify(biphasic(4), baselineUsable = true).nextPeriodWindow!!
+        val expected = CyclePhaseEngine.shiftDay("2026-01-01", 112)!!
+        assertTrue(w.earliestDay <= expected && w.latestDay >= expected)
+        assertEquals(CyclePhaseEngine.shiftDay("2026-01-01", 114), w.latestDay)
+    }
+
+    @Test fun loggedStartWindowIsOneCycleAfterTheLog() {
+        val lastStart = CyclePhaseEngine.shiftDay("2026-01-01", 84)!!
+        val w = CyclePhaseEngine.classify(biphasic(4), baselineUsable = true, loggedPeriodStarts = listOf(lastStart))
+            .nextPeriodWindow!!
+        assertEquals(CyclePhaseEngine.shiftDay("2026-01-01", 84 + 28 + 2), w.latestDay)
+    }
+
     @Test fun lutealNightClassifiesLuteal() {
         val r = CyclePhaseEngine.classify(biphasic(3), baselineUsable = true)
         assertEquals(CyclePhaseEngine.Phase.LUTEAL, r.phase)

@@ -78,6 +78,8 @@ import com.noop.analytics.IllnessSignalEngine
 import com.noop.analytics.V5HealthSignals
 import com.noop.analytics.FitnessAgeEngine
 import com.noop.analytics.VitalityEngine
+import com.noop.analytics.VitalityWindow
+import com.noop.analytics.HRVStatus
 import com.noop.analytics.FitnessAgeReadiness
 import com.noop.analytics.FitnessReadinessItem
 import com.noop.analytics.FitnessReadinessRole
@@ -209,6 +211,7 @@ fun HealthScreen(
             item { Spacer(Modifier.height(Metrics.selectorTopUp)) }
             item { FitnessAgeSection(vm = vm, days = days, profile = profile, onOpenSettings = onOpenSettings) }
             item { VitalitySection(vm = vm, days = days, profile = profile) }
+            item { HRVStatusSection(days = days, illnessLevel = v5Signals?.illness?.level) }
             // SKIN TEMPERATURE (v5 pillar) — Cycle awareness (opt-in), Body clock + an illness heads-up,
             // each from a pure engine RESULT the ViewModel publishes. A section of Health, never its own
             // destination (umbrella §2.4). Non-clinical observations about your own numbers.
@@ -782,40 +785,35 @@ private fun FitnessAgeSection(vm: AppViewModel, days: List<DailyMetric>, profile
 private fun VitalitySection(vm: AppViewModel, days: List<DailyMetric>, profile: ProfileStore) {
     var vitality by remember { mutableStateOf<Double?>(null) }
     var bodyAge by remember { mutableStateOf<Double?>(null) }
-    LaunchedEffect(days) {
+    var pace by remember { mutableStateOf<Double?>(null) }
+    var contributions by remember { mutableStateOf<List<VitalityEngine.Contribution>>(emptyList()) }
+    LaunchedEffect(days, profile.age, profile.sex) {
         // Latest-value reads (LIMIT-1 per source) — the full-series `.lastOrNull()` scan is gone (perf).
         vitality = runCatching {
             vm.repo.latestMetricComputedUnion(vm.activeStrapId, "vitality")?.value
         }.getOrNull()
-        bodyAge = runCatching {
-            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "body_age")?.value
+        val latestAge = runCatching {
+            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "body_age")
         }.getOrNull()
-    }
-    val contributions = remember(days, profile.age) {
-        val last7 = days.takeLast(7)
-        val nights = last7.mapNotNull { it.totalSleepMin }.map { it / 60.0 }.filter { it > 0 }
-        val hrvs = last7.mapNotNull { it.avgHrv }
-        val rhrs = last7.mapNotNull { it.restingHr }.map { it.toDouble() }
-        val steps = last7.mapNotNull { it.steps }.map { it.toDouble() }
-        fun mean(a: List<Double>): Double? = if (a.isEmpty()) null else a.average()
-        // Match the STORED headline's aggregation (IntelligenceEngine.medianOfDoubles): median resting HR +
-        // HRV (robust to one outlier night), mean sleep + steps — so this "what's driving it" breakdown
-        // reconciles with the Vitality / Body Age number it explains rather than drifting on the mean (review).
-        fun median(a: List<Double>): Double? {
-            if (a.isEmpty()) return null
-            val s = a.sorted(); val n = s.size
-            return if (n % 2 == 1) s[n / 2] else (s[n / 2 - 1] + s[n / 2]) / 2.0
-        }
-        VitalityEngine.contributions(VitalityEngine.Inputs(
-            chronoAge = profile.age.toDouble(), restingHR = median(rhrs), sleepHours = mean(nights),
-            sleepConsistency = VitalityEngine.sleepConsistency(nights),
-            rmssd = median(hrvs), rmssdNorm = VitalityEngine.rmssdNorm(profile.age.toDouble()), steps = mean(steps)))
+        bodyAge = latestAge?.value
+        // Only the pace written alongside the current Body Age, never an older week's.
+        pace = runCatching {
+            vm.repo.latestMetricComputedUnion(vm.activeStrapId, "pace_of_aging")
+                ?.takeIf { it.day == latestAge?.day }?.value
+        }.getOrNull()
+        // The breakdown reads the same 180-day window the stored headline was computed from.
+        contributions = runCatching {
+            val today = java.time.LocalDate.now().toString()
+            VitalityWindow.healthspan(
+                vm.repo.vitalityDays(vm.activeStrapId, today), today, profile.age.toDouble(), profile.sex,
+            )?.bodyAge?.contributions
+        }.getOrNull() ?: emptyList()
     }
     val v = vitality; val ba = bodyAge
     if (v != null && ba != null) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             SectionHeader("Vitality", overline = "Weekly", trailing = "Body Age ${ba.roundToInt()}")
-            VitalityHero(vitality = v, bodyAge = ba, chronoAge = profile.age, contributions = contributions)
+            VitalityHero(vitality = v, bodyAge = ba, chronoAge = profile.age, contributions = contributions, pace = pace)
         }
     }
 }
@@ -824,10 +822,11 @@ private fun VitalitySection(vm: AppViewModel, days: List<DailyMetric>, profile: 
 private fun VitalityHero(
     vitality: Double, bodyAge: Double, chronoAge: Int,
     contributions: List<VitalityEngine.Contribution>,
+    pace: Double?,
 ) {
     val delta = chronoAge - bodyAge.roundToInt()
     val younger = bodyAge < chronoAge
-    val sorted = contributions.sortedBy { it.lnHazard }
+    val sorted = contributions.sortedBy { it.ageImpactYears }
     val best = sorted.firstOrNull()
     val worst = sorted.lastOrNull()
     // The frosted liquid hero-card wrapper floats the vessel + white count-up over the sky (the pilot).
@@ -864,6 +863,7 @@ private fun VitalityHero(
                     )
                 }
             }
+            PaceOfAgingRow(pace)
             if (best != null && best.lnHazard < 0) {
                 Text(uiString(R.string.l10n_health_screen_helping_most_best_label_edee8773, best.label), style = NoopType.footnote, color = Palette.statusPositive)
             }
@@ -876,6 +876,116 @@ private fun VitalityHero(
             )
         }
     }
+}
+
+/** 7-night HRV status against the usual range ([HRVStatus]). Twin of the Swift `HRVStatusSection`. Recovery
+ *  shows last night's HRV; this is the trend, labelled so. Only today's illness heads-up exists, so only
+ *  it can mark the reading. */
+@Composable
+private fun HRVStatusSection(days: List<DailyMetric>, illnessLevel: IllnessSignalEngine.Level?) {
+    val today = java.time.LocalDate.now().toString()
+    val outcome = remember(days, illnessLevel, today) {
+        val flagged = if (illnessLevel == IllnessSignalEngine.Level.RAISED ||
+            illnessLevel == IllnessSignalEngine.Level.ALREADY_UNWELL) setOf(today) else emptySet()
+        HRVStatus.evaluate(days.map { HRVStatus.Night(it.day, it.avgHrv) }, today, flagged)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader(uiString(R.string.hrv_status_title), overline = uiString(R.string.hrv_status_overline))
+        NoopCard(tint = Palette.chargeColor) {
+            when (outcome) {
+                is HRVStatus.Outcome.Calibrating -> Text(
+                    uiString(R.string.hrv_status_calibrating, outcome.baselineNights, HRVStatus.minBaselineNights),
+                    style = NoopType.footnote, color = Palette.textSecondary,
+                )
+                HRVStatus.Outcome.NoRecentData -> Text(
+                    uiString(R.string.hrv_status_no_recent), style = NoopType.footnote, color = Palette.textSecondary,
+                )
+                is HRVStatus.Outcome.Status -> HRVStatusReading(outcome.reading)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HRVStatusReading(r: HRVStatus.Reading) {
+    val color = when (r.band) {
+        HRVStatus.Band.BALANCED -> Palette.statusPositive
+        HRVStatus.Band.ABOVE -> Palette.textPrimary
+        HRVStatus.Band.BELOW -> Palette.statusWarning
+        HRVStatus.Band.LOW -> Palette.statusCritical
+    }
+    val (titleRes, detailRes) = when (r.band) {
+        HRVStatus.Band.BALANCED -> R.string.hrv_status_balanced to R.string.hrv_status_balanced_detail
+        HRVStatus.Band.ABOVE -> R.string.hrv_status_above to R.string.hrv_status_above_detail
+        HRVStatus.Band.BELOW -> R.string.hrv_status_below to R.string.hrv_status_below_detail
+        HRVStatus.Band.LOW -> R.string.hrv_status_low to R.string.hrv_status_low_detail
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(uiString(titleRes), style = NoopType.title2, color = color)
+        Text(
+            uiString(R.string.hrv_status_values, r.mean7Ms.roundToInt(), r.usualLowMs.roundToInt(), r.usualHighMs.roundToInt()),
+            style = NoopType.footnote, color = Palette.textSecondary,
+        )
+        // Track from the low threshold to past the usual range; usual band shaded; dot at the 7-night mean.
+        val lo = minOf(r.lowMs, r.mean7Ms) * 0.95
+        val hi = maxOf(r.usualHighMs, r.mean7Ms) * 1.05
+        val track = Palette.hairline
+        val band = Palette.chargeColor.copy(alpha = 0.35f)
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(12.dp)) {
+            fun x(v: Double) = ((v - lo) / (hi - lo)).toFloat() * size.width
+            val y = size.height / 2
+            val h = 6.dp.toPx()
+            drawRoundRect(track, topLeft = androidx.compose.ui.geometry.Offset(0f, y - h / 2),
+                size = androidx.compose.ui.geometry.Size(size.width, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+            drawRoundRect(band, topLeft = androidx.compose.ui.geometry.Offset(x(r.usualLowMs), y - h / 2),
+                size = androidx.compose.ui.geometry.Size(maxOf(2f, x(r.usualHighMs) - x(r.usualLowMs)), h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+            drawCircle(color, radius = 6.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(x(r.mean7Ms).coerceIn(6.dp.toPx(), size.width - 6.dp.toPx()), y))
+        }
+        Text(uiString(detailRes), style = NoopType.footnote, color = Palette.textSecondary)
+        if (r.mayReflectFlaggedDays) {
+            Text(uiString(R.string.hrv_status_unwell), style = NoopType.footnote, color = Palette.statusWarning)
+        }
+        if (r.tentative) {
+            Text(uiString(R.string.hrv_status_tentative, r.shortNights), style = NoopType.footnote, color = Palette.textTertiary)
+        }
+    }
+}
+
+/** Pace of Aging: how fast Body Age would move if the last 30 days held for six months (1.0× = one
+ *  year per calendar year). Twin of the Swift `VitalitySection.paceRow`. */
+@Composable
+private fun PaceOfAgingRow(pace: Double?) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Overline(uiString(R.string.vitality_pace_of_aging))
+        Spacer(Modifier.weight(1f))
+        if (pace != null) {
+            val band = VitalityWindow.paceBand(pace)
+            Text(
+                java.text.NumberFormat.getNumberInstance().apply {
+                    minimumFractionDigits = 1; maximumFractionDigits = 1
+                }.format(pace) + "×",
+                style = NoopType.number(22f), color = Palette.textPrimary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                uiString(when (band) {
+                    VitalityWindow.PaceBand.REVERSING -> R.string.vitality_pace_reversing
+                    VitalityWindow.PaceBand.SLOWING -> R.string.vitality_pace_slowing
+                    VitalityWindow.PaceBand.STEADY -> R.string.vitality_pace_steady
+                    VitalityWindow.PaceBand.ACCELERATED -> R.string.vitality_pace_accelerating
+                }),
+                style = NoopType.footnote,
+                color = if (band == VitalityWindow.PaceBand.ACCELERATED) Palette.statusWarning else Palette.statusPositive,
+            )
+        }
+    }
+    Text(
+        uiString(if (pace == null) R.string.vitality_pace_needs_history else R.string.vitality_pace_caption),
+        style = NoopType.footnote, color = Palette.textTertiary,
+    )
 }
 
 // MARK: - Liquid hero-card wrapper + hero vessel (the pilot idiom)

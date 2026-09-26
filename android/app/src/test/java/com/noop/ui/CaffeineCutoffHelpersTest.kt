@@ -44,7 +44,8 @@ class CaffeineCutoffHelpersTest {
     }
 
     @Test fun lateAfternoonIntakeIsPastCutoff() {
-        val intake = CaffeineIntake(id = "b", atEpochSec = atMinuteOfDay(16 * 60), mg = 80.0)
+        // 80 mg needs a 7 h lead (cutoff 16:02 for bed at 23:00), so 17:00 is past it.
+        val intake = CaffeineIntake(id = "b", atEpochSec = atMinuteOfDay(17 * 60), mg = 80.0)
         assertTrue(isIntakePastCutoff(intake, bedtimeMinutes = 23 * 60))
     }
 }

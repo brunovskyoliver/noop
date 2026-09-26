@@ -103,7 +103,7 @@ class Whoop5RRSqliteTest {
                 "scoreInputSource" -> provenance[Triple(args[0] as String, args[1] as String, args[2] as String)]?.sourceId
                 "upsertMetricSeries", "upsertMetricSeriesWithProvenance", "deleteWorkoutsBySport" -> Unit
                 "sessionSleepStateJson" -> null
-                "appleDaily", "workouts", "dismissedSleeps" -> emptyList<Any>()
+                "appleDaily", "workouts", "dismissedSleeps", "dismissedWorkouts", "metricSeries" -> emptyList<Any>()
                 "insertRr" -> (args[0] as List<*>).map { value ->
                     val r = value as RrInterval
                     val inserted = statement("INSERT OR IGNORE INTO rrInterval VALUES " +

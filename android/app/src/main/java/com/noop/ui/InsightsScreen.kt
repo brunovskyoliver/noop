@@ -33,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -406,7 +407,12 @@ fun InsightsScreen(vm: AppViewModel, onOpenInsightsHub: () -> Unit = {}) {
         // --- Caffeine window (#526), log an intake + a rough on-device "still active"
         //     hint. Self-contained (owns its own SharedPreferences state). Opt-in: shows
         //     nothing until the user logs one. Twin of macOS CaffeineLogCard. ---
-        item { CaffeineLogCard() }
+        item {
+            // Bedtime from tonight's sleep plan (shared with the Sleep tab and wind-down); 23:00 until built.
+            val plan by vm.tonightPlan.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) { if (plan == null) vm.refreshTonightPlan() }
+            CaffeineLogCard(bedtimeMinutes = plan?.target?.bedMinute ?: 23 * 60)
+        }
 
         item { Spacer(Modifier.height(Metrics.sectionGap - 20.dp)) }
 

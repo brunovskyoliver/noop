@@ -704,6 +704,14 @@ fun SleepScreen(
             sleepSectionOrder.filterNot { it in hiddenSections }.forEach { section ->
               val k = SLEEP_SECTION_KEY_PREFIX + section.raw
               when (section) {
+                SleepSection.TONIGHT -> item(key = k) {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                    Column {
+                    Spacer(Modifier.height(Metrics.selectorTopUp))
+                    TonightPlanCard(vm)
+                    }
+                    }
+                }
                 SleepSection.SLEEP_MARKS -> item(key = k) {
                     // SLEEP MARKS — tap to log "going to sleep" / "I'm awake" (#461, Phase 1). LOGGING ONLY:
                     // a mark is persisted to the `sleep_mark` series + the shareable strap log; it never

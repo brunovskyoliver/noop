@@ -92,8 +92,11 @@ class IntelligenceEngineJacocoBudgetTest {
             "Fitness upsert" to Regex(
                 """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*faPts\b""",
             ),
-            "Vitality compute" to Regex("""\bVitalityEngine\s*\.\s*compute\s*\("""),
-            "Vitality upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*listOf\s*\("""),
+            // Vitality reads its 180-day window AFTER the Fitness Age upsert so this week's VO₂max estimate
+            // is part of it, then computes and writes Body Age / Pace of Aging.
+            "Vitality read" to Regex("""\brepo\s*\.\s*vitalityDays\s*\("""),
+            "Vitality compute" to Regex("""\bVitalityWindow\s*\.\s*healthspan\s*\("""),
+            "Vitality upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*rows\s*\)"""),
             "Apple Health read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*APPLE_HEALTH_SOURCE\b"""),
             "Health Connect read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*HEALTH_CONNECT_SOURCE\b"""),
             "gravity samples" to Regex("""\brepo\s*\.\s*gravitySamplesForDevice\s*\("""),
@@ -255,6 +258,10 @@ class IntelligenceEngineJacocoBudgetTest {
                     events.add("gravityFp")
                     GravityWitness(0, 0L)
                 }
+                // The Vitality window reader (`WhoopRepository.vitalityDays`). Empty history, so Vitality
+                // writes nothing; left unrecorded so the sequence below stays about the steps reads.
+                "days", "editedSleepSessions", "pairedDevices", "workouts", "dismissedWorkouts",
+                "metricSeries" -> emptyList<Any>()
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }
         } as WhoopDao

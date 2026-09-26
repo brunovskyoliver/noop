@@ -2744,7 +2744,14 @@ final class Repository: ObservableObject {
         return await workoutRows(days: 4000, startWindow: from..<to)
     }
 
-    private func workoutRows(days: Int, startWindow: Range<Int>?) async -> [WorkoutRow] {
+    /// The deduplicated, dismissal-filtered workout list WITHOUT the display-only HR reconciliation, for
+    /// analytics that read only duration and zones (Vitality zone time). Reconciling every row of a
+    /// 180-day window reads its whole HR trace, which the zone split does not use.
+    func workoutRowsUnreconciled(days: Int) async -> [WorkoutRow] {
+        await workoutRows(days: days, startWindow: nil, reconcileHR: false)
+    }
+
+    private func workoutRows(days: Int, startWindow: Range<Int>?, reconcileHR: Bool = true) async -> [WorkoutRow] {
         guard let store = await ensureStore() else { return [] }
         let now = Int(Date().timeIntervalSince1970)
         let lo = now - days * 86_400, hi = now + 86_400
@@ -2781,6 +2788,7 @@ final class Repository: ObservableObject {
         guard !Task.isCancelled else { return [] }
         let visible = deduped.filter { startWindow?.contains($0.startTs) ?? true }
             .sorted { $0.startTs > $1.startTs }
+        guard reconcileHR else { return visible }
         return await reconcileWorkoutHrWithTrace(visible, store: store)
     }
 

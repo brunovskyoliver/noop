@@ -120,13 +120,16 @@ final class DetectionFunnelTests: XCTestCase {
             ("hr gap", hrs(60, 150), moving(3600)),
             ("short", hrs(600, 60) + hrs(120, 150, from: 600) + hrs(2880, 60, from: 720), moving(3600)),
             ("real", hrs(600, 60) + hrs(2400, 150, from: 600) + hrs(600, 60, from: 3000), moving(3600)),
+            // A 20 min effort inside an hour of pottering: the run is split and its core kept.
+            ("diluted", hrs(1200, 90) + hrs(1200, 130, from: 1200) + hrs(1200, 90, from: 2400), moving(3600)),
         ]
         for (name, hr, grav) in cases {
             let f = try funnelOf(hr, grav)
             XCTAssertEqual(f.motionPassed, f.hrMissing + f.hrTooLow + f.active,
                            "\(name): motionOK must equal hrMissing + hrTooLow + active (\(f))")
-            XCTAssertEqual(f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.kept + f.keptActivity,
-                           "\(name): bridged runs must equal short + noHR + lowIntensity + kept + activity (\(f))")
+            XCTAssertEqual(f.bridged, f.droppedShort + f.droppedNoHR + f.droppedLowIntensity + f.splitRuns
+                               + f.kept - f.splitKept,
+                           "\(name): bridged runs must equal short + noHR + lowIntensity + split + (kept − splitKept) (\(f))")
         }
     }
 
@@ -140,6 +143,7 @@ final class DetectionFunnelTests: XCTestCase {
         f.longestRunS = 212; f.meanRunS = 74
         f.droppedShort = 4; f.droppedNoHR = 0; f.droppedLowIntensity = 0; f.kept = 0
         f.keptActivity = 0
+        f.splitRuns = 1; f.splitKept = 2
         XCTAssertEqual(
             WorkoutDetector.detectionFunnelLine(day: "2026-08-24", funnel: f),
             // Renamed from "effort detect": this funnel is WORKOUT-BOUT detection, and sitting under
@@ -149,7 +153,7 @@ final class DetectionFunnelTests: XCTestCase {
             "workout detect day=2026-08-24 hr=34137 motion=34136 restHR=59 floor=74 "
                 + "motionOK=1203 hrMissing=12 hrTooLow=1103 active=88 runs=6 bridged=4 "
                 + "longestRunS=212 meanRunS=74 "
-                + "short=4 noHR=0 lowIntensity=0 kept=0 activity=0")
+                + "short=4 noHR=0 lowIntensity=0 kept=0 activity=0 split=1 splitKept=2")
     }
 
     /// The field case these two fields exist for, with the gate ORDER that makes them necessary.

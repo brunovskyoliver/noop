@@ -71,6 +71,6 @@ final class ReadinessTrainingLoadTests: XCTestCase {
 
         XCTAssertEqual(paired.trainingLoad.endDay, "2026-01-20")
         XCTAssertEqual(paired.trainingLoad.contiguousDays, 20)
-        XCTAssertEqual(paired.trainingLoad.points.last?.load, 10)
+        XCTAssertEqual(paired.trainingLoad.points.last?.load, StrainScorer.strainToTrimp(10))   // TRIMP, not Effort
     }
 }

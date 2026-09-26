@@ -29,7 +29,7 @@ public extension ReadinessEngine {
         trainingLoadConfiguration: TrainingLoadEngine.Configuration = .standard
     ) -> TrainingLoadAnalysis {
         let readiness = evaluate(days: days, today: today)
-        let trainingDays = days.map { TrainingLoadEngine.DailyLoad(day: $0.day, load: $0.strain) }
+        let trainingDays = TrainingLoadEngine.dailyTrimp(days)
         let trainingLoad = TrainingLoadEngine.evaluate(
             days: trainingDays,
             through: today,

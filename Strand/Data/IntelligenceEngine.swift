@@ -2657,15 +2657,12 @@ final class IntelligenceEngine: ObservableObject {
         // optional VO₂max when a waist is set) under the same "-noop" source. Idempotent on the Saturday
         // key, so the number refines through the week and finalises on Saturday. Engine = FitnessAgeEngine
         // (StrandAnalytics), fully unit-tested; the body term cancels so the headline needs no body metric.
-        let fa7 = dailies.sorted { $0.day < $1.day }.suffix(7)
-        let faRHRs = fa7.compactMap { $0.restingHr }.map(Double.init)
         // The Fitness Age gate + compute read the PERSISTED/MERGED last-7 days , the SAME history the
         // readiness card + dashboard show , NOT this pass's freshly scored `dailies`. A recompute only
         // re-scores nights whose raw HR still lives in the store, so a nightly wearer whose card reads
         // "7 of 7 nights" could still leave the engine seeing <4 RHR nights on `dailies`, and Fitness Age
         // never computed (Vitality did , it needs only 3 of ANY input, which is why Body Age showed but
-        // Fitness Age did not). Kept SEPARATE from `fa7` so Vitality (below), which already computes, is
-        // untouched. Gate on the UNION of the pre-rewrite persisted history and THIS pass's fresh scores
+        // Fitness Age did not). Gate on the UNION of the pre-rewrite persisted history and THIS pass's fresh scores
         // (by day, fresh wins), so an RHR night counts whether it survives in the store, was just scored,
         // or came from an import. The gate + compute live in `fitnessAgeRows`, shared with the manual
         // "refresh Fitness Age" button so the two can never drift.
@@ -2685,28 +2682,25 @@ final class IntelligenceEngine: ObservableObject {
             )
         }
 
-        // ── Vitality / Body Age (Phase 7) , weekly, keyed to the week's Saturday ────────────────────
-        // Roll the last 7 days' wearable signals into the mortality-hazard model and upsert a weekly
-        // Vitality (0–100) + Body Age. VitalityEngine gates on ≥3 inputs, so a sparse week writes nothing.
-        // (VO₂max is omitted here , fitness is already its own Fitness Age headline; Vitality leans on
-        // resting HR, sleep duration + regularity, HRV-vs-age-norm, and steps.)
-        let vNights = fa7.compactMap { $0.totalSleepMin }.map { Double($0) / 60.0 }.filter { $0 > 0 }
-        let vHRVs = fa7.compactMap { $0.avgHrv }
-        let vSteps = fa7.compactMap { $0.steps }.map(Double.init)
-        let vInputs = VitalityEngine.Inputs(
-            chronoAge: Double(profile.age),
-            restingHR: faRHRs.isEmpty ? nil : IntelligenceEngine.medianOf(faRHRs),
-            sleepHours: vNights.isEmpty ? nil : vNights.reduce(0, +) / Double(vNights.count),
-            sleepConsistency: VitalityEngine.sleepConsistency(nightlyHours: vNights),
-            rmssd: vHRVs.isEmpty ? nil : IntelligenceEngine.medianOf(vHRVs),
-            rmssdNorm: VitalityEngine.rmssdNorm(forAge: Double(profile.age)),
-            steps: vSteps.isEmpty ? nil : vSteps.reduce(0, +) / Double(vSteps.count))
-        if let vRes = VitalityEngine.compute(vInputs) {
+        // ── Vitality / Body Age / Pace of Aging (Phase 7) , weekly, keyed to the week's Saturday ──────
+        // Body Age reads the last 180 days (WHOOP Healthspan's window): resting HR, HRV, sleep duration +
+        // regularity, steps, VO₂max vs the age/sex recommendation, and workout HR-zone time. Pace of Aging
+        // compares the last 30 days with those 180 (VitalityWindow.swift). VitalityEngine gates on ≥3
+        // inputs, so a sparse window writes nothing; Pace needs ≥60 worn days and is skipped until then.
+        // The inputs come from `Repository.vitalityDays`, the same reader the Health screen's breakdown
+        // uses, with this pass's fresh scores overlaid on the stored history.
+        let vDays = await repo.vitalityDays(endingOn: newestDay, fresh: dailies)
+        if let hs = VitalityEngine.healthspan(days: vDays, asOf: newestDay,
+                                              chronoAge: Double(profile.age), sex: profile.sex) {
             let satKey = IntelligenceEngine.saturdayKey(onOrBefore: newestDay)
-            _ = try? await store.upsertMetricSeries([
-                MetricPoint(day: satKey, key: "vitality", value: vRes.vitality),
-                MetricPoint(day: satKey, key: "body_age", value: vRes.bodyAge),
-            ], deviceId: computedId)
+            var vPts = [
+                MetricPoint(day: satKey, key: "vitality", value: hs.bodyAge.vitality),
+                MetricPoint(day: satKey, key: "body_age", value: hs.bodyAge.bodyAge),
+            ]
+            if let pace = hs.paceOfAging {
+                vPts.append(MetricPoint(day: satKey, key: "pace_of_aging", value: pace))
+            }
+            _ = try? await store.upsertMetricSeries(vPts, deviceId: computedId)
         }
 
         markPostLoopPhase("weekly")

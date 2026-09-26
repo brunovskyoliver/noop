@@ -3,7 +3,7 @@ import StrandDesign
 
 /// Caffeine window (#526) — log a caffeine intake (time + OPTIONAL mg) and see a plain on-device
 /// "still active" hint. OPT-IN, manual-first: nothing shows until the user logs an intake, and the
-/// estimate is clearly framed as a rough guide from a ~5–6 h half-life decay, never a measurement or a
+/// estimate is clearly framed as a rough guide from average caffeine clearance, never a measurement or a
 /// health claim. Reuses the journal logging patterns (UserDefaults-backed store, pill controls, NoopCard).
 ///
 /// Honesty is enforced in the model (`CaffeineDecay` / `CaffeineLogStore`): an unknown amount stays
@@ -13,6 +13,9 @@ struct CaffeineLogCard: View {
     /// The shared UserDefaults-backed store (#949). Shared rather than owned here so the Apple Health
     /// import and this card write through the same instance — see `CaffeineLogStore.shared`.
     @ObservedObject private var store = CaffeineLogStore.shared
+    /// Tonight's plan supplies the bedtime (`AppModel.tonightPlan`), shared with the Sleep tab and the
+    /// wind-down reminder so the cutoff never works back from a different bedtime.
+    @EnvironmentObject private var model: AppModel
 
     /// Drives a live recompute of the estimate while the card is on screen (the decay is time-based).
     @State private var tick = Date()
@@ -23,20 +26,21 @@ struct CaffeineLogCard: View {
     private let quickHoursAgo: [Int] = [0, 1, 2, 3]
 
     // PR#566 (mvanhorn) — caffeine cutoff window + late-intake nudge. OPT-IN (default OFF, manual-first):
-    // when enabled, NOOP works back from the user's bedtime by the dose's decay lead and flags any logged
-    // intake that lands past that cutoff, with a calm inline nudge. Keys MIRROR the Android prefs
-    // (KEY_CAFFEINE_CUTOFF / KEY_CAFFEINE_BEDTIME_MIN, default 23:00) so a layout reads the same on both.
+    // when enabled, NOOP works back from tonight's planned bedtime by each drink's own dose lead and flags
+    // any of today's intakes past that cutoff, with a calm inline nudge. The key MIRRORS the Android pref
+    // (KEY_CAFFEINE_CUTOFF) so a layout reads the same on both.
     @AppStorage(Self.cutoffEnabledKey) private var cutoffEnabled = false
-    @AppStorage(Self.bedtimeMinutesKey) private var bedtimeMinutes = 23 * 60
     static let cutoffEnabledKey = "noop.caffeine.cutoffNudge"
-    static let bedtimeMinutesKey = "noop.caffeine.bedtimeMinutes"
+
+    /// Tonight's planned bedtime (minutes after midnight); 23:00 only until the first plan is built.
+    private var bedtimeMinutes: Int { model.tonightPlan?.target.bedMinute ?? 23 * 60 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Caffeine", overline: "Log")
             NoopCard(tint: StrandPalette.accent) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Log a coffee, tea, or energy drink and NOOP shows a rough estimate of how much may still be active. It's a guide based on a typical 5 to 6 hour half-life, not a measurement.")
+                    Text("Log a coffee, tea, or energy drink and NOOP shows a rough estimate of how much may still be active. It's a guide based on average caffeine clearance, not a measurement.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -83,6 +87,7 @@ struct CaffeineLogCard: View {
             }
         }
         .onReceive(ticker) { tick = $0 }
+        .task { if model.tonightPlan == nil { await model.refreshTonightPlan() } }
     }
 
     // MARK: - Cutoff window (PR#566) — bedtime + late-intake nudge
@@ -109,19 +114,17 @@ struct CaffeineLogCard: View {
                     .accessibilityLabel("Warn me about caffeine close to bedtime")
             }
             if cutoffEnabled {
-                HStack {
-                    Text("Bedtime")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                    Spacer()
-                    DatePicker("", selection: bedtimeBinding, displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .accessibilityLabel("Bedtime")
-                }
-                Text("Stop caffeine after about \(cutoffTimeLabel) to keep most of it cleared by \(timeLabel(bedtimeMinutes)).")
+                Text("Last regular coffee (95 mg) by about \(cutoffTimeLabel), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let mg = mgAtBedtime, mg >= 1 {
+                    Text("About \(Int(mg.rounded())) mg from what you logged will still be active at bedtime.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(mg > CaffeineDecay.bedtimeResidualMg ? StrandPalette.statusWarning
+                                                                              : StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
@@ -148,14 +151,25 @@ struct CaffeineLogCard: View {
         }
     }
 
-    /// Count of logged intakes whose local time-of-day is past the bedtime cutoff. Uses the shared decay
-    /// model's `isPastCutoff` so the UI and the cutoff math can't drift. Each intake's wall-clock minute is
-    /// compared against the cutoff derived from the user's bedtime.
+    /// Count of TODAY's logged intakes past their own cutoff for tonight's bedtime (the store keeps 48 h;
+    /// yesterday's evening coffee is not about tonight). Uses the shared decay model's `isPastCutoff`, with
+    /// each intake's own dose, so the UI and the cutoff math can't drift.
     private var latePastCutoffCount: Int {
         store.intakes.filter { intake in
-            CaffeineDecay.isPastCutoff(intakeMinutes: minutesSinceMidnight(intake.at),
-                                       bedtimeMinutes: bedtimeMinutes)
+            Calendar.current.isDateInToday(intake.at)
+                && CaffeineDecay.isPastCutoff(intakeMinutes: minutesSinceMidnight(intake.at),
+                                              bedtimeMinutes: bedtimeMinutes, doseMg: intake.mg)
         }.count
+    }
+
+    /// Estimated mg still active at tonight's bedtime from intakes with a known dose; nil when none has one.
+    private var mgAtBedtime: Double? {
+        let known = store.intakes.filter { $0.mg != nil }
+        guard !known.isEmpty else { return nil }
+        let cal = Calendar.current
+        var bed = cal.date(byAdding: .minute, value: bedtimeMinutes, to: cal.startOfDay(for: tick)) ?? tick
+        if bedtimeMinutes < 12 * 60 { bed = cal.date(byAdding: .day, value: 1, to: bed) ?? bed }   // after midnight
+        return CaffeineDecay.totalRemainingMg(known.map { (doseMg: $0.mg!, hoursElapsed: bed.timeIntervalSince($0.at) / 3600) })
     }
 
     private var lateNudgeText: String {
@@ -175,22 +189,6 @@ struct CaffeineLogCard: View {
     private func minutesSinceMidnight(_ date: Date) -> Int {
         let c = Calendar.current.dateComponents([.hour, .minute], from: date)
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
-    /// Bridges the minutes-since-midnight bedtime pref to the DatePicker's Date.
-    private var bedtimeBinding: Binding<Date> {
-        Binding(
-            get: {
-                var c = DateComponents()
-                c.hour = bedtimeMinutes / 60
-                c.minute = bedtimeMinutes % 60
-                return Calendar.current.date(from: c) ?? Date()
-            },
-            set: { date in
-                let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-                bedtimeMinutes = min(max((c.hour ?? 23) * 60 + (c.minute ?? 0), 0), 24 * 60 - 1)
-            }
-        )
     }
 
     private func timeLabel(_ minutes: Int) -> String {

@@ -176,6 +176,16 @@ enum WindDownNudge {
         }
     }
 
+    /// Follow tonight's sleep plan: store the planned bed-to-wake window as the "sleep need" the nudge
+    /// subtracts from the wake time, so the reminder fires `leadMinutes` before the planned bedtime.
+    /// Clamped to the store's 300…660 range; reschedules only when the value changed.
+    static func syncPlannedWindow(_ minutes: Int) {
+        let v = min(max(minutes, 300), 660)
+        guard v != sleepNeedMinutes else { return }
+        UserDefaults.standard.set(v, forKey: K.sleepNeed)
+        if isEnabled { schedule() }
+    }
+
     /// Update the earliest wake time the nudge is derived from, rescheduling if enabled.
     static func setWakeMinutes(_ minutes: Int) {
         UserDefaults.standard.set(min(max(minutes, 0), 24 * 60 - 1), forKey: K.wake)

@@ -108,7 +108,24 @@ object ReadinessEngine {
     private const val minBaseline = 7       // need at least this many baseline nights
     private const val acuteWindow = 7
     private const val chronicWindow = 28
-    private const val minChronic = 14       // need at least this much strain history for ACWR
+    private const val minChronic = 14       // observed load days needed in the 28-day window for ACWR
+    private const val minAcute = 4          // observed load days needed in the 7-day window
+
+    /** Daily TRIMP (from stored Effort, Edwards scale) for the calendar days ending on [day]: the last
+     *  acute and chronic windows, oldest first, skipping days without Effort. Twin of Swift `calendarLoads`. */
+    internal fun calendarLoads(sorted: List<DailyMetric>, day: String): Pair<List<Double>, List<Double>> {
+        val end = VitalityWindow.epochDay(day) ?: return Pair(emptyList(), emptyList())
+        val acute = ArrayList<Double>(); val chronic = ArrayList<Double>()
+        for (d in sorted) {
+            val strain = d.strain ?: continue
+            val e = VitalityWindow.epochDay(d.day) ?: continue
+            if (e > end) continue
+            val load = StrainScorer.strainToTrimp(strain)
+            if (e > end - chronicWindow) chronic.add(load)
+            if (e > end - acuteWindow) acute.add(load)
+        }
+        return Pair(acute, chronic)
+    }
 
     // Resp-rate signal is sourced from either clean cloud RR or a higher-variance on-device RSA
     // estimate (no source flag on the field), so it uses wider z thresholds than HRV/RHR and a
@@ -265,22 +282,25 @@ object ReadinessEngine {
         }
 
         // Training Stress Balance (ACWR) + monotony --------------------------
-        val strainSeries = sorted.mapNotNull { it.strain }
+        // TRIMP recovered from the stored Effort, over CALENDAR windows ending on the target day. Twin of
+        // the Swift block.
+        val (acuteLoads, chronicLoads) = calendarLoads(sorted, latest.day)
         var acwr: Double? = null
         var monotony: Double? = null
-        if (strainSeries.size >= minChronic) {
-            val acute = mean(strainSeries.takeLast(acuteWindow))!!
-            val chronic = mean(strainSeries.takeLast(chronicWindow))!!
+        if (chronicLoads.size >= minChronic && acuteLoads.size >= minAcute) {
+            val acute = mean(acuteLoads)!!
+            val chronic = mean(chronicLoads)!!
             if (chronic > 0) {
                 val ratio = acute / chronic
                 acwr = ratio
                 signals.add(acwrSignal(ratio, acute = acute, chronic = chronic))
             }
             // Foster monotony over the last week of strain.
-            val week = strainSeries.takeLast(acuteWindow)
+            val week = acuteLoads
             val sd = sampleSD(week)
             val m = mean(week)
-            if (week.size >= 4 && sd != null && sd > 0 && m != null) {
+            // Relative SD floor: identical Efforts give identical TRIMP whose mean can sit a rounding step off.
+            if (week.size >= 4 && sd != null && m != null && sd > 1e-9 * maxOf(1.0, kotlin.math.abs(m))) {
                 val mono = m / sd
                 monotony = mono
                 if (mono >= 2.0) {

@@ -19,7 +19,7 @@ fun ReadinessEngine.evaluateWithTrainingLoad(
     trainingLoadConfiguration: TrainingLoadEngine.Configuration = TrainingLoadEngine.standard,
 ): ReadinessTrainingLoadAnalysis {
     val readiness = evaluate(days, today)
-    val trainingDays = days.map { TrainingLoadEngine.DailyLoad(it.day, it.strain) }
+    val trainingDays = TrainingLoadEngine.dailyTrimp(days)
     val trainingLoad = TrainingLoadEngine.evaluate(
         trainingDays,
         through = today,

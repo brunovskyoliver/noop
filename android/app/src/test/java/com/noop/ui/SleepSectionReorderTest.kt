@@ -9,6 +9,7 @@ import com.noop.ui.SleepSection.SLEEP_DEBT
 import com.noop.ui.SleepSection.SLEEP_MARKS
 import com.noop.ui.SleepSection.STAGES
 import com.noop.ui.SleepSection.STAGES_VS_TYPICAL
+import com.noop.ui.SleepSection.TONIGHT
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -25,14 +26,14 @@ class SleepSectionReorderTest {
 
     @Test fun movingDownPlacesTheCardAtTheTargetsSlot() {
         assertEquals(
-            listOf(STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_MARKS, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION, HOURS_VS_NEEDED, CONSISTENCY),
+            listOf(TONIGHT, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_MARKS, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION, HOURS_VS_NEEDED, CONSISTENCY),
             order.movedSleepSection(SLEEP_MARKS, NIGHT_DETAIL),
         )
     }
 
     @Test fun movingUpPlacesTheCardAtTheTargetsSlot() {
         assertEquals(
-            listOf(SLEEP_MARKS, ASLEEP_DURATION, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, HOURS_VS_NEEDED, CONSISTENCY),
+            listOf(TONIGHT, SLEEP_MARKS, ASLEEP_DURATION, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, HOURS_VS_NEEDED, CONSISTENCY),
             order.movedSleepSection(ASLEEP_DURATION, STAGES),
         )
     }

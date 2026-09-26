@@ -14,9 +14,9 @@ import kotlin.math.pow
  */
 object CaffeineDecay {
 
-    /** The half-life used for the estimate, in hours. A population-average adult figure (~5–6 h); the
-     *  estimate is only a rough guide because real clearance varies widely. */
-    const val DEFAULT_HALF_LIFE_HOURS = 5.5
+    /** Effective half-life fitted with [BEDTIME_RESIDUAL_MG] to the Gardiner 2023 cutoffs (107 mg ≥ 8.8 h,
+     *  217.5 mg ≥ 13.2 h before bed); inside the 1.5–9.5 h adult range. Twin of Swift. */
+    const val DEFAULT_HALF_LIFE_HOURS = 4.3
 
     /** Fraction (0..1) of a single dose still present [hoursElapsed] after intake. A negative elapsed time
      *  (a future-dated log) clamps to 1.0 — nothing has decayed yet — rather than amplifying the dose. */
@@ -51,59 +51,43 @@ object CaffeineDecay {
         halfLifeHours: Double = DEFAULT_HALF_LIFE_HOURS,
     ): Boolean = fractionRemaining(hoursElapsed, halfLifeHours) > threshold
 
-    // MARK: - Cutoff window (PR#566, mvanhorn) — the latest caffeine time before bed.
-    //
-    // Reframes [hoursUntilFraction] as a clock-friendly "stop drinking after" cutoff: given a bedtime and
-    // an acceptable residual fraction at bedtime, the cutoff is [bedtime − hoursUntilFraction(target)]. A
-    // dose taken at the cutoff decays to exactly [targetResidualFraction] by bedtime; anything later still
-    // has more than that on board. The math is the same decay model as the "still active" hint — only the
-    // framing changes — so the honesty rules carry over (population-average half-life, a guide not a rule).
+    // MARK: - Cutoff window (PR#566, mvanhorn) — dose-aware: lead = h · log2(dose / 26 mg), clamped 4–16 h.
+    // Twin of the Swift `CaffeineDecay` cutoff.
 
-    /** Default acceptable residual at bedtime: a quarter of the dose. Two half-lives' worth (~11 h on the
-     *  5.5 h default), matching the [isStillActive] active threshold so "still active" and "past cutoff"
-     *  agree. */
-    const val DEFAULT_BEDTIME_RESIDUAL = 0.25
+    const val BEDTIME_RESIDUAL_MG = 26.0
+    const val TYPICAL_DOSE_MG = 95.0
+    const val MIN_CUTOFF_LEAD_HOURS = 4.0
+    const val MAX_CUTOFF_LEAD_HOURS = 16.0
 
-    /** How many hours BEFORE bedtime the caffeine cutoff falls — i.e. the lead time over which a dose
-     *  decays to [targetResidualFraction]. A pure number (no clock); the UI subtracts it from bedtime. */
     fun cutoffLeadHours(
-        targetResidualFraction: Double = DEFAULT_BEDTIME_RESIDUAL,
+        doseMg: Double = TYPICAL_DOSE_MG,
+        residualMg: Double = BEDTIME_RESIDUAL_MG,
         halfLifeHours: Double = DEFAULT_HALF_LIFE_HOURS,
-    ): Double = hoursUntilFraction(targetResidualFraction, halfLifeHours)
+    ): Double {
+        if (halfLifeHours <= 0 || residualMg <= 0 || doseMg <= residualMg) return MIN_CUTOFF_LEAD_HOURS
+        val lead = halfLifeHours * ln(doseMg / residualMg) / ln(2.0)
+        return minOf(maxOf(lead, MIN_CUTOFF_LEAD_HOURS), MAX_CUTOFF_LEAD_HOURS)
+    }
 
-    /**
-     * The caffeine cutoff as minutes-since-midnight, given a [bedtimeMinutes] (also since midnight). The
-     * cutoff can fall on the previous day (negative raw value) for an early bedtime + long lead; it's
-     * normalised into [0, 1440) so the caller can format it as a wall-clock time. Pure.
-     */
     fun cutoffMinutesSinceMidnight(
         bedtimeMinutes: Int,
-        targetResidualFraction: Double = DEFAULT_BEDTIME_RESIDUAL,
+        doseMg: Double = TYPICAL_DOSE_MG,
         halfLifeHours: Double = DEFAULT_HALF_LIFE_HOURS,
     ): Int {
-        val leadMin = (cutoffLeadHours(targetResidualFraction, halfLifeHours) * 60.0).toInt()
+        val leadMin = (cutoffLeadHours(doseMg, halfLifeHours = halfLifeHours) * 60.0).toInt()
         val raw = bedtimeMinutes - leadMin
-        // Normalise into a single day so an early bedtime with a long lead doesn't read as a negative time.
         return ((raw % 1440) + 1440) % 1440
     }
 
-    /**
-     * True when an intake at [intakeMinutes] (minutes since midnight) is LATER than the cutoff for
-     * [bedtimeMinutes] — i.e. it'll still have more than [targetResidualFraction] on board at bedtime.
-     * Both times are same-day wall-clock minutes; daytime intakes well before the cutoff return false.
-     * A cutoff that wrapped to the previous evening (early bedtime) means any same-day intake is "late".
-     */
     fun isPastCutoff(
         intakeMinutes: Int,
         bedtimeMinutes: Int,
-        targetResidualFraction: Double = DEFAULT_BEDTIME_RESIDUAL,
+        doseMg: Double? = null,
         halfLifeHours: Double = DEFAULT_HALF_LIFE_HOURS,
     ): Boolean {
-        val leadMin = (cutoffLeadHours(targetResidualFraction, halfLifeHours) * 60.0).toInt()
-        val rawCutoff = bedtimeMinutes - leadMin
-        // Compare on the raw (un-normalised) axis so a cutoff in the previous evening (rawCutoff < 0)
-        // correctly makes every positive same-day intake "past cutoff".
-        return intakeMinutes > rawCutoff
+        val leadMin = (cutoffLeadHours(doseMg ?: TYPICAL_DOSE_MG, halfLifeHours = halfLifeHours) * 60.0).toInt()
+        // Raw (un-normalised) axis: a cutoff in the previous evening makes every same-day intake late.
+        return intakeMinutes > bedtimeMinutes - leadMin
     }
 }
 

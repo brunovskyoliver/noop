@@ -37,6 +37,10 @@ public enum CyclePhaseEngine {
     /// Typical cycle length used as the prior for the next-period WINDOW when the personal median isn't
     /// yet reliable. Deliberately a textbook average, not a claim about this user.
     public static let defaultCycleDays: Int = 28
+    /// Typical luteal-phase length (days): the temperature shift sits near ovulation and menses follows
+    /// about 12 days later (Bull 2019, 612,613 cycles: 12.4 ± 2.4 d). Used for the next-period window when
+    /// the anchor is the shift itself rather than a logged period start.
+    public static let lutealDays: Int = 12
 
     /// Minimum number of nights of usable data before the engine will classify at all (~1.5 cycles).
     public static let minNightsToClassify: Int = 42
@@ -238,14 +242,16 @@ public enum CyclePhaseEngine {
             phase = daysSinceOnset <= periOvulatoryHalfWidth ? .periOvulatory : .follicular
         }
 
-        // Probabilistic next-period WINDOW: the luteal→follicular temperature drop precedes menses, so a
-        // period is likely roughly one cycle length on from the anchor. Always a RANGE, never a date.
+        // Probabilistic next-period WINDOW. Always a RANGE, never a date. A logged period start is day 1,
+        // so the next one is about one cycle length on. A temperature-shift anchor sits near ovulation, so
+        // the next period is about one luteal phase on; adding a full cycle there landed on the NEXT
+        // ovulation instead, roughly two weeks late.
         var window: NextPeriodWindow? = nil
         if let len = cycleLength {
-            // Next expected onset of menses ≈ anchor + cycle length. Window = ±2 days around it, but only
-            // surfaced once we're within range and on/after the anchor.
-            if let earliest = shiftDay(anchorDay, by: len - 2),
-               let latest = shiftDay(anchorDay, by: len + 2),
+            // Window = ±2 days around the expected start, surfaced once we're within range.
+            let ahead = anchoredByLog ? len : lutealDays
+            if let earliest = shiftDay(anchorDay, by: ahead - 2),
+               let latest = shiftDay(anchorDay, by: ahead + 2),
                latest >= lastNightDay {
                 window = NextPeriodWindow(earliestDay: max(lastNightDay, earliest), latestDay: latest)
             }

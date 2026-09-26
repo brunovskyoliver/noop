@@ -14,7 +14,7 @@ import org.junit.Test
  */
 class CaffeineDecayTest {
 
-    private val hl = CaffeineDecay.DEFAULT_HALF_LIFE_HOURS   // 5.5 h
+    private val hl = CaffeineDecay.DEFAULT_HALF_LIFE_HOURS   // 4.3 h (fitted; see CaffeineDecay)
 
     // MARK: - fractionRemaining
 

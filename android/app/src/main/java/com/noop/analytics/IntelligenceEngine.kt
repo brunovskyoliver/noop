@@ -1815,91 +1815,12 @@ object IntelligenceEngine {
             // per-bout loop so it is present even when that loop runs zero times — which is exactly the
             // report it exists for. The `effort bout` line below explains a bout that exists; a strap log
             // showing 37 days and no workouts at all previously carried nothing to explain the absence.
-            res.detectionFunnel?.let { diag(WorkoutDetector.detectionFunnelLine(daily.day, it)) }
-            for (s in res.workouts) {
-                val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
-                val avgBpm = s.avgHR.toInt()
-                // 2026-09-21: the activity tier + advisory classification need their own trace facts —
-                // a walk persisted under "detected" reads exactly like a zone-2 bout in every other
-                // line. Emitted only under the .workouts domain (suggestedClass only exists then);
-                // `tier` names which qualification bar the bout cleared. Mirrors the Swift line.
-                if (workoutsTraceSink != null && (s.isActivityTier || s.suggestedClass != null)) {
-                    workoutsTraceSink.invoke(
-                        WorkoutsTrace.detectedEnrichmentLine(
-                            tier = if (s.isActivityTier) "activity" else "workout",
-                            suggestedClass = s.suggestedClass,
-                            confidence = s.suggestedClassConfidence,
-                        ),
-                    )
-                }
-                // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
-                // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
-                // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
-                // those three answers separate the three different causes ("the floor is doing its job",
-                // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
-                // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
-                // `sleep day=` line: a day key, a duration, bpm and percentages. Mirrors the Swift line.
-                diag(
-                    WorkoutDetector.boutCalibrationLine(
-                        day = daily.day, durMin = durMin, hrmax = s.hrmax, hrmaxSource = s.hrmaxSource,
-                        avgHRRPct = s.avgHRRPct, hrCoveragePct = s.hrCoveragePct, strain = s.strain,
-                    ),
-                )
-                // Bare time overlap (any source), so a detected bout collapses against a manual session even
-                // though their sports differ , the #975 "two workouts, one vanished" seam. Name the collider.
-                val collider = realWorkouts.firstOrNull { w -> s.start < w.endTs && w.startTs < s.end }
-                if (collider != null) {
-                    // #510: the detected bout's own avgHR/calories/maxHR/strain come from the SAME
-                    // motion+HR trace the detector used to find this activity's actual boundaries —
-                    // often a tighter match than the colliding row's own [startTs,endTs] (e.g. a manual
-                    // entry typed in afterward, whose guessed boundaries can clip most of the real
-                    // HR-rich period and leave WhoopRepository.fillWorkoutHrFromStrap's raw window read
-                    // too thin, silently showing no HR/calories). Same natural key (deviceId, startTs,
-                    // sport), so the upsert below updates the existing row in place rather than
-                    // duplicating it.
-                    val backfilled = backfillWorkoutFromDetectedBout(
-                        collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal,
-                        strain = s.strain, zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
-                        steps = s.steps,
-                    )
-                    val didBackfill = backfilled != collider
-                    if (didBackfill) workoutBackfills.add(backfilled)
-                    workoutsTraceSink?.invoke(
-                        WorkoutsTrace.detectedBoutLine(
-                            verdict = if (didBackfill) "droppedOverlapBackfilled" else "droppedOverlap",
-                            durMin = durMin, avgBpm = avgBpm,
-                            overlapSource = colliderSourceLabel(collider.source),
-                        ),
-                    )
-                    continue
-                }
-                workoutRows.add(
-                    WorkoutRow(
-                        deviceId = computedId,
-                        startTs = s.start,
-                        endTs = s.end,
-                        sport = "detected",
-                        source = computedId,
-                        durationS = s.durationS,
-                        energyKcal = s.caloriesKcal,
-                        avgHr = avgBpm,
-                        maxHr = s.peakHR,
-                        strain = s.strain,
-                        // 2026-09-21: persist the bout's own zone split + counted steps so a detected
-                        // row is self-contained (imported rows carry both from the export). zonesJSON
-                        // renders the same {"z1":…,"z5":…} shape the WHOOP importer writes.
-                        zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
-                        steps = s.steps,
-                        // 2026-09-22: the classifier's advisory label rides the row so the Workouts
-                        // list + notification can name it.
-                        suggestedClass = s.suggestedClass,
-                        suggestedClassConfidence = s.suggestedClassConfidence,
-                    ),
-                )
-                workoutsTraceSink?.invoke(
-                    WorkoutsTrace.detectedBoutLine(verdict = "persisted", durMin = durMin, avgBpm = avgBpm),
-                )
-            }
+            routeDetectedBouts(
+                day = daily.day, funnel = res.detectionFunnel, bouts = res.workouts,
+                realWorkouts = realWorkouts, computedId = computedId,
+                diag = diag, workoutsTraceSink = workoutsTraceSink,
+                workoutBackfills = workoutBackfills, workoutRows = workoutRows,
+            )
         }
 
         // #277 migration: the loop now keys days by the LOCAL calendar day. A prior run (before this
@@ -2108,11 +2029,10 @@ object IntelligenceEngine {
             )
         }
         // #2187 data-safety invariant: analytics reconciliation must never delete grandfathered detected
-        // history and no longer inserts fresh generic rows. Only write real rows whose missing metrics were
-        // enriched above. Turning detection off, a partial stream, or a failed/cancelled pass is therefore
-        // incapable of erasing previously visible workouts.
-        repo.persistWorkoutBackfills(workoutBackfills)
-        if (workoutRows.isNotEmpty()) repo.upsertWorkouts(workoutRows)
+        // history. Write the real rows whose missing metrics were enriched above plus (fork) this pass's
+        // detected rows, upsert-only in one call. Turning detection off, a partial stream, or a
+        // failed/cancelled pass is therefore incapable of erasing previously visible workouts.
+        repo.persistWorkoutBackfills(workoutBackfills + workoutRows)
 
         // #137: a manually-started workout is scored from sparse live HR at save time , near-zero
         // calories/strain on a 5/MG. Now that offloaded HR may cover the window, re-score the
@@ -2155,13 +2075,10 @@ object IntelligenceEngine {
         // AnalysisPhaseMarks for why Android stops here and Swift does not.
         val postLoop = AnalysisPhaseMarks()
         // ── Fitness Age (Phase 2) , weekly, keyed to the week's Saturday ──
-        val fa7 = dailies.sortedBy { it.day }.takeLast(7)
-        val faRHRs = fa7.mapNotNull { it.restingHr }.map { it.toDouble() }
         // Gate + compute Fitness Age on the UNION of the pre-rewrite persisted history and THIS pass's
         // fresh scores (by day, fresh wins) , so an RHR night counts whether it survives in the store OR was
         // just scored, whether it sits under this id or a re-added strap's sibling id, or came from an
-        // import. Kept SEPARATE from `fa7` so Vitality (below), which already computes, is untouched. The
-        // gate + compute live in [fitnessAgeRows] so the manual "refresh Fitness Age" button applies the
+        // import. The gate + compute live in [fitnessAgeRows] so the manual "refresh Fitness Age" button applies the
         // SAME rule (no drift).
         val faGateByDay = LinkedHashMap<String, DailyMetric>()
         for (d in faPriorDaily) faGateByDay[d.day] = d
@@ -2178,26 +2095,21 @@ object IntelligenceEngine {
             )
         }
 
-        // ── Vitality / Body Age (Phase 7) , weekly, keyed to the week's Saturday ──
-        // Roll the last 7 days' wearable signals into the mortality-hazard model; VitalityEngine gates on
-        // ≥3 inputs. VO₂max is omitted (fitness is Fitness Age's headline); Vitality leans on resting HR,
-        // sleep duration + regularity, HRV-vs-age-norm, and steps.
-        val vNights = fa7.mapNotNull { it.totalSleepMin }.map { it / 60.0 }.filter { it > 0 }
-        val vHRVs = fa7.mapNotNull { it.avgHrv }
-        val vSteps = fa7.mapNotNull { it.steps }.map { it.toDouble() }
-        val vInputs = VitalityEngine.Inputs(
-            chronoAge = profile.age,
-            restingHR = if (faRHRs.isEmpty()) null else medianOfDoubles(faRHRs),
-            sleepHours = if (vNights.isEmpty()) null else vNights.average(),
-            sleepConsistency = VitalityEngine.sleepConsistency(vNights),
-            rmssd = if (vHRVs.isEmpty()) null else medianOfDoubles(vHRVs),
-            rmssdNorm = VitalityEngine.rmssdNorm(profile.age),
-            steps = if (vSteps.isEmpty()) null else vSteps.average())
-        VitalityEngine.compute(vInputs)?.let { vRes ->
+        // ── Vitality / Body Age / Pace of Aging (Phase 7) , weekly, keyed to the week's Saturday ──
+        // Body Age over the last 180 days (resting HR, HRV, sleep duration + regularity, steps, VO₂max vs
+        // the age/sex recommendation, workout HR-zone time); Pace of Aging compares the last 30 days with
+        // those 180. Inputs from [WhoopRepository.vitalityDays], the reader the Health screen also uses.
+        // Mirrors the Swift weekly block.
+        val vDays = repo.vitalityDays(importedDeviceId, newestDay, dailies)
+        VitalityWindow.healthspan(vDays, newestDay, profile.age, profile.sex)?.let { hs ->
             val satKey = saturdayKeyOnOrBefore(newestDay)
-            repo.upsertMetricSeries(listOf(
-                MetricSeriesRow(deviceId = computedId, day = satKey, key = "vitality", value = vRes.vitality),
-                MetricSeriesRow(deviceId = computedId, day = satKey, key = "body_age", value = vRes.bodyAge)))
+            val rows = mutableListOf(
+                MetricSeriesRow(deviceId = computedId, day = satKey, key = "vitality", value = hs.bodyAge.vitality),
+                MetricSeriesRow(deviceId = computedId, day = satKey, key = "body_age", value = hs.bodyAge.bodyAge))
+            hs.paceOfAging?.let {
+                rows.add(MetricSeriesRow(deviceId = computedId, day = satKey, key = "pace_of_aging", value = it))
+            }
+            repo.upsertMetricSeries(rows)
         }
 
         postLoop.mark("weekly")
@@ -2342,6 +2254,112 @@ object IntelligenceEngine {
         }
     }
 
+
+    /** Route each detected bout of one day: backfill the real workout it overlaps, or publish it as a
+     *  `detected` row (fork). Emits the per-bout calibration and Workouts-trace lines. Split out of
+     *  `analyzeRecentOnCpu` to keep that pass inside its bytecode budget; behaviour is unchanged. */
+    private fun routeDetectedBouts(
+        day: String,
+        funnel: WorkoutDetector.DetectionFunnel?,
+        bouts: List<ExerciseSession>,
+        realWorkouts: List<WorkoutRow>,
+        computedId: String,
+        diag: (String) -> Unit,
+        workoutsTraceSink: ((String) -> Unit)?,
+        workoutBackfills: MutableList<WorkoutRow>,
+        workoutRows: MutableList<WorkoutRow>,
+    ) {
+        // The funnel line goes out BEFORE the per-bout loop so it is present even when that loop runs zero
+        // times, which is exactly the report it exists for (#1545).
+        funnel?.let { diag(WorkoutDetector.detectionFunnelLine(day, it)) }
+        for (s in bouts) {
+            val durMin = maxOf(0L, (s.end - s.start) / 60L).toInt()
+            val avgBpm = s.avgHR.toInt()
+            // 2026-09-21: the activity tier + advisory classification need their own trace facts —
+            // a walk persisted under "detected" reads exactly like a zone-2 bout in every other
+            // line. Emitted only under the .workouts domain (suggestedClass only exists then);
+            // `tier` names which qualification bar the bout cleared. Mirrors the Swift line.
+            if (workoutsTraceSink != null) emitDetectedEnrichment(workoutsTraceSink, s)
+            // #1545: always-on, one line per detected bout naming what this Effort was SCORED AGAINST.
+            // A user reporting "my hard session scored 1.7" cannot currently see the HRmax that set the
+            // zone boundaries, where it came from, or whether the strap even saw most of the bout — and
+            // those three answers separate the three different causes ("the floor is doing its job",
+            // "your HRmax is wrong", "the sensor dropped out"). Reversing the arithmetic out of the
+            // displayed score is what diagnosing #1545 actually took. Same privacy class as the sibling
+            // `sleep day=` line: a day key, a duration, bpm and percentages. Mirrors the Swift line.
+            diag(
+                WorkoutDetector.boutCalibrationLine(
+                    day = day, durMin = durMin, hrmax = s.hrmax, hrmaxSource = s.hrmaxSource,
+                    avgHRRPct = s.avgHRRPct, hrCoveragePct = s.hrCoveragePct, strain = s.strain,
+                ),
+            )
+            // Bare time overlap (any source), so a detected bout collapses against a manual session even
+            // though their sports differ , the #975 "two workouts, one vanished" seam. Name the collider.
+            val collider = realWorkouts.firstOrNull { w -> s.start < w.endTs && w.startTs < s.end }
+            if (collider != null) {
+                // #510: the detected bout's own avgHR/calories/maxHR/strain come from the SAME
+                // motion+HR trace the detector used to find this activity's actual boundaries —
+                // often a tighter match than the colliding row's own [startTs,endTs] (e.g. a manual
+                // entry typed in afterward, whose guessed boundaries can clip most of the real
+                // HR-rich period and leave WhoopRepository.fillWorkoutHrFromStrap's raw window read
+                // too thin, silently showing no HR/calories). Same natural key (deviceId, startTs,
+                // sport), so the upsert below updates the existing row in place rather than
+                // duplicating it.
+                val backfilled = backfillWorkoutFromDetectedBout(
+                    collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal,
+                    strain = s.strain, zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
+                    steps = s.steps,
+                )
+                val didBackfill = backfilled != collider
+                if (didBackfill) workoutBackfills.add(backfilled)
+                workoutsTraceSink?.invoke(
+                    WorkoutsTrace.detectedBoutLine(
+                        verdict = if (didBackfill) "droppedOverlapBackfilled" else "droppedOverlap",
+                        durMin = durMin, avgBpm = avgBpm,
+                        overlapSource = colliderSourceLabel(collider.source),
+                    ),
+                )
+                continue
+            }
+            workoutRows.add(detectedWorkoutRow(s, computedId, avgBpm))
+            workoutsTraceSink?.invoke(
+                WorkoutsTrace.detectedBoutLine(verdict = "persisted", durMin = durMin, avgBpm = avgBpm),
+            )
+        }
+    }
+
+    /** The trace line naming a detected bout's qualification tier and advisory class, when it has either.
+     *  Kept out of `analyzeRecentOnCpu` so the pass stays inside its bytecode budget. Mirrors the Swift line. */
+    private fun emitDetectedEnrichment(sink: (String) -> Unit, s: ExerciseSession) {
+        if (!s.isActivityTier && s.suggestedClass == null) return
+        sink(
+            WorkoutsTrace.detectedEnrichmentLine(
+                tier = if (s.isActivityTier) "activity" else "workout",
+                suggestedClass = s.suggestedClass,
+                confidence = s.suggestedClassConfidence,
+            ),
+        )
+    }
+
+    /** Fork: the persisted `sport = "detected"` row for a bout no real workout covers. Carries the bout's own
+     *  zone split + counted steps (the `{"z1":…,"z5":…}` shape the WHOOP importer writes) and the
+     *  classifier's advisory label, so the row is self-contained. */
+    private fun detectedWorkoutRow(s: ExerciseSession, computedId: String, avgBpm: Int) = WorkoutRow(
+        deviceId = computedId,
+        startTs = s.start,
+        endTs = s.end,
+        sport = "detected",
+        source = computedId,
+        durationS = s.durationS,
+        energyKcal = s.caloriesKcal,
+        avgHr = avgBpm,
+        maxHr = s.peakHR,
+        strain = s.strain,
+        zonesJSON = WorkoutDetector.zonesJSON(s.zoneTimePct),
+        steps = s.steps,
+        suggestedClass = s.suggestedClass,
+        suggestedClassConfidence = s.suggestedClassConfidence,
+    )
     /**
      * #510: backfill ONLY the avgHr/maxHr/energyKcal/strain fields [real] doesn't already have, from a
      * detected bout's own computed values — never touching a field that's already present, whether

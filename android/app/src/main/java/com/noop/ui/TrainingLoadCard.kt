@@ -33,15 +33,15 @@ import kotlin.math.max
  * 7-day fatigue proxy) on ONE shared y-scale, so the vertical gap between the lines reads as the TSB /
  * "form" (CTL − ATL), surfaced as the headline number + a footer stat.
  *
- * Descriptive only: CTL/ATL/TSB never feed the Charge/Readiness score, and the load is NOOP's daily
- * Effort/strain — not TRIMP. Long-horizon by nature, so it models the full history (not the range
+ * Descriptive only: CTL/ATL/TSB never feed the Charge/Readiness score. The load is daily TRIMP recovered
+ * from each day's stored Effort ([TrainingLoadEngine.dailyTrimp]). Long-horizon by nature, so it models the full history (not the range
  * window) and shows an honest "needs N more days" state until 14+ contiguous days exist.
  */
 @Composable
 fun TrainingLoadCard(days: List<DailyMetric>, modifier: Modifier = Modifier) {
     // Model straight from the training-load engine — NOT the paired evaluateWithTrainingLoad, which
-    // would also run the full Readiness synthesis this card never uses. DailyMetric.strain is the load.
-    val loads = days.map { TrainingLoadEngine.DailyLoad(it.day, it.strain) }
+    // would also run the full Readiness synthesis this card never uses. Load = TRIMP from each day's Effort.
+    val loads = TrainingLoadEngine.dailyTrimp(days)
     val result = TrainingLoadEngine.evaluate(loads)
     val latest = result.points.lastOrNull()
 
@@ -135,5 +135,5 @@ private fun androidx.compose.foundation.layout.RowScope.Stat(label: String, valu
     }
 }
 
-private fun fmt(v: Double): String = String.format(java.util.Locale.US, "%.1f", v)
-private fun signed(v: Double): String = String.format(java.util.Locale.US, "%+.1f", v)
+private fun fmt(v: Double): String = String.format(java.util.Locale.US, "%.0f", v)
+private fun signed(v: Double): String = String.format(java.util.Locale.US, "%+.0f", v)

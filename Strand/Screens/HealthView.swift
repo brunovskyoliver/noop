@@ -72,6 +72,8 @@ private struct HealthSectionsStack: View {
             // Vitality / Body Age (weekly, computed by IntelligenceEngine from the mortality-
             // hazard model). Its own view depending only on repo/profile.
             VitalitySection()
+            // 7-night HRV against the usual range (HRVStatus). Depends on repo/model snapshots only.
+            HRVStatusSection()
             // Screen-5 recovery detail: the CONTRIBUTORS to today's recovery as
             // labelled progress bars (HRV / Resting HR / Sleep / Respiratory), each
             // scored against the on-device baseline. Depends only on `repo`.
@@ -1195,38 +1197,19 @@ private struct ReadinessChecklistCard: View {
 
 // MARK: - Vitality / Body Age
 
-/// The "Vitality" section: a weekly wellness score (0–100) + a Body Age in years, computed by
-/// IntelligenceEngine from the published mortality-hazard model and read back from the metricSeries.
-/// A wellness trend from your habits — NOT a clinical biological age. Recomputes the live best/worst
-/// factor the same way the engine does, for the plain-English "why".
+/// The "Vitality" section: a weekly wellness score (0–100), a Body Age in years and Pace of Aging, computed
+/// by IntelligenceEngine from the published mortality-hazard model over the last 180 days and read back
+/// from the metricSeries. A wellness trend from your habits — NOT a clinical biological age. The "what's
+/// driving this" lines recompute the factors from the same 180-day reader the engine uses
+/// (`Repository.vitalityDays`), so they explain the stored headline rather than a different window.
 private struct VitalitySection: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var profile: ProfileStore
     @State private var vitality: Double?
     @State private var bodyAge: Double?
+    @State private var pace: Double?
+    @State private var contributions: [VitalityEngine.Contribution] = []
     @State private var loaded = false
-
-    private var contributions: [VitalityEngine.Contribution] {
-        let last7 = repo.days.suffix(7)
-        let nights = last7.compactMap { $0.totalSleepMin }.map { Double($0) / 60.0 }.filter { $0 > 0 }
-        let hrvs = last7.compactMap { $0.avgHrv }
-        let rhrs = last7.compactMap { $0.restingHr }.map(Double.init)
-        let steps = last7.compactMap { $0.steps }.map(Double.init)
-        func mean(_ a: [Double]) -> Double? { a.isEmpty ? nil : a.reduce(0, +) / Double(a.count) }
-        // Aggregate EXACTLY as the stored headline does (IntelligenceEngine), so this "what's driving it"
-        // breakdown reconciles with the Vitality / Body Age number it explains rather than being recomputed
-        // on different statistics: resting HR + HRV are MEDIANED (robust to one outlier night), sleep +
-        // steps are MEANED. Using the mean for all four let a single bad RHR/HRV reading drift the breakdown
-        // out of step with the median-based headline (code review).
-        return VitalityEngine.contributions(.init(
-            chronoAge: Double(profile.age),
-            restingHR: rhrs.isEmpty ? nil : IntelligenceEngine.medianOf(rhrs),
-            sleepHours: mean(nights),
-            sleepConsistency: VitalityEngine.sleepConsistency(nightlyHours: nights),
-            rmssd: hrvs.isEmpty ? nil : IntelligenceEngine.medianOf(hrvs),
-            rmssdNorm: VitalityEngine.rmssdNorm(forAge: Double(profile.age)),
-            steps: mean(steps)))
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
@@ -1247,7 +1230,7 @@ private struct VitalitySection: View {
         let delta = Double(profile.age) - ba
         let younger = delta >= 0
         let yrs = Int(abs(delta).rounded())
-        let sorted = contributions.sorted { $0.lnHazard < $1.lnHazard }
+        let sorted = contributions.sorted { $0.ageImpactYears < $1.ageImpactYears }
         let best = sorted.first
         let worst = sorted.last
         return VStack(alignment: .leading, spacing: NoopMetrics.space4) {
@@ -1283,6 +1266,7 @@ private struct VitalitySection: View {
                         .foregroundStyle(younger ? StrandPalette.statusPositive : StrandPalette.statusWarning)
                 }
             }
+            paceRow
             if (best?.lnHazard ?? 0) < 0 || (worst?.lnHazard ?? 0) > 0 {
                 Divider().overlay(StrandPalette.hairline)
                 if let best, best.lnHazard < 0 {
@@ -1307,6 +1291,39 @@ private struct VitalitySection: View {
         .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
     }
 
+    /// Pace of Aging: how fast Body Age would move if the last 30 days' habits held for six months
+    /// (1.0× = one year per calendar year). Needs about two months of wear before it appears.
+    @ViewBuilder private var paceRow: some View {
+        Divider().overlay(StrandPalette.hairline)
+        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
+            Text("Pace of Aging").strandOverline()
+            Spacer(minLength: 0)
+            if let p = pace {
+                let band = VitalityEngine.paceBand(p)
+                Text(verbatim: p.formatted(.number.precision(.fractionLength(1))) + "×")
+                    .font(StrandFont.number(22))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text(paceBandLabel(band))
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(band == .accelerated ? StrandPalette.statusWarning : StrandPalette.statusPositive)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        Text(pace == nil
+             ? String(localized: "Pace of Aging appears after about two months of wear.")
+             : String(localized: "Your last 30 days compared with your last 6 months."))
+            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+    }
+
+    private func paceBandLabel(_ band: VitalityEngine.PaceBand) -> String {
+        switch band {
+        case .reversing:   return String(localized: "Reversing")
+        case .slowing:     return String(localized: "Slowing")
+        case .steady:      return String(localized: "Steady")
+        case .accelerated: return String(localized: "Accelerating")
+        }
+    }
+
     /// The Body Age delta as whole-phrase variants per count and direction, so translators see
     /// complete phrases (never a stitched plural or direction fragment).
     private func bodyAgeDeltaLine(yrs: Int, younger: Bool) -> String {
@@ -1321,8 +1338,121 @@ private struct VitalitySection: View {
 
     private func load() async {
         vitality = (await repo.exploreSeries(key: "vitality", source: "my-whoop")).last?.value
-        bodyAge = (await repo.exploreSeries(key: "body_age", source: "my-whoop")).last?.value
+        let latestAge = (await repo.exploreSeries(key: "body_age", source: "my-whoop")).last
+        bodyAge = latestAge?.value
+        // Only the pace written alongside the current Body Age: an older week's pace must not sit next
+        // to a newer Body Age after history drops below the pace threshold.
+        pace = (await repo.exploreSeries(key: "pace_of_aging", source: "my-whoop"))
+            .last { $0.day == latestAge?.day }?.value
+        let today = Repository.dayString(Date())
+        let days = await repo.vitalityDays(endingOn: today)
+        contributions = VitalityEngine.healthspan(days: days, asOf: today, chronoAge: Double(profile.age),
+                                                  sex: profile.sex)?.bodyAge.contributions ?? []
         loaded = true
+    }
+}
+
+// MARK: - HRV status (7-night trend vs usual range)
+
+/// The 7-night HRV status (`HRVStatus`): balanced / above / below / low against the usual range from the 60
+/// days before this week. Recovery shows last night's HRV; this is the trend, labelled as such so the two
+/// readouts never read as one number that disagrees with itself.
+private struct HRVStatusSection: View {
+    @EnvironmentObject var repo: Repository
+    @EnvironmentObject var model: AppModel
+
+    private var outcome: HRVStatus.Outcome {
+        let nights = repo.days.map { HRVStatus.Night(day: $0.day, rmssd: $0.avgHrv) }
+        let today = Repository.dayString(Date())
+        // Only today's illness heads-up exists (no per-day history), so only it can mark the reading.
+        let flagged: Set<String> = model.illnessSignal.map { $0.level == .raised || $0.level == .alreadyUnwell } == true
+            ? [today] : []
+        return HRVStatus.evaluate(nights: nights, asOf: today, flaggedDays: flagged)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+            SectionHeader("HRV Status", overline: "7-night trend")
+            content(outcome)
+                .padding(NoopMetrics.space5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: NoopMetrics.cardRadius)
+        }
+    }
+
+    @ViewBuilder private func content(_ o: HRVStatus.Outcome) -> some View {
+        switch o {
+        case .calibrating(let n):
+            Text("Learning your usual range: \(n) of \(HRVStatus.minBaselineNights) nights.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+        case .noRecentData:
+            Text("No HRV from the last few nights. Wear the strap to sleep to update this.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+        case .status(let r):
+            VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+                Text(title(r.band)).font(StrandFont.title2).foregroundStyle(color(r.band))
+                Text("7-night average \(Int(r.mean7Ms.rounded())) ms · usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                rangeBar(r)
+                Text(detail(r.band)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                if r.mayReflectFlaggedDays {
+                    Text("This week may reflect feeling unwell.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.statusWarning)
+                }
+                if r.tentative {
+                    Text("Based on \(r.shortNights) of the last 7 nights.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+    }
+
+    /// A track spanning the low threshold to past the usual range, the usual band shaded, a dot at the
+    /// 7-night average.
+    private func rangeBar(_ r: HRVStatus.Reading) -> some View {
+        let lo = min(r.lowMs, r.mean7Ms) * 0.95, hi = max(r.usualHighMs, r.mean7Ms) * 1.05
+        func x(_ v: Double, _ w: CGFloat) -> CGFloat { CGFloat((v - lo) / (hi - lo)) * w }
+        return GeometryReader { g in
+            let w = g.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(StrandPalette.hairline).frame(height: 6)
+                Capsule().fill(StrandPalette.chargeColor.opacity(0.35))
+                    .frame(width: max(2, x(r.usualHighMs, w) - x(r.usualLowMs, w)), height: 6)
+                    .offset(x: x(r.usualLowMs, w))
+                Circle().fill(color(r.band)).frame(width: 12, height: 12)
+                    .offset(x: min(max(0, x(r.mean7Ms, w) - 6), w - 12))
+            }
+            .frame(height: 12)
+        }
+        .frame(height: 12)
+        .accessibilityHidden(true)
+    }
+
+    private func title(_ b: HRVStatus.Band) -> String {
+        switch b {
+        case .balanced: return String(localized: "Balanced")
+        case .above:    return String(localized: "Above your usual range")
+        case .below:    return String(localized: "Below your usual range")
+        case .low:      return String(localized: "Low")
+        }
+    }
+
+    private func detail(_ b: HRVStatus.Band) -> String {
+        switch b {
+        case .balanced: return String(localized: "Your 7-night HRV is within your usual range.")
+        case .above:    return String(localized: "Higher than usual. This can follow rest, or heavy fatigue.")
+        case .below:    return String(localized: "Lower than usual. Keep an eye on recovery and training load.")
+        case .low:      return String(localized: "Well below your usual range. An easier day may help.")
+        }
+    }
+
+    private func color(_ b: HRVStatus.Band) -> Color {
+        switch b {
+        case .balanced: return StrandPalette.statusPositive
+        case .above:    return StrandPalette.textPrimary
+        case .below:    return StrandPalette.statusWarning
+        case .low:      return StrandPalette.statusCritical
+        }
     }
 }
 

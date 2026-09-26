@@ -1,11 +1,13 @@
 import Foundation
+import WhoopStore
 
 /// Long-horizon training-load model using exponentially weighted daily load.
 ///
 /// Complements `ReadinessEngine`'s existing rolling-mean ACWR and Foster monotony without replacing
 /// either and WITHOUT feeding the Readiness level. It keeps chronic load (CTL), acute load (ATL), and
-/// their difference (TSB / "form") in the SAME units as the supplied daily load. NOOP currently supplies
-/// daily Effort/strain, so these values are not TRIMP and must not be relabelled as such.
+/// their difference (TSB / "form") in the SAME units as the supplied daily load. NOOP supplies daily
+/// TRIMP recovered from the stored Effort (`dailyTrimp`); averaging the log-compressed Effort itself
+/// flattened every ratio.
 ///
 /// Model:
 ///   alpha = 1 - exp(-1 / tauDays)
@@ -114,6 +116,12 @@ public enum TrainingLoadEngine {
         public var atl: Double? { acuteLoad }
         public var tsb: Double? { balance }
         public var isAvailable: Bool { state != .unavailable }
+    }
+
+    /// Daily TRIMP loads from stored daily metrics: each day's Effort mapped back through
+    /// `StrainScorer.strainToTrimp` (Edwards scale). A day without Effort stays nil (no observation).
+    public static func dailyTrimp(_ days: [DailyMetric]) -> [DailyLoad] {
+        days.map { d in DailyLoad(day: d.day, load: d.strain.map { StrainScorer.strainToTrimp($0) }) }
     }
 
     /// Evaluate the latest day in the input, or an explicit target day. Inputs may be in any order.

@@ -308,6 +308,14 @@ public enum StrainScorer {
         return (value * 100).rounded() / 100
     }
 
+    /// Inverse of `trimpToStrain`: the TRIMP a stored 0–100 Effort stands for, D^(strain/100) − 1. Load
+    /// models (ACWR, monotony, CTL/ATL) must average THIS, not the log-compressed Effort: averaging the
+    /// log flattens every ratio (twice the TRIMP read as ~1.1× the Effort). Strain ≤ 0 or D ≤ 1 → 0.
+    public static func strainToTrimp(_ strain: Double, denominator: Double = strainDenominator) -> Double {
+        guard strain > 0, denominator > 1 else { return 0 }
+        return pow(denominator, strain / maxStrain) - 1.0
+    }
+
     // MARK: - Denominator calibration
 
     /// Calibrate D from (TRIMP, reference_strain) pairs via the through-origin

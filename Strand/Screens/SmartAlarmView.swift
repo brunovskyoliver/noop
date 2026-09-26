@@ -499,9 +499,7 @@ struct SmartAlarmView: View {
     ///
     /// A strap that is merely disconnected is NOT excluded here: `armStrapAlarm` queues and arms on
     /// reconnect, so the alarm is real and the countdown to it is true.
-    private var strapAlarmWillArm: Bool {
-        !(model.whoop5Detected && !PuffinExperiment.isEnabled)
-    }
+    private var strapAlarmWillArm: Bool { model.strapAlarmWillArm }
 
     /// The one moment every alarm readout on this screen is derived from, or nil when nothing will fire.
     ///

@@ -38,26 +38,34 @@ public enum VitalityEngine {
         public var rmssd: Double?              // ms, nocturnal HRV
         public var rmssdNorm: Double?          // age/sex-normative RMSSD (the reference)
         public var steps: Double?              // mean daily steps
+        public var zone13MinPerWeek: Double?   // workout minutes in HR zones 1–3 (%HRR), per week
+        public var zone45MinPerWeek: Double?   // workout minutes in HR zones 4–5 (%HRR), per week
         public init(chronoAge: Double, restingHR: Double? = nil, vo2max: Double? = nil,
                     expectedVO2max: Double? = nil, sleepHours: Double? = nil,
                     sleepConsistency: Double? = nil, rmssd: Double? = nil,
-                    rmssdNorm: Double? = nil, steps: Double? = nil) {
+                    rmssdNorm: Double? = nil, steps: Double? = nil,
+                    zone13MinPerWeek: Double? = nil, zone45MinPerWeek: Double? = nil) {
             self.chronoAge = chronoAge; self.restingHR = restingHR; self.vo2max = vo2max
             self.expectedVO2max = expectedVO2max; self.sleepHours = sleepHours
             self.sleepConsistency = sleepConsistency; self.rmssd = rmssd
             self.rmssdNorm = rmssdNorm; self.steps = steps
+            self.zone13MinPerWeek = zone13MinPerWeek; self.zone45MinPerWeek = zone45MinPerWeek
         }
     }
 
     /// One factor's contribution: its label and signed log-hazard vs the population reference
-    /// (positive = ages you, negative = protective).
+    /// (positive = ages you, negative = protective). `weight` is the within-domain overlap weight (1 for
+    /// the dominant factor of a domain, 0.5 for the others; see `domainWeighted`).
     public struct Contribution: Equatable, Sendable {
         public let key: String
         public let label: String
         public let lnHazard: Double
-        public init(key: String, label: String, lnHazard: Double) {
-            self.key = key; self.label = label; self.lnHazard = lnHazard
+        public let weight: Double
+        public init(key: String, label: String, lnHazard: Double, weight: Double = 1) {
+            self.key = key; self.label = label; self.lnHazard = lnHazard; self.weight = weight
         }
+        /// Years this factor adds to (+) or takes off (−) Body Age after both overlap corrections.
+        public var ageImpactYears: Double { lnHazard * weight * VitalityEngine.overlapShrink / VitalityEngine.lnHazardPerYear }
     }
 
     public struct Result: Equatable, Sendable {
@@ -80,7 +88,7 @@ public enum VitalityEngine {
     public static let minFactors = 3
     public static let bandYears = 5.0
 
-    private static func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(hi, max(lo, v)) }
+    static func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(hi, max(lo, v)) }
 
     /// Nocturnal RMSSD ~50th-percentile by age (ms), piecewise-linear between decade anchors (the WHOOP-
     /// window norms banked in the spec — never mixed with daytime clinical norms). The reference for the
@@ -109,6 +117,68 @@ public enum VitalityEngine {
         return clamp(1 - cv, 0, 1)
     }
 
+    /// WHOOP's published minimum-recommended VO₂max (ml/kg/min) by age, ages 20…100 in 5-year steps
+    /// (WHOOP Healthspan white paper, rev. Sep 2025, Figure 4). Used as the "expected" reference, so
+    /// meeting the recommendation contributes 0. Linear between anchors, flat outside 20…100. Sex values
+    /// other than "male"/"female" read the mean of the two rows.
+    static let vo2RecFemale: [Double] = [40, 40, 38, 36, 34, 32, 30, 29, 27, 26, 25, 23, 22, 21, 20, 19, 18]
+    static let vo2RecMale: [Double] = [46, 46, 44, 42, 40, 37, 36, 34, 32, 30, 29, 27, 26, 25, 23, 22, 21]
+
+    public static func expectedVO2max(age: Double, sex: String) -> Double {
+        func interp(_ row: [Double]) -> Double {
+            let pos = clamp((age - 20) / 5, 0, Double(row.count - 1))
+            let i = Int(pos.rounded(.down))
+            if i >= row.count - 1 { return row[row.count - 1] }
+            let f = pos - Double(i)
+            return row[i] + (row[i + 1] - row[i]) * f
+        }
+        switch sex.lowercased() {
+        case "male": return interp(vo2RecMale)
+        case "female": return interp(vo2RecFemale)
+        default: return (interp(vo2RecMale) + interp(vo2RecFemale)) / 2
+        }
+    }
+
+    /// ln(hazard ratio) of leisure-time activity volume vs none, from the pooled 661,137-adult analysis of
+    /// Arem et al. 2015 (JAMA Intern Med): <1× the 150 min/week guideline 0.80, 1–2× 0.69, 2–3× 0.63,
+    /// 3–5× 0.61 (plateau; no harm above). Knots sit at each bin's midpoint in moderate-equivalent
+    /// min/week; linear between knots, flat past the last.
+    static let activityKnots: [(min: Double, lnHR: Double)] = [
+        (0, 0), (75, -0.2231435513142097), (225, -0.37106368139083207), (375, -0.4620354595965587),
+        (600, -0.4942963218147801),
+    ]
+    /// The WHO guideline (150 moderate-equivalent min/week) is the zero point: meeting it nets 0.
+    static let activityReferenceMin = 150.0
+
+    static func activityLnHazard(moderateEquivalentMin m: Double) -> Double {
+        let x = max(0, m)
+        let k = activityKnots
+        if x >= k[k.count - 1].min { return k[k.count - 1].lnHR }
+        for i in 1..<k.count where x <= k[i].min {
+            let (x0, y0) = k[i - 1]; let (x1, y1) = k[i]
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+        }
+        return k[k.count - 1].lnHR
+    }
+
+    /// Factors that measure overlapping physiology. NOOP's VO₂max is estimated from resting HR (Uth) or
+    /// with it (Nes), and steps and zone minutes both count movement volume (step intensity stops
+    /// predicting mortality once total steps are adjusted for: Saint-Maurice 2020, Paluch 2022). Within
+    /// a domain the largest-magnitude factor counts in full and the rest at half, so one signal is not
+    /// scored twice. Sleep duration and regularity stay independent: Windred 2024 adjusted for both.
+    static let overlapDomains: [[String]] = [["rhr", "vo2max"], ["steps", "zones"]]
+
+    static func domainWeighted(_ contribs: [Contribution]) -> [Contribution] {
+        var weights: [String: Double] = [:]
+        for domain in overlapDomains {
+            let members = contribs.filter { domain.contains($0.key) }
+                .sorted { abs($0.lnHazard) != abs($1.lnHazard) ? abs($0.lnHazard) > abs($1.lnHazard) : $0.key < $1.key }
+            for (i, c) in members.enumerated() { weights[c.key] = i == 0 ? 1 : 0.5 }
+        }
+        return contribs.map { Contribution(key: $0.key, label: $0.label, lnHazard: $0.lnHazard,
+                                           weight: weights[$0.key] ?? 1) }
+    }
+
     /// Compute the per-factor log-hazard contributions present in `inputs`. Each references a population
     /// value, so an average person nets ~0. Published per-unit hazard ratios (conservative, clamped):
     ///   • Resting HR: +~10.5% all-cause mortality per +10 bpm (UK Biobank / meta-analyses). ref 65.
@@ -117,6 +187,9 @@ public enum VitalityEngine {
     ///   • Sleep regularity: most-regular vs least ≈ HR 0.70 (UK Biobank SRI). ref 0.75 of the 0–1 range.
     ///   • HRV (RMSSD): ~16% per relative SD below the age norm (lower HRV = higher hazard).
     ///   • Steps: ~12% per 1,000 steps/day up to ~7k, diminishing to ~11k (pooled step-mortality meta).
+    ///   • HR-zone time: Arem 2015 activity-volume curve (see `activityKnots`), zone 4–5 minutes counted
+    ///     double (WHO: 1 vigorous minute ≈ 2 moderate), referenced to 150 min/week.
+    /// Overlapping factors are then weighted per `domainWeighted`.
     public static func contributions(_ inputs: Inputs) -> [Contribution] {
         var out: [Contribution] = []
         if let rhr = inputs.restingHR {
@@ -147,7 +220,13 @@ public enum VitalityEngine {
             out.append(Contribution(key: "steps", label: "Daily steps",
                                     lnHazard: clamp(deficit, -4, 4) * 0.064))
         }
-        return out
+        if let z13 = inputs.zone13MinPerWeek, let z45 = inputs.zone45MinPerWeek {
+            let m = max(0, z13) + 2 * max(0, z45)
+            out.append(Contribution(key: "zones", label: "Heart-rate zone time",
+                                    lnHazard: activityLnHazard(moderateEquivalentMin: m)
+                                        - activityLnHazard(moderateEquivalentMin: activityReferenceMin)))
+        }
+        return domainWeighted(out)
     }
 
     /// Full Vitality + Body Age. Returns nil until at least `minFactors` inputs are present.
@@ -155,7 +234,7 @@ public enum VitalityEngine {
         guard inputs.chronoAge > 0 else { return nil }
         let contribs = contributions(inputs)
         guard contribs.count >= minFactors else { return nil }
-        let sumLn = contribs.reduce(0) { $0 + $1.lnHazard } * overlapShrink
+        let sumLn = contribs.reduce(0) { $0 + $1.lnHazard * $1.weight } * overlapShrink
         let deltaAge = sumLn / lnHazardPerYear              // +ve = ages you
         let bodyAge = clamp(inputs.chronoAge + deltaAge, minBodyAge, maxBodyAge)
         let delta = inputs.chronoAge - bodyAge              // +ve = younger than your age
