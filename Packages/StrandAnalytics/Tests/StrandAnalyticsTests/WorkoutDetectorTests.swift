@@ -340,4 +340,73 @@ final class WorkoutDetectorTests: XCTestCase {
         XCTAssertEqual(f?.droppedLowIntensity, 1)
         XCTAssertEqual(f?.splitRuns, 0)
     }
+
+    // MARK: - Gait tags (2026-09-26)
+
+    /// `movingDay` plus a step stream that tags the listed segment indices as walk (class 1), all
+    /// other seconds still.
+    private func movingDay(start: Int, _ segs: [(Int, Int)], gait: Set<Int>)
+        -> (hr: [HRSample], grav: [GravitySample], steps: [StepSample]) {
+        let (hr, grav) = movingDay(start: start, segs)
+        var bounds: [(Int, Int)] = []
+        var t = start
+        for (dur, _) in segs { bounds.append((t, t + dur)); t += dur }
+        let steps = grav.map { g in
+            StepSample(ts: g.ts, counter: 0,
+                       activityClass: bounds.indices.contains { gait.contains($0) && g.ts >= bounds[$0].0 && g.ts < bounds[$0].1 } ? 1 : 0)
+        }
+        return (hr, grav, steps)
+    }
+
+    /// A walk with the arm held still (hands in pockets) leaves the gravity delta flat. The strap's gait
+    /// tag alone must carry it through the motion gate.
+    func testQuietArmWalkIsDetectedFromGaitTags() {
+        let start = 10_000_000
+        let hr = (0..<1800).map { HRSample(ts: start + $0, bpm: 120) }
+        let grav = (0..<1800).map { GravitySample(ts: start + $0, x: 0, y: 0, z: 1) }
+        let steps = (0..<1800).map { StepSample(ts: start + $0, counter: $0, activityClass: 1) }
+        XCTAssertTrue(WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190).isEmpty)
+        let s = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190, steps: steps)
+        XCTAssertEqual(s.count, 1)
+        XCTAssertGreaterThan(s[0].durationS, 1700)
+    }
+
+    /// The field case (2026-09-26): the walk to the gym bridged onto the lift and the whole bout was
+    /// classified walk. The walk is cut off at its end and the lift comes back on its own.
+    func testWalkToTheGymIsCutOffTheLift() {
+        let start = 11_000_000
+        let (hr, grav, steps) = movingDay(start: start, [(900, 118)] + liftSets, gait: [0])
+        var f: WorkoutDetector.DetectionFunnel?
+        let s = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190,
+                                       funnel: { f = $0 }, steps: steps)
+        XCTAssertEqual(s.count, 2, "\(String(describing: f))")
+        XCTAssertEqual(s[1].start, start + 900, "the lift starts where the walk ends")
+        XCTAssertLessThanOrEqual(s[0].end, start + 900)
+        XCTAssertEqual(f?.splitRuns, 1)
+        XCTAssertEqual(f?.splitKept, 2)
+    }
+
+    /// A walk with a three-minute stop is one walk, not two.
+    func testWalkWithAStopStaysWhole() {
+        let (hr, grav, steps) = movingDay(start: 12_000_000, [(1200, 118), (180, 118), (1200, 118)], gait: [0, 2])
+        let s = WorkoutDetector.detect(hr: hr, gravity: grav, restingHR: 60, maxHR: 190, steps: steps)
+        XCTAssertEqual(s.count, 1)
+        XCTAssertGreaterThan(s[0].durationS, 2500)
+    }
+
+    func testGaitPieces() {
+        let start = 13_000_000
+        // 15 walking minutes, then 20 without gait.
+        let walk = Array(start..<(start + 900))
+        let pieces = WorkoutDetector.gaitPieces(start: start, end: start + 2099, gaitTs: walk)
+        XCTAssertEqual(pieces?.map(\.0), [start, start + 900])
+        XCTAssertEqual(pieces?.last?.1, start + 2099)
+        // A sprint the strap tagged as walk is part of the session, not a way into it.
+        XCTAssertNil(WorkoutDetector.gaitPieces(start: start, end: start + 2099, gaitTs: walk,
+                                                isWalkPace: { _, _ in false }))
+        // Under ten minutes of anything else beside the walk: nothing to cut.
+        XCTAssertNil(WorkoutDetector.gaitPieces(start: start, end: start + 1400, gaitTs: walk))
+        // No streak of five walking minutes: nothing to cut.
+        XCTAssertNil(WorkoutDetector.gaitPieces(start: start, end: start + 2099, gaitTs: Array(walk.prefix(240))))
+    }
 }
