@@ -964,7 +964,8 @@ public enum AnalyticsEngine {
             // A day on Banister whose workouts were still on Edwards would show a session scoring
             // less than the day it sits inside, which is a worse inconsistency than either method.
             effortMethod: effortMethod,
-            funnel: { detectionFunnel = $0 })
+            funnel: { detectionFunnel = $0 },
+            steps: daySteps ?? steps)
 
         // ── Per-bout enrichment + advisory classification (2026-09-21) ────────
         // Both fills reuse ONLY the day streams this call already loaded — `daySteps`/`steps` for the

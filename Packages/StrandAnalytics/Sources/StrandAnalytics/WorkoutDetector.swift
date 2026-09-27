@@ -209,6 +209,9 @@ public enum WorkoutDetector {
 
     // MARK: - Helpers
 
+    /// Activity-class values the 5/MG strap uses for gait: 1 = walk, 2 = run (0 = still, nil = 4.0).
+    static func isGait(_ activityClass: Int?) -> Bool { activityClass == 1 || activityClass == 2 }
+
     /// Sorted (ts, bpm) pairs.
     static func cleanHR(_ hr: [HRSample]) -> [(ts: Int, bpm: Double)] {
         hr.map { (ts: $0.ts, bpm: Double($0.bpm)) }.sorted { $0.ts < $1.ts }
@@ -513,6 +516,67 @@ public enum WorkoutDetector {
         return cores
     }
 
+    /// Activity-tier bar for a piece `gaitPieces` cut from a bout that already qualified: half of
+    /// `activityElevatedFrac`. A lift's sets and rests leave about 40% of its HR over the activity floor
+    /// (09-20: 42%), while the sitting beside it reads near 0%.
+    static let pieceElevatedFrac = 0.25
+    /// A minute counts as walking when at least this many of its seconds carry a gait tag.
+    static let gaitMinuteTicks = 45
+    /// A walking streak must last this long to split a bout; shorter ones are moves between sets.
+    static let gaitStreakMinS = 300
+    /// 2026-09-26: cut `[start, end]` at the edges of its sustained walking streaks, or nil when there is
+    /// nothing to cut. Minutes are counted from `start`; a streak is a run of walking minutes (one
+    /// non-walking minute inside it is bridged) lasting `gaitStreakMinS`, and streaks less than
+    /// `activityMinMin` apart are joined. The bout is only cut when a streak sits beside at least
+    /// `activityMinMin` of non-walking time, so a pure walk with a few stops stays whole. `isWalkPace`
+    /// vets each streak: the strap tags sprinting in a field sport as walk too (08-22: 177–184 bpm, run
+    /// class never set), and such a streak is part of the session, not a way into it. The pieces cover the bout end to end. `gaitTs` must be sorted.
+    ///
+    /// Measured on 2026-09-26 (phone data): walking minutes read 50–60 gait ticks, lifting minutes 0–40,
+    /// the strap's classifier tagging about a third of lifting seconds as walk.
+    static func gaitPieces(start: Int, end: Int, gaitTs: [Int],
+                           isWalkPace: (Int, Int) -> Bool = { _, _ in true }) -> [(Int, Int)]? {
+        guard !gaitTs.isEmpty, end - start >= gaitStreakMinS else { return nil }
+        let n = (end - start) / 60 + 1
+        var ticks = [Int](repeating: 0, count: n)
+        var i = gaitTs.firstIndex { $0 >= start } ?? gaitTs.count
+        while i < gaitTs.count, gaitTs[i] <= end { ticks[(gaitTs[i] - start) / 60] += 1; i += 1 }
+        var walking = ticks.map { $0 >= gaitMinuteTicks }
+        for m in 1..<max(1, n - 1) where !walking[m] && walking[m - 1] && walking[m + 1] { walking[m] = true }
+        // Streaks as [first, last] minute indices.
+        var streaks: [(Int, Int)] = []
+        var m = 0
+        while m < n {
+            guard walking[m] else { m += 1; continue }
+            var e = m
+            while e + 1 < n, walking[e + 1] { e += 1 }
+            if (e - m + 1) * 60 >= gaitStreakMinS { streaks.append((m, e)) }
+            m = e + 1
+        }
+        guard !streaks.isEmpty else { return nil }
+        // Streaks less than `activityMinMin` apart are one walk with a stop in it (a shop, a crossing).
+        let joinGapMin = Int(activityMinMin)
+        streaks = streaks.dropFirst().reduce(into: [streaks[0]]) { acc, s in
+            if s.0 - acc[acc.count - 1].1 - 1 < joinGapMin { acc[acc.count - 1].1 = s.1 } else { acc.append(s) }
+        }
+        streaks = streaks.filter { isWalkPace(start + $0.0 * 60, min(end, start + $0.1 * 60 + 59)) }
+        guard !streaks.isEmpty else { return nil }
+        // Cut points in seconds from `start`: each streak's first and one-past-last minute.
+        var cuts = [0]
+        for (a, b) in streaks { cuts += [a * 60, (b + 1) * 60] }
+        cuts.append(end - start + 1)
+        var pieces: [(Int, Int)] = []
+        var otherS = 0
+        for k in 0..<(cuts.count - 1) {
+            let a = min(cuts[k], end - start), b = min(cuts[k + 1], end - start + 1)
+            guard b > a else { continue }
+            pieces.append((start + a, start + b - 1))
+            if k % 2 == 0 { otherS = max(otherS, b - a) }
+        }
+        guard Double(otherS) >= activityMinMin * 60.0 - motionSmoothS else { return nil }
+        return pieces
+    }
+
     /// #148: back-date a confirmed run's start over the warm-up. Motion leads HR at the onset of the
     /// first effort — cardiac warm-up climbs over minutes, so the HR-AND-motion gate clips the leading
     /// "moving but HR not yet elevated" stretch. Once a run has ALREADY QUALIFIED on its HR-elevated
@@ -547,6 +611,8 @@ public enum WorkoutDetector {
     ///   - maxHR: HRmax (bpm). nil → estimated via StrainScorer.estimateHRmax.
     ///   - age: used only for the Tanaka fallback when maxHR is nil.
     ///   - profile: when provided, per-bout calories are estimated.
+    ///   - steps: the strap's step stream. A second the strap tags walk or run passes the motion gate
+    ///     even when the gravity delta does not (see `isGait`). nil or empty keeps the gravity-only gate.
     public static func detect(hr: [HRSample],
                               gravity: [GravitySample],
                               restingHR: Double? = nil,
@@ -561,7 +627,8 @@ public enum WorkoutDetector {
                               // #1545: receives the gate-by-gate counts for THIS call. nil (the default)
                               // keeps every existing caller and test byte-identical — nothing is computed
                               // that the detector was not already computing, the counters just record it.
-                              funnel: ((DetectionFunnel) -> Void)? = nil) -> [ExerciseSession] {
+                              funnel: ((DetectionFunnel) -> Void)? = nil,
+                              steps: [StepSample]? = nil) -> [ExerciseSession] {
         // `defer` so the funnel is reported on EVERY exit, including the early returns below. A day that
         // bails at "no motion rows at all" is precisely the day whose report matters most, and it is the
         // one a happy-path-only emit would stay silent about.
@@ -593,11 +660,16 @@ public enum WorkoutDetector {
         let hrBpm = hrSeg.map { $0.bpm }
         let smooth = smoothedIntensity(motion, windowS: motionSmoothS)
         let motionTs = motion.map { $0.ts }
+        // 2026-09-26: a steady walk with a quiet arm (hands in pockets, holding a phone) keeps the gravity
+        // delta under the gate for most of its seconds while the 5/MG gait classifier tags every one of
+        // them walk. On a real hour-long walk the gate passed 3% of its seconds from minute 7 on, so only
+        // two scraps of it were detected. The strap's gait tag is a direct walking signal; honour it.
+        let gaitTs = Set((steps ?? []).lazy.filter { isGait($0.activityClass) }.map(\.ts))
 
         // Walk the gravity timeline; flag samples where BOTH gates hold.
         var activeTs: [Int] = []
         for (p, inten) in zip(motion, smooth) {
-            if inten <= motionThreshold { continue }
+            if inten <= motionThreshold && !gaitTs.contains(p.ts) { continue }
             f.motionPassed += 1
             // Split the HR rejection two ways: no sample within tolerance is a SENSOR GAP, a sample at or
             // below the floor is a body that simply was not working. They read identically in a bout count
@@ -638,17 +710,23 @@ public enum WorkoutDetector {
         // 2026-09-23: a worklist rather than a plain walk over `runs`, so a run that fails both intensity
         // bars can queue its elevated cores (see `elevatedCores`) right behind itself. `prevRunEnd` is the
         // previous BRIDGED run's end — cores sit inside their parent, so they never move it.
-        var queue = runs.map { (start: $0.0, end: $0.1, isCore: false) }
+        // 2026-09-26: each entry carries which splits it may still try: its elevated cores (`coreSplit`)
+        // and its walking streaks (`gaitSplit`, see `gaitPieces`). A bridged run may try both; each split
+        // clears its own flag on what it queues, so nothing splits the same way twice. Only a bridged run
+        // (both flags) is counted in the funnel's drop counters, back-dated, or moves `prevRunEnd`.
+        var queue = runs.map { (start: $0.0, end: $0.1, coreSplit: true, gaitSplit: true) }
+        let gaitSorted = gaitTs.sorted()
         var qi = 0
         var prevRunEnd = Int.min
         while qi < queue.count {
-            let (start, end, isCore) = queue[qi]
+            let (start, end, coreSplit, gaitSplit) = queue[qi]
+            let isRun = coreSplit && gaitSplit
             qi += 1
             let backdateFloor = prevRunEnd
-            if !isCore { prevRunEnd = end + 1 }
+            if isRun { prevRunEnd = end + 1 }
             // Onset latency tolerance equal to the smoothing window.
             if Double(end - start) < minDurS - motionSmoothS {
-                if !isCore { f.droppedShort += 1 }
+                if isRun { f.droppedShort += 1 }
                 continue
             }
             // Qualify on the HR-elevated CORE (unchanged gates) so the warm-up's low intensity
@@ -677,33 +755,54 @@ public enum WorkoutDetector {
                        Double(end - start) >= activityMinMin * 60.0 - motionSmoothS {
                         let activityFloor = restHR + activityHRRFraction * (m - restHR)
                         let elevated = core.reduce(0) { $0 + ($1.bpm > activityFloor ? 1 : 0) }
-                        isActivityTier = Double(elevated) / Double(core.count) >= activityElevatedFrac
+                        let frac = Double(elevated) / Double(core.count)
+                        // A gait piece's parent already qualified, so the piece needs only
+                        // `pieceElevatedFrac`: enough to tell a lift from the pottering beside it.
+                        isActivityTier = frac >= (gaitSplit ? activityElevatedFrac : pieceElevatedFrac)
                     }
                     if !isActivityTier {
                         // 2026-09-23: the span floor (rest + `hrMarginBPM`) sits far below the activity
                         // floor, so an hour of pottering around can bridge onto a real session and
                         // dilute it under the bar — a 40 min lift merged into a 142 min afternoon read
                         // 41% elevated and the whole run was dropped. Before giving up, retry the run's
-                        // elevated cores on their own. A core never splits again.
-                        if !isCore, let m = effMaxHR {
+                        // elevated cores on their own. A core never splits into cores again. A lift cut away
+                        // from its walk by `gaitPieces` often lands here too: its sets-and-rests HR sits
+                        // under the bar as a whole while its working stretch clears it.
+                        if coreSplit, let m = effMaxHR {
                             let cores = elevatedCores(core, floor: restHR + activityHRRFraction * (m - restHR))
                             if cores.contains(where: { Double($0.1 - $0.0) >= activityMinMin * 60.0 - motionSmoothS }) {
-                                f.splitRuns += 1
-                                queue.insert(contentsOf: cores.map { (start: $0.0, end: $0.1, isCore: true) }, at: qi)
+                                if isRun { f.splitRuns += 1 }
+                                queue.insert(contentsOf: cores.map { (start: $0.0, end: $0.1, coreSplit: false,
+                                                                      gaitSplit: gaitSplit) }, at: qi)
                                 continue
                             }
                         }
-                        if !isCore { f.droppedLowIntensity += 1 }
+                        if isRun { f.droppedLowIntensity += 1 }
                         continue
                     }
                 }
+            }
+
+            // 2026-09-26: a qualified bout that joins a sustained walk to something else (the walk to the gym
+            // and the lift, or pottering and the walk) is cut at the walk's edges and each piece is qualified
+            // on its own, so the pottering drops out and the classifier sees the lift without the commute.
+            if gaitSplit, let pieces = gaitPieces(start: start, end: end, gaitTs: gaitSorted, isWalkPace: { a, b in
+                // Walking pace: under the same zone-2 bar that marks a hard effort.
+                guard let m = effMaxHR, m > restHR else { return true }
+                let z = boutIntensity(hrSeg.filter { $0.ts >= a && $0.ts <= b }, restingHR: restHR, maxHR: m).0
+                return (2...5).reduce(0.0) { $0 + (z[$1] ?? 0.0) } / 100.0 < minIntensityZ2Plus
+            }) {
+                if isRun { f.splitRuns += 1 }
+                queue.insert(contentsOf: pieces.map { (start: $0.0, end: $0.1, coreSplit: coreSplit, gaitSplit: false) },
+                             at: qi)
+                continue
             }
 
             // Qualified → back-date the start over the warm-up and report stats on the full window (#148).
             // Never back-date past the previous run's end: a continuous-motion stretch whose HR dipped to
             // resting BETWEEN two efforts (so bridgeRuns kept them separate) must not overlap the earlier one.
             // A core is never back-dated: the motion before it is exactly the pottering it was cut from.
-            let effStart = isCore ? start : max(Self.backdatedStart(start, motionTs, smooth), backdateFloor)
+            let effStart = isRun ? max(Self.backdatedStart(start, motionTs, smooth), backdateFloor) : start
             let window = hrSeg.filter { $0.ts >= effStart && $0.ts <= end }
             if window.isEmpty { f.droppedNoHR += 1; continue }
             let bpms = window.map { $0.bpm }
@@ -730,7 +829,7 @@ public enum WorkoutDetector {
                 hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
                                              start: effStart, end: end),
                 isActivityTier: isActivityTier))
-            if isCore { f.splitKept += 1 }
+            if !isRun { f.splitKept += 1 }
         }
         f.kept = sessions.count
         f.keptActivity = sessions.reduce(0) { $0 + ($1.isActivityTier ? 1 : 0) }

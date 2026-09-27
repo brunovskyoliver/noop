@@ -1,5 +1,6 @@
 import SwiftUI
 import StrandDesign
+import StrandAnalytics
 
 /// Automations — turn the strap's physical inputs (double-tap, wrist on/off) and live biometrics
 /// into actions (Shortcuts, and Mac-only screen lock) and haptic coaching. All on-device.
@@ -30,6 +31,18 @@ struct AutomationsView: View {
     /// from the BLE offload path (BLEManager.maybeBuzzInactivity → the shipped SedentaryDetector); this
     /// screen only edits the prefs the engine reads.
     @StateObject private var inactivity = InactivityPrefs()
+    /// Hourly stand reminder (2026-09-26). Same keys `StandReminderNotifier.loadConfig` reads on each sync.
+    @AppStorage(StandReminderNotifier.K.enabled) private var standOn = false
+    @AppStorage(StandReminderNotifier.K.goalMinutes) private var standGoal = 5
+    @AppStorage(StandReminderNotifier.K.remindAtMinute) private var standAt = 50
+    @AppStorage(StandReminderNotifier.K.learnWindow) private var standLearn = true
+    @AppStorage(StandReminderNotifier.K.manualStartHour) private var standFrom = 9
+    @AppStorage(StandReminderNotifier.K.manualEndHour) private var standTo = 18
+    @AppStorage(StandReminderNotifier.K.maxPerDay) private var standMax = 8
+    @AppStorage(StandReminderNotifier.K.learnMuting) private var standMute = true
+    @AppStorage(StandReminderNotifier.K.buzz) private var standBuzz = true
+    /// What the stand reminder has learned so far, read from its state file when the card appears.
+    @State private var standLearned = StandReminder.State()
     #if os(iOS)
     /// Wrist-alerts master gate (PR #572). On iOS the NotificationSettingsView (and its store) are
     /// excluded by project.yml, so `notif.masterEnabled` — the key SedentaryDetector + the wrist-buzz
@@ -65,6 +78,7 @@ struct AutomationsView: View {
             // the wind-down reminder. It's moved to the dedicated Alarms screen (SmartAlarmView) so every
             // wake/wind-down control lives in one place. Automations is just inputs-to-actions now.
             inactivityCard
+            standCard
             illnessCard
             healthInsightsCard
             batteryCard
@@ -293,6 +307,94 @@ struct AutomationsView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Stand reminder (2026-09-26)
+
+    private var standCard: some View {
+        Section2(icon: "figure.stand", title: String(localized: "Stand reminder"),
+                 blurb: String(localized: "Aim for a few minutes up and moving every hour. If the hour is still short at the reminder time, NOOP nudges you with time left to earn it. It learns which hours you're usually up, and goes quiet in hours you keep ignoring."),
+                 active: standOn) {
+            VStack(spacing: 0) {
+                ToggleRow(label: String(localized: "Remind me to stand"),
+                          help: String(localized: "Counted from the strap's motion on each sync; a minute counts when you're walking or moving on your feet."),
+                          isOn: $standOn)
+                    .onChangeCompat(of: standOn) { StandReminderNotifier.setEnabled($0) }
+                if standOn {
+                    if !notifMasterOn {
+                        Text("Wrist alerts are off, so this can't notify you yet. Turn on Wrist alerts at the top of this screen.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 6)
+                    }
+                    rowDivider
+                    stepperRow(label: String(localized: "Hourly goal"), help: String(localized: "Minutes up and moving that earn the hour."),
+                               value: $standGoal, suffix: String(localized: "min"), range: 1...15, step: 1)
+                    rowDivider
+                    stepperRow(label: String(localized: "Remind at"), help: String(localized: "Minute past the hour to check the goal."),
+                               value: $standAt, suffix: String(localized: "past"), range: 30...55, step: 5)
+                    rowDivider
+                    ToggleRow(label: String(localized: "Learn my day"),
+                              help: standWindowSummary, isOn: $standLearn)
+                    if !standLearn {
+                        rowDivider
+                        stepperRow(label: String(localized: "First reminder hour"), help: String(localized: "Reminders start in this hour."),
+                                   value: $standFrom, suffix: ":00", range: 0...22, step: 1)
+                        rowDivider
+                        stepperRow(label: String(localized: "Stop at"), help: String(localized: "No reminders from this hour on."),
+                                   value: $standTo, suffix: ":00", range: (standFrom + 1)...24, step: 1)
+                    }
+                    rowDivider
+                    stepperRow(label: String(localized: "At most"), help: String(localized: "Reminders per day."),
+                               value: $standMax, suffix: String(localized: "a day"), range: 1...16, step: 1)
+                    rowDivider
+                    ToggleRow(label: String(localized: "Mute hours I keep ignoring"),
+                              help: standMutedSummary, isOn: $standMute)
+                    if standMute && !standMutedSlots.isEmpty {
+                        Button(String(localized: "Unmute all")) {
+                            StandReminderNotifier.resetMuting()
+                            standLearned = StandReminderNotifier.loadState()
+                        }
+                        .font(StrandFont.body).foregroundStyle(StrandPalette.accent)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
+                    }
+                    rowDivider
+                    ToggleRow(label: String(localized: "Buzz the strap too"),
+                              help: String(localized: "A wrist buzz with the notification, while the strap is connected and worn."),
+                              isOn: $standBuzz)
+                }
+            }
+        }
+        .onAppear { standLearned = StandReminderNotifier.loadState() }
+    }
+
+    private var standMutedSlots: [(weekend: Bool, hour: Int)] {
+        StandReminder.mutedSlots(outcomes: standLearned.outcomes, nowSec: Int(Date().timeIntervalSince1970))
+    }
+
+    private var standWindowSummary: String {
+        let days = Set(standLearned.history.filter(\.observed).map(\.day)).count
+        guard let wd = StandReminder.learnedWindow(standLearned.history, weekend: false),
+              let we = StandReminder.learnedWindow(standLearned.history, weekend: true) else {
+            let w = StandReminder.defaultWindow
+            return String(localized: "Still learning (\(days) of \(StandReminder.minLearnDays) days seen). Until then: \(Self.standRange(w, at: standAt)).")
+        }
+        return String(localized: "Learned from \(days) days. Weekdays \(Self.standRange(wd, at: standAt)), weekends \(Self.standRange(we, at: standAt)).")
+    }
+
+    private var standMutedSummary: String {
+        let slots = standMutedSlots
+        guard !slots.isEmpty else {
+            return String(localized: "After three ignored reminders in the same hour, that hour goes quiet for a week.")
+        }
+        let list = slots.map { String(format: "%02d:%02d", $0.hour, standAt) + ($0.weekend ? " " + String(localized: "weekends") : "") }
+        return String(localized: "Muted for now: \(list.joined(separator: ", ")).")
+    }
+
+    /// "08:50–20:50": the first and last reminder times a window allows.
+    private static func standRange(_ w: StandReminder.Window, at minute: Int) -> String {
+        String(format: "%02d:%02d–%02d:%02d", w.startHour, minute, max(w.startHour, w.endHour - 1), minute)
     }
 
     /// The reused global notification master (notif.masterEnabled, default OFF) — drives the inert-feature

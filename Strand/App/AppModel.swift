@@ -1583,11 +1583,25 @@ final class AppModel: ObservableObject {
         #endif
     }
 
+    /// Post (or hand to the OS for `fireAt`) the hourly stand reminder. Called by
+    /// `StandReminderNotifier` from the offload hook. The copy names no minute count: a reminder
+    /// scheduled at :20 for :50 can't know what the next half hour brings. No-op on macOS and when wrist
+    /// alerts are off.
+    static func postStandReminder(goal: Int, at fireAt: Date?) {
+        #if os(iOS)
+        postWristAlert(identifier: StandReminderNotifier.requestId, title: String(localized: "Time to stand"),
+                       body: String(localized: "Under \(goal) min on your feet this hour. Stand up and move for a few minutes to earn it."),
+                       at: fireAt, categoryId: StandReminderNotifier.categoryId)
+        #endif
+    }
+
     #if os(iOS)
     /// Shared post path: gate on the wrist-alerts master, then deliver only if the OS already authorized
     /// notifications (no second system prompt , BatteryNotifier-style status-only check). A fresh
-    /// identifier per category means a new alert replaces the old one rather than stacking.
-    private static func postWristAlert(identifier: String, title: String, body: String) {
+    /// identifier per category means a new alert replaces the old one rather than stacking. `fireAt`
+    /// (stand reminder) hands the alert to the notification center for later instead of posting now.
+    private static func postWristAlert(identifier: String, title: String, body: String,
+                                       at fireAt: Date? = nil, categoryId: String? = nil) {
         guard UserDefaults.standard.bool(forKey: wristAlertsMasterKey) else { return }
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
@@ -1596,7 +1610,10 @@ final class AppModel: ObservableObject {
             content.title = title
             content.body = body
             content.sound = .default
-            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
+            if let categoryId { content.categoryIdentifier = categoryId }
+            let delay = fireAt.map { $0.timeIntervalSinceNow } ?? 0
+            let trigger = delay >= 1 ? UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false) : nil
+            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
     }
     #endif

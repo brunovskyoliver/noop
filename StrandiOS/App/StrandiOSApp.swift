@@ -80,11 +80,11 @@ struct StrandiOSApp: App {
         // is open, so a user testing the wind-down reminder with NOOP foregrounded sees nothing. Register
         // before the first scene so any early-fired notification is presented.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
-        // Detected-workout category (Edit / "Not a workout" actions). Merged into whatever is already
+        // Detected-workout category (Edit / "Not a workout" actions) and the stand reminder's "Pause for today". Merged into whatever is already
         // registered rather than set outright, so a future category can't be silently dropped here.
         let center = UNUserNotificationCenter.current()
         center.getNotificationCategories { existing in
-            center.setNotificationCategories(existing.union([WorkoutDetectedNotifier.category]))
+            center.setNotificationCategories(existing.union([WorkoutDetectedNotifier.category, StandReminderNotifier.category]))
         }
         // K5: tapping a scheduled morning-brief notification routes to Coach via the shared NavRouter.
         let router = NavRouter()
