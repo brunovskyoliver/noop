@@ -354,4 +354,55 @@ final class HealthWritebackTests: XCTestCase {
         XCTAssertTrue(HealthWriteback.nightIsStillOpen(endTs: 1_000, newestHeartRateTs: 1_000, now: 1_000 + 2 * 3_600 - 1))
         XCTAssertFalse(HealthWriteback.nightIsStillOpen(endTs: 1_000, newestHeartRateTs: 1_000, now: 1_000 + 2 * 3_600))
     }
+
+    // MARK: - Write-back change detection
+
+    private func written(_ pairs: [(Int, Int)]) -> [Int: Int] {
+        Dictionary(uniqueKeysWithValues: pairs)
+    }
+
+    func testUnchangedHeartRateNeedsNoRewrite() {
+        let current = [(ts: 60, centiBpm: 6_000), (ts: 120, centiBpm: 6_100)]
+        XCTAssertNil(HealthWriteback.firstChangedHeartRateBucket(
+            current: current, previous: written([(60, 6_000), (120, 6_100)]), windowStart: 60))
+    }
+
+    func testAppendedHeartRateRewritesOnlyFromTheFirstNewBucket() {
+        let current = [(ts: 60, centiBpm: 6_000), (ts: 120, centiBpm: 6_100), (ts: 180, centiBpm: 6_200)]
+        XCTAssertEqual(HealthWriteback.firstChangedHeartRateBucket(
+            current: current, previous: written([(60, 6_000), (120, 6_100)]), windowStart: 60), 180)
+    }
+
+    func testABackfilledOrRemovedBucketRewritesFromThere() {
+        // An offload filled a gap at 120 and moved nothing after it.
+        let filled = [(ts: 60, centiBpm: 6_000), (ts: 120, centiBpm: 5_900), (ts: 180, centiBpm: 6_200)]
+        XCTAssertEqual(HealthWriteback.firstChangedHeartRateBucket(
+            current: filled, previous: written([(60, 6_000), (180, 6_200)]), windowStart: 60), 120)
+        // A bucket written last time is gone.
+        let dropped = [(ts: 60, centiBpm: 6_000), (ts: 180, centiBpm: 6_200)]
+        XCTAssertEqual(HealthWriteback.firstChangedHeartRateBucket(
+            current: dropped, previous: written([(60, 6_000), (120, 6_100), (180, 6_200)]), windowStart: 60), 120)
+    }
+
+    func testBucketsThatSlidOutOfTheWindowAreNotAChange() {
+        let current = [(ts: 120, centiBpm: 6_100)]
+        XCTAssertNil(HealthWriteback.firstChangedHeartRateBucket(
+            current: current, previous: written([(60, 6_000), (120, 6_100)]), windowStart: 120))
+    }
+
+    func testCentiBpmAbsorbsAverageNoise() {
+        XCTAssertEqual(HealthWriteback.centiBpm(61.999999999), HealthWriteback.centiBpm(62.0))
+        XCTAssertNotEqual(HealthWriteback.centiBpm(62.0), HealthWriteback.centiBpm(62.01))
+    }
+
+    func testWritebackDigestIsStableAndSensitive() {
+        // Canonical FNV-1a 64 of the empty input is the offset basis, so a persisted digest never
+        // depends on the process that wrote it.
+        XCTAssertEqual(HealthWriteback.writebackDigest([]), "cbf29ce484222325")
+        XCTAssertEqual(HealthWriteback.writebackDigest(["a"]), "af63dc4c8601ec8c")  // published FNV-1a 64 vector for "a"
+        XCTAssertEqual(HealthWriteback.writebackDigest(["a"]).count, 16)
+        XCTAssertEqual(HealthWriteback.writebackDigest(["a", "b"]), HealthWriteback.writebackDigest(["a", "b"]))
+        XCTAssertNotEqual(HealthWriteback.writebackDigest(["a", "b"]), HealthWriteback.writebackDigest(["b", "a"]))
+        XCTAssertNotEqual(HealthWriteback.writebackDigest(["ab"]), HealthWriteback.writebackDigest(["a", "b"]))
+    }
 }
