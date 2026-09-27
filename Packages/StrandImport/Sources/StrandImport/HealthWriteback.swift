@@ -247,4 +247,46 @@ public enum HealthWriteback {
     public static func strandedSweepResult(swept: Set<String>, succeededThisRun: Set<String>) -> Set<String> {
         swept.union(succeededThisRun)
     }
+
+    // MARK: - Write-back change detection
+    //
+    // Every write-back used to delete and re-save its whole window whether or not anything had changed:
+    // 48 h of 1-minute HR (~2,880 samples), and 14 days of vitals, sleep and workouts. With the 20-minute
+    // throttle already in place, the field phone (2026-09-26) still logged 7 `healthd` `cpu_resource`
+    // reports in a day, and the Watch logged its own, because every rewrite also syncs on to it. These
+    // helpers let each writer tell "nothing to do" from "rewrite from here" before touching HealthKit.
+
+    /// A bucket's bpm in hundredths, so float noise in the SQL `AVG` cannot read as a change.
+    public static func centiBpm(_ bpm: Double) -> Int { Int((bpm * 100).rounded()) }
+
+    /// The earliest bucket start from which the written heart rate must be replaced, or nil when
+    /// `current` is exactly what was last written. A bucket has changed when it is new, when its value
+    /// moved, or when a bucket written earlier at or after `windowStart` is no longer there.
+    public static func firstChangedHeartRateBucket(current: [(ts: Int, centiBpm: Int)],
+                                                   previous: [Int: Int],
+                                                   windowStart: Int) -> Int? {
+        var first: Int?
+        var seen = Set<Int>()
+        seen.reserveCapacity(current.count)
+        for b in current {
+            seen.insert(b.ts)
+            if previous[b.ts] != b.centiBpm { first = min(first ?? b.ts, b.ts) }
+        }
+        for ts in previous.keys where ts >= windowStart && !seen.contains(ts) {
+            first = min(first ?? ts, ts)
+        }
+        return first
+    }
+
+    /// FNV-1a 64 over the UTF-16 code units of `lines` joined by newlines, as 16 hex digits. A digest
+    /// persisted by one launch must compare equal in the next, so never `hashValue` (Swift seeds it per
+    /// process).
+    public static func writebackDigest(_ lines: [String]) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for unit in lines.joined(separator: "\n").utf16 {
+            h = (h ^ UInt64(unit)) &* 0x100000001b3
+        }
+        let hex = String(h, radix: 16)
+        return String(repeating: "0", count: 16 - hex.count) + hex
+    }
 }

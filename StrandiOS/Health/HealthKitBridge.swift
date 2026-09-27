@@ -944,9 +944,11 @@ final class HealthKitBridge: ObservableObject {
 
         struct Candidate { let type: HKQuantityType; let key: String; let sample: HKQuantitySample }
         var candidates: [Candidate] = []
+        var digestLines: [String] = []
         func add(_ id: HKQuantityTypeIdentifier, _ unit: HKUnit, _ value: Double, _ day: String, _ at: Date) {
             guard let type = HKQuantityType.quantityType(forIdentifier: id),
                   store.authorizationStatus(for: type) == .sharingAuthorized else { return }
+            digestLines.append("\(id.rawValue)|\(day)|\(value)|\(Int(at.timeIntervalSince1970))")
             // #1503: the key carries NO device-id segment. The previous scheme embedded the active
             // strap id, which is not durable — a re-pair changed it and stranded every prior record
             // in Apple Health as unreachable duplicates. The natural key (`noop:<metric>:<day>`)
@@ -966,6 +968,7 @@ final class HealthKitBridge: ObservableObject {
         func retract(_ id: HKQuantityTypeIdentifier, _ day: String) {
             guard let type = HKQuantityType.quantityType(forIdentifier: id),
                   store.authorizationStatus(for: type) == .sharingAuthorized else { return }
+            digestLines.append("retract|\(id.rawValue)|\(day)")
             retracted[type, default: []].append(HealthWriteback.appleHealthVitalKey(metricId: id.rawValue, day: day))
         }
 
@@ -1000,23 +1003,24 @@ final class HealthKitBridge: ObservableObject {
             }
         }
         guard !candidates.isEmpty || !retracted.isEmpty else { return }
-
-        // Delete any of OUR prior samples that carry the same metadata keys, then write the fresh
-        // batch. Scoped to HKSource.default() so we never touch a sample written by another app
-        // that happens to use the same external UUID. Delete failures are non-fatal (e.g., nothing
-        // to delete on first run) — only the save throws.
-        let bySource = HKQuery.predicateForObjects(from: HKSource.default())
-        var keysByType = Dictionary(grouping: candidates, by: { $0.type }).mapValues { $0.map { $0.key } }
-        for (type, keys) in retracted { keysByType[type, default: []] += keys }
-        for (type, allKeys) in keysByType {
-            let keys = Array(Set(allKeys))
-            let byKey = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID,
-                                                    allowedValues: keys)
-            let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [bySource, byKey])
-            _ = try? await self.store.deleteObjects(of: type, predicate: pred)
+        try await unlessUnchanged("vitals", digestLines) {
+            // Delete any of OUR prior samples that carry the same metadata keys, then write the fresh
+            // batch. Scoped to HKSource.default() so we never touch a sample written by another app
+            // that happens to use the same external UUID. Delete failures are non-fatal (e.g., nothing
+            // to delete on first run) — only the save throws.
+            let bySource = HKQuery.predicateForObjects(from: HKSource.default())
+            var keysByType = Dictionary(grouping: candidates, by: { $0.type }).mapValues { $0.map { $0.key } }
+            for (type, keys) in retracted { keysByType[type, default: []] += keys }
+            for (type, allKeys) in keysByType {
+                let keys = Array(Set(allKeys))
+                let byKey = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID,
+                                                        allowedValues: keys)
+                let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [bySource, byKey])
+                _ = try? await self.store.deleteObjects(of: type, predicate: pred)
+            }
+            guard !candidates.isEmpty else { return }
+            try await self.store.save(candidates.map { $0.sample })
         }
-        guard !candidates.isEmpty else { return }
-        try await self.store.save(candidates.map { $0.sample })
     }
 
     /// Write each BRIDGED NIGHT (#364) as one `.inBed` sample plus one category sample per stage
@@ -1074,12 +1078,18 @@ final class HealthKitBridge: ObservableObject {
             }
         }
         guard !samples.isEmpty else { return }
-        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            HKQuery.predicateForObjects(from: HKSource.default()),
-            HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: keys),
-        ])
-        _ = try? await store.deleteObjects(of: type, predicate: pred)
-        try await store.save(samples)
+        let digestLines = keys + samples.map {
+            "\($0.value)|\(Int($0.startDate.timeIntervalSince1970))|\(Int($0.endDate.timeIntervalSince1970))|"
+                + "\($0.metadata?[HKMetadataKeyExternalUUID] as? String ?? "")"
+        }
+        try await unlessUnchanged("sleep", digestLines) {
+            let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForObjects(from: HKSource.default()),
+                HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: keys),
+            ])
+            _ = try? await store.deleteObjects(of: type, predicate: pred)
+            try await store.save(samples)
+        }
     }
 
     /// UserDefaults key for the HR write cursor (the newest bucket ts we've written). Per-strap so a
@@ -1105,18 +1115,31 @@ final class HealthKitBridge: ObservableObject {
                                                        to: nowTs, bucketSeconds: 60)) ?? []
         guard !buckets.isEmpty else { return }
 
+        // Rewrite only from the first bucket that differs from what the last pass saved. Most passes
+        // append a few minutes; one with nothing new makes no HealthKit call at all.
+        let current = buckets.map { (ts: $0.ts, centiBpm: HealthWriteback.centiBpm($0.bpm)) }
+        guard let rewriteFrom = HealthWriteback.firstChangedHeartRateBucket(
+            current: current, previous: loadWrittenHeartRate(), windowStart: windowStart) else { return }
+        // Forget the record before touching Health, so a delete or save that fails part-way leaves the
+        // next pass rewriting the whole window, as every pass used to.
+        UserDefaults.standard.removeObject(forKey: hrWrittenKey)
+
         let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForObjects(from: HKSource.default()),
-            HKQuery.predicateForSamples(withStart: Date(timeIntervalSince1970: TimeInterval(windowStart)),
+            // `.strictStartDate`: our samples start on their bucket, so this removes exactly the buckets
+            // from `rewriteFrom` on. Overlap matching would also take the minute before, which ends there
+            // and is not rewritten.
+            HKQuery.predicateForSamples(withStart: Date(timeIntervalSince1970: TimeInterval(rewriteFrom)),
                                         end: Date(timeIntervalSince1970: TimeInterval(nowTs) + 60),
-                                        options: []),
+                                        options: [.strictStartDate]),
         ])
         _ = try? await store.deleteObjects(of: type, predicate: pred)
 
+        let toWrite = buckets.filter { $0.ts >= rewriteFrom }
         let unit = HKUnit.count().unitDivided(by: .minute())
         var samples: [HKQuantitySample] = []
-        samples.reserveCapacity(buckets.count)
-        for b in buckets {
+        samples.reserveCapacity(toWrite.count)
+        for b in toWrite {
             let start = Date(timeIntervalSince1970: TimeInterval(b.ts))
             // Span the bucket, clamped so a bucket at the window edge can't end in the future
             // (HealthKit rejects future-dated samples).
@@ -1129,7 +1152,7 @@ final class HealthKitBridge: ObservableObject {
         // transaction is oversized. Cursor only advances past what actually saved.
         var lastSaved = cursor
         var pending = samples[...]
-        var pendingTs = buckets.map(\.ts)[...]
+        var pendingTs = toWrite.map(\.ts)[...]
         while !pending.isEmpty {
             let chunk = Array(pending.prefix(5000))
             let chunkTs = Array(pendingTs.prefix(5000))
@@ -1139,6 +1162,36 @@ final class HealthKitBridge: ObservableObject {
             lastSaved = max(lastSaved, chunkTs.last ?? lastSaved)
             UserDefaults.standard.set(lastSaved, forKey: hrWriteCursorKey)
         }
+        saveWrittenHeartRate(current)
+    }
+
+    /// What the HR write last saved into Health, bucket start → centi-bpm, over its whole window. Per
+    /// strap, like the cursor. Stored flat (`[ts, centiBpm, ts, centiBpm, …]`); ~2,900 pairs at most.
+    private var hrWrittenKey: String { "hkHRWritten.v1.\(noopDeviceId)" }
+
+    private func loadWrittenHeartRate() -> [Int: Int] {
+        guard let flat = UserDefaults.standard.array(forKey: hrWrittenKey) as? [Int], flat.count % 2 == 0
+        else { return [:] }
+        var out: [Int: Int] = [:]
+        out.reserveCapacity(flat.count / 2)
+        for i in stride(from: 0, to: flat.count, by: 2) { out[flat[i]] = flat[i + 1] }
+        return out
+    }
+
+    private func saveWrittenHeartRate(_ buckets: [(ts: Int, centiBpm: Int)]) {
+        UserDefaults.standard.set(buckets.flatMap { [$0.ts, $0.centiBpm] }, forKey: hrWrittenKey)
+    }
+
+    /// Run `write` only when `lines`, the full description of what it would save, differ from what the
+    /// last successful run of `writer` saved. The digest is stored after `write` returns, so a pass that
+    /// throws is retried next time.
+    private func unlessUnchanged(_ writer: String, _ lines: [String],
+                                 _ write: () async throws -> Void) async throws {
+        let key = "hkWritebackDigest.v1.\(writer).\(noopDeviceId)"
+        let digest = HealthWriteback.writebackDigest(lines)
+        guard UserDefaults.standard.string(forKey: key) != digest else { return }
+        try await write()
+        UserDefaults.standard.set(digest, forKey: key)
     }
 
     /// Write strap-detected and manual workouts into Health via `HKWorkoutBuilder`, with an
@@ -1250,49 +1303,61 @@ final class HealthKitBridge: ObservableObject {
         //
         // Runs BEFORE the empty-rows return: a window whose last workout was deleted in the app is the
         // case where every Health copy is an orphan, and returning early would leave all of them.
-        if mineRead != nil, computedRead != nil,
-           mine.count < Self.workoutReadLimit, computed.count < Self.workoutReadLimit {
-            await deleteOrphanedWorkouts(fromTs: fromTs, toTs: toTs, keeping: Set(rows.map(key)))
+        let readComplete = mineRead != nil && computedRead != nil
+            && mine.count < Self.workoutReadLimit && computed.count < Self.workoutReadLimit
+        // Everything below reads only these: the rows, whether the orphan sweep may run, and which of
+        // the attached sample types may be shared.
+        let shareStatus = Self.highResQuantityWriteIds.map { id in
+            HKQuantityType.quantityType(forIdentifier: id).map { "\(store.authorizationStatus(for: $0).rawValue)" } ?? "-"
+        }.joined(separator: ",")
+        let digestLines = ["read:\(readComplete)", "share:\(shareStatus)"] + rows.map {
+            "\(key($0))|\($0.sport)|\($0.startTs)|\($0.endTs)|\($0.energyKcal.map { "\($0)" } ?? "")|"
+                + "\($0.distanceM.map { "\($0)" } ?? "")"
         }
+        try await unlessUnchanged("workouts", digestLines) {
+            if readComplete {
+                await deleteOrphanedWorkouts(fromTs: fromTs, toTs: toTs, keeping: Set(rows.map(key)))
+            }
 
-        guard !rows.isEmpty else { return }
-        let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            HKQuery.predicateForObjects(from: HKSource.default()),
-            HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID,
-                                        allowedValues: rows.map(key)),
-        ])
-        _ = try? await store.deleteObjects(of: .workoutType(), predicate: pred)
+            guard !rows.isEmpty else { return }
+            let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForObjects(from: HKSource.default()),
+                HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID,
+                                            allowedValues: rows.map(key)),
+            ])
+            _ = try? await store.deleteObjects(of: .workoutType(), predicate: pred)
 
-        for row in rows {
-            let start = Date(timeIntervalSince1970: TimeInterval(row.startTs))
-            let end = Date(timeIntervalSince1970: TimeInterval(row.endTs))
-            guard end > start else { continue }
-            let config = HKWorkoutConfiguration()
-            config.activityType = Self.activityType(forSport: row.sport)
-            let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
-            do {
-                try await builder.beginCollection(at: start)
-                try await builder.addMetadata([HKMetadataKeyExternalUUID: key(row)])
-                var extras: [HKSample] = []
-                if let kcal = row.energyKcal, kcal > 0,
-                   let t = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
-                   store.authorizationStatus(for: t) == .sharingAuthorized {
-                    extras.append(HKQuantitySample(type: t, quantity: .init(unit: .kilocalorie(), doubleValue: kcal),
-                                                   start: start, end: end))
+            for row in rows {
+                let start = Date(timeIntervalSince1970: TimeInterval(row.startTs))
+                let end = Date(timeIntervalSince1970: TimeInterval(row.endTs))
+                guard end > start else { continue }
+                let config = HKWorkoutConfiguration()
+                config.activityType = Self.activityType(forSport: row.sport)
+                let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
+                do {
+                    try await builder.beginCollection(at: start)
+                    try await builder.addMetadata([HKMetadataKeyExternalUUID: key(row)])
+                    var extras: [HKSample] = []
+                    if let kcal = row.energyKcal, kcal > 0,
+                       let t = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
+                       store.authorizationStatus(for: t) == .sharingAuthorized {
+                        extras.append(HKQuantitySample(type: t, quantity: .init(unit: .kilocalorie(), doubleValue: kcal),
+                                                       start: start, end: end))
+                    }
+                    if let meters = row.distanceM, meters > 0,
+                       let id = Self.distanceTypeId(forSport: row.sport),
+                       let t = HKQuantityType.quantityType(forIdentifier: id),
+                       store.authorizationStatus(for: t) == .sharingAuthorized {
+                        extras.append(HKQuantitySample(type: t, quantity: .init(unit: .meter(), doubleValue: meters),
+                                                       start: start, end: end))
+                    }
+                    if !extras.isEmpty { try await builder.addSamples(extras) }
+                    try await builder.endCollection(at: end)
+                    _ = try await builder.finishWorkout()
+                } catch {
+                    builder.discardWorkout()
+                    throw error
                 }
-                if let meters = row.distanceM, meters > 0,
-                   let id = Self.distanceTypeId(forSport: row.sport),
-                   let t = HKQuantityType.quantityType(forIdentifier: id),
-                   store.authorizationStatus(for: t) == .sharingAuthorized {
-                    extras.append(HKQuantitySample(type: t, quantity: .init(unit: .meter(), doubleValue: meters),
-                                                   start: start, end: end))
-                }
-                if !extras.isEmpty { try await builder.addSamples(extras) }
-                try await builder.endCollection(at: end)
-                _ = try await builder.finishWorkout()
-            } catch {
-                builder.discardWorkout()
-                throw error
             }
         }
     }
