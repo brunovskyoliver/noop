@@ -776,11 +776,13 @@ struct MetricDetailView: View {
     private func slice(for r: ExploreRange) -> [(day: String, value: Double)] {
         guard let days = r.days else { return series }
         guard let lastDay = series.last?.day, let last = parseDay(lastDay) else { return [] }
-        let cutoff = last.addingTimeInterval(-Double(days - 1) * 86_400)
-        return series.filter { row in
-            guard let d = parseDay(row.day) else { return false }
-            return d >= cutoff
-        }
+        let cutoff = strandDayParser.string(from: last.addingTimeInterval(-Double(days - 1) * 86_400))
+        // Compare day KEYS, not parsed dates: zero-padded "yyyy-MM-dd" sorts in date order. `body`
+        // runs this for several ranges on every re-eval, including 1 Hz HR ticks while backgrounded,
+        // and parsing every row of the full history each time got the app killed for CPU on-device
+        // (2026-09-28, 90% over 53 s). A row that is not a 10-character key is dropped, as a row that
+        // failed to parse was.
+        return series.filter { $0.day.utf8.count == 10 && $0.day >= cutoff }
     }
 
     private var isStepsDetail: Bool { MetricDetailSteps.isMetric(metric.key) }
