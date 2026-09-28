@@ -118,17 +118,13 @@ struct BroopHealthTrendChart: View {
         .chartOverlay { proxy in
             GeometryReader { geo in
                 Rectangle().fill(Color.clear).contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { g in
-                                guard let plot = proxy.plotFrame else { return }
-                                let x = g.location.x - geo[plot].origin.x
-                                guard let date: Date = proxy.value(atX: x) else { return }
-                                let nearest = points.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
-                                if nearest != selection { selection = nearest }
-                            }
-                            .onEnded { _ in selection = nil }
-                    )
+                    .broopHealthScrub(onChange: { loc in
+                        guard let plot = proxy.plotFrame else { return }
+                        let x = loc.x - geo[plot].origin.x
+                        guard let date: Date = proxy.value(atX: x) else { return }
+                        let nearest = points.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
+                        if nearest != selection { selection = nearest }
+                    }, onEnd: { selection = nil })
             }
         }
         .frame(height: height)
@@ -192,6 +188,23 @@ struct BroopHealthRangePicker: View {
     /// A non-primary selection highlights nothing in the three-way switch.
     private var primaryBinding: Binding<ExploreRange> {
         Binding(get: { selection }, set: { selection = $0 })
+    }
+}
+#endif
+
+#if os(iOS)
+extension View {
+    /// Press-and-hold, then drag, to scrub a chart. The short hold lets the page keep scrolling
+    /// vertically through the chart; a plain zero-distance drag would swallow the scroll.
+    func broopHealthScrub(onChange: @escaping (CGPoint) -> Void, onEnd: @escaping () -> Void) -> some View {
+        gesture(
+            LongPressGesture(minimumDuration: 0.15)
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+                .onChanged { value in
+                    if case .second(true, let drag?) = value { onChange(drag.location) }
+                }
+                .onEnded { _ in onEnd() }
+        )
     }
 }
 #endif

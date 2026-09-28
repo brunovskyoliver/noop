@@ -10,12 +10,12 @@ struct BroopHealthScreens: View {
         switch screen {
         case .health: BroopHealthMonitorView()
         case .stress: BroopHealthStressView()
-        case .labBook: LabBookView().broopClassicScreen()
+        case .labBook: BroopHealthLabBookView()
         case .rhythm: BroopHealthRhythmView()
         case .metricExplorer: BroopHealthExplorerView()
         case .trends: BroopHealthTrendsView()
         case .hydration: BroopHealthHydrationView()
-        case .compare: CompareView().broopClassicScreen()
+        case .compare: BroopHealthCompareView()
         case .metric(let key, let source): metric(key: key, source: source)
         default: EmptyView()
         }

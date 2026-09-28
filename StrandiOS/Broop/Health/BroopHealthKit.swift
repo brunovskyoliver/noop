@@ -73,6 +73,7 @@ struct BroopHealthHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
     var showsBack = true
+    var fill: Color = BroopPalette.bgTop
     @ViewBuilder var trailing: Trailing
     @Environment(\.dismiss) private var dismiss
 
@@ -105,7 +106,7 @@ struct BroopHealthHeader<Trailing: View>: View {
         }
         .frame(height: 50)
         .padding(.horizontal, BroopMetrics.page)
-        .background(BroopPalette.bgTop.ignoresSafeArea(edges: .top))
+        .background(fill.ignoresSafeArea(edges: .top))
     }
 }
 

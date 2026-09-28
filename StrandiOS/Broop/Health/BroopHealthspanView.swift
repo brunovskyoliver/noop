@@ -101,12 +101,11 @@ struct BroopHealthspanView: View {
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopHealthHeader(title: String(localized: "Healthspan"),
-                              subtitle: String(localized: "Updated weekly")) {
+                              subtitle: String(localized: "Updated weekly"), fill: .black) {
                 BroopHealthHeaderIcon(symbol: "info.circle", label: String(localized: "About Healthspan")) {
                     withAnimation(.snappy) { showInfo.toggle() }
                 }
             }
-            .background(Color.black.ignoresSafeArea(edges: .top))
         }
         .background(
             LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.35),

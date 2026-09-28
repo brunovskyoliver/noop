@@ -635,7 +635,7 @@ private struct BroopHealthStressDayChart: View {
             let plotH = geo.size.height - 26
             let n = max(hours.count - 1, 1)
             let x: (Int) -> CGFloat = { labelW + plotW * CGFloat($0) / CGFloat(n) }
-            let y: (Double) -> CGFloat = { plotH - plotH * CGFloat(min(max($0 / 3, 0), 1)) }
+            let y: (Double) -> CGFloat = { 8 + (plotH - 8) * (1 - CGFloat(min(max($0 / 3, 0), 1))) }
             ZStack(alignment: .topLeading) {
                 Canvas { ctx, _ in
                     // Grid + labels.
@@ -651,7 +651,7 @@ private struct BroopHealthStressDayChart: View {
                     // Activity shading.
                     for (i, h) in hours.enumerated() where h.maskedForActivity {
                         let w = plotW / CGFloat(max(hours.count, 1))
-                        ctx.fill(Path(CGRect(x: x(i) - w / 2, y: y(3), width: w, height: plotH - y(3))),
+                        ctx.fill(Path(CGRect(x: x(i) - w / 2 - 0.5, y: y(3), width: w + 1, height: plotH - y(3))),
                                  with: .color(.white.opacity(0.05)))
                     }
                     // Runs.
@@ -705,14 +705,12 @@ private struct BroopHealthStressDayChart: View {
                 .offset(y: plotH + 8)
             }
             .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { g in
-                    let t = (g.location.x - labelW) / plotW
-                    let i = min(max(Int((t * CGFloat(n)).rounded()), 0), hours.count - 1)
-                    let h = hours[i]
-                    scrub = h.level == nil ? nil : h
-                }
-                .onEnded { _ in scrub = nil })
+            .broopHealthScrub(onChange: { loc in
+                let t = (loc.x - labelW) / plotW
+                let i = min(max(Int((t * CGFloat(n)).rounded()), 0), hours.count - 1)
+                let h = hours[i]
+                scrub = h.level == nil ? nil : h
+            }, onEnd: { scrub = nil })
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Stress through the day"))
