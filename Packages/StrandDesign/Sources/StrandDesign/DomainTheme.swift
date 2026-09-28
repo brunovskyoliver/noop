@@ -100,6 +100,15 @@ public struct ScenicHeroBackground: View {
     }
 
     public var body: some View {
+        if StrandSkin.broop {
+            // Broop: the hero sits on a flat slate card, no radial field.
+            NoopVisualStyle.surface.accessibilityHidden(true)
+        } else {
+            classic
+        }
+    }
+
+    private var classic: some View {
         ZStack {
             // Radial deep blue-black: lit center → near-black edge.
             RadialGradient(

@@ -68,6 +68,15 @@ public struct TimeOfDayBackground: View {
     private var drift: Bool { animated && !motion.poseStill(reduceMotion) }
 
     public var body: some View {
+        if StrandSkin.broop {
+            // Broop: the flat slate backdrop replaces the time-of-day atmosphere.
+            StrandSkinBackdrop().ignoresSafeArea()
+        } else {
+            atmosphere
+        }
+    }
+
+    private var atmosphere: some View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {

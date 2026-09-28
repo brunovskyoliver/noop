@@ -75,6 +75,11 @@ public struct SceneHeroBackground: View {
     private let corner: CGFloat = NoopMetrics.cardRadius
 
     public var body: some View {
+        // The Broop skin has no day-cycle scenes; the hero keeps whatever card it sits on.
+        if !StrandSkin.broop { scene }
+    }
+
+    private var scene: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
@@ -140,6 +145,11 @@ public struct SceneScreenBackground: View {
     private let imageOpacityCap: Double = 0.95
 
     public var body: some View {
+        // Under the Broop skin the page canvas already carries the slate backdrop, so the scene is dropped.
+        if !StrandSkin.broop { scene }
+    }
+
+    private var scene: some View {
         Image(DayCycleScene.assetName(hour: hour))
             .resizable()
             .aspectRatio(contentMode: .fill)

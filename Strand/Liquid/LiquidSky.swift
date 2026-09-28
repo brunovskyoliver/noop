@@ -183,7 +183,10 @@ struct LiquidScaffoldSky: View {
     @ObservedObject private var backgroundStore = BackgroundImageStore.shared
 
     var body: some View {
-        if backgroundStore.isActive {
+        if StrandSkin.broop {
+            // Broop skin (iOS): no sky; the scaffold canvas carries the slate backdrop.
+            EmptyView()
+        } else if backgroundStore.isActive {
             BackgroundImageBackdrop()
         } else if showDayCycleBackground {
             LiquidSkyStatic(hour: nil, settleStrength: skyBehindCards ? 0.78 : 1)
@@ -211,6 +214,15 @@ struct LiquidSkyStatic: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
+        if StrandSkin.broop {
+            // Broop skin (iOS): the slate backdrop stands in for the static sky.
+            StrandSkinBackdrop(fadesToCanvas: true)
+        } else {
+            sky
+        }
+    }
+
+    @ViewBuilder private var sky: some View {
         let h = hour ?? liveHour()
         let dark = scheme == .dark
         let settle = Color(.sRGB,

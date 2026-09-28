@@ -20,46 +20,87 @@ public enum StrandFont {
         .system(size: size, weight: weight, design: .rounded)
     }
 
+    // MARK: Broop skin faces
+    //
+    // Under `StrandSkin.broop` numbers use DIN Alternate Bold and text uses Avenir Next; both ship with
+    // iOS, so nothing is bundled. Sized numerals stay fixed-size like the system styles they replace
+    // (`.system(size:)` does not scale either); the named text styles keep Dynamic Type through
+    // `relativeTo:`.
+
+    private static let dinName = "DINAlternate-Bold"
+
+    /// A fixed-size DIN numeral with tabular digits where the face supports them.
+    private static func din(_ size: CGFloat) -> Font {
+        Font.custom(dinName, fixedSize: size).monospacedDigit()
+    }
+
+    /// A DIN numeral that scales with Dynamic Type alongside `style`.
+    private static func din(_ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        Font.custom(dinName, size: size, relativeTo: style).monospacedDigit()
+    }
+
+    /// An Avenir Next face that scales with Dynamic Type alongside `style`.
+    private static func avenir(_ face: String, _ size: CGFloat, relativeTo style: Font.TextStyle) -> Font {
+        Font.custom("AvenirNext-\(face)", size: size, relativeTo: style)
+    }
+
     // MARK: Scale (§9.2)
 
     /// Display 64–80 / Bold — the gauge score number. Helvetica Neue 700 with tight
     /// tracking (≈ -0.04em), tabular digits so a changing value never reflows.
     public static func display(_ size: CGFloat = 72) -> Font {
-        roundedSystem(size, weight: .bold).monospacedDigit()
+        if StrandSkin.broop { return din(size) }
+        return roundedSystem(size, weight: .bold).monospacedDigit()
     }
 
     /// The tight tracking for big display numbers (≈ -0.04em). Apply alongside
     /// `display(_:)` at the use site, e.g. `.tracking(StrandFont.displayTracking(72))`.
     public static func displayTracking(_ size: CGFloat = 72) -> CGFloat {
-        -size * 0.04
+        // DIN is already narrow; the Broop numerals open up slightly instead of tightening.
+        StrandSkin.broop ? size * 0.01 : -size * 0.04
     }
 
     /// A Helvetica-Neue numeric style at an arbitrary size/weight — the house
     /// numeral. Tabular so live values align. Use anywhere a score/number is shown.
     public static func rounded(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
-        roundedSystem(size, weight: weight).monospacedDigit()
+        if StrandSkin.broop { return din(size) }
+        return roundedSystem(size, weight: weight).monospacedDigit()
     }
 
     /// Title1 28 / Bold. Scales with Dynamic Type.
-    public static let title1 = Font.system(.title, design: .rounded, weight: .bold)
+    public static let title1 = StrandSkin.broop
+        ? avenir("DemiBold", 28, relativeTo: .title)
+        : Font.system(.title, design: .rounded, weight: .bold)
 
     /// Title2 22 / Semibold. Scales with Dynamic Type.
-    public static let title2 = Font.system(.title2, design: .rounded, weight: .semibold)
+    public static let title2 = StrandSkin.broop
+        ? avenir("DemiBold", 22, relativeTo: .title2)
+        : Font.system(.title2, design: .rounded, weight: .semibold)
 
     /// Headline 17 / Semibold. Scales with Dynamic Type.
-    public static let headline = Font.system(.headline, design: .rounded, weight: .semibold)
+    public static let headline = StrandSkin.broop
+        ? avenir("DemiBold", 17, relativeTo: .headline)
+        : Font.system(.headline, design: .rounded, weight: .semibold)
 
     /// Body 15 / Regular. Scales with Dynamic Type.
-    public static let body = Font.system(.body, design: .rounded, weight: .regular)
+    public static let body = StrandSkin.broop
+        ? avenir("Medium", 17, relativeTo: .body)
+        : Font.system(.body, design: .rounded, weight: .regular)
 
     /// Subhead 13. Scales with Dynamic Type.
-    public static let subhead = Font.system(.subheadline, design: .rounded, weight: .regular)
+    public static let subhead = StrandSkin.broop
+        ? avenir("Medium", 15, relativeTo: .subheadline)
+        : Font.system(.subheadline, design: .rounded, weight: .regular)
 
     /// Caption 12. Scales with Dynamic Type.
-    public static let caption = Font.system(.caption, design: .rounded, weight: .regular)
+    public static let caption = StrandSkin.broop
+        ? avenir("Medium", 12, relativeTo: .caption)
+        : Font.system(.caption, design: .rounded, weight: .regular)
 
     /// Footnote 11. Scales with Dynamic Type.
-    public static let footnote = Font.system(.footnote, design: .rounded, weight: .regular)
+    public static let footnote = StrandSkin.broop
+        ? avenir("Regular", 13, relativeTo: .footnote)
+        : Font.system(.footnote, design: .rounded, weight: .regular)
 
     /// Overline 11 / Bold, +1.4 tracking (apply `.tracking(1.4)` at use site;
     /// `overlineText(_:)` does it for you). Sparing ALL-CAPS labels. Scales with Dynamic Type.
@@ -67,12 +108,15 @@ public enum StrandFont {
     /// Also the face for compact status copy in constrained chrome (the Today header's sync capsule),
     /// used there WITHOUT the tracking — that is sentence case, not an overline, and the letter-spacing
     /// is what makes an overline read as one.
-    public static let overline = Font.system(.caption2, design: .rounded, weight: .semibold)
+    public static let overline = StrandSkin.broop
+        ? avenir("Bold", 11, relativeTo: .caption2)
+        : Font.system(.caption2, design: .rounded, weight: .semibold)
 
     /// `overline` at a custom point size — same Helvetica face, weight and Dynamic-Type scaling
     /// (relativeTo `.caption2`), just smaller. Passing 11 returns exactly `.overline`. Lets a caller
     /// shrink an ALL-CAPS label to fit a small container without losing accessibility text-scaling.
     public static func overlineScaled(_ size: CGFloat) -> Font {
+        if StrandSkin.broop { return avenir("Bold", size, relativeTo: .caption2) }
         #if canImport(UIKit)
         let base = UIFont.systemFont(ofSize: size, weight: .semibold)
         let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
@@ -98,15 +142,20 @@ public enum StrandFont {
     /// A numeric style at an arbitrary size/weight, for live values — Helvetica
     /// Neue, tabular digits. This is the tile/value numeral.
     public static func number(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        roundedSystem(size, weight: weight).monospacedDigit()
+        if StrandSkin.broop { return din(size) }
+        return roundedSystem(size, weight: weight).monospacedDigit()
     }
 
     /// Helvetica-Neue body number — for inline live values that should align. Scales with Dynamic
     /// Type alongside its sibling `body`/`caption` labels so a value and its label stay matched.
-    public static let bodyNumber = Font.system(.body, design: .rounded, weight: .medium).monospacedDigit()
+    public static let bodyNumber = StrandSkin.broop
+        ? din(17, relativeTo: .body)
+        : Font.system(.body, design: .rounded, weight: .medium).monospacedDigit()
 
     /// Helvetica-Neue caption number — for small live values (sparklines, chips). Scales with Dynamic Type.
-    public static let captionNumber = Font.system(.caption, design: .rounded, weight: .medium).monospacedDigit()
+    public static let captionNumber = StrandSkin.broop
+        ? din(12, relativeTo: .caption)
+        : Font.system(.caption, design: .rounded, weight: .medium).monospacedDigit()
 
     /// Mono at an arbitrary size.
     public static func mono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
@@ -114,7 +163,7 @@ public enum StrandFont {
     }
 
     /// The recommended tracking for overline text (wide ALL-CAPS labels, ≈ 0.13em).
-    public static let overlineTracking: CGFloat = 0.45
+    public static let overlineTracking: CGFloat = StrandSkin.broop ? 1.2 : 0.45
 }
 
 // MARK: - Text helpers

@@ -75,8 +75,9 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
         // on the opaque canvas and stay fully legible (2026-06-23: cards were "losing the data").
         .background(alignment: .top) {
             ZStack(alignment: .top) {
-                StrandPalette.surfaceBase
-                topBackground
+                // Broop skin (iOS): `StrandCanvas` is the slate backdrop and the sky/scene is dropped.
+                StrandCanvas()
+                if !StrandSkin.broop { topBackground }
             }
             .ignoresSafeArea()
         }
@@ -120,7 +121,8 @@ struct ScreenScaffold<Content: View, Trailing: View>: View {
                 if let title {
                     // Match the liquid home's title face (SF Rounded 28) so every page's header reads
                     // identically (2026-07-02 cohesion pass).
-                    Text(title).font(StrandFont.rounded(28)).foregroundStyle(StrandPalette.textPrimary)
+                    Text(title).font(StrandSkin.broop ? StrandFont.title1 : StrandFont.rounded(28))
+                        .foregroundStyle(StrandPalette.textPrimary)
                 }
                 if let subtitle {
                     Text(subtitle).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)

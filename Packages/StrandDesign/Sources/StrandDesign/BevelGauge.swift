@@ -148,7 +148,7 @@ public struct BevelGauge: View {
             Circle().fill(StrandPalette.tipCore)
                 .frame(width: lineWidth * 0.7, height: lineWidth * 0.7)
                 .overlay(Circle().fill(tipColor).opacity(0.35))
-                .shadow(color: tipColor.opacity(0.35), radius: lineWidth * 0.18)
+                .shadow(color: tipColor.opacity(StrandSkin.broop ? 0 : 0.35), radius: lineWidth * 0.18)
                 .position(pt)
         }
     }
