@@ -8,18 +8,16 @@ import WhoopStore
 struct BroopHomeView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
-    @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
+    @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
 
     /// Switches the shell to the Health tab.
     let onOpenHealth: () -> Void
 
     @State private var showOutlook = false
-    @State private var showCoach = false
-    @State private var showSettings = false
 
     var body: some View {
         let snap = store.snapshot
@@ -45,12 +43,20 @@ struct BroopHomeView: View {
         .broopStatusBarScrim()
         .background(BroopBackground())
         .simultaneousGesture(daySwipe)
-        .task(id: "\(repo.refreshSeq)-\(store.dayOffset)") {
+        // Keyed like Liquid's load(): data, day, and the settings the snapshot bakes in.
+        .task(id: "\(repo.refreshSeq)-\(store.dayOffset)-\(effortScaleRaw)-\(dayCycleModeRaw)") {
             await store.reload(repo: repo, profile: profile)
         }
         .navigationDestination(for: BroopRoute.self) { route in
             switch route {
             case .score(let score): BroopScoreDetailView(initial: score)
+            case .settings:
+                SettingsView()
+                    .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbarBackground(.hidden, for: .navigationBar)
+                    .toolbar(.visible, for: .navigationBar)
+                    .tint(StrandPalette.accent)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -69,30 +75,13 @@ struct BroopHomeView: View {
         .sheet(isPresented: $showOutlook) {
             BroopOutlookSheet(onAskCoach: coachEnabled ? {
                 showOutlook = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { showCoach = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { router.openCoach() }
             } : nil)
             .environmentObject(store)
         }
-        .sheet(isPresented: $showCoach) {
-            NavigationStack {
-                CoachView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { showCoach = false }
-                        }
-                    }
-            }
-        }
-        .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                SettingsView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { showSettings = false }
-                        }
-                    }
-            }
-        }
+        // A quick action or a routed screen supersedes the outlook sheet, as the shell's own sheets do.
+        .onChange(of: router.quickActionsRequested) { _, requested in if requested { showOutlook = false } }
+        .onChange(of: router.requestedDestination) { _, dest in if dest != nil { showOutlook = false } }
     }
 
     /// Horizontal swipe changes the day, like the classic Today.
@@ -118,29 +107,16 @@ struct BroopHomeView: View {
                 onToday: { withAnimation(.snappy) { store.dayOffset = 0 } }
             )
             HStack {
-                Button { showSettings = true } label: {
+                NavigationLink(value: BroopRoute.settings) {
                     ProfileAvatarView(imageData: profile.avatarImageData, size: 32)
                 }
                 .buttonStyle(BroopPressableStyle())
                 .accessibilityLabel(Text("Settings"))
                 .padding(.leading, 4)
                 Spacer()
-                Button { router.openDevices() } label: { strapStatus }
+                Button { router.openDevices() } label: { BroopLiveStrapStatus() }
                     .buttonStyle(BroopPressableStyle())
             }
-        }
-    }
-
-    @ViewBuilder
-    private var strapStatus: some View {
-        let display = LiquidTodayView.StrapBatteryDisplay.resolve(
-            activeIsWhoop: live.activeIsWhoop, connected: live.connected,
-            batteryPct: live.batteryPct, charging: live.charging,
-            ringPct: live.ouraBatteryPct, ringCharging: live.ouraWearState == .charging)
-        switch display {
-        case .charge(let pct, _, _): BroopStrapStatus(level: Int(pct.rounded()), connected: true)
-        case .pending: BroopStrapStatus(level: nil, connected: true)
-        case .offline, .notActiveDevice: BroopStrapStatus(level: nil, connected: false)
         }
     }
 
@@ -169,7 +145,7 @@ struct BroopHomeView: View {
     // MARK: Monitors
 
     private func monitors(_ snap: BroopSnapshot?) -> some View {
-        let vitals = BroopVitals.readings(repo: repo)
+        let vitals = snap?.vitals ?? []
         let withData = vitals.filter { $0.banding.band != .noData }
         let outside = withData.filter { $0.banding.band == .outOfRange }
         let ok = outside.isEmpty
@@ -200,7 +176,7 @@ struct BroopHomeView: View {
                     title: [String(localized: "Stress"), String(localized: "Monitor")],
                     status: [stress.map { $0.band.title } ?? String(localized: "Calibrating")],
                     statusColor: color,
-                    detail: stress == nil ? String(localized: "Needs a few nights") : String(localized: "Today")
+                    detail: stress == nil ? String(localized: "Needs a few nights") : String(localized: "Latest")
                 ) {
                     Text(verbatim: stress.map { BroopFormat.one($0.score) } ?? "–")
                         .font(BroopType.number(13.5))
@@ -219,7 +195,7 @@ struct BroopHomeView: View {
     private var coachRow: some View {
         HStack(spacing: 13) {
             if coachEnabled {
-                Button { showCoach = true } label: {
+                Button { router.openCoach() } label: {
                     BroopBadge(size: 28, gradientRing: true)
                         .frame(width: 47, height: 46)
                         .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
@@ -271,7 +247,7 @@ struct BroopHomeView: View {
                     NavigationLink(value: BroopRoute.score(.rest)) {
                         BroopActivityRow(
                             symbol: "moon.fill",
-                            value: BroopFormat.duration(snap?.asleepMinutes ?? night.stages.asleep),
+                            value: snap?.asleepMinutes.map(BroopFormat.duration) ?? "–",
                             color: BroopPalette.rest,
                             name: String(localized: "Sleep"),
                             start: night.onsetDate,
@@ -323,6 +299,23 @@ struct BroopHomeView: View {
                 }
             }
             .padding(.horizontal, 16)
+        }
+    }
+}
+
+/// The strap battery control on its own, so the ~1 Hz live stream re-renders only this view, not Home.
+struct BroopLiveStrapStatus: View {
+    @EnvironmentObject private var live: LiveState
+
+    var body: some View {
+        let display = LiquidTodayView.StrapBatteryDisplay.resolve(
+            activeIsWhoop: live.activeIsWhoop, connected: live.connected,
+            batteryPct: live.batteryPct, charging: live.charging,
+            ringPct: live.ouraBatteryPct, ringCharging: live.ouraWearState == .charging)
+        switch display {
+        case .charge(let pct, _, _): BroopStrapStatus(level: Int(pct.rounded()), connected: true)
+        case .pending: BroopStrapStatus(level: nil, connected: true)
+        case .offline, .notActiveDevice: BroopStrapStatus(level: nil, connected: false)
         }
     }
 }
@@ -403,12 +396,15 @@ enum BroopVitals {
     static let keys = ["hrv", "rhr", "resp", "spo2", "skin"]
 
     @MainActor
-    static func readings(repo: Repository) -> [BodyVitalReading] {
+    static func readings(repo: Repository, spo2CandidateByDay: [String: Double] = [:],
+                         hrvOverCountByDay: [String: Double] = [:]) -> [BodyVitalReading] {
         let d = UserDefaults.standard
         let system = UnitSystem(rawValue: d.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
         let temperature = UnitPrefs.resolveTemperature(system: system, override: d.string(forKey: UnitPrefs.temperatureKey) ?? "")
         let skinPref = SkinTempDisplay.Kind(rawValue: d.string(forKey: UnitPrefs.skinTempDisplayKey) ?? "") ?? .absolute
         let all = BodyVitalSigns.readings(sourceRows: repo.vitalMetricRows, temperatureUnit: temperature,
+                                          spo2CandidateByDay: spo2CandidateByDay,
+                                          hrvOverCountByDay: hrvOverCountByDay,
                                           skinTempPreferred: skinPref)
         return keys.compactMap { k in all.first { $0.key == k } }
     }

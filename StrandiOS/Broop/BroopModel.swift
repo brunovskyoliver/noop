@@ -38,6 +38,8 @@ struct BroopSnapshot {
     var activeKcal: Double?
 
     var stress: StressModel?
+    /// Vital signs from `BodyVitalSigns` — the classic Health screen's resolver and inputs.
+    var vitals: [BodyVitalReading]
 
     /// Statistics against the previous 30 days, per score.
     var chargeStats: [BroopReading]
@@ -53,7 +55,7 @@ struct BroopSnapshot {
                       charge: nil, chargeDisplay: .noData, rest: nil, effort: nil, effortMax: 21,
                       readiness: nil, night: nil, asleepMinutes: nil, needMinutes: nil,
                       efficiency: nil, restorativePct: nil, workouts: [], zoneMinutes: nil,
-                      steps: nil, activeKcal: nil, stress: nil,
+                      steps: nil, activeKcal: nil, stress: nil, vitals: [],
                       chargeStats: [], restStats: [], effortStats: [], dashboard: [], streak: 0)
     }
 
@@ -75,6 +77,9 @@ final class BroopStore: ObservableObject {
     /// 0 = today's logical day, 1 = yesterday, …
     @Published var dayOffset = 0
     @Published private(set) var snapshot: BroopSnapshot?
+    /// The learned habitual midsleep scans the whole sleep history; it changes slowly, so it is read once.
+    private var habitualMidsleep: Int??
+    private var lastLoadKey = ""
 
     var selectedLogicalDay: Date {
         let base = Repository.logicalDay(Date())
@@ -111,6 +116,11 @@ final class BroopStore: ObservableObject {
     /// Resolve everything for the selected day. Called from a `.task(id:)` keyed on the repository's
     /// refresh sequence and the day offset, like Liquid's `load()`.
     func reload(repo: Repository, profile: ProfileStore) async {
+        // Home and the detail screen both drive this from `.task(id:)`; a push or a pop must not redo a
+        // pass whose inputs have not changed.
+        let d = UserDefaults.standard
+        let loadKey = "\(repo.refreshSeq)-\(dayOffset)-\(d.string(forKey: UnitPrefs.effortScaleKey) ?? "")-\(d.string(forKey: DayCycleMode.storageKey) ?? "")"
+        guard loadKey != lastLoadKey || snapshot == nil else { return }
         let offset = dayOffset
         let isToday = offset == 0
         let key = selectedDayKey(repo: repo)
@@ -148,14 +158,22 @@ final class BroopStore: ObservableObject {
                                                ?? DayCycleMode.sleepOnset.rawValue)
         let markers = cycleMode == .sleepOnset
             ? await repo.exploreSeries(key: DayCycleIntelligenceIntegration.onsetKey, source: "my-whoop") : []
+        guard !Task.isCancelled else { return }
         let from = markers.last(where: { $0.day == key }).map { Int($0.value) } ?? calendarFrom
         let toExclusive = markers.last(where: { $0.day == nextDayKey }).map { Int($0.value) } ?? calendarTo
         let to = max(from, toExclusive - 1)
 
+        // One whole-window HR read (explicit limit: the 8000 default truncates a real day to its first
+        // ~10 hours), shared by today's live Effort and the day's zone minutes.
+        let hr = await repo.hrSamples(from: from, to: to, limit: 200_000)
+        guard !Task.isCancelled else { return }
+        let zoneSet = profile.hrZoneSet
+        let zoneSeconds = await CancellableAnalysis.run { HRZones.timeInZone(hr, zoneSet: zoneSet).seconds }
+        s.zoneMinutes = zoneSeconds.contains { $0 > 0 } ? zoneSeconds.map { $0 / 60 } : nil
+
         // Effort: live for today (same scorer and params as Liquid), else the stored row.
         var liveStrain: Double?
         if isToday {
-            let hr = await repo.hrSamples(from: from, to: to, limit: 200_000)
             let maxHR = profile.age > 0 ? StrainScorer.tanakaHRmax(age: Double(profile.age)) : nil
             let restHR = day?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
             let method = PuffinExperiment.effortMethod
@@ -163,6 +181,7 @@ final class BroopStore: ObservableObject {
             liveStrain = await CancellableAnalysis.run {
                 StrainScorer.strain(hr, maxHR: maxHR, restingHR: restHR, method: method, sex: sex)
             }
+            guard !Task.isCancelled else { return }
         }
         let scale = UnitPrefs.resolveEffortScale(UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? "")
         s.effortMax = scale == .whoop ? 21 : 100
@@ -175,31 +194,50 @@ final class BroopStore: ObservableObject {
         async let stepsA = repo.exploreSeries(key: "steps_est", source: "my-whoop")
         async let appleA = repo.appleDailyRows()
         async let workoutsA = repo.workoutRows(from: from, to: toExclusive)
-        async let zonesA = repo.workoutZoneMinutes(from: from, to: to, zoneSet: profile.hrZoneSet)
-        async let sessionsA = repo.allSleepSessions()
-        async let habitualA = repo.habitualMidsleepSec()
+        async let overCountA = repo.exploreSeries(key: "hrv_rr_overcount", source: "my-whoop", days: 14)
+        async let spo2CandA = repo.exploreSeries(key: "spo2_candidate", source: "my-whoop", days: 14)
+        // Only the few days around the selected one: the night is grouped by the day it ENDS on.
+        async let sessionsA = repo.allSleepSessions(days: offset + 3)
 
         let restSeries = await restSeriesA
+        let stressStored = await stressA
+        let stepsSeries = await stepsA
+        let apple = await appleA
+        s.workouts = await workoutsA
+        let overCount = await overCountA
+        let spo2Cand = await spo2CandA
+        let sessions = await sessionsA
+        guard !Task.isCancelled else { return }
+
         let restByDay = Dictionary(restSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
         s.rest = TodayView.freshRestScore(todayValue: restByDay[key], lastDay: restSeries.last?.day,
                                           lastValue: restSeries.last?.value, isTodaySelected: isToday, todayKey: key)
 
-        s.stress = StressModel(days: days, stored: await stressA)
-        s.workouts = await workoutsA
-        s.zoneMinutes = await zonesA
+        s.stress = await CancellableAnalysis.run { StressModel(days: days, stored: stressStored) }
 
-        let apple = await appleA
-        let stepsEst = await stepsA
+        // Vitals through the SAME resolver and inputs as the classic Health screen.
+        let hrvOverCountByDay = Dictionary(overCount.map { ($0.day, $0.value) }, uniquingKeysWith: { a, _ in a })
+        let spo2CandidateByDay = PuffinExperiment.spo2CandidateDisplayEnabled
+            ? Dictionary(spo2Cand.map { ($0.day, $0.value) }, uniquingKeysWith: { a, _ in a }) : [:]
+        s.vitals = BroopVitals.readings(repo: repo, spo2CandidateByDay: spo2CandidateByDay,
+                                        hrvOverCountByDay: hrvOverCountByDay)
+
+        // Steps and calories: Liquid's fallbacks, in Liquid's order.
+        let stepsByDay = Dictionary(stepsSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
+        let stepsEst = stepsByDay[key] ?? (isToday ? stepsSeries.last?.value : nil)
         s.steps = day?.steps.map(Double.init)
             ?? apple.filter { $0.day == key }.compactMap { $0.steps }.max().map(Double.init)
-            ?? stepsEst.last(where: { $0.day == key })?.value
+            ?? stepsEst
         s.activeKcal = apple.filter { $0.day == key }.compactMap { $0.activeKcal }.max()
             ?? day?.activeKcalEst
 
-        // Sleep: the main night that ended on the selected day (SleepView's resolution).
-        let sessions = await sessionsA
-        let habitual = await habitualA
-        let groups = SleepModel.navDays(navSessions: sessions.isEmpty ? repo.sleeps : sessions)
+        // Sleep: the main night that ended on the selected day (SleepView's resolution) — drawn as the
+        // stages chart only. Every sleep FIGURE comes from the day row, as on the classic Today, so the
+        // numbers on one screen never come from two sources.
+        if habitualMidsleep == nil { habitualMidsleep = .some(await repo.habitualMidsleepSec()) }
+        let habitual = habitualMidsleep ?? nil
+        let navSessions = sessions.isEmpty ? repo.sleeps : sessions
+        let groups = await CancellableAnalysis.run { SleepModel.navDays(navSessions: navSessions) }
         if let group = groups.first(where: { g in
             guard let last = g.last else { return false }
             return Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == key
@@ -207,23 +245,19 @@ final class BroopStore: ObservableObject {
             let motion = await repo.sessionMotions(sessions: group)
             s.night = SleepModel.mergeDay(group, habitualMidsleepSec: habitual, motionByStart: motion)
         }
-        let asleep = day?.totalSleepMin ?? s.night?.stages.asleep
+        guard !Task.isCancelled else { return }
+        let asleep = day?.totalSleepMin
         s.asleepMinutes = asleep
         s.needMinutes = repo.importedSleep[key]?.needMin ?? SleepModel.sleepNeedMin(days: days)
-        if let e = day?.efficiency {
-            s.efficiency = e <= 1 ? e * 100 : e
-        } else if let n = s.night, n.timeInBed > 0 {
-            s.efficiency = n.stages.asleep / n.timeInBed * 100
-        }
-        if let asleep, asleep > 0 {
-            let deep = day?.deepMin ?? s.night?.stages.deep
-            let rem = day?.remMin ?? s.night?.stages.rem
-            if let deep, let rem { s.restorativePct = (deep + rem) / asleep * 100 }
+        s.efficiency = day?.efficiency.map { $0 <= 1 ? $0 * 100 : $0 }
+        if let asleep, asleep > 0, let deep = day?.deepMin, let rem = day?.remMin {
+            s.restorativePct = (deep + rem) / asleep * 100
         }
 
         // 30-day statistics (the "vs. previous 30 days" rows).
-        let index = days.lastIndex(where: { $0.day <= key }) ?? (days.count - 1)
-        let window = index >= 0 ? Array(days[max(0, index - 30)..<max(0, index)]) : []
+        // The 30 days BEFORE the selected one (days is oldest→newest).
+        let end = days.firstIndex { $0.day >= key } ?? days.count
+        let window = Array(days[max(0, end - 30)..<end])
         func stat(_ name: String, unit: String, better: BroopReading.Better,
                   value: Double?, format: @escaping (Double) -> String,
                   _ metric: (DailyMetric) -> Double?) -> BroopReading? {
@@ -245,7 +279,7 @@ final class BroopStore: ObservableObject {
         let hrv = stat(String(localized: "HRV"), unit: "ms", better: .higher, value: hrvNow, format: whole) { $0.avgHrv }
         let rhr = stat(String(localized: "Resting heart rate"), unit: "bpm", better: .lower, value: rhrNow, format: whole) { $0.restingHr.map(Double.init) }
         let resp = stat(String(localized: "Respiratory rate"), unit: "rpm", better: .neutral, value: respNow, format: one) { $0.respRateBpm }
-        let spo2 = stat(String(localized: "Blood oxygen"), unit: "%", better: .higher, value: day?.spo2Pct, format: whole) { $0.spo2Pct }
+        let spo2 = stat(String(localized: "Blood oxygen"), unit: "%", better: .higher, value: day?.spo2Pct ?? (isToday ? Repository.lastVitalsDay(days: days, todayKey: tkey)?.spo2Pct : nil), format: whole) { $0.spo2Pct }
         s.chargeStats = [hrv, rhr, resp, spo2].compactMap { $0 }
 
         let asleepStat = stat(String(localized: "Hours of sleep"), unit: "", better: .higher, value: asleep, format: { BroopFormat.duration($0) }) { $0.totalSleepMin }
@@ -256,8 +290,8 @@ final class BroopStore: ObservableObject {
             guard let a = d.totalSleepMin, a > 0, let deep = d.deepMin, let rem = d.remMin else { return nil }
             return (deep + rem) / a * 100
         }
-        let deepStat = stat(String(localized: "Deep sleep"), unit: "", better: .higher, value: day?.deepMin ?? s.night?.stages.deep, format: { BroopFormat.duration($0) }) { $0.deepMin }
-        let remStat = stat(String(localized: "REM sleep"), unit: "", better: .higher, value: day?.remMin ?? s.night?.stages.rem, format: { BroopFormat.duration($0) }) { $0.remMin }
+        let deepStat = stat(String(localized: "Deep sleep"), unit: "", better: .higher, value: day?.deepMin, format: { BroopFormat.duration($0) }) { $0.deepMin }
+        let remStat = stat(String(localized: "REM sleep"), unit: "", better: .higher, value: day?.remMin, format: { BroopFormat.duration($0) }) { $0.remMin }
         s.restStats = [asleepStat, effStat, restorativeStat, deepStat, remStat].compactMap { $0 }
 
         let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps, format: whole) { $0.steps.map(Double.init) }
@@ -280,12 +314,14 @@ final class BroopStore: ObservableObject {
         // Drop a stale result if the day changed while this pass was running.
         guard offset == dayOffset, !Task.isCancelled else { return }
         snapshot = s
+        lastLoadKey = loadKey
     }
 }
 
 /// Routes pushed inside the Broop tabs.
 enum BroopRoute: Hashable {
     case score(BroopScore)
+    case settings
 }
 #endif
 

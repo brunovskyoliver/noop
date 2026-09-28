@@ -158,7 +158,12 @@ struct RootTabView: View {
         .tint(broopEnabled ? BroopPalette.textPrimary : StrandPalette.accent)
         .environmentObject(broopStore)
         // The two shells use different tab tags; land on Home/Today whenever the shell flips.
-        .onChangeCompat(of: broopEnabled) { _ in selectedTab = 0 }
+        .onChangeCompat(of: broopEnabled) { _ in
+            // The shells share tab tags but not destinations: a path left over from one would push a
+            // value the other has no destination for.
+            tabPaths = Array(repeating: NavigationPath(), count: 5)
+            selectedTab = 0
+        }
         .sheet(isPresented: $broopCoachPresented) {
             NavigationStack {
                 CoachView()
@@ -171,6 +176,14 @@ struct RootTabView: View {
         }
         .fullScreenCover(isPresented: $broopLiveSessionPresented) {
             LiveSessionView(onClose: { broopLiveSessionPresented = false })
+        }
+        // Any other routed screen or the quick-action menu supersedes the Broop Coach sheet, as it does the
+        // shell's own sheets; otherwise the request would be consumed with nothing shown.
+        .onChange(of: router.requestedDestination) { _, dest in
+            if let dest, dest != .coach { broopCoachPresented = false }
+        }
+        .onChange(of: router.quickActionsRequested) { _, requested in
+            if requested { broopCoachPresented = false }
         }
         // Switching Coach off while STANDING on it leaves `selectedTab` pointing at a tag no tab claims
         // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
@@ -359,6 +372,8 @@ struct RootTabView: View {
         withAnimation(Self.sheetEase) {
             showDevices = false
             routedPillar = nil
+            broopCoachPresented = false
+            broopLiveSessionPresented = false
             quickAction = destination
         }
     }

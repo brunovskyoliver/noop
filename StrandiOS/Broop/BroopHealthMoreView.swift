@@ -359,7 +359,7 @@ private enum BroopMoreDestination: Hashable {
         case .powerSaving:     PowerSavingView()
         case .testCentre:      TestCentreView()
         case .settings:        SettingsView()
-        case .classicToday:    LiquidTodayView()
+        case .classicToday:    ClassicTodayRoot()
         }
     }
 }
@@ -374,6 +374,13 @@ private extension View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar(.visible, for: .navigationBar)
             .tint(StrandPalette.accent)
+    }
+}
+/// Classic Today as the wearer configured it (Liquid or the original), like the classic shell's tab.
+private struct ClassicTodayRoot: View {
+    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
+    var body: some View {
+        if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
     }
 }
 #endif

@@ -731,7 +731,10 @@ private struct BroopTrendCard: View {
     }
 
     private func load() async {
-        let raw = await repo.exploreSeries(key: seriesKey, source: "my-whoop", days: 200)
+        // The window counts back from NOW, so reach further when an older day is selected.
+        let back = Self.dayFormatter.date(from: dayKey)
+            .flatMap { Calendar.current.dateComponents([.day], from: $0, to: Date()).day } ?? 0
+        let raw = await repo.exploreSeries(key: seriesKey, source: "my-whoop", days: 200 + max(0, back))
         let scale = UnitPrefs.resolveEffortScale(UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? "")
         let key = dayKey
         let pts: [Point] = raw.compactMap { row in
