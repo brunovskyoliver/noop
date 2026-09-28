@@ -4,7 +4,9 @@ import StrandAnalytics
 import StrandDesign
 import WhoopStore
 
-/// Broop Home: dials, monitors, My Day, activities and dashboard for the selected day.
+/// Broop Home, laid out like the Oct 2025 WHOOP Home: header, wordmark, three dials, the two monitor
+/// tiles, My Day (outlook row, activities, tonight's sleep, journal) and My Dashboard. A compact ring bar
+/// replaces the header once the dials scroll away.
 struct BroopHomeView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
@@ -18,6 +20,9 @@ struct BroopHomeView: View {
     let onOpenHealth: () -> Void
 
     @State private var showOutlook = false
+    /// True once the dials have scrolled under the status bar. Flipped only on the crossing, so scrolling
+    /// does not re-render Home.
+    @State private var collapsed = false
 
     var body: some View {
         let snap = store.snapshot
@@ -25,22 +30,35 @@ struct BroopHomeView: View {
             VStack(spacing: 0) {
                 header.padding(.top, 6)
                 BroopWordmark().padding(.top, 26)
-                dials(snap).padding(.top, 20)
+                dials(snap)
+                    .padding(.top, 20)
+                    .onGeometryChange(for: Bool.self) { $0.frame(in: .scrollView).maxY < 30 } action: { now in
+                        if now != collapsed { withAnimation(.easeOut(duration: 0.18)) { collapsed = now } }
+                    }
                 monitors(snap).padding(.top, 26)
-                BroopSectionTitle(String(localized: "My Day")).padding(.top, 32)
-                coachRow.padding(.top, 16)
-                activities(snap).padding(.top, 20)
+                myDayTitle.padding(.top, 34)
+                outlookRow.padding(.top, 14)
+                activities(snap).padding(.top, 12)
+                if store.dayOffset == 0 {
+                    NavigationLink(value: BroopScreen.alarms) { BroopOverviewTonightCard() }
+                        .buttonStyle(BroopPressableStyle())
+                        .padding(.top, 12)
+                }
+                journalCard(snap).padding(.top, 12)
                 if let snap, !snap.dashboard.isEmpty {
-                    BroopSectionTitle(String(localized: "My Dashboard")).padding(.top, 36)
-                    dashboard(snap).padding(.top, 16)
+                    BroopSectionTitle(String(localized: "My Dashboard")).padding(.top, 34)
+                    dashboard(snap).padding(.top, 14)
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 96)
+            .padding(.bottom, 110)
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
         .broopStatusBarScrim()
+        .overlay(alignment: .top) {
+            if collapsed { collapsedBar(snap).transition(.opacity) }
+        }
         .background(BroopBackground())
         .simultaneousGesture(daySwipe)
         // Keyed like Liquid's load(): data, day, and the settings the snapshot bakes in.
@@ -51,19 +69,6 @@ struct BroopHomeView: View {
             switch route {
             case .score(let score): BroopScoreDetailView(initial: score)
             }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Button { router.requestQuickActions() } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(Color.black)
-                    .frame(width: 48, height: 48)
-                    .background(Circle().fill(Color.white))
-                    .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
-            }
-            .accessibilityLabel(Text("Quick actions"))
-            .padding(.trailing, 16)
-            .padding(.bottom, 12)
         }
         .sheet(isPresented: $showOutlook) {
             BroopOutlookSheet(onAskCoach: coachEnabled ? {
@@ -87,6 +92,8 @@ struct BroopHomeView: View {
             }
     }
 
+    private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
+
     // MARK: Header
 
     private var header: some View {
@@ -101,11 +108,17 @@ struct BroopHomeView: View {
             )
             HStack {
                 NavigationLink(value: BroopScreen.settings) {
-                    ProfileAvatarView(imageData: profile.avatarImageData, size: 32)
+                    HStack(spacing: -6) {
+                        ProfileAvatarView(imageData: profile.avatarImageData, size: 32)
+                            .zIndex(1)
+                        if let streak = store.snapshot?.streak, streak > 0 {
+                            BroopOverviewStreak(count: streak)
+                        }
+                    }
                 }
                 .buttonStyle(BroopPressableStyle())
-                .accessibilityLabel(Text("Settings"))
-                .padding(.leading, 4)
+                .accessibilityLabel(Text("Profile and settings"))
+                .padding(.leading, 2)
                 Spacer()
                 Button { router.openDevices() } label: { BroopLiveStrapStatus() }
                     .buttonStyle(BroopPressableStyle())
@@ -113,14 +126,46 @@ struct BroopHomeView: View {
         }
     }
 
+    /// The compact ring bar shown once the dials scroll away.
+    private func collapsedBar(_ snap: BroopSnapshot?) -> some View {
+        HStack(spacing: 0) {
+            ForEach(BroopScore.allCases) { score in
+                NavigationLink(value: BroopRoute.score(score)) {
+                    HStack(spacing: 9) {
+                        BroopOverviewMiniRing(fraction: fraction(score, snap), color: score.color(for: snap?.value(score) ?? 0))
+                        BroopCaps(score.title, size: 11)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(BroopPressableStyle())
+            }
+        }
+        .frame(height: 44)
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity)
+        .background(BroopPalette.bgTop.ignoresSafeArea(edges: .top))
+    }
+
     // MARK: Dials
+
+    private func fraction(_ score: BroopScore, _ snap: BroopSnapshot?) -> Double? {
+        guard let v = snap?.value(score) else { return nil }
+        return v / (snap?.maxValue(score) ?? 100)
+    }
 
     private func dials(_ snap: BroopSnapshot?) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(BroopScore.allCases) { score in
                 NavigationLink(value: BroopRoute.score(score)) {
                     VStack(spacing: 11) {
-                        BroopDial(score: score, value: snap?.value(score), maxValue: snap?.maxValue(score) ?? 100)
+                        let value = snap?.value(score)
+                        let target = score == .effort ? BroopOverviewEffortTarget(charge: snap?.charge) : nil
+                        BroopOverviewDial(fraction: fraction(score, snap),
+                                          color: score.color(for: value ?? 0),
+                                          valueText: value.map(score.format),
+                                          unit: value == nil ? (score == .effort ? "" : "%") : score.unit,
+                                          band: target?.band, tick: target?.tick,
+                                          diameter: 82, lineWidth: 5.3)
                         HStack(spacing: 4) {
                             BroopCaps(score.title)
                             Image(systemName: "chevron.right")
@@ -162,7 +207,7 @@ struct BroopHomeView: View {
             }
             .buttonStyle(BroopPressableStyle())
 
-            NavigationLink(value: TabRoute.stress) {
+            NavigationLink(value: BroopScreen.stress) {
                 let stress = snap?.stress
                 let color = stress.map { BroopVitals.stressColor($0.band) } ?? BroopPalette.textSecondary
                 BroopMonitorTile(
@@ -185,60 +230,85 @@ struct BroopHomeView: View {
 
     // MARK: My Day
 
-    private var coachRow: some View {
-        HStack(spacing: 13) {
+    private var myDayTitle: some View {
+        BroopSectionTitle(text: String(localized: "My Day")) {
+            Button { router.requestQuickActions() } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(Color.black)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+            }
+            .buttonStyle(BroopPressableStyle())
+            .accessibilityLabel(Text("Quick actions"))
+        }
+        .padding(.trailing, -4)
+    }
+
+    /// Morning to late afternoon it is the Daily Outlook (warm gradient, sun); from 5 pm it becomes the
+    /// Day in Review (purple gradient, moon), as WHOOP swaps them.
+    private var outlookRow: some View {
+        let evening = store.dayOffset > 0 || Calendar.current.component(.hour, from: Date()) >= 17
+        return HStack(spacing: 10) {
             if coachEnabled {
                 Button { router.openCoach() } label: {
-                    BroopBadge(size: 28, gradientRing: true)
-                        .frame(width: 47, height: 46)
+                    BroopBadge(size: 30, gradientRing: true)
+                        .frame(width: 50, height: 46)
                         .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
                 }
                 .buttonStyle(BroopPressableStyle())
                 .accessibilityLabel(Text("Coach"))
             }
-
             Button { showOutlook = true } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: "sunrise")
-                        .font(.system(size: 15, weight: .light))
-                        .foregroundStyle(BroopPalette.textSecondary)
-                    Text("Daily Outlook")
-                        .font(BroopType.medium(14))
+                    Image(systemName: evening ? "moon" : "sun.max")
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundStyle(BroopPalette.textBody)
+                    Text(evening ? String(localized: "Your Day In Review") : String(localized: "Your Daily Outlook"))
+                        .font(BroopType.medium(15))
                         .foregroundStyle(BroopPalette.textPrimary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BroopPalette.textSecondary)
+                        .foregroundStyle(evening ? Color(broopHex: 0x8C9BFF) : Color(broopHex: 0xE8C9A0))
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
                 .frame(height: 46)
-                .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
+                .background(
+                    RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: evening
+                                ? [BroopOverviewPalette.reviewPurple, BroopOverviewPalette.reviewIndigo]
+                                : [BroopOverviewPalette.outlookWarm, BroopOverviewPalette.outlookSlate],
+                            startPoint: .leading, endPoint: .trailing))
+                )
             }
             .buttonStyle(BroopPressableStyle())
         }
     }
 
     private func activities(_ snap: BroopSnapshot?) -> some View {
-        let scale = UnitPrefs.resolveEffortScale(effortScaleRaw)
-        return BroopCard(padding: 12) {
-            VStack(spacing: 12) {
-                NavigationLink(value: TabRoute.workouts) {
+        let scale = effortScale
+        let title = store.dayOffset == 0 ? String(localized: "Today's Activities") : String(localized: "Activities")
+        return BroopOverviewCard(padding: 12) {
+            VStack(spacing: 10) {
+                NavigationLink(value: BroopScreen.workouts) {
                     HStack {
-                        BroopCaps(String(localized: "Today's Activities"), size: 11)
+                        BroopCaps(title, size: 11)
                         Spacer()
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
                             .font(.system(size: 13, weight: .regular))
                             .foregroundStyle(BroopPalette.textSecondary)
                     }
                     .padding(.horizontal, 4)
-                    .padding(.top, 4)
-                    .padding(.bottom, 2)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
                 }
                 .buttonStyle(BroopPressableStyle())
 
                 if let night = snap?.night {
-                    NavigationLink(value: BroopRoute.score(.rest)) {
-                        BroopActivityRow(
+                    NavigationLink(value: BroopScreen.sleep) {
+                        BroopOverviewActivityRow(
                             symbol: "moon.fill",
                             value: snap?.asleepMinutes.map(BroopFormat.duration) ?? "–",
                             color: BroopPalette.rest,
@@ -248,13 +318,15 @@ struct BroopHomeView: View {
                         )
                     }
                     .buttonStyle(BroopPressableStyle())
+                } else if snap != nil {
+                    noSleepRow
                 }
 
                 ForEach(snap?.workouts ?? [], id: \.startTs) { w in
                     Button {
                         router.openWorkouts(.detail(startTs: w.startTs, endTs: w.endTs))
                     } label: {
-                        BroopActivityRow(
+                        BroopOverviewActivityRow(
                             symbol: sportSymbol(w.sport),
                             value: w.strain.map { UnitFormatter.effortDisplay($0, scale: scale) } ?? "–",
                             color: BroopPalette.effort,
@@ -266,35 +338,326 @@ struct BroopHomeView: View {
                     .buttonStyle(BroopPressableStyle())
                 }
 
-                if snap?.night == nil && (snap?.workouts.isEmpty ?? true) {
-                    Text("No activities yet")
-                        .font(BroopType.regular(13))
-                        .foregroundStyle(BroopPalette.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
-                        .padding(.bottom, 4)
+                HStack(spacing: 10) {
+                    BroopOverviewFillButton(symbol: "plus", title: String(localized: "Add Activity")) {
+                        router.openWorkouts()
+                    }
+                    if store.dayOffset == 0 {
+                        BroopOverviewFillButton(symbol: "stopwatch", title: String(localized: "Start Activity")) {
+                            router.openActiveWorkout()
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    /// No night for the selected day: an outlined moon pill and an "Add sleep" button into Sleep, where
+    /// naps and nights are added and edited.
+    private var noSleepRow: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "moon").font(.system(size: 14, weight: .regular))
+                BroopCaps(String(localized: "No sleep"), size: 10.5)
+            }
+            .foregroundStyle(BroopPalette.textPrimary)
+            .frame(width: 104, height: 40)
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(BroopPalette.textSecondary, lineWidth: 1))
+            Spacer()
+            NavigationLink(value: BroopScreen.sleep) {
+                BroopCaps(String(localized: "Add sleep"), size: 10.5)
+                    .padding(.horizontal, 16)
+                    .frame(height: 34)
+                    .overlay(Capsule().stroke(BroopPalette.textPrimary, lineWidth: 1.4))
+            }
+            .buttonStyle(BroopPressableStyle())
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 56)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BroopOverviewPalette.inner))
+    }
+
+    // MARK: Journal
+
+    /// MY JOURNAL with the week strip: a filled check for each day that carries a journal entry.
+    private func journalCard(_ snap: BroopSnapshot?) -> some View {
+        let logged = snap?.journalDays ?? []
+        let end = store.selectedLogicalDay
+        let days: [Date] = (0..<7).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: end) }
+        let todayLogged = logged.contains(Repository.localDayKey(end))
+        return NavigationLink(value: BroopScreen.journal) {
+            BroopOverviewCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 12) {
+                        Image(systemName: todayLogged ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 22, weight: .light))
+                            .foregroundStyle(todayLogged ? BroopOverviewPalette.optimal : BroopPalette.textSecondary)
+                        BroopCaps(String(localized: "My Journal"), size: 11.5)
+                        Spacer()
+                        HStack(spacing: 7) {
+                            Image(systemName: "pencil").font(.system(size: 14, weight: .regular))
+                            BroopCaps(todayLogged ? String(localized: "Edit") : String(localized: "Fill out"), size: 10.5)
+                        }
+                        .foregroundStyle(BroopPalette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 36)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(BroopOverviewPalette.button))
+                    }
+                    HStack(spacing: 0) {
+                        ForEach(days, id: \.self) { day in
+                            let done = logged.contains(Repository.localDayKey(day))
+                            VStack(spacing: 7) {
+                                Text(verbatim: day.formatted(.dateTime.weekday(.narrow).locale(AppLanguage.activeLocale)))
+                                    .font(BroopType.demi(11))
+                                    .foregroundStyle(BroopPalette.textSecondary)
+                                ZStack {
+                                    Circle()
+                                        .fill(done ? BroopOverviewPalette.optimal : Color.clear)
+                                        .overlay(Circle().stroke(done ? Color.clear : BroopPalette.textTertiary, lineWidth: 1.2))
+                                    if done {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .heavy))
+                                            .foregroundStyle(Color.black)
+                                    }
+                                }
+                                .frame(width: 24, height: 24)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
             }
         }
+        .buttonStyle(BroopPressableStyle())
     }
 
     // MARK: Dashboard
 
     private func dashboard(_ snap: BroopSnapshot) -> some View {
-        BroopCard(padding: 0) {
-            VStack(spacing: 0) {
-                ForEach(Array(snap.dashboard.enumerated()), id: \.element.reading.id) { index, row in
-                    if index > 0 { BroopHairline() }
-                    NavigationLink(value: BroopRoute.score(row.home)) {
-                        BroopDashboardRow(reading: row.reading)
-                    }
-                    .buttonStyle(BroopPressableStyle())
+        VStack(spacing: 10) {
+            ForEach(snap.dashboard) { item in
+                NavigationLink(value: BroopScreen.metric(key: item.metricKey, source: nil)) {
+                    BroopOverviewDashboardRow(item: item)
                 }
+                .buttonStyle(BroopPressableStyle())
             }
-            .padding(.horizontal, 16)
         }
     }
 }
+
+// MARK: - Home pieces
+
+/// Streak capsule tucked behind the avatar: flame (amber, orange, then blue past 1000) and the count.
+struct BroopOverviewStreak: View {
+    let count: Int
+
+    var body: some View {
+        let flame: Color = count >= 1000 ? Color(broopHex: 0x6FA8FF) : (count >= 7 ? Color(broopHex: 0xFF7A2E) : Color(broopHex: 0xF5B53D))
+        HStack(spacing: 5) {
+            Image(systemName: "flame.fill").font(.system(size: 13)).foregroundStyle(flame)
+            Text(verbatim: "\(count)")
+                .font(BroopType.number(15))
+                .broopNumeral(15)
+                .foregroundStyle(BroopPalette.textPrimary)
+        }
+        .padding(.leading, 13)
+        .padding(.trailing, 10)
+        .frame(height: 30)
+        .background(Capsule().fill(BroopPalette.pillOuter))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: String(localized: "Streak") + " \(count)"))
+    }
+}
+
+/// An activity row: coloured value pill, caps name, two-line time range and a timeline tick. A start on
+/// an earlier day carries a "[Thu]" prefix, as WHOOP writes it.
+struct BroopOverviewActivityRow: View {
+    let symbol: String
+    let value: String
+    let color: Color
+    let name: String
+    let start: Date
+    let end: Date
+
+    var body: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 9) {
+                Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+                Text(verbatim: value).font(BroopType.number(17)).broopNumeral(17)
+            }
+            .foregroundStyle(BroopPalette.textPrimary)
+            .frame(width: 94, height: 40)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(color))
+
+            BroopCaps(name, size: 11.5).lineLimit(2)
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(verbatim: startText)
+                Text(verbatim: BroopFormat.time(end))
+            }
+            .font(BroopType.demi(12))
+            .foregroundStyle(BroopPalette.textBody)
+            Capsule().fill(color).frame(width: 2, height: 28)
+                .padding(.trailing, 6)
+        }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BroopOverviewPalette.inner))
+    }
+
+    private var startText: String {
+        let t = BroopFormat.time(start)
+        guard !Calendar.current.isDate(start, inSameDayAs: end) else { return t }
+        let day = start.formatted(.dateTime.weekday(.abbreviated).locale(AppLanguage.activeLocale))
+        return "[\(day)] \(t)"
+    }
+}
+
+/// A My Dashboard tile: icon and caps name, today's value with a trend triangle, the 30-day baseline under.
+struct BroopOverviewDashboardRow: View {
+    let item: BroopDashboardItem
+
+    var body: some View {
+        let r = item.reading
+        HStack(spacing: 14) {
+            Image(systemName: item.symbol)
+                .font(.system(size: 17, weight: .light))
+                .foregroundStyle(BroopPalette.textSecondary)
+                .frame(width: 24)
+            BroopCaps(r.name, size: 11)
+                .lineLimit(2)
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(alignment: .center, spacing: 5) {
+                    Text(verbatim: r.text + (r.unit == "%" ? "%" : ""))
+                        .font(BroopType.number(22))
+                        .broopNumeral(22)
+                        .foregroundStyle(BroopPalette.textPrimary)
+                    Image(systemName: r.trendSymbol ?? "circle.fill")
+                        .font(.system(size: r.trendSymbol == nil ? 4 : 7))
+                        .foregroundStyle(r.trendSymbol == nil ? BroopPalette.textTertiary : r.trendTint)
+                        .frame(width: 8)
+                }
+                Text(verbatim: r.format(r.baseline) + (r.unit == "%" ? "%" : ""))
+                    .font(BroopType.number(12.5))
+                    .foregroundStyle(BroopPalette.textSecondary)
+                    .padding(.trailing, 13)
+            }
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(BroopPalette.card))
+    }
+}
+
+/// The optimal Effort band for the day's Charge (`CoupledView.optimalStrainRange`, the approved display
+/// mapping), as fractions of the dial, with the tick at its midpoint. nil without a Charge.
+struct BroopOverviewEffortTarget {
+    let band: ClosedRange<Double>
+    let tick: Double
+    let range: ClosedRange<Int>
+
+    init?(charge: Double?) {
+        guard let r = CoupledView.optimalStrainRange(recovery: charge) else { return nil }
+        range = r
+        band = (Double(r.lowerBound) / 21)...(Double(r.upperBound) / 21)
+        tick = (band.lowerBound + band.upperBound) / 2
+    }
+}
+
+/// TONIGHT'S SLEEP: tonight's recommended bedtime and wake from `AppModel.tonightPlan` (the plan the
+/// wind-down reminder and caffeine cutoff use) and whether the strap alarm will ring (the gate
+/// `tonightWakeMinute` uses). Owns the `AppModel` observation so its 1 Hz publishes stay in this leaf.
+struct BroopOverviewTonightCard: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var repo: Repository
+
+    var body: some View {
+        BroopOverviewTonightContent(
+            bedMinute: model.tonightPlan?.target.bedMinute,
+            wakeMinute: model.tonightPlan?.wakeMinute,
+            alarmOn: model.behavior.smartAlarmEnabled && model.strapAlarmWillArm
+        )
+        .equatable()
+        .task(id: repo.refreshSeq) { await model.refreshTonightPlan() }
+    }
+}
+
+struct BroopOverviewTonightContent: View, Equatable {
+    let bedMinute: Int?
+    let wakeMinute: Int?
+    let alarmOn: Bool
+
+    var body: some View {
+        BroopOverviewCard {
+            VStack(spacing: 18) {
+                HStack {
+                    BroopCaps(String(localized: "Tonight's Sleep"), size: 11.5)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundStyle(BroopPalette.textSecondary)
+                }
+                HStack(alignment: .top, spacing: 0) {
+                    column(symbol: "sunset", value: bedText,
+                           lines: [String(localized: "Recommended"), String(localized: "Bedtime")],
+                           color: BroopPalette.textSecondary)
+                    Rectangle()
+                        .fill(BroopPalette.textTertiary)
+                        .frame(width: 56, height: 1)
+                        .mask(HStack(spacing: 3) { ForEach(0..<10, id: \.self) { _ in Rectangle().frame(width: 3) } })
+                        .padding(.top, 16)
+                    column(symbol: "sunrise", value: wakeMinute.map(BroopOverviewFormat.clock) ?? "--",
+                           lines: alarmOn ? [String(localized: "● Alarm on")] : [String(localized: "Wake time"), String(localized: "(Alarm off)")],
+                           color: alarmOn ? BroopOverviewPalette.alarmOn : BroopPalette.textSecondary)
+                }
+                HStack(spacing: 10) {
+                    Image(systemName: alarmOn ? "pencil" : "applewatch.radiowaves.left.and.right")
+                        .font(.system(size: 15, weight: .regular))
+                    BroopCaps(alarmOn ? String(localized: "Edit alarm") : String(localized: "Set alarm"), size: 11.5)
+                }
+                .foregroundStyle(BroopPalette.textPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(BroopOverviewPalette.button))
+            }
+        }
+    }
+
+    /// "Now" once the recommended bedtime has passed and the wake has not.
+    private var bedText: String {
+        guard let bedMinute else { return "--" }
+        if let wakeMinute {
+            let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
+            let now = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+            let sinceBed = ((now - bedMinute) % 1440 + 1440) % 1440
+            let window = ((wakeMinute - bedMinute) % 1440 + 1440) % 1440
+            if sinceBed < window { return String(localized: "Now") }
+        }
+        return BroopOverviewFormat.clock(bedMinute)
+    }
+
+    private func column(symbol: String, value: String, lines: [String], color: Color) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .light))
+                    .foregroundStyle(BroopPalette.textSecondary)
+                Text(verbatim: value)
+                    .font(BroopType.number(30))
+                    .broopNumeral(30)
+                    .foregroundStyle(BroopPalette.textPrimary)
+            }
+            VStack(spacing: 2) {
+                ForEach(lines, id: \.self) { BroopCaps($0, size: 10.5, color: color) }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Live strap status and vitals
 
 /// The strap battery control on its own, so the ~1 Hz live stream re-renders only this view, not Home.
 struct BroopLiveStrapStatus: View {
@@ -306,80 +669,16 @@ struct BroopLiveStrapStatus: View {
             batteryPct: live.batteryPct, charging: live.charging,
             ringPct: live.ouraBatteryPct, ringCharging: live.ouraWearState == .charging)
         switch display {
-        case .charge(let pct, _, _): BroopStrapStatus(level: Int(pct.rounded()), connected: true)
+        case .charge(let pct, let charging, _):
+            HStack(spacing: 2) {
+                if charging {
+                    Image(systemName: "bolt.fill").font(.system(size: 10)).foregroundStyle(BroopPalette.textSecondary)
+                }
+                BroopStrapStatus(level: Int(pct.rounded()), connected: true)
+            }
         case .pending: BroopStrapStatus(level: nil, connected: true)
         case .offline, .notActiveDevice: BroopStrapStatus(level: nil, connected: false)
         }
-    }
-}
-
-/// Daily Outlook: the readiness read for the selected day, with a hand-off to Coach.
-struct BroopOutlookSheet: View {
-    @EnvironmentObject private var store: BroopStore
-    let onAskCoach: (() -> Void)?
-
-    var body: some View {
-        let snap = store.snapshot
-        let readiness = snap?.readiness
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 10) {
-                    BroopBadge(size: 28, gradientRing: true)
-                    BroopCaps(String(localized: "Daily Outlook"), size: 12)
-                }
-                if let readiness, readiness.level != .insufficient {
-                    Text(verbatim: readiness.headline)
-                        .font(BroopType.demi(17))
-                        .foregroundStyle(BroopPalette.textPrimary)
-                    Text(verbatim: readiness.summary)
-                        .font(BroopType.regular(14))
-                        .foregroundStyle(BroopPalette.textBody)
-                        .lineSpacing(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                    ForEach(Array(readiness.signals.enumerated()), id: \.offset) { _, signal in
-                        HStack(alignment: .top, spacing: 10) {
-                            Circle()
-                                .fill(BroopVitals.flagColor(signal.flag))
-                                .frame(width: 7, height: 7)
-                                .padding(.top, 6)
-                            VStack(alignment: .leading, spacing: 2) {
-                                BroopCaps(signal.label, size: 10, color: BroopPalette.textSecondary)
-                                Text(verbatim: signal.detail)
-                                    .font(BroopType.regular(14))
-                                    .foregroundStyle(BroopPalette.textBody)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                } else {
-                    Text(snap?.chargeDisplay.calibrationDetail
-                         ?? String(localized: "Not enough history yet for an outlook. Keep wearing the strap overnight."))
-                        .font(BroopType.regular(14))
-                        .foregroundStyle(BroopPalette.textBody)
-                }
-                if let onAskCoach {
-                    Button(action: onAskCoach) {
-                        HStack {
-                            Image(systemName: "sparkles")
-                            Text("Ask Coach")
-                                .font(BroopType.demi(14))
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                        }
-                        .foregroundStyle(BroopPalette.textPrimary)
-                        .padding(14)
-                        .background(RoundedRectangle(cornerRadius: BroopMetrics.rowRadius, style: .continuous).fill(BroopPalette.row))
-                    }
-                    .buttonStyle(BroopPressableStyle())
-                    .padding(.top, 8)
-                }
-            }
-            .padding(24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(BroopPalette.card.ignoresSafeArea())
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 }
 

@@ -45,10 +45,21 @@ struct BroopSnapshot {
     var chargeStats: [BroopReading]
     var restStats: [BroopReading]
     var effortStats: [BroopReading]
-    /// Dashboard rows, each with the score screen that owns it (the row links there).
-    var dashboard: [(reading: BroopReading, home: BroopScore)]
+    /// Dashboard rows: the reading, the metric-catalog key its trend page lives under, and an icon.
+    var dashboard: [BroopDashboardItem]
 
     var streak: Int
+
+    /// Rest contributors for the selected night, each the same input `AnalyticsEngine.Rest.composite`
+    /// weighs: hours vs needed, consistency, efficiency (above) and restorative share (above).
+    var hoursVsNeededPct: Double?
+    var consistency: Double?
+    /// Named readings against the 30 days before the selected day.
+    var asleepReading: BroopReading?
+    var restorativeMinReading: BroopReading?
+    var restReading: BroopReading?
+    /// Days (yyyy-MM-dd) in the week ending on the selected day that carry a native journal entry.
+    var journalDays: Set<String>
 
     static func empty(dayKey: String, date: Date, isToday: Bool) -> BroopSnapshot {
         BroopSnapshot(dayKey: dayKey, date: date, isToday: isToday,
@@ -56,7 +67,9 @@ struct BroopSnapshot {
                       readiness: nil, night: nil, asleepMinutes: nil, needMinutes: nil,
                       efficiency: nil, restorativePct: nil, workouts: [], zoneMinutes: nil,
                       steps: nil, activeKcal: nil, stress: nil, vitals: [],
-                      chargeStats: [], restStats: [], effortStats: [], dashboard: [], streak: 0)
+                      chargeStats: [], restStats: [], effortStats: [], dashboard: [], streak: 0,
+                      hoursVsNeededPct: nil, consistency: nil, asleepReading: nil,
+                      restorativeMinReading: nil, restReading: nil, journalDays: [])
     }
 
     func value(_ score: BroopScore) -> Double? {
@@ -293,6 +306,34 @@ final class BroopStore: ObservableObject {
         let deepStat = stat(String(localized: "Deep sleep"), unit: "", better: .higher, value: day?.deepMin, format: { BroopFormat.duration($0) }) { $0.deepMin }
         let remStat = stat(String(localized: "REM sleep"), unit: "", better: .higher, value: day?.remMin, format: { BroopFormat.duration($0) }) { $0.remMin }
         s.restStats = [asleepStat, effStat, restorativeStat, deepStat, remStat].compactMap { $0 }
+        s.asleepReading = asleepStat
+        s.restorativeMinReading = stat(String(localized: "Restorative sleep"), unit: "", better: .higher,
+                                       value: day.flatMap { d in d.deepMin.flatMap { deep in d.remMin.map { deep + $0 } } },
+                                       format: { BroopFormat.duration($0) }) { d in
+            guard let deep = d.deepMin, let rem = d.remMin else { return nil }
+            return deep + rem
+        }
+        // Sleep performance against its own 30 days (the stored series the Rest dial reads).
+        if let rest = s.rest {
+            let hist = restSeries.filter { $0.day < key }.suffix(30).map(\.value)
+            if !hist.isEmpty {
+                let mean = hist.reduce(0, +) / Double(hist.count)
+                let variance = hist.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(hist.count)
+                let sd = max(variance.squareRoot(), abs(mean) * 0.02, 0.05)
+                s.restReading = BroopReading(name: String(localized: "Sleep performance"), value: rest, unit: "%",
+                                             typical: (mean - sd)...(mean + sd), baseline: mean, better: .higher,
+                                             format: whole)
+            }
+        }
+        // Hours vs needed and consistency through SleepModel's own series builders, fed only the rows up to
+        // the selected day, so the value is the one the classic Sleep tiles show for that night.
+        if let asleep, asleep > 0, let need = s.needMinutes, need > 0 { s.hoursVsNeededPct = asleep / need * 100 }
+        let sleepsUpTo = repo.sleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= key }
+        if let last = sleepsUpTo.last,
+           Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == key {
+            s.consistency = SleepModel.consistencySeries(days: days.filter { $0.day <= key }, sleeps: sleepsUpTo,
+                                                         importedSleep: repo.importedSleep).latest
+        }
 
         let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps, format: whole) { $0.steps.map(Double.init) }
         let kcalStat = stat(String(localized: "Active calories"), unit: "kcal", better: .neutral, value: s.activeKcal, format: whole) { $0.activeKcalEst }
@@ -300,9 +341,15 @@ final class BroopStore: ObservableObject {
                               value: s.effort, format: one) { d in d.strain.map { UnitFormatter.effortValue($0, scale: scale) } }
         s.effortStats = [effortStat, stepsStat, kcalStat].compactMap { $0 }
 
-        let rows: [(BroopReading?, BroopScore)] = [(hrv, .charge), (rhr, .charge), (restorativeStat, .rest),
-                                                   (resp, .charge), (stepsStat, .effort), (kcalStat, .effort)]
-        s.dashboard = rows.compactMap { r in r.0.map { (reading: $0, home: r.1) } }
+        let rows: [(BroopReading?, String, String)] = [
+            (hrv, "hrv", "waveform.path.ecg"), (rhr, "rhr", "heart"),
+            (restorativeStat, "restorative_pct", "moon.stars"), (resp, "resp_rate", "lungs"),
+            (stepsStat, "steps", "shoeprints.fill"), (kcalStat, "active_kcal", "flame")]
+        s.dashboard = rows.compactMap { r in r.0.map { BroopDashboardItem(reading: $0, metricKey: r.1, symbol: r.2) } }
+
+        let weekStart = Repository.localDayKey(cal.date(byAdding: .day, value: -6, to: logicalDay) ?? logicalDay)
+        s.journalDays = await repo.nativeJournalDays(from: weekStart, to: key)
+        guard !Task.isCancelled else { return }
 
         s.streak = StreakCalculator.streaks(
             dayKeys: days.map(\.day),
@@ -316,6 +363,14 @@ final class BroopStore: ObservableObject {
         snapshot = s
         lastLoadKey = loadKey
     }
+}
+
+/// One My Dashboard row.
+struct BroopDashboardItem: Identifiable {
+    let reading: BroopReading
+    let metricKey: String
+    let symbol: String
+    var id: String { metricKey }
 }
 
 /// Routes pushed inside the Broop tabs.
