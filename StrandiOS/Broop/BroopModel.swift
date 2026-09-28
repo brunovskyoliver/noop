@@ -321,7 +321,6 @@ final class BroopStore: ObservableObject {
 /// Routes pushed inside the Broop tabs.
 enum BroopRoute: Hashable {
     case score(BroopScore)
-    case settings
 }
 #endif
 

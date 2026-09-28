@@ -74,8 +74,8 @@ struct RootTabView: View {
     @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
     /// Selected day shared by the Broop screens.
     @StateObject private var broopStore = BroopStore()
-    /// Coach and Live Sessions have no tab in the Broop shell, so their routes present them instead.
-    @State private var broopCoachPresented = false
+    /// Routed screens in the Broop shell (Coach, Trends, Devices, ...) present here as sheets.
+    @State private var broopSheet: BroopScreen?
     @State private var broopLiveSessionPresented = false
 
     /// The Today tab root, honouring the liquid/classic preference.
@@ -164,26 +164,16 @@ struct RootTabView: View {
             tabPaths = Array(repeating: NavigationPath(), count: 5)
             selectedTab = 0
         }
-        .sheet(isPresented: $broopCoachPresented) {
-            NavigationStack {
-                CoachView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { broopCoachPresented = false }
-                        }
-                    }
-            }
+        .sheet(item: $broopSheet) { screen in
+            BroopPresentedScreen(screen: screen, onClose: { broopSheet = nil })
         }
         .fullScreenCover(isPresented: $broopLiveSessionPresented) {
-            LiveSessionView(onClose: { broopLiveSessionPresented = false })
+            BroopLiveSessionCover(onClose: { broopLiveSessionPresented = false })
         }
-        // Any other routed screen or the quick-action menu supersedes the Broop Coach sheet, as it does the
-        // shell's own sheets; otherwise the request would be consumed with nothing shown.
-        .onChange(of: router.requestedDestination) { _, dest in
-            if let dest, dest != .coach { broopCoachPresented = false }
-        }
+        // The quick-action menu supersedes a routed Broop sheet, as it does the shell's own sheets;
+        // otherwise the request would be consumed with nothing shown.
         .onChange(of: router.quickActionsRequested) { _, requested in
-            if requested { broopCoachPresented = false }
+            if requested { broopSheet = nil }
         }
         // Switching Coach off while STANDING on it leaves `selectedTab` pointing at a tag no tab claims
         // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
@@ -247,6 +237,18 @@ struct RootTabView: View {
         // Honour a router request: Devices keeps its dedicated sheet; the v5 pillars route through the
         // shared pillar sheet. Cleared so the same tap can fire again later.
         .onChange(of: router.requestedDestination) { _, dest in
+            // Broop: every routed screen presents through the Broop sheet (Live Sessions through its cover).
+            if broopEnabled, let dest {
+                quickAction = nil
+                if let screen = BroopScreen(dest) {
+                    broopSheet = screen
+                } else {
+                    broopSheet = nil
+                    broopLiveSessionPresented = true
+                }
+                router.requestedDestination = nil
+                return
+            }
             switch dest {
             case .devices:
                 showDevices = true
@@ -267,20 +269,9 @@ struct RootTabView: View {
                     router.requestedDestination = nil
                     break
                 }
-                if broopEnabled {
-                    broopCoachPresented = true
-                    router.requestedDestination = nil
-                    break
-                }
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 3 }
                 router.requestedDestination = nil
             case .trends:
-                // Broop has no Trends tab: present it as a sheet instead.
-                if broopEnabled {
-                    routedPillar = .trends
-                    router.requestedDestination = nil
-                    break
-                }
                 // Trends is a primary tab on iPhone (not a pillar sheet) — switch to it.
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 1 }
                 router.requestedDestination = nil
@@ -291,11 +282,6 @@ struct RootTabView: View {
                 withAnimation(Self.sheetEase) { quickAction = .live }
                 router.requestedDestination = nil
             case .liveSession:
-                if broopEnabled {
-                    broopLiveSessionPresented = true
-                    router.requestedDestination = nil
-                    break
-                }
                 // Live Sessions is presented from Today's own Start entry (a cover, not a routed sheet),
                 // so a deep-link lands on the Today tab where that entry lives.
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
@@ -338,7 +324,7 @@ struct RootTabView: View {
         // and because swiping the sheet away must minimise the session, not end it.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if liftSession.isActive {
-                LiftSessionBar()
+                liftSessionBar
                     .padding(.horizontal, 14)
                     // Clear the floating tab bar with the same constant every screen uses, or the
                     // session bar sits on top of the tab labels.
@@ -351,7 +337,7 @@ struct RootTabView: View {
         // (`LiftSessionController.resumeSaved`, from `StrandiOSApp.init`), as the BAR — not as a sheet
         // thrown in the user's face; they open it when they want it.
         .sheet(isPresented: $liftSession.isPresented) {
-            LiftSessionView { }
+            if broopEnabled { BroopLiftSessionSheet() } else { LiftSessionView { } }
         }
     }
 
@@ -372,7 +358,7 @@ struct RootTabView: View {
         withAnimation(Self.sheetEase) {
             showDevices = false
             routedPillar = nil
-            broopCoachPresented = false
+            broopSheet = nil
             broopLiveSessionPresented = false
             quickAction = destination
         }
@@ -437,6 +423,35 @@ struct RootTabView: View {
     /// Routes a chosen quick action to the existing screen, or shows the action menu itself.
     @ViewBuilder
     private func quickActionDestination(_ action: QuickAction) -> some View {
+        if broopEnabled {
+            broopQuickActionDestination(action)
+        } else {
+            classicQuickActionDestination(action)
+        }
+    }
+
+    /// Broop's quick actions: its own "+" menu, and every pick opens the Broop screen for it.
+    @ViewBuilder
+    private func broopQuickActionDestination(_ action: QuickAction) -> some View {
+        switch action {
+        case .menu:
+            BroopQuickMenu { picked in
+                quickAction = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    withAnimation(Self.sheetEase) { broopSheet = picked }
+                }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        case .live: BroopPresentedScreen(screen: .live, onClose: { quickAction = nil })
+        case .workout: BroopPresentedScreen(screen: .workouts, onClose: { quickAction = nil })
+        case .journal: BroopPresentedScreen(screen: .journal, onClose: { quickAction = nil })
+        case .breathe: BroopPresentedScreen(screen: .breathe, onClose: { quickAction = nil })
+        }
+    }
+
+    @ViewBuilder
+    private func classicQuickActionDestination(_ action: QuickAction) -> some View {
         switch action {
         case .menu:
             QuickActionSheet { picked in
@@ -501,6 +516,26 @@ struct RootTabView: View {
         }
     }
 
+    /// A tab root with its stack's push destinations: Broop screens in the Broop shell, the classic
+    /// `TabRoute` screens otherwise.
+    @ViewBuilder
+    private func tabRoot<V: View>(_ view: V) -> some View {
+        if broopEnabled {
+            view
+                .toolbar(.hidden, for: .navigationBar)
+                .broopDestinations()
+        } else {
+            view
+                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .toolbar(.hidden, for: .navigationBar)
+                .tabRouteDestinations()
+        }
+    }
+
+    @ViewBuilder private var liftSessionBar: some View {
+        if broopEnabled { BroopLiftSessionBar() } else { LiftSessionBar() }
+    }
+
     private func tab<V: View>(_ view: V, _ title: LocalizedStringKey, _ icon: String,
                               path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
         // Each primary tab gets its OWN NavigationStack so the in-content NavigationLinks (e.g. the Today
@@ -512,10 +547,7 @@ struct RootTabView: View {
         // re-tap of the active tab can pop it to the root (#135/#198); the roots' first-hop links push
         // TabRoute values, registered here ONCE per stack (a double registration double-pushes, #38).
         NavigationStack(path: path) {
-            view
-                .background(StrandPalette.surfaceBase.ignoresSafeArea())
-                .toolbar(.hidden, for: .navigationBar)
-                .tabRouteDestinations()
+            tabRoot(view)
         }
         // Drive this tab's root scroll-to-top on an at-root re-tap (#198 follow-up); read by ScreenScaffold
         // / LiquidTodayView inside. Only THIS tab's token changes on its reselect, so the others don't scroll.

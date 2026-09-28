@@ -50,13 +50,6 @@ struct BroopHomeView: View {
         .navigationDestination(for: BroopRoute.self) { route in
             switch route {
             case .score(let score): BroopScoreDetailView(initial: score)
-            case .settings:
-                SettingsView()
-                    .background(StrandPalette.surfaceBase.ignoresSafeArea())
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbarBackground(.hidden, for: .navigationBar)
-                    .toolbar(.visible, for: .navigationBar)
-                    .tint(StrandPalette.accent)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -107,7 +100,7 @@ struct BroopHomeView: View {
                 onToday: { withAnimation(.snappy) { store.dayOffset = 0 } }
             )
             HStack {
-                NavigationLink(value: BroopRoute.settings) {
+                NavigationLink(value: BroopScreen.settings) {
                     ProfileAvatarView(imageData: profile.avatarImageData, size: 32)
                 }
                 .buttonStyle(BroopPressableStyle())
