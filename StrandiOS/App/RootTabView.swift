@@ -69,6 +69,15 @@ struct RootTabView: View {
     /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
 
+    /// Broop interface (this fork): Home / Health / More in the WHOOP-style design, with every classic
+    /// screen still reachable from More. Off restores the classic five-tab shell unchanged.
+    @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
+    /// Selected day shared by the Broop screens.
+    @StateObject private var broopStore = BroopStore()
+    /// Coach and Live Sessions have no tab in the Broop shell, so their routes present them instead.
+    @State private var broopCoachPresented = false
+    @State private var broopLiveSessionPresented = false
+
     /// The Today tab root, honouring the liquid/classic preference.
     @ViewBuilder private var todayTabRoot: some View {
         if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
@@ -126,6 +135,11 @@ struct RootTabView: View {
         // its dynamic interaction with scrolling content automatically; older supported releases use
         // the corresponding system material and safe-area behaviour from the same TabView.
         TabView(selection: nativeTabSelection) {
+          if broopEnabled {
+            tab(BroopHomeView(onOpenHealth: { selectedTab = 1 }), "Home", "house", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
+            tab(BroopHealthView(), "Health", "heart", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
+            tab(BroopMoreView(), "More", "line.3.horizontal", path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
+          } else {
             tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
             tab(TrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
             tab(SleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
@@ -139,8 +153,25 @@ struct RootTabView: View {
                 tab(CoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
             }
             moreTab(path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
+          }
         }
-        .tint(StrandPalette.accent)
+        .tint(broopEnabled ? BroopPalette.textPrimary : StrandPalette.accent)
+        .environmentObject(broopStore)
+        // The two shells use different tab tags; land on Home/Today whenever the shell flips.
+        .onChangeCompat(of: broopEnabled) { _ in selectedTab = 0 }
+        .sheet(isPresented: $broopCoachPresented) {
+            NavigationStack {
+                CoachView()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { broopCoachPresented = false }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $broopLiveSessionPresented) {
+            LiveSessionView(onClose: { broopLiveSessionPresented = false })
+        }
         // Switching Coach off while STANDING on it leaves `selectedTab` pointing at a tag no tab claims
         // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
         // only in that case, so a flip made from anywhere else does not move them.
@@ -174,7 +205,7 @@ struct RootTabView: View {
             // the subview hierarchy TOO, which on a pushed screen would take out scrolling, taps and the
             // interactive-pop itself: far worse than the bug being fixed.
             .simultaneousGesture(tabSwipeGesture,
-                                 including: tabPaths[selectedTab].isEmpty ? .all : .subviews)
+                                 including: (tabPaths[selectedTab].isEmpty && !broopEnabled) ? .all : .subviews)
         .task {
             await repo.refresh()
             // Backup & Sync: on-launch catch-up (see RootView). Detached + utility priority so a
@@ -223,9 +254,20 @@ struct RootTabView: View {
                     router.requestedDestination = nil
                     break
                 }
+                if broopEnabled {
+                    broopCoachPresented = true
+                    router.requestedDestination = nil
+                    break
+                }
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 3 }
                 router.requestedDestination = nil
             case .trends:
+                // Broop has no Trends tab: present it as a sheet instead.
+                if broopEnabled {
+                    routedPillar = .trends
+                    router.requestedDestination = nil
+                    break
+                }
                 // Trends is a primary tab on iPhone (not a pillar sheet) — switch to it.
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 1 }
                 router.requestedDestination = nil
@@ -236,6 +278,11 @@ struct RootTabView: View {
                 withAnimation(Self.sheetEase) { quickAction = .live }
                 router.requestedDestination = nil
             case .liveSession:
+                if broopEnabled {
+                    broopLiveSessionPresented = true
+                    router.requestedDestination = nil
+                    break
+                }
                 // Live Sessions is presented from Today's own Start entry (a cover, not a routed sheet),
                 // so a deep-link lands on the Today tab where that entry lives.
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
