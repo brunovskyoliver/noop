@@ -571,6 +571,21 @@ struct RootTabView: View {
                     // ones people reach for when a strap is running down, so they get their own row.
                     MoreRow("Power saving", "battery.25", .powerSaving)
                     MoreRow("Settings", "gearshape.fill", .settings)
+                    // Fork: the way back to the Broop interface from the classic shell.
+                    Toggle(isOn: $broopEnabled) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "b.circle.fill")
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundStyle(StrandPalette.accent)
+                                .frame(width: 26, alignment: .center)
+                            Text("Broop interface")
+                                .font(StrandFont.body)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                        }
+                    }
+                    .tint(StrandPalette.accent)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
                 }
             }
             // The rows push MoreDestination VALUES so a re-tap of the More tab can pop them off the

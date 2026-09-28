@@ -115,7 +115,8 @@ extension View {
 }
 
 enum BroopFormat {
-    static func whole(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(0))) }
+    /// Half-up rounding, matching `BroopScore.format` and the dials, so one value never reads two ways.
+    static func whole(_ v: Double) -> String { Int(v.rounded()).formatted() }
     static func one(_ v: Double) -> String { String(format: "%.1f", v) }
     static func signed(_ v: Double) -> String { String(format: "%+.1f", v) }
     static func duration(_ minutes: Double) -> String {

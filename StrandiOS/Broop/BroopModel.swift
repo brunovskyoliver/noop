@@ -246,7 +246,6 @@ final class BroopStore: ObservableObject {
         let rhr = stat(String(localized: "Resting heart rate"), unit: "bpm", better: .lower, value: rhrNow, format: whole) { $0.restingHr.map(Double.init) }
         let resp = stat(String(localized: "Respiratory rate"), unit: "rpm", better: .neutral, value: respNow, format: one) { $0.respRateBpm }
         let spo2 = stat(String(localized: "Blood oxygen"), unit: "%", better: .higher, value: day?.spo2Pct, format: whole) { $0.spo2Pct }
-        let recoveryStat = stat(String(localized: "Charge"), unit: "%", better: .higher, value: s.charge, format: whole) { $0.recovery }
         s.chargeStats = [hrv, rhr, resp, spo2].compactMap { $0 }
 
         let asleepStat = stat(String(localized: "Hours of sleep"), unit: "", better: .higher, value: asleep, format: { BroopFormat.duration($0) }) { $0.totalSleepMin }
@@ -267,7 +266,7 @@ final class BroopStore: ObservableObject {
                               value: s.effort, format: one) { d in d.strain.map { UnitFormatter.effortValue($0, scale: scale) } }
         s.effortStats = [effortStat, stepsStat, kcalStat].compactMap { $0 }
 
-        let rows: [(BroopReading?, BroopScore)] = [(hrv, .charge), (rhr, .charge), (recoveryStat, .charge), (restorativeStat, .rest),
+        let rows: [(BroopReading?, BroopScore)] = [(hrv, .charge), (rhr, .charge), (restorativeStat, .rest),
                                                    (resp, .charge), (stepsStat, .effort), (kcalStat, .effort)]
         s.dashboard = rows.compactMap { r in r.0.map { (reading: $0, home: r.1) } }
 
