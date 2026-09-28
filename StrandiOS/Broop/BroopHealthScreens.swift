@@ -8,12 +8,12 @@ struct BroopHealthScreens: View {
 
     var body: some View {
         switch screen {
-        case .health: HealthView().broopClassicScreen()
-        case .stress: StressView().broopClassicScreen()
+        case .health: BroopHealthMonitorView()
+        case .stress: BroopHealthStressView()
         case .labBook: LabBookView().broopClassicScreen()
         case .rhythm: RhythmHost().broopClassicScreen()
         case .metricExplorer: MetricExplorerView().broopClassicScreen()
-        case .trends: TrendsView().broopClassicScreen()
+        case .trends: BroopHealthTrendsView()
         case .hydration: HydrationView().broopClassicScreen()
         case .compare: CompareView().broopClassicScreen()
         case .metric(let key, let source): metric(key: key, source: source)
@@ -26,9 +26,9 @@ struct BroopHealthScreens: View {
         let resolved = source.flatMap { MetricCatalog.metric(key: key, source: $0) }
             ?? MetricCatalog.all.first(where: { $0.key == key })
         if let resolved {
-            MetricDetailView(metric: resolved).broopClassicScreen()
+            BroopHealthTrendView(metric: resolved).id(resolved.id)
         } else {
-            HealthView().broopClassicScreen()
+            BroopHealthMonitorView()
         }
     }
 }

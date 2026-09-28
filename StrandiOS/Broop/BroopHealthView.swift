@@ -5,182 +5,343 @@ import StrandDesign
 
 // MARK: - Health
 
-/// Broop Health Monitor: last night's vitals against the wearer's range, then links to every
-/// body-related classic screen. The readings come from `BroopVitals.readings(repo:)`, the same resolver
-/// the classic Health screen uses, so the two screens cannot disagree about what is in range.
+/// The Broop Health tab, laid out like WHOOP's: the live heart-rate hero, then Healthspan, Health
+/// Monitor and Stress Monitor cards, then the other body screens NOOP has data for (HRV status, fitness,
+/// cycle, body, trends, records). Every card opens its Broop screen.
+///
+/// The vitals come from `BroopHealthVitalSet` (the same resolver and inputs as Home and the classic
+/// Health screen) and the stress figure from `StressModel` over the same inputs `BroopStore` uses, so the
+/// Home tiles and these cards can never disagree.
 struct BroopHealthView: View {
     @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var profile: ProfileStore
+    @EnvironmentObject private var model: AppModel
+    @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateOn = false
+    @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
+
+    @State private var vitals = BroopHealthVitalSet()
+    @State private var vitalsLoaded = false
+    @State private var stress: StressModel?
+    @State private var healthspan = BroopHealthspanData()
+    @State private var weight: (value: Double, day: String)?
+    @State private var cycleTracker = false
 
     var body: some View {
-        let readings = BroopVitals.readings(repo: repo)
         ScrollView {
-            VStack(spacing: 0) {
-                BroopPageHeader(text: String(localized: "Health Monitor"))
-                summary(readings).padding(.top, 20)
+            LazyVStack(alignment: .leading, spacing: 0) {
+                BroopPageHeader(text: String(localized: "Health"))
+                BroopHealthLiveHeartRate()
+                    .padding(.horizontal, -BroopMetrics.page)
+                    .padding(.top, 8)
+                VStack(spacing: 14) {
+                    NavigationLink { BroopHealthspanView() } label: { healthspanCard }
+                    NavigationLink(value: BroopScreen.health) { monitorCard }
+                    NavigationLink(value: BroopScreen.stress) { stressCard }
+                }
+                .buttonStyle(BroopPressableStyle())
+                .padding(.top, 18)
+
+                BroopHealthHeading(text: String(localized: "Heart & Fitness")).padding(.top, BroopMetrics.section)
                 VStack(spacing: 12) {
-                    BroopListHeader(title: String(localized: "Last night · vs. your range"))
-                    VStack(spacing: 8) {
-                        ForEach(readings) { reading in
-                            NavigationLink(value: BroopScreen.health) {
-                                BroopBodyVitalTile(reading: reading)
-                            }
-                            .buttonStyle(BroopPressableStyle())
-                        }
+                    BroopHealthHRVStatusCard(showsLink: true)
+                    NavigationLink { BroopHealthspanView() } label: { fitnessCard }
+                        .buttonStyle(BroopPressableStyle())
+                }
+                .padding(.top, 12)
+
+                if cycleEnabled, let cycle = model.cyclePhase {
+                    Button { cycleTracker = true } label: { cycleCard(cycle) }
+                        .buttonStyle(BroopPressableStyle())
+                        .padding(.top, 12)
+                }
+
+                BroopHealthHeading(text: String(localized: "Body")).padding(.top, BroopMetrics.section)
+                VStack(spacing: 10) {
+                    NavigationLink(value: BroopScreen.metric(key: "weight", source: "apple-health")) {
+                        BroopHealthDashboardRow(symbol: "scalemass", title: String(localized: "Weight"),
+                                                value: weight.map { UnitFormatter.massFromKilograms($0.value, system: unitSystem) },
+                                                baseline: weight.map { BroopHealthFormat.shortDay($0.day) },
+                                                direction: 0, good: nil)
+                    }
+                    NavigationLink(value: BroopScreen.labBook) {
+                        BroopHealthRow(symbol: "books.vertical", title: String(localized: "Lab Book"),
+                                       detail: String(localized: "Bloods, blood pressure and body numbers"))
+                    }
+                    NavigationLink(value: BroopScreen.hydration) {
+                        BroopHealthRow(symbol: "drop", title: String(localized: "Hydration"))
+                    }
+                    NavigationLink(value: BroopScreen.rhythm) {
+                        BroopHealthRow(symbol: "waveform.path", title: String(localized: "Rhythm"),
+                                       detail: String(localized: "Beat-to-beat regularity, experimental"))
                     }
                 }
-                .padding(.top, BroopMetrics.section)
-                VStack(spacing: 12) {
-                    BroopListHeader(title: String(localized: "Monitors"))
-                    VStack(spacing: 8) {
-                        link(BroopScreen.health, "heart.text.square", String(localized: "Health details"))
-                        link(BroopScreen.stress, "bolt.heart", String(localized: "Stress"))
-                        link(BroopScreen.metricExplorer, "waveform.path.ecg", String(localized: "HRV & vitals explorer"))
-                        link(BroopScreen.labBook, "books.vertical", String(localized: "Lab Book"))
-                        link(BroopScreen.rhythm, "waveform.path", String(localized: "Rhythm"))
-                        link(BroopScreen.fusedRecord, "square.stack.3d.up", String(localized: "Your Data, Fused"))
+                .buttonStyle(BroopPressableStyle())
+                .padding(.top, 12)
+
+                BroopHealthHeading(text: String(localized: "Trends")).padding(.top, BroopMetrics.section)
+                VStack(spacing: 10) {
+                    NavigationLink(value: BroopScreen.trends) {
+                        BroopHealthRow(symbol: "chart.xyaxis.line", title: String(localized: "My Dashboard"),
+                                       detail: String(localized: "Every metric over weeks and months"))
+                    }
+                    NavigationLink(value: BroopScreen.metricExplorer) {
+                        BroopHealthRow(symbol: "waveform.path.ecg", title: String(localized: "Metric Explorer"))
+                    }
+                    NavigationLink(value: BroopScreen.compare) {
+                        BroopHealthRow(symbol: "chart.line.uptrend.xyaxis", title: String(localized: "Compare"))
+                    }
+                    NavigationLink(value: BroopScreen.fusedRecord) {
+                        BroopHealthRow(symbol: "square.stack.3d.up", title: String(localized: "Your Data, Fused"))
                     }
                 }
-                .padding(.top, BroopMetrics.section)
+                .buttonStyle(BroopPressableStyle())
+                .padding(.top, 12)
+
+                BroopHairline().padding(.top, BroopMetrics.section)
+                BroopHealthFootnote(text: String(localized: "Health Monitor and Stress Monitor are not medical devices and cannot diagnose or manage medical conditions. They do not provide medical advice. Always consult your doctor for health concerns and never delay or modify medical care based on these features."))
+                    .padding(.top, 16)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 96)
+            .padding(.bottom, 110)
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
         .broopStatusBarScrim()
         .background(BroopBackground())
-    }
-
-    private func link<Value: Hashable>(_ value: Value, _ symbol: String, _ title: String) -> some View {
-        NavigationLink(value: value) {
-            BroopNavTile(symbol: symbol, title: title)
-        }
-        .buttonStyle(BroopPressableStyle())
-    }
-
-    @ViewBuilder
-    private func summary(_ readings: [BodyVitalReading]) -> some View {
-        let withData = readings.filter { $0.banding.band != .noData }
-        let inRange = withData.filter { $0.banding.band == .inRange }
-        let outliers = withData.filter { $0.banding.band == .outOfRange }
-        VStack(spacing: 14) {
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(verbatim: withData.isEmpty ? "–" : "\(inRange.count)")
-                    .font(BroopType.number(64))
-                    .foregroundStyle(BroopPalette.textPrimary)
-                    .broopNumeral(64)
-                Text(verbatim: "/\(withData.count)")
-                    .font(BroopType.number(28))
-                    .foregroundStyle(BroopPalette.textSecondary)
+        .task(id: "\(repo.refreshSeq)|\(spo2CandidateOn)") { await load() }
+        .sheet(isPresented: $cycleTracker) {
+            if let cycle = model.cyclePhase {
+                CycleTrackerView(result: cycle, curve: model.cycleCurve)
+                    .environmentObject(repo)
+                    .environmentObject(model)
             }
-            BroopCaps(statusLine(withData: withData.count, outliers: outliers.count), size: 11,
-                      color: withData.isEmpty ? BroopPalette.textSecondary
-                          : (outliers.isEmpty ? BroopPalette.teal : BroopPalette.warning))
-            Text(verbatim: bodyLine(withData: withData.count, outliers: outliers))
-                .font(BroopType.regular(14))
-                .foregroundStyle(BroopPalette.textBody)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12)
+        }
+    }
+
+    private var unitSystem: UnitSystem {
+        UnitSystem(rawValue: UserDefaults.standard.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
+    }
+
+    private func load() async {
+        vitals = await BroopHealthVitalSet.load(repo: repo)
+        vitalsLoaded = true
+        let stored = await repo.series(key: "stress", source: "my-whoop")
+        let days = repo.days
+        stress = await CancellableAnalysis.run { StressModel(days: days, stored: stored) }
+        healthspan = await BroopHealthspanData.load(repo: repo, profile: profile)
+        weight = (await repo.exploreSeries(key: "weight", source: "apple-health")).last.map { ($0.value, $0.day) }
+    }
+
+    // MARK: Healthspan
+
+    private var healthspanCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            BroopHealthCardTitle(title: String(localized: "Healthspan"))
+            if let age = healthspan.bodyAge {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(verbatim: BroopFormat.one(age))
+                            .font(BroopType.number(40)).foregroundStyle(BroopPalette.textPrimary).broopNumeral(40)
+                        BroopCaps(String(localized: "Body Age"), size: 10.5, color: BroopPalette.textSecondary)
+                    }
+                    Rectangle().fill(BroopPalette.hairline).frame(width: 1, height: 44)
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let delta = healthspan.bodyAgeDelta(age: profile.age) {
+                            Text(verbatim: BroopHealthspanData.yearsLine(delta))
+                                .font(BroopType.demi(16))
+                                .foregroundStyle(delta >= 0 ? BroopHealthPalette.mint : BroopHealthPalette.amber)
+                        }
+                        Text(verbatim: healthspan.pace.map { "\(BroopFormat.one($0))x " + String(localized: "pace of aging") }
+                             ?? String(localized: "Pace of Aging after about two months"))
+                            .font(BroopType.medium(13.5))
+                            .foregroundStyle(BroopPalette.textBody)
+                    }
+                    Spacer(minLength: 0)
+                }
+                BroopHealthPaceRuler(pace: healthspan.pace).frame(height: 16)
+            } else {
+                Text(healthspan.loaded
+                     ? "Keep wearing your strap. A few more days and we can show your Body Age and Pace of Aging."
+                     : "Reading your Healthspan…")
+                    .font(BroopType.medium(15))
+                    .foregroundStyle(BroopPalette.textBody)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
+    }
+
+    // MARK: Health Monitor
+
+    private var monitorCard: some View {
+        let core = vitals.core
+        let withData = vitals.withData
+        let outliers = vitals.outliers
+        return VStack(alignment: .leading, spacing: 18) {
+            BroopHealthCardTitle(title: String(localized: "Health Monitor"))
+            HStack(spacing: 0) {
+                ForEach(Array(core.enumerated()), id: \.element.id) { i, r in
+                    VStack(spacing: 10) {
+                        Image(systemName: r.broopSymbol)
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(BroopPalette.textSecondary)
+                            .frame(height: 24)
+                        BroopCaps(r.broopShort, size: 11)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        BroopHealthStatusSquare(tone: r.broopTone, size: 22)
+                    }
+                    .frame(maxWidth: .infinity)
+                    if i < core.count - 1 {
+                        Rectangle().fill(BroopPalette.hairline).frame(width: 1, height: 74)
+                    }
+                }
+            }
+            HStack(spacing: 12) {
+                BroopHealthStatusSquare(tone: withData.isEmpty ? .none : (outliers.isEmpty ? .good : .warn),
+                                        size: 18, solid: !withData.isEmpty)
+                Text(verbatim: summaryLine(withData: withData.count, outliers: outliers.count))
+                    .font(BroopType.medium(15))
+                    .foregroundStyle(BroopPalette.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 38)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(BroopHealthPalette.innerPanel))
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
+    }
+
+    private func summaryLine(withData: Int, outliers: Int) -> String {
+        if !vitalsLoaded { return String(localized: "Reading your vitals…") }
+        if withData == 0 { return String(localized: "Wear your strap overnight to see your vitals") }
+        let inRange = withData - outliers
+        return String(localized: "\(inRange)/\(withData) metrics within range")
+    }
+
+    // MARK: Stress Monitor
+
+    private var stressCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            BroopHealthCardTitle(title: String(localized: "Stress Monitor"))
+            if let stress {
+                HStack(alignment: .center, spacing: 14) {
+                    let color = BroopHealthStressBand.color(stress.band)
+                    Text(verbatim: StressTrace.formatLevel(stress.score))
+                        .font(BroopType.number(22))
+                        .foregroundStyle(color)
+                        .frame(width: 54, height: 44)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(color.opacity(0.2)))
+                    VStack(alignment: .leading, spacing: 3) {
+                        BroopCaps(stress.band.title, size: 13, color: color)
+                        Text(verbatim: stress.usingStored ? String(localized: "Recorded daily score")
+                             : String(localized: "From resting HR and HRV vs. your 30 days"))
+                            .font(BroopType.regular(13))
+                            .foregroundStyle(BroopPalette.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    BroopHealthMiniBars(values: stress.sparkValues, domain: 0...3, color: { BroopHealthPalette.stress($0) })
+                        .frame(width: 96, height: 40)
+                }
+            } else {
+                Text("Stress appears once there are a few nights of resting heart rate and HRV.")
+                    .font(BroopType.medium(15)).foregroundStyle(BroopPalette.textBody)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
+    }
+
+    // MARK: Fitness
+
+    private var fitnessCard: some View {
+        HStack(spacing: 0) {
+            fitnessColumn(title: String(localized: "VO₂ Max"),
+                          value: healthspan.vo2max.map { String(format: "%.0f", $0) }, unit: "mL/kg/min")
+            Rectangle().fill(BroopPalette.hairline).frame(width: 1, height: 54)
+            fitnessColumn(title: String(localized: "Fitness Age"),
+                          value: healthspan.fitnessAge.map { "\(fitnessAgeBoundSymbol($0))\(Int($0.rounded()))" },
+                          unit: String(localized: "yrs"))
+            Image(systemName: "chevron.right")
+                .font(.system(size: 15))
+                .foregroundStyle(BroopPalette.textPrimary)
+        }
+        .padding(.vertical, 18)
+        .padding(.leading, 4)
+        .padding(.trailing, 18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
+    }
+
+    private func fitnessColumn(title: String, value: String?, unit: String) -> some View {
+        VStack(spacing: 6) {
+            BroopCaps(title, size: 10.5, color: BroopPalette.textSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(verbatim: value ?? "--").font(BroopType.number(30)).foregroundStyle(BroopPalette.textPrimary)
+                if value != nil {
+                    Text(verbatim: unit).font(BroopType.regular(11.5)).foregroundStyle(BroopPalette.textSecondary)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private func statusLine(withData: Int, outliers: Int) -> String {
-        if withData == 0 { return String(localized: "No vitals yet") }
-        if outliers == 0 { return String(localized: "Within range") }
-        if outliers == withData { return String(localized: "Outside range") }
-        return String(localized: "Metrics within range")
-    }
+    // MARK: Cycle
 
-    private func bodyLine(withData: Int, outliers: [BodyVitalReading]) -> String {
-        if withData == 0 {
-            return String(localized: "Wear your strap overnight to see your vitals against your range.")
+    private func cycleCard(_ cycle: CyclePhaseEngine.Result) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "circle.dotted")
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(Color(broopHex: 0xB45CF0))
+            VStack(alignment: .leading, spacing: 3) {
+                BroopCaps(String(localized: "Cycle awareness"), size: 12)
+                Text(String(localized: "From your nightly skin temperature"))
+                    .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right").font(.system(size: 15)).foregroundStyle(BroopPalette.textPrimary)
         }
-        if outliers.isEmpty { return String(localized: "Nothing unusual last night.") }
-        let names = ListFormatter.localizedString(byJoining: outliers.map(\.label))
-        return String(localized: "\(names) outside your usual range. One reading alone is rarely a concern; watch for two or more over several days.")
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
     }
 }
 
-/// One vital on a row tile: label, value, in-range badge, sparkline and the classic state caption.
-private struct BroopBodyVitalTile: View {
-    let reading: BodyVitalReading
+/// Band colours for the stress scale, shared by the Health tab and the Stress screen.
+enum BroopHealthStressBand {
+    static func color(_ band: StressBand) -> Color {
+        switch band {
+        case .low: return BroopHealthPalette.stressLow
+        case .medium: return BroopHealthPalette.stressMedium
+        case .high: return BroopHealthPalette.stressHigh
+        }
+    }
+}
+
+/// Tiny bar strip (last N values), each bar coloured by its value.
+struct BroopHealthMiniBars: View {
+    let values: [Double]
+    let domain: ClosedRange<Double>
+    let color: (Double) -> Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                BroopCaps(reading.label, size: 10.5)
-                Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(verbatim: reading.value.map(reading.format) ?? "–").font(BroopType.number(19))
-                    if reading.value != nil && !reading.unit.isEmpty {
-                        Text(verbatim: reading.unit)
-                            .font(BroopType.number(11))
-                            .foregroundStyle(BroopPalette.textSecondary)
-                    }
+        GeometryReader { geo in
+            let n = max(values.count, 1)
+            let gap: CGFloat = 3
+            let w = max(1, (geo.size.width - gap * CGFloat(n - 1)) / CGFloat(n))
+            HStack(alignment: .bottom, spacing: gap) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                    let t = (min(max(v, domain.lowerBound), domain.upperBound) - domain.lowerBound)
+                        / (domain.upperBound - domain.lowerBound)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(color(v))
+                        .frame(width: w, height: max(3, geo.size.height * CGFloat(t)))
                 }
-                .foregroundStyle(reading.value == nil ? BroopPalette.textSecondary : BroopPalette.textPrimary)
-                badge
             }
-            if let points = reading.sparkline, points.count > 1 {
-                BroopSparkline(values: points)
-                    .stroke(BroopPalette.textPrimary.opacity(0.6),
-                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                    .frame(height: 22)
-            }
-            Text(verbatim: reading.stateCaption)
-                .font(BroopType.regular(12))
-                .foregroundStyle(BroopPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .frame(maxHeight: .infinity, alignment: .bottom)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: BroopMetrics.rowRadius, style: .continuous).fill(BroopPalette.row))
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder private var badge: some View {
-        switch reading.banding.band {
-        case .inRange:
-            Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(BroopPalette.textPrimary)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(BroopPalette.pillInner))
-        case .outOfRange:
-            Image(systemName: "exclamationmark")
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(BroopPalette.bgBottom)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(BroopPalette.warning))
-        case .noData:
-            Image(systemName: "minus")
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(BroopPalette.textSecondary)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(BroopPalette.track))
-        }
+        .accessibilityHidden(true)
     }
 }
-
-/// A plain polyline scaled to its own min/max.
-private struct BroopSparkline: Shape {
-    let values: [Double]
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        guard values.count > 1, let lo = values.min(), let hi = values.max() else { return path }
-        let span = hi - lo
-        let step = rect.width / CGFloat(values.count - 1)
-        for (i, v) in values.enumerated() {
-            let t = span > 0 ? (v - lo) / span : 0.5
-            let point = CGPoint(x: rect.minX + CGFloat(i) * step, y: rect.maxY - CGFloat(t) * rect.height)
-            if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
-        }
-        return path
-    }
-}
-
 #endif
