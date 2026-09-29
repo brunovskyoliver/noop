@@ -8,7 +8,7 @@ import WhoopStore
 /// the current heart rate it takes to reach the band.
 ///
 /// Day Effort = the day's heart rate scored up to the workout's start (read once per workout, with the same
-/// window, HRmax and resting HR as Home's live day ring) plus this workout's TRIMP. Edwards TRIMP is a sum
+/// window, HRmax, resting HR and stored-row floor as Home's live day ring) plus this workout's TRIMP. Edwards TRIMP is a sum
 /// over samples, so adding the two TRIMPs and mapping back through the scorer does not count anything twice.
 /// Minutes use the inverted scorer (`StrainTarget.minutesToReach`) and only apply to the Edwards method.
 ///
@@ -56,7 +56,7 @@ struct BroopActivityStrainCoach: View {
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
-        .task(id: workout?.start) { await loadBefore(workout?.start) }
+        .task(id: "\(workout?.start.timeIntervalSince1970 ?? 0)|\(repo.refreshSeq)") { await loadBefore(workout?.start) }
     }
 
     /// Track 0…100 with the band shaded and a marker at the day's Effort (fractions are scale-free).
@@ -139,12 +139,13 @@ struct BroopActivityStrainCoach: View {
         guard !Task.isCancelled else { return }
         let maxHR = model.effortMaxHR, rest = model.workoutRestingHR
         let method = PuffinExperiment.effortMethod, sex = model.profile.sex
-        // The scorer withholds a score under ~10 min of heart rate; that little load rounds to 0.
-        let effort = await CancellableAnalysis.run {
-            StrainScorer.strain(hr, maxHR: maxHR, restingHR: rest, method: method, sex: sex) ?? 0
+        let live = await CancellableAnalysis.run {
+            StrainScorer.strain(hr, maxHR: maxHR, restingHR: rest, method: method, sex: sex)
         }
         guard !Task.isCancelled else { return }
-        before = (start, effort)
+        // Floored at the stored day row through Home's own funnel, so a logged workout that is not in the
+        // raw stream (or a day without raw heart rate) reads the same Effort here as on Home.
+        before = (start, StrainScorer.effectiveEffort(live: live, stored: repo.today?.strain) ?? 0)
     }
 }
 #endif
