@@ -55,6 +55,11 @@ struct BroopOverviewSleepScreen: View {
                     label: [String(localized: "Sleep"), String(localized: "Performance")],
                     rating: snap?.rest.map(BroopOverviewRating.performance))
                 .padding(.top, 22)
+                if let caption = snap?.restCarryCaption {
+                    BroopCaps(caption, size: 10, color: BroopPalette.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 10)
+                }
 
                 BroopOverviewContributorCard(rows: contributors(snap)) { BroopOverviewRatingLegend() }
                     .padding(.top, 30)

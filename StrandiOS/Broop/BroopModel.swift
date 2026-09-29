@@ -19,6 +19,13 @@ struct BroopSnapshot {
     var chargeDisplay: LiquidTodayView.ChargeDisplay
     /// Rest 0–100.
     var rest: Double?
+    /// The day key the Rest score (and every sleep figure and the night) belongs to. Equal to `dayKey`
+    /// unless today's Rest is the classic morning carry of an earlier night (`TodayView.freshRestScore`),
+    /// in which case it is that night's day, so the dial, the sleep row and the contributors describe
+    /// the same night.
+    var restDayKey: String
+    /// "Last night · Mon 28" when `restDayKey` is an earlier day (the classic carry caption), else nil.
+    var restCarryCaption: String?
     /// Effort on the wearer's chosen display scale (0–21 or 0–100).
     var effort: Double?
     var effortMax: Double
@@ -63,7 +70,8 @@ struct BroopSnapshot {
 
     static func empty(dayKey: String, date: Date, isToday: Bool) -> BroopSnapshot {
         BroopSnapshot(dayKey: dayKey, date: date, isToday: isToday,
-                      charge: nil, chargeDisplay: .noData, rest: nil, effort: nil, effortMax: 21,
+                      charge: nil, chargeDisplay: .noData, rest: nil, restDayKey: dayKey, restCarryCaption: nil,
+                      effort: nil, effortMax: 21,
                       readiness: nil, night: nil, asleepMinutes: nil, needMinutes: nil,
                       efficiency: nil, restorativePct: nil, workouts: [], zoneMinutes: nil,
                       steps: nil, activeKcal: nil, stress: nil, vitals: [],
@@ -210,7 +218,7 @@ final class BroopStore: ObservableObject {
         async let overCountA = repo.exploreSeries(key: "hrv_rr_overcount", source: "my-whoop", days: 14)
         async let spo2CandA = repo.exploreSeries(key: "spo2_candidate", source: "my-whoop", days: 14)
         // Only the few days around the selected one: the night is grouped by the day it ENDS on.
-        async let sessionsA = repo.allSleepSessions(days: offset + 3)
+        async let sessionsA = repo.allSleepSessions(days: offset + 3 + TodayView.carryFreshnessDays)
 
         let restSeries = await restSeriesA
         let stressStored = await stressA
@@ -225,6 +233,14 @@ final class BroopStore: ObservableObject {
         let restByDay = Dictionary(restSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
         s.rest = TodayView.freshRestScore(todayValue: restByDay[key], lastDay: restSeries.last?.day,
                                           lastValue: restSeries.last?.value, isTodaySelected: isToday, todayKey: key)
+        // One night behind every sleep readout: when the Rest shown is a carry, the night, the sleep row
+        // and the contributors come from the carried night's day, not from an empty today.
+        if restByDay[key] == nil, s.rest != nil, let carriedDay = restSeries.last?.day, carriedDay != key {
+            s.restDayKey = carriedDay
+            s.restCarryCaption = TodayView.carriedCaption(priorDayKey: carriedDay, todayKey: key)
+        }
+        let sleepKey = s.restDayKey
+        let sleepDay: DailyMetric? = sleepKey == key ? day : days.last(where: { $0.day == sleepKey })
 
         s.stress = await CancellableAnalysis.run { StressModel(days: days, stored: stressStored) }
 
@@ -253,17 +269,17 @@ final class BroopStore: ObservableObject {
         let groups = await CancellableAnalysis.run { SleepModel.navDays(navSessions: navSessions) }
         if let group = groups.first(where: { g in
             guard let last = g.last else { return false }
-            return Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == key
+            return Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey
         }) {
             let motion = await repo.sessionMotions(sessions: group)
             s.night = SleepModel.mergeDay(group, habitualMidsleepSec: habitual, motionByStart: motion)
         }
         guard !Task.isCancelled else { return }
-        let asleep = day?.totalSleepMin
+        let asleep = sleepDay?.totalSleepMin
         s.asleepMinutes = asleep
-        s.needMinutes = repo.importedSleep[key]?.needMin ?? SleepModel.sleepNeedMin(days: days)
-        s.efficiency = day?.efficiency.map { $0 <= 1 ? $0 * 100 : $0 }
-        if let asleep, asleep > 0, let deep = day?.deepMin, let rem = day?.remMin {
+        s.needMinutes = repo.importedSleep[sleepKey]?.needMin ?? SleepModel.sleepNeedMin(days: days)
+        s.efficiency = sleepDay?.efficiency.map { $0 <= 1 ? $0 * 100 : $0 }
+        if let asleep, asleep > 0, let deep = sleepDay?.deepMin, let rem = sleepDay?.remMin {
             s.restorativePct = (deep + rem) / asleep * 100
         }
 
@@ -303,19 +319,19 @@ final class BroopStore: ObservableObject {
             guard let a = d.totalSleepMin, a > 0, let deep = d.deepMin, let rem = d.remMin else { return nil }
             return (deep + rem) / a * 100
         }
-        let deepStat = stat(String(localized: "Deep sleep"), unit: "", better: .higher, value: day?.deepMin, format: { BroopFormat.duration($0) }) { $0.deepMin }
-        let remStat = stat(String(localized: "REM sleep"), unit: "", better: .higher, value: day?.remMin, format: { BroopFormat.duration($0) }) { $0.remMin }
+        let deepStat = stat(String(localized: "Deep sleep"), unit: "", better: .higher, value: sleepDay?.deepMin, format: { BroopFormat.duration($0) }) { $0.deepMin }
+        let remStat = stat(String(localized: "REM sleep"), unit: "", better: .higher, value: sleepDay?.remMin, format: { BroopFormat.duration($0) }) { $0.remMin }
         s.restStats = [asleepStat, effStat, restorativeStat, deepStat, remStat].compactMap { $0 }
         s.asleepReading = asleepStat
         s.restorativeMinReading = stat(String(localized: "Restorative sleep"), unit: "", better: .higher,
-                                       value: day.flatMap { d in d.deepMin.flatMap { deep in d.remMin.map { deep + $0 } } },
+                                       value: sleepDay.flatMap { d in d.deepMin.flatMap { deep in d.remMin.map { deep + $0 } } },
                                        format: { BroopFormat.duration($0) }) { d in
             guard let deep = d.deepMin, let rem = d.remMin else { return nil }
             return deep + rem
         }
         // Sleep performance against its own 30 days (the stored series the Rest dial reads).
         if let rest = s.rest {
-            let hist = restSeries.filter { $0.day < key }.suffix(30).map(\.value)
+            let hist = restSeries.filter { $0.day < sleepKey }.suffix(30).map(\.value)
             if !hist.isEmpty {
                 let mean = hist.reduce(0, +) / Double(hist.count)
                 let variance = hist.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(hist.count)
@@ -328,10 +344,10 @@ final class BroopStore: ObservableObject {
         // Hours vs needed and consistency through SleepModel's own series builders, fed only the rows up to
         // the selected day, so the value is the one the classic Sleep tiles show for that night.
         if let asleep, asleep > 0, let need = s.needMinutes, need > 0 { s.hoursVsNeededPct = asleep / need * 100 }
-        let sleepsUpTo = repo.sleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= key }
+        let sleepsUpTo = repo.sleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
         if let last = sleepsUpTo.last,
-           Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == key {
-            s.consistency = SleepModel.consistencySeries(days: days.filter { $0.day <= key }, sleeps: sleepsUpTo,
+           Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey {
+            s.consistency = SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
                                                          importedSleep: repo.importedSleep).latest
         }
 
