@@ -19,7 +19,7 @@ import StrandDesign
 
 /// One row of the capability/confidence table: a metric, where the watch sits on it, and a
 /// plain line of why. The confidence drives the row's accent + pill, so a glance reads honestly.
-private struct WatchMetric: Identifiable {
+struct WatchMetric: Identifiable {
     enum Confidence {
         case great        // use it as-is, the watch is strong here
         case good         // solid, with a small caveat
@@ -74,7 +74,7 @@ struct AppleWatchAboutView: View {
     // The honest table, straight from the spec's scoring + confidence map. Order runs from what
     // the watch is strongest at down to what it can't honestly do, so the page reads as a fair
     // appraisal rather than a sales pitch.
-    private let metrics: [WatchMetric] = [
+    static let metrics: [WatchMetric] = [
         WatchMetric(icon: "bed.double.fill", metric: String(localized: "Sleep / Rest"),
                     confidence: .great,
                     detail: String(localized: "Apple's own sleep stages drive Rest directly. This is one of the watch's strengths.")),
@@ -160,7 +160,7 @@ struct AppleWatchAboutView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(metrics.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(Self.metrics.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
                             Divider().overlay(StrandPalette.hairline)
                                 .padding(.vertical, 12)

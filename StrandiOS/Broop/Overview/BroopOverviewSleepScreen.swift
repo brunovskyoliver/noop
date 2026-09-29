@@ -102,23 +102,23 @@ struct BroopOverviewSleepScreen: View {
             BroopOverviewScoreGuide(initialSection: .rest, onClose: { showGuide = false })
         }
         .sheet(isPresented: $showCustomize) {
-            SleepCustomizationSheet(sectionOrderRaw: $orderRaw, hiddenSectionsRaw: $hiddenRaw)
+            BroopFinalASleepCustomizeSheet(sectionOrderRaw: $orderRaw, hiddenSectionsRaw: $hiddenRaw)
         }
-        // The classic editor is a compact form; size the sheet to it instead of floating it in a full one.
-        .sheet(item: $edit) { e in editor(e).presentationDetents([.height(390)]).presentationDragIndicator(.visible) }
+        .sheet(item: $edit) { e in editor(e).presentationDetents([.large]).presentationDragIndicator(.visible) }
         .sheet(item: $addNap) { seed in
-            SleepTimeEditor(bedTs: seed.bedTs, wakeTs: seed.wakeTs,
-                            title: seed.isNap ? "Add a nap" : "Add sleep",
-                            blurb: seed.isNap
-                                ? "Pick when the nap started and ended. NOOP stages it from your data as its own session, separate from the night's sleep."
-                                : "Pick when you fell asleep and woke. NOOP stages the window from your data and saves it as its own sleep session.",
-                            bedLabel: seed.isNap ? "Nap started" : "Asleep",
-                            wakeLabel: seed.isNap ? "Nap ended" : "Woke") { start, end in
+            BroopFinalASleepTimeEditor(
+                bedTs: seed.bedTs, wakeTs: seed.wakeTs,
+                title: seed.isNap ? String(localized: "Add a nap") : String(localized: "Add sleep"),
+                blurb: seed.isNap
+                    ? String(localized: "Pick when the nap started and ended. NOOP stages it from your data as its own session, separate from the night's sleep.")
+                    : String(localized: "Pick when you fell asleep and woke. NOOP stages the window from your data and saves it as its own sleep session."),
+                bedLabel: seed.isNap ? String(localized: "Nap started") : String(localized: "Asleep"),
+                wakeLabel: seed.isNap ? String(localized: "Nap ended") : String(localized: "Woke")) { start, end in
                 await repo.addManualNap(startTs: start, endTs: end)
                 await intelligence.analyzeRecent()
                 await repo.refresh()
             }
-            .presentationDetents([.height(340)])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
     }
@@ -339,8 +339,8 @@ struct BroopOverviewSleepScreen: View {
         case .stages: EmptyView()
         case .bodyClock:
             if let night = snap?.night {
-                BodyClockDialSection(actualBedHour: SleepView.localClockHour(night.session.effectiveStartTs),
-                                     actualWakeHour: SleepView.localClockHour(night.session.endTs))
+                BroopFinalABodyClockSection(actualBedHour: SleepView.localClockHour(night.session.effectiveStartTs),
+                                            actualWakeHour: SleepView.localClockHour(night.session.endTs))
             }
         case .nightDetail: if let model { BroopOverviewSleepStatsCard(model: model) }
         case .sleepDebt: if let model { BroopOverviewDebtCard(ledger: model.sleepDebtLedger) }
@@ -354,7 +354,7 @@ struct BroopOverviewSleepScreen: View {
 
     private func editor(_ e: BroopOverviewSleepEdit) -> some View {
         let lo = min(e.detectedStartTs, e.bedTs)
-        return SleepTimeEditor(bedTs: e.bedTs, wakeTs: e.wakeTs,
+        return BroopFinalASleepTimeEditor(bedTs: e.bedTs, wakeTs: e.wakeTs,
                                coverage: lo...max(e.wakeTs, lo + 1),
                                suppressesReDetection: !e.userEdited,
                                onSave: { bed, wake in

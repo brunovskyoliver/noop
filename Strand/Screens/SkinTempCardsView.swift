@@ -715,7 +715,10 @@ struct BodyClockCard: View {
     // MARK: derived copy
 
     /// "About 25 min later than your schedule" — a plain, skimmable headline.
-    private var offsetTitle: String {
+    private var offsetTitle: String { Self.offsetTitle(estimate) }
+
+    /// The headline for an estimate. Static so the Broop card words it through the same rule.
+    static func offsetTitle(_ estimate: CircadianEngine.PhaseEstimate) -> String {
         let mins = Int(abs(estimate.offsetVsScheduleMinutes).rounded())
         if estimate.confidence == .unreadable {
             return String(localized: "Hard to read right now")
@@ -1036,6 +1039,30 @@ private func localizedList(_ values: [String]) -> String {
     let formatter = ListFormatter()
     formatter.locale = AppLanguage.activeLocale
     return formatter.string(from: values) ?? values.joined(separator: ", ")
+}
+
+/// The engines' presentation copy above, for other skins of these cards (the Broop Health tab), so every
+/// surface words a result through the same translation.
+enum SkinTempCopy {
+    static func cycleStatus(_ result: CyclePhaseEngine.Result) -> String { localizedCycleStatus(result) }
+    static func bodyClockNote(_ estimate: CircadianEngine.PhaseEstimate) -> String { localizedBodyClockNote(estimate) }
+    static func planNote(_ plan: CircadianEngine.JetLagPlan) -> String { localizedPlanNote(plan) }
+    static func illness(_ result: IllnessSignalEngine.Result) -> String { localizedIllnessCopy(result) }
+    static func bodyClockHeadline(_ estimate: CircadianEngine.PhaseEstimate) -> String { BodyClockCard.offsetTitle(estimate) }
+    static func phaseTitle(_ phase: CyclePhaseEngine.Phase) -> String {
+        switch phase {
+        case .follicular:    return String(localized: "Follicular")
+        case .periOvulatory: return String(localized: "Mid-cycle shift")
+        case .luteal:        return String(localized: "Luteal")
+        case .unknown:       return String(localized: "No clear pattern")
+        case .learning:      return String(localized: "Learning your pattern")
+        }
+    }
+    static func confounders(_ result: IllnessSignalEngine.Result) -> [String] {
+        result.suppressionReasons.isEmpty
+            ? result.suppressedBy.map(localizedConfounder)
+            : result.suppressionReasons.map(localizedConfounder)
+    }
 }
 
 #if DEBUG

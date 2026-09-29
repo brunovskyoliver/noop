@@ -183,7 +183,7 @@ struct MindSection: View {
     }
 
     /// One rendered correlation sentence.
-    private struct MoodLine: Identifiable {
+    struct MoodLine: Identifiable {
         let id: String
         let text: String
         let caption: String
@@ -199,9 +199,20 @@ struct MindSection: View {
         let todayValue = mood.last(where: { $0.day == todayKey })
             .map { Int($0.value.rounded()) }
 
+        let built = Self.insightLines(mood: mood, days: repo.days)
+
+        await MainActor.run {
+            self.todayMood = todayValue
+            self.moodDayCount = mood.count
+            self.lines = built
+        }
+    }
+
+    /// Up to three gated mood-vs-body lines, strongest |r| first. Static and pure so every skin of the Mind
+    /// check-in (the Broop Mood page too) shows the same lines from the same inputs.
+    static func insightLines(mood: [(day: String, value: Double)], days: [DailyMetric]) -> [MoodLine] {
         // Candidate body signals from the merged daily cache (the same source the
         // rest of Insights reads), shaped into the (day, value) form mood uses.
-        let days = repo.days
         func bodySeries(_ pick: (DailyMetric) -> Double?) -> [(day: String, value: Double)] {
             days.compactMap { d in pick(d).map { (day: d.day, value: $0) } }
         }
@@ -228,12 +239,7 @@ struct MindSection: View {
                 .prefix(3)
                 .map { Self.moodLine(id: $0.id, metric: $0.name, corr: $0.corr) }
         }
-
-        await MainActor.run {
-            self.todayMood = todayValue
-            self.moodDayCount = mood.count
-            self.lines = built
-        }
+        return built
     }
 
     /// Plain-English sentence + factual caption for one mood↔metric correlation.

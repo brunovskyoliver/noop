@@ -490,9 +490,8 @@ struct BroopHealthChargeContributors: View {
 
 // MARK: - Skin temperature suite
 
-/// The v5 skin-temperature suite: illness heads-up, body clock and the opt-in cycle awareness. The three
-/// cards are the classic components (their engines' copy and controls are dense and shared with Android),
-/// shown under the Broop skin; the opt-in/opt-out gating is the classic rule.
+/// The v5 skin-temperature suite: illness heads-up, body clock and the opt-in cycle awareness, as Broop cards
+/// (`BroopFinalA…`) worded through the classic cards' copy; the opt-in/opt-out gating is the classic rule.
 struct BroopHealthSkinTempSection: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var repo: Repository
@@ -506,13 +505,13 @@ struct BroopHealthSkinTempSection: View {
         VStack(alignment: .leading, spacing: 12) {
             BroopHealthHeading(text: String(localized: "Skin temperature"), trailing: String(localized: "Nightly sensor"))
             if let illness = model.illnessSignal, illness.level != .quiet {
-                HeadsUpCard(result: illness, distance: model.illnessDistance)
+                BroopFinalAHeadsUpCard(result: illness, distance: model.illnessDistance)
             }
             if let phase = model.circadianPhase {
-                BodyClockCard(estimate: phase)
+                BroopFinalABodyClockEstimateCard(estimate: phase)
             }
             if cycleEnabled, let cycle = model.cyclePhase {
-                CycleAwarenessCard(result: cycle, curve: model.cycleCurve,
+                BroopFinalACycleCard(result: cycle, curve: model.cycleCurve,
                                    onLogPeriod: {
                                        Task {
                                            await repo.logPeriodStart(day: Repository.localDayKey(Date()))
@@ -526,7 +525,7 @@ struct BroopHealthSkinTempSection: View {
                                        Task { await model.refreshV5Signals() }
                                    })
             } else if !cycleEnabled && optInApplies {
-                CycleAwarenessOptInCard(onEnable: {
+                BroopFinalACycleOptInCard(onEnable: {
                     cycleEnabled = true
                     model.cycleAwarenessEnabled = true
                     Task { await model.refreshV5Signals() }
@@ -547,7 +546,7 @@ struct BroopHealthSkinTempSection: View {
         }
         .sheet(isPresented: $trackerPresented) {
             if let cycle = model.cyclePhase {
-                CycleTrackerView(result: cycle, curve: model.cycleCurve)
+                BroopFinalACycleTracker(result: cycle, curve: model.cycleCurve)
                     .environmentObject(repo)
                     .environmentObject(model)
             }

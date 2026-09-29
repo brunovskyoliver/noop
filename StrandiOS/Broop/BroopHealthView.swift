@@ -292,7 +292,7 @@ private struct BroopHealthCycleEntry: View {
                 .buttonStyle(BroopPressableStyle())
                 .sheet(isPresented: $showTracker) {
                     if let cycle = model.cyclePhase {
-                        CycleTrackerView(result: cycle, curve: model.cycleCurve)
+                        BroopFinalACycleTracker(result: cycle, curve: model.cycleCurve)
                             .environmentObject(repo)
                             .environmentObject(model)
                     }

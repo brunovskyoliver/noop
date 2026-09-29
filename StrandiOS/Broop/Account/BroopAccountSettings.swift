@@ -46,7 +46,7 @@ struct BroopAccountSettingsView: View {
                     BroopAccountLink(value: BroopAccountRoute.data, symbol: "externaldrive", title: String(localized: "Backup & Export"),
                                          subtitle: String(localized: "Back up, restore, export CSV"))
                     BroopAccountPageLink(symbol: "internaldrive", title: String(localized: "Storage")) {
-                        StorageView().broopClassicScreen()
+                        BroopFinalAStoragePage()
                     }
                 }
             }

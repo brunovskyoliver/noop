@@ -303,7 +303,11 @@ struct BodyClockDialCard: View {
 
     /// Rounded to five minutes: the underlying phase is an activity fit, so a to-the-minute caption would
     /// imply a precision the estimate does not carry.
-    private var alignmentText: String {
+    private var alignmentText: String { Self.alignmentText(offsetHours: offsetHours) }
+
+    /// The caption for a night `offsetHours` from the clock's window. Static so the Broop dial states the
+    /// same comparison through the same rule.
+    static func alignmentText(offsetHours: Double) -> String {
         let minutes = Int((offsetHours * 60 / 5).rounded()) * 5
         if abs(minutes) < 30 { return String(localized: "In sync with your body clock") }
         let hours = abs(Double(minutes)) / 60
@@ -318,7 +322,9 @@ struct BodyClockDialCard: View {
             : String(localized: "\(amount) earlier than your body clock")
     }
 
-    private func chronotypeText(_ c: CircadianEngine.Chronotype) -> String {
+    private func chronotypeText(_ c: CircadianEngine.Chronotype) -> String { Self.chronotypeLabel(c) }
+
+    static func chronotypeLabel(_ c: CircadianEngine.Chronotype) -> String {
         switch c {
         case .morning:      return String(localized: "Morning type")
         case .intermediate: return String(localized: "Intermediate type")

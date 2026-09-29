@@ -183,6 +183,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var store: BroopStore
     let onClose: () -> Void
+    @State private var showGuide = false
 
     var body: some View {
         NavigationStack {
@@ -193,7 +194,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
                         sleepPerfPercent: repo.importedSleep[row.day]?.performancePct ?? AnalyticsEngine.Rest.composite(daily: row),
                         hrvBaselineEpoch: Baselines.hrvBaselineEpoch()), !b.drivers.isEmpty {
                         BroopOverviewCard {
-                            ChargeBreakdownSection(drivers: b.drivers, confidence: b.confidence,
+                            BroopFinalAChargeBreakdown(drivers: b.drivers, confidence: b.confidence,
                                                    skinTempRel: RecoveryScorer.skinTempRelative(deviationC: row.skinTempDevC))
                         }
                     } else {
@@ -204,11 +205,18 @@ private struct BroopOverviewChargeBreakdownSheet: View {
                                 .foregroundStyle(BroopPalette.textBody)
                         }
                     }
+                    Button { showGuide = true } label: {
+                        BroopNavTile(symbol: "function", title: String(localized: "How Charge is calculated"))
+                    }
+                    .buttonStyle(BroopPressableStyle())
                 }
                 .padding(BroopMetrics.page)
             }
             .background(BroopBackground())
             .broopSheetBar(String(localized: "What shaped your Charge"), onDone: onClose)
+            .sheet(isPresented: $showGuide) {
+                BroopOverviewScoreGuide(initialSection: .charge, onClose: { showGuide = false })
+            }
         }
         .preferredColorScheme(.dark)
     }

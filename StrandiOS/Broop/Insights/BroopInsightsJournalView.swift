@@ -424,14 +424,14 @@ struct BroopInsightsJournalView: View {
             BroopInsightsSectionRule(title: String(localized: "More to log"))
                 .padding(.bottom, 4)
             NavigationLink {
-                BroopInsightsClassicPage(title: String(localized: "Caffeine")) { CaffeineLogCard() }
+                BroopFinalACaffeinePage()
             } label: {
                 BroopInsightsLinkRow(symbol: "cup.and.saucer", title: String(localized: "Caffeine"),
                                      detail: String(localized: "Log an intake and see a rough estimate of what may still be active."))
             }
             .buttonStyle(.plain)
             NavigationLink {
-                BroopInsightsClassicPage(title: String(localized: "Mood")) { MindSection() }
+                BroopFinalAMoodPage()
             } label: {
                 BroopInsightsLinkRow(symbol: "face.smiling", title: String(localized: "Mood check-in"),
                                      detail: String(localized: "How you feel today, and how mood lines up with your body."))

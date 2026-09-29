@@ -577,11 +577,11 @@ struct BroopAccountAboutPage: View {
                        String(localized: "Charge, Effort and Rest (and how they differ from WHOOP).")) { showScoringGuide = true }
                 BroopAccountPageLink(symbol: "applewatch", title: String(localized: "About Apple Watch Data"),
                                      subtitle: String(localized: "Use NOOP with just an Apple Watch.")) {
-                    AppleWatchAboutView(onStartSetup: { showAppleWatchSetup = true }).broopClassicScreen()
+                    BroopFinalAAppleWatchAboutPage(onStartSetup: { showAppleWatchSetup = true })
                 }
                 BroopAccountPageLink(symbol: "internaldrive", title: String(localized: "Storage"),
                                      subtitle: String(localized: "Where NOOP's on-device space is going, and a one-tap clean-up.")) {
-                    StorageView().broopClassicScreen()
+                    BroopFinalAStoragePage()
                 }
                 button("stethoscope", String(localized: "Diagnostics"),
                        String(localized: "Device, iOS build, Data Protection and sideload status, for bug reports.")) { showDiagnostics = true }
@@ -641,7 +641,7 @@ struct BroopAccountAboutPage: View {
         .sheet(isPresented: $showWhatsNew) { WhatsNewView(onClose: { showWhatsNew = false }) }
         .sheet(isPresented: $showScoringGuide) { BroopOverviewScoreGuide(onClose: { showScoringGuide = false }) }
         .sheet(isPresented: $showHowNoopWorks) { HowNoopWorksView(onClose: { showHowNoopWorks = false }) }
-        .sheet(isPresented: $showAppleWatchSetup) { AppleWatchSetupView(onClose: { showAppleWatchSetup = false }) }
+        .sheet(isPresented: $showAppleWatchSetup) { BroopFinalAAppleWatchSetup(onClose: { showAppleWatchSetup = false }) }
         .sheet(isPresented: $showDiagnostics) {
             let lines = IOSDiagnostics.capture().summaryLines()
             BroopAccountTextSheet(title: String(localized: "Diagnostics"),

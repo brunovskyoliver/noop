@@ -199,6 +199,7 @@ private struct BroopOverviewCoupledBreakdown: View {
     let sleepPerf: Double?
     let calibrationNights: Int?
     let onClose: () -> Void
+    @State private var showGuide = false
 
     var body: some View {
         NavigationStack {
@@ -208,7 +209,7 @@ private struct BroopOverviewCoupledBreakdown: View {
                                                                           hrvBaselineEpoch: Baselines.hrvBaselineEpoch()),
                        !b.drivers.isEmpty {
                         BroopOverviewCard {
-                            ChargeBreakdownSection(drivers: b.drivers, confidence: b.confidence,
+                            BroopFinalAChargeBreakdown(drivers: b.drivers, confidence: b.confidence,
                                                    skinTempRel: RecoveryScorer.skinTempRelative(deviationC: row.skinTempDevC))
                         }
                     } else if let banked = calibrationNights {
@@ -228,9 +229,7 @@ private struct BroopOverviewCoupledBreakdown: View {
                                 .font(BroopType.medium(15)).foregroundStyle(BroopPalette.textBody)
                         }
                     }
-                    NavigationLink {
-                        ScoringGuideView(initialSection: .charge, onClose: onClose)
-                    } label: {
+                    Button { showGuide = true } label: {
                         BroopNavTile(symbol: "function", title: String(localized: "How Charge is calculated"))
                     }
                     .buttonStyle(BroopPressableStyle())
@@ -239,6 +238,9 @@ private struct BroopOverviewCoupledBreakdown: View {
             }
             .background(BroopBackground())
             .broopSheetBar(String(localized: "What shaped your Charge"), onDone: onClose)
+            .sheet(isPresented: $showGuide) {
+                BroopOverviewScoreGuide(initialSection: .charge, onClose: { showGuide = false })
+            }
         }
         .preferredColorScheme(.dark)
     }

@@ -77,7 +77,7 @@ struct BroopHealthLabBookView: View {
         .broopHealthScreen()
         .task(id: repo.refreshSeq) { await load() }
         .sheet(isPresented: $showEditor) {
-            MarkerEditorView { drafts in await save(drafts) }
+            BroopFinalALabEntrySheet { drafts in await save(drafts) }
                 .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showAbout) { BroopHealthLabAboutSheet() }
