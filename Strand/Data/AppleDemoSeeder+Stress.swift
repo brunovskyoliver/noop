@@ -43,6 +43,15 @@ extension AppleDemoSeeder {
             points += day.summary.storedPairs.map { MetricPoint(day: key, key: $0.key, value: $0.value) }
         }
         _ = try await store.upsertMetricSeries(points, deviceId: deviceId)
+        let rows = try await store.dailyMetrics(deviceId: deviceId, from: today, to: today)
+        if let daily = rows.first, let stress = stressDemoDay(dayKey: today)?.summary.sleepStressPct {
+            let old = AnalyticsEngine.Rest.composite(daily: daily)
+            let new = AnalyticsEngine.RestV2.composite(daily: daily, needHours: 8,
+                                                        consistency: 0.8, sleepStressPct: stress)
+            NSLog("Broop demo Rest comparison %@: legacy=%@ v2=%@ sleepStress=%@ need=8h consistency=80%%", today,
+                  old.map { String(format: "%.2f", $0) } ?? "missing",
+                  new.map { String(format: "%.2f", $0) } ?? "missing", String(format: "%.2f", stress))
+        }
     }
 }
 #endif

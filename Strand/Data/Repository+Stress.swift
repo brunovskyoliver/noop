@@ -176,9 +176,10 @@ extension Repository {
                            priors: (floors: [Double?], nights: [StressMonitor.NightAggregate?])? = nil,
                            now: Date = Date()) async -> StressMonitor.DayResult? {
         guard let b = Self.stressDayBounds(dayKey, now: now), b.end > b.start else { return nil }
+        let memoKey = "\(deviceId)|\(dayKey)"
         #if DEBUG
         if AppleDemoSeeder.requested, let demo = await runUnescalated({ AppleDemoSeeder.stressDemoDay(dayKey: dayKey, now: now) }) {
-            stressDayMemo[dayKey] = ("demo", demo)
+            stressDayMemo[memoKey] = ("demo", demo)
             return demo
         }
         #endif
@@ -202,7 +203,7 @@ extension Repository {
         let sig = "\(revision)|\(refreshSeq)|\(deviceId)|\(fp.count)|\(fp.maxTs)|\(b.end)|\(windows.sleepWindows.map { "\($0.start)-\($0.end)" })"
             + "|\(windows.mainSleep.map { "\($0.start)-\($0.end)" } ?? "-")"
             + "|\(windows.activity.map { "\($0.start)-\($0.end)" })|\(pri.floors)|\(pri.nights.map { $0.map { "\($0.hr),\($0.hrSpread),\($0.lnRMSSD ?? -1)" } ?? "-" })"
-        if let m = stressDayMemo[dayKey], m.sig == sig { return m.result }
+        if let m = stressDayMemo[memoKey], m.sig == sig { return m.result }
         guard fp.count > 0 else {
             let empty = StressMonitor.analyzeDay(
                 StressMonitor.DayInput(day: dayKey, dayStart: b.start, dayEnd: b.end,
@@ -210,6 +211,7 @@ extension Repository {
                                        hr: [], rr: [], gravity: [], sleepWindows: windows.sleepWindows,
                                        mainSleep: windows.mainSleep, activityWindows: windows.activity),
                 priorFloors: pri.floors, priorNights: pri.nights)
+            stressDayMemo[memoKey] = (sig, empty)
             return empty
         }
         let hr = await hrSamples(from: readFrom, to: b.end - 1, limit: 250_000)
@@ -224,7 +226,7 @@ extension Repository {
             StressMonitor.analyzeDay(input, priorFloors: pri.floors, priorNights: pri.nights)
         }
         if stressDayMemo.count > 12 { stressDayMemo.removeAll() }
-        stressDayMemo[dayKey] = (sig, result)
+        stressDayMemo[memoKey] = (sig, result)
         return result
     }
 
@@ -247,7 +249,7 @@ extension Repository {
         }
         var out = byDay.compactMap { StressDaySummary.fromStored(day: $0.key, values: $0.value) }
         let todayKey = Self.localDayKey(Date())
-        if let fresh = stressDayMemo[todayKey]?.result.summary {
+        if let fresh = stressDayMemo["\(deviceId)|\(todayKey)"]?.result.summary {
             out.removeAll { $0.day == todayKey }
             if fresh.hasWaking || fresh.sleepStressPct != nil { out.append(fresh) }
         }
