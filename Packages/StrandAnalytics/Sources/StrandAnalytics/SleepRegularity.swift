@@ -60,7 +60,7 @@ public enum SleepRegularity {
             if let data = stagesJSON?.data(using: .utf8),
                let segs = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
                 for seg in segs {
-                    guard let name = seg["stage"] as? String, name == "wake" || name == "awake",
+                    guard let name = seg["stage"] as? String, SleepStageVocabulary.isWake(name),
                           let s = (seg["start"] as? NSNumber)?.intValue,
                           let e = (seg["end"] as? NSNumber)?.intValue,
                           min(e, end) > max(s, start) else { continue }

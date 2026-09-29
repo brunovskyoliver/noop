@@ -102,5 +102,8 @@ final class SleepRegularityTests: XCTestCase {
         let json = #"[{"start":100,"end":400,"stage":"light"},{"start":400,"end":500,"stage":"wake"},{"start":500,"end":900,"stage":"deep"}]"#
         XCTAssertEqual(SR.Session(start: 100, end: 900, stagesJSON: json).wake, [400..<500])
         XCTAssertEqual(SR.Session(start: 100, end: 900, stagesJSON: #"{"light":200,"awake":10}"#).wake, [])
+        // Imported spellings go through the shared vocabulary (case and whitespace ignored).
+        let mixed = #"[{"start":200,"end":300,"stage":"Wake"},{"start":600,"end":700,"stage":" AWAKE "}]"#
+        XCTAssertEqual(SR.Session(start: 100, end: 900, stagesJSON: mixed).wake, [200..<300, 600..<700])
     }
 }

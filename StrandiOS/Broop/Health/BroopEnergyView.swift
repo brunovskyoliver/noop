@@ -5,8 +5,9 @@ import StrandAnalytics
 import StrandDesign
 
 // BroopEnergyView.swift — Energy (`EnergyReservoir`): the Home / Health card, the Energy screen and its
-// "How it works" sheet. Every number comes from `Repository.energyDayAnalysis` (days) and `EnergyNow`
-// (today's live level), so the card and the screen cannot disagree.
+// "How it works" sheet. Today comes from `Repository.energyDayAnalysis` and `EnergyNow` (the live level), so
+// the card and the screen cannot disagree. A past day's numbers come from its stored summary, the same values
+// the trends read, because raw heart rate ages out of retention and a recomputed day would then read as flat.
 //
 // iOS-only fork change; Android twin intentionally not updated.
 
@@ -32,12 +33,27 @@ private struct BroopEnergyToday {
     var wake: StressMonitor.WakeReference?
     var heart = Repository.energyHeart(restingHR: nil)
     var loaded = false
+    /// The day's summary: the fresh analysis for today, the stored summary for a past day (else the fresh one).
+    var summary: EnergyDaySummary?
+    /// The recomputed curve, empty when it no longer matches the summary above (raw heart rate aged out).
+    var points: [EnergyReservoir.Point] = []
 
     @MainActor
-    static func load(repo: Repository, dayKey: String) async -> BroopEnergyToday {
+    static func load(repo: Repository, dayKey: String, isToday: Bool = true) async -> BroopEnergyToday {
         let stress = await repo.stressDayAnalysis(dayKey: dayKey)
         let day = await repo.energyDayAnalysis(dayKey: dayKey)
-        return BroopEnergyToday(day: day, wake: stress?.wake, heart: repo.energyHeart(dayKey: dayKey), loaded: true)
+        var out = BroopEnergyToday(day: day, wake: stress?.wake, heart: repo.energyHeart(dayKey: dayKey), loaded: true,
+                                   summary: day?.summary, points: day?.points ?? [])
+        if !isToday, let stored = await repo.energyStoredSummary(dayKey: dayKey) {
+            out.summary = stored
+            if let fresh = day?.summary, !matches(fresh, stored) { out.points = [] }
+        }
+        return out
+    }
+
+    /// Same day to display precision (the store keeps 2 dp).
+    private static func matches(_ a: EnergyDaySummary, _ b: EnergyDaySummary) -> Bool {
+        abs(a.end - b.end) < 0.5 && abs(a.charged - b.charged) < 0.5 && abs(a.drained - b.drained) < 0.5
     }
 }
 
@@ -142,9 +158,9 @@ struct BroopEnergyView: View {
                                    canGoBack: dayOffset < 180, canGoForward: dayOffset > 0,
                                    onBack: { dayOffset += 1 }, onForward: { dayOffset -= 1 })
                 BroopEnergyHeadline(today: today, isToday: dayOffset == 0)
-                if let day = today.day {
-                    BroopEnergyDayChart(points: day.points)
-                    breakdown(day.summary)
+                if let summary = today.summary {
+                    if !today.points.isEmpty { BroopEnergyDayChart(points: today.points) }
+                    breakdown(summary)
                 } else {
                     Text(verbatim: today.loaded ? BroopEnergyStyle.calibrating : String(localized: "Reading Energy…"))
                         .font(BroopType.medium(15)).foregroundStyle(BroopPalette.textSecondary)
@@ -164,7 +180,7 @@ struct BroopEnergyView: View {
         .broopHealthScreen()
         .task(id: "\(dayOffset)|\(repo.refreshSeq)") {
             today = BroopEnergyToday()
-            let loaded = await BroopEnergyToday.load(repo: repo, dayKey: Repository.localDayKey(date))
+            let loaded = await BroopEnergyToday.load(repo: repo, dayKey: Repository.localDayKey(date), isToday: dayOffset == 0)
             guard !Task.isCancelled else { return }
             today = loaded
             let fresh = dayOffset == 0 ? loaded.day : await repo.energyDayAnalysis(dayKey: Repository.localDayKey(Date()))
@@ -278,7 +294,7 @@ private struct BroopEnergyHeadline: View {
     var body: some View {
         let now = isToday
             ? EnergyNow.resolve(day: today.day, liveStress: liveStressLevel(liveStress.reading), heart: today.heart)
-            : today.day.map { EnergyNow(level: $0.summary.end, live: false) }
+            : today.summary.map { EnergyNow(level: $0.end, live: false) }
         VStack(spacing: 10) {
             BroopEnergyBattery(level: now?.level, width: 120, height: 56)
             Text(verbatim: now.map { String(Int($0.level.rounded())) } ?? "--")

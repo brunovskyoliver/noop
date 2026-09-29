@@ -66,6 +66,12 @@ extension Repository {
         return EnergyReservoir.day(stress, startLevel: start, heart: energyHeart(dayKey: dayKey))
     }
 
+    /// One day's stored summary, as the pass wrote it and the trends read it; nil when none was stored.
+    func energyStoredSummary(dayKey: String) async -> EnergyDaySummary? {
+        let values = await stressStoredValues(keys: EnergyDaySummary.Key.all, from: dayKey, to: dayKey)[dayKey]
+        return values.flatMap { EnergyDaySummary.fromStored(day: dayKey, values: $0) }
+    }
+
     /// Stored per-day summaries for the last `days` days, oldest → newest, with today's replaced by the
     /// fresh `energyDayAnalysis` (the function the pass stores with).
     func energyDaySummaries(days: Int, today: EnergyReservoir.DayResult?) async -> [EnergyDaySummary] {

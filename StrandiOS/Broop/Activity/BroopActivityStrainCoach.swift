@@ -7,9 +7,11 @@ import WhoopStore
 /// band (`StrainTargetContext.band`, the resolver Home and the notifier read), a zone label and how long at
 /// the current heart rate it takes to reach the band.
 ///
-/// Day Effort = the day's heart rate scored up to the workout's start (read once per workout, with the same
-/// window, HRmax, resting HR and stored-row floor as Home's live day ring) plus this workout's TRIMP. Edwards TRIMP is a sum
-/// over samples, so adding the two TRIMPs and mapping back through the scorer does not count anything twice.
+/// Day Effort = the day's heart rate scored up to the workout's start (with the same window, HRmax and resting
+/// HR as Home's live day ring) plus this workout's TRIMP. Edwards TRIMP is a sum over samples, so adding the
+/// two TRIMPs and mapping back through the scorer does not count anything twice. The stored day row floors
+/// that TOTAL, not the pre-workout part: a pass that runs mid-workout writes the workout's own heart rate into
+/// the row, and flooring the pre-workout part with it would add the workout a second time.
 /// Minutes use the inverted scorer (`StrainTarget.minutesToReach`) and only apply to the Edwards method.
 ///
 /// A leaf view: it owns its `AppModel` observation so the heart-rate publishes stay here.
@@ -28,7 +30,8 @@ struct BroopActivityStrainCoach: View {
         let band = context.band(charge: repo.today?.recovery, isToday: true)
         let dayEffort: Double? = workout.flatMap { w in
             guard let b = before, b.start == w.start else { return nil }
-            return StrainScorer.trimpToStrain(StrainScorer.strainToTrimp(b.effort) + StrainScorer.strainToTrimp(w.liveStrain))
+            let live = StrainScorer.trimpToStrain(StrainScorer.strainToTrimp(b.effort) + StrainScorer.strainToTrimp(w.liveStrain))
+            return StrainScorer.effectiveEffort(live: live, stored: repo.today?.strain)
         }
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -143,9 +146,9 @@ struct BroopActivityStrainCoach: View {
             StrainScorer.strain(hr, maxHR: maxHR, restingHR: rest, method: method, sex: sex)
         }
         guard !Task.isCancelled else { return }
-        // Floored at the stored day row through Home's own funnel, so a logged workout that is not in the
-        // raw stream (or a day without raw heart rate) reads the same Effort here as on Home.
-        before = (start, StrainScorer.effectiveEffort(live: live, stored: repo.today?.strain) ?? 0)
+        // Raw heart rate only. The stored-row floor is applied to the day total in `body`, since the row
+        // can already contain this workout.
+        before = (start, live ?? 0)
     }
 }
 #endif

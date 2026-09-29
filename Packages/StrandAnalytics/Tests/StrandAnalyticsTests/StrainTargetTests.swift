@@ -42,9 +42,17 @@ final class StrainTargetTests: XCTestCase {
         XCTAssertEqual(ill.0, 4, accuracy: 1e-9); XCTAssertEqual(ill.1, 10, accuracy: 1e-9)
         XCTAssertEqual(band21(.init(charge: 70, goal: .restore)).0, base.0 - 3, accuracy: 1e-9)
         XCTAssertEqual(band21(.init(charge: 70, goal: .build)).1, base.1 + 2, accuracy: 1e-9)
-        // Clamped to the axis with a minimum width.
+        // Clamped to the axis with a minimum width, and the lower bound kept above 0 so an idle day is
+        // never "in target".
         let floor = band21(.init(charge: 0, sleepDebtMin: 900, illness: true, goal: .restore))
-        XCTAssertEqual(floor.0, 0, accuracy: 1e-9); XCTAssertGreaterThanOrEqual(floor.1, 1 - 1e-9)
+        XCTAssertEqual(floor.0, ST.minLower21, accuracy: 1e-9)
+        XCTAssertGreaterThanOrEqual(floor.1, ST.minLower21 + ST.minWidth21 - 1e-9)
+        for c in stride(from: 0.0, through: 100, by: 1) {
+            for goal in ST.Goal.allCases {
+                let b = ST.band(.init(charge: c, sleepDebtMin: 900, illness: true, goal: goal))!
+                XCTAssertEqual(b.zone(effort: 0), .restoring, "charge \(c) goal \(goal)")
+            }
+        }
         let top = band21(.init(charge: 100, goal: .build))
         XCTAssertLessThanOrEqual(top.1, 21 + 1e-9)
     }

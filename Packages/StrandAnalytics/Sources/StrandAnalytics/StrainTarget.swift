@@ -18,8 +18,9 @@ import Foundation
 //     hour, at most `maxDebtShift` (2.0). A short night argues for less load (SleepDebt ledger).
 //   • Illness heads-up: both bounds are capped at the old red band (4–10), whatever the Charge.
 //   • Goal (Settings → Scoring): Restore −3, Maintain 0, Build +2 on both bounds.
-// Then clamped to 0…21 with at least `minWidth21` (1.0) between the bounds, and returned on NOOP's
-// internal 0–100 Effort axis (× 100/21). nil when Charge is unknown: never guess a target.
+// Then clamped to `minLower21`…21 with at least `minWidth21` (1.0) between the bounds, and returned on NOOP's
+// internal 0–100 Effort axis (× 100/21). The lower bound never reaches 0: a band that contains Effort 0
+// would read as "target reached" before any activity. nil when Charge is unknown: never guess a target.
 public enum StrainTarget {
 
     public enum Goal: String, CaseIterable, Sendable {
@@ -50,6 +51,7 @@ public enum StrainTarget {
     public static let maxDebtShift21 = 2.0
     public static let illnessCap21: ClosedRange<Double> = 4...10
     public static let minWidth21 = 1.0
+    public static let minLower21 = 1.0
     static let per21 = StrainScorer.maxStrain / 21
 
     public struct Inputs: Equatable, Sendable {
@@ -86,7 +88,7 @@ public enum StrainTarget {
             lo = min(lo, illnessCap21.lowerBound); hi = min(hi, illnessCap21.upperBound)
         }
         lo += i.goal.shift21; hi += i.goal.shift21
-        lo = min(max(0, lo), 21 - minWidth21)
+        lo = min(max(minLower21, lo), 21 - minWidth21)
         hi = min(21, max(hi, lo + minWidth21))
         return Band(lower: lo * per21, upper: hi * per21)
     }
