@@ -103,7 +103,7 @@ struct BroopInsightsCard<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(fill))
+            .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(fill))
     }
 }
 

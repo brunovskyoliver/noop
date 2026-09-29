@@ -292,7 +292,7 @@ struct BroopHealthRow: View {
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
         .padding(.vertical, 4)
-        .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
+        .background(RoundedRectangle(cornerRadius: BroopMetrics.tileRadius, style: .continuous).fill(BroopPalette.card))
         .contentShape(Rectangle())
     }
 }
@@ -343,7 +343,7 @@ struct BroopHealthDashboardRow: View {
         .padding(.trailing, 14)
         .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
         .padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
+        .background(RoundedRectangle(cornerRadius: BroopMetrics.tileRadius, style: .continuous).fill(BroopPalette.card))
         .contentShape(Rectangle())
     }
 
@@ -389,7 +389,7 @@ struct BroopHealthHeading: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(verbatim: text)
-                .font(BroopType.demi(22))
+                .font(BroopType.demi(BroopType.sectionSize))
                 .foregroundStyle(BroopPalette.textPrimary)
             Spacer()
             if let trailing { BroopCaps(trailing, size: 10, color: BroopPalette.textSecondary) }
@@ -452,13 +452,7 @@ struct BroopHealthButton: View {
 /// Grey fine print closing a screen.
 struct BroopHealthFootnote: View {
     let text: String
-    var body: some View {
-        Text(verbatim: text)
-            .font(BroopType.regular(13))
-            .foregroundStyle(BroopPalette.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    var body: some View { BroopFootnote(text: text) }
 }
 
 /// A plain surface card with WHOOP padding.
@@ -471,7 +465,7 @@ struct BroopHealthCard<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(fill))
+            .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(fill))
     }
 }
 

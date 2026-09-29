@@ -258,7 +258,7 @@ struct BroopHomeView: View {
                 Button { router.openCoach() } label: {
                     BroopBadge(size: 30, gradientRing: true)
                         .frame(width: 50, height: 46)
-                        .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
+                        .background(RoundedRectangle(cornerRadius: BroopMetrics.tileRadius, style: .continuous).fill(BroopPalette.card))
                 }
                 .buttonStyle(BroopPressableStyle())
                 .accessibilityLabel(Text("Coach"))

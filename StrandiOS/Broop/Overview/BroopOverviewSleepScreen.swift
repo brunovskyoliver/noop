@@ -102,7 +102,8 @@ struct BroopOverviewSleepScreen: View {
         .sheet(isPresented: $showCustomize) {
             SleepCustomizationSheet(sectionOrderRaw: $orderRaw, hiddenSectionsRaw: $hiddenRaw)
         }
-        .sheet(item: $edit) { e in editor(e) }
+        // The classic editor is a compact form; size the sheet to it instead of floating it in a full one.
+        .sheet(item: $edit) { e in editor(e).presentationDetents([.height(390)]).presentationDragIndicator(.visible) }
         .sheet(item: $addNap) { seed in
             SleepTimeEditor(bedTs: seed.bedTs, wakeTs: seed.wakeTs,
                             title: seed.isNap ? "Add a nap" : "Add sleep",
@@ -115,6 +116,8 @@ struct BroopOverviewSleepScreen: View {
                 await intelligence.analyzeRecent()
                 await repo.refresh()
             }
+            .presentationDetents([.height(340)])
+            .presentationDragIndicator(.visible)
         }
     }
 

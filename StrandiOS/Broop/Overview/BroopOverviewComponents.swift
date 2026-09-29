@@ -490,7 +490,7 @@ struct BroopOverviewSectionTitle<Trailing: View>: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 Text(verbatim: title)
-                    .font(BroopType.demi(24))
+                    .font(BroopType.demi(BroopType.sectionSize))
                     .foregroundStyle(BroopPalette.textPrimary)
                 Spacer()
                 trailing
@@ -537,7 +537,7 @@ struct BroopOverviewCard<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(fill))
+            .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(fill))
     }
 }
 

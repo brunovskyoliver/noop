@@ -20,7 +20,7 @@ enum BroopAccountStyle {
     static let batteryFill = Color(broopHex: 0x44CB04)
     static let broadcast = Color(broopHex: 0x0193E8)
     static let danger = Color(broopHex: 0xFF4D4D)
-    static let rowRadius: CGFloat = 12
+    static let rowRadius: CGFloat = BroopMetrics.tileRadius
     static let rowHeight: CGFloat = 56
     static let rowGap: CGFloat = 10
 }
@@ -537,14 +537,8 @@ struct BroopAccountTextLink: View {
 
 struct BroopAccountFootnote: View {
     let text: String
-    var color: Color = BroopAccountStyle.caption
-    var body: some View {
-        Text(verbatim: text)
-            .font(BroopType.regular(13))
-            .foregroundStyle(color)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    var color: Color = BroopPalette.textSecondary
+    var body: some View { BroopFootnote(text: text, color: color) }
 }
 
 /// A notice card: icon + text, amber for warnings.

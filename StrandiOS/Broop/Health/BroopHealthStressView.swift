@@ -514,11 +514,7 @@ struct BroopHealthStressView: View {
                 .padding(BroopMetrics.page)
             }
             .background(BroopBackground())
-            .navigationTitle(Text("Stress settings"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { showSettings = false } }
-            }
+            .broopSheetBar(String(localized: "Stress settings")) { showSettings = false }
         }
         .presentationDetents([.medium])
         .preferredColorScheme(.dark)
@@ -548,11 +544,7 @@ struct BroopHealthStressView: View {
                 .padding(BroopMetrics.page)
             }
             .background(BroopBackground())
-            .navigationTitle(Text("How this is computed"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { showInfo = false } }
-            }
+            .broopSheetBar(String(localized: "How this is computed")) { showInfo = false }
         }
         .preferredColorScheme(.dark)
     }

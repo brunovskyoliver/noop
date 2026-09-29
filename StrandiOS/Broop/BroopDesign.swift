@@ -57,13 +57,20 @@ enum BroopType {
     static func medium(_ size: CGFloat) -> Font { .custom("AvenirNext-Medium", size: size) }
     static func regular(_ size: CGFloat) -> Font { .custom("AvenirNext-Regular", size: size) }
     static func wordmark(_ size: CGFloat) -> Font { .custom("AvenirNext-Regular", size: size) }
+    /// Sentence-case section titles ("My Day", "Last Night's Sleep", "Heart & Fitness"), the same on every screen.
+    static let sectionSize: CGFloat = 22
 }
 
 enum BroopMetrics {
     static let page: CGFloat = 16
     static let gap: CGFloat = 10
     static let section: CGFloat = 32
-    static let cardRadius: CGFloat = 12
+    /// WHOOP's card corner (Home cards, deep-dive cards, monitor tiles): ~16 pt at 3 px/pt.
+    static let cardRadius: CGFloat = 16
+    /// Full-width list tiles (dashboard rows, More / Health rows, the coach tile): ~14 pt.
+    static let tileRadius: CGFloat = 14
+    /// Rows and pills inside a card: ~12 pt.
+    static let innerRadius: CGFloat = 12
     static let rowRadius: CGFloat = 10
     static let badgeRadius: CGFloat = 5
     /// Bottom padding that clears the floating tab bar at the end of a scrolling page.
@@ -309,7 +316,7 @@ struct BroopSectionTitle<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(verbatim: text)
-                .font(BroopType.demi(20))
+                .font(BroopType.demi(BroopType.sectionSize))
                 .foregroundStyle(BroopPalette.textPrimary)
             Spacer()
             trailing
@@ -333,6 +340,20 @@ struct BroopListHeader: View {
             Spacer()
             if let trailing { BroopCaps(trailing, size: 10, color: BroopPalette.textSecondary) }
         }
+    }
+}
+
+/// Grey explanatory paragraph under a card or at the foot of a page.
+struct BroopFootnote: View {
+    let text: String
+    var color: Color = BroopPalette.textSecondary
+
+    var body: some View {
+        Text(verbatim: text)
+            .font(BroopType.regular(13))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -965,6 +986,20 @@ extension View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .background(BroopBackground())
             .broopBarChrome()
+    }
+
+    /// The bar of a Broop sheet that has its own stack: the caps title and a Done button, matching
+    /// `BroopPresentedScreen`'s.
+    func broopSheetBar(_ title: String, onDone: @escaping () -> Void) -> some View {
+        self
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { BroopNavTitle(title: title) }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: onDone) { Text("Done").font(BroopType.demi(16)) }
+                        .foregroundStyle(BroopPalette.textPrimary)
+                }
+            }
     }
 
     /// The system bar as every pushed Broop screen shows it: inline, transparent (the header's fill sits

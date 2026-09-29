@@ -238,9 +238,7 @@ private struct BroopOverviewCoupledBreakdown: View {
                 .padding(BroopMetrics.page)
             }
             .background(BroopBackground())
-            .navigationTitle(String(localized: "What shaped your Charge"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done", action: onClose) } }
+            .broopSheetBar(String(localized: "What shaped your Charge"), onDone: onClose)
         }
         .preferredColorScheme(.dark)
     }
