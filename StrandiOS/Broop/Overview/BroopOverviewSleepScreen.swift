@@ -97,7 +97,7 @@ struct BroopOverviewSleepScreen: View {
         .task(id: repo.refreshSeq) { await loadModel() }
         .task(id: snap?.night?.session.effectiveStartTs ?? 0) { await loadHR(snap?.night) }
         .sheet(isPresented: $showGuide) {
-            NavigationStack { ScoringGuideView(initialSection: .rest, onClose: { showGuide = false }) }
+            BroopOverviewScoreGuide(initialSection: .rest, onClose: { showGuide = false })
         }
         .sheet(isPresented: $showCustomize) {
             SleepCustomizationSheet(sectionOrderRaw: $orderRaw, hiddenSectionsRaw: $hiddenRaw)

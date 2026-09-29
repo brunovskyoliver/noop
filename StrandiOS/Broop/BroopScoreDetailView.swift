@@ -53,7 +53,7 @@ private struct BroopOverviewDeepDive<Content: View>: View {
         .broopBarChrome()
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)") { await store.reload(repo: repo, profile: profile) }
         .sheet(isPresented: $showGuide) {
-            NavigationStack { ScoringGuideView(initialSection: section, onClose: { showGuide = false }) }
+            BroopOverviewScoreGuide(initialSection: section, onClose: { showGuide = false })
         }
     }
 }

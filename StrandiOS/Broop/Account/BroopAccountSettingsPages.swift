@@ -639,7 +639,7 @@ struct BroopAccountAboutPage: View {
         }
         .broopAccountChrome(String(localized: "About"))
         .sheet(isPresented: $showWhatsNew) { WhatsNewView(onClose: { showWhatsNew = false }) }
-        .sheet(isPresented: $showScoringGuide) { ScoringGuideView(onClose: { showScoringGuide = false }) }
+        .sheet(isPresented: $showScoringGuide) { BroopOverviewScoreGuide(onClose: { showScoringGuide = false }) }
         .sheet(isPresented: $showHowNoopWorks) { HowNoopWorksView(onClose: { showHowNoopWorks = false }) }
         .sheet(isPresented: $showAppleWatchSetup) { AppleWatchSetupView(onClose: { showAppleWatchSetup = false }) }
         .sheet(isPresented: $showDiagnostics) {
