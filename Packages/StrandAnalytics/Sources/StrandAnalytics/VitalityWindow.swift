@@ -25,16 +25,17 @@ public extension VitalityEngine {
         public var sleepConsistency: Double?
         public var steps: Double?
         public var vo2max: Double?
+        public var measuredVO2max: Double?
         public var zone13Min: Double
         public var zone45Min: Double
         public var strengthMin: Double
         public var hasRecovery: Bool
         public init(day: String, restingHR: Double? = nil, sleepHours: Double? = nil,
-                    sleepConsistency: Double? = nil, steps: Double? = nil, vo2max: Double? = nil,
+                    sleepConsistency: Double? = nil, steps: Double? = nil, vo2max: Double? = nil, measuredVO2max: Double? = nil,
                     zone13Min: Double = 0, zone45Min: Double = 0, strengthMin: Double = 0,
                     hasRecovery: Bool = false) {
             self.day = day; self.restingHR = restingHR; self.sleepHours = sleepHours
-            self.sleepConsistency = sleepConsistency; self.steps = steps; self.vo2max = vo2max
+            self.sleepConsistency = sleepConsistency; self.steps = steps; self.vo2max = vo2max; self.measuredVO2max = measuredVO2max
             self.zone13Min = zone13Min; self.zone45Min = zone45Min; self.strengthMin = strengthMin
             self.hasRecovery = hasRecovery
         }
@@ -63,6 +64,8 @@ public extension VitalityEngine {
         public let longInputs: Inputs
         public let recentInputs: Inputs
         public let recoveriesLast31: Int
+        /// Worn days in the 180-day window (WHOOP calls Healthspan fully calibrated at ~90).
+        public let coveredDays: Int
     }
 
     static let longWindowDays = 180
@@ -90,6 +93,9 @@ public extension VitalityEngine {
         let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
         return era * 146_097 + doe - 719_468
     }
+
+    /// "yyyy-MM-dd" for a day count since 1970-01-01 (inverse of `epochDay`).
+    static func dayString(epochDay e: Int) -> String { HRVStatus.dayString(e) }
 
     /// The Sunday on or before `day` ("yyyy-MM-dd"), or nil for a malformed day. 1970-01-01 was a Thursday,
     /// so (epochDay + 4) mod 7 is the weekday with Sunday = 0.
@@ -124,7 +130,8 @@ public extension VitalityEngine {
                 let perWeek = 7 / Double(span)
                 z13 = d.reduce(0) { $0 + max(0, $1.zone13Min) } * perWeek
                 z45 = d.reduce(0) { $0 + max(0, $1.zone45Min) } * perWeek
-                str = d.reduce(0) { $0 + max(0, $1.strengthMin) } * perWeek
+                let strength = d.reduce(0) { $0 + max(0, $1.strengthMin) }
+                str = strength > 0 ? strength * perWeek : nil
             }
         }
         return Inputs(
@@ -133,7 +140,8 @@ public extension VitalityEngine {
             sleepConsistency: mean(d.compactMap { $0.sleepConsistency }.filter { $0 >= 0 }),
             zone13MinPerWeek: z13, zone45MinPerWeek: z45, strengthMinPerWeek: str,
             steps: mean(d.compactMap { $0.steps }.filter { $0 > 0 }),
-            vo2max: mean(d.compactMap { $0.vo2max }.filter { $0 > 0 }),
+            vo2max: mean(d.compactMap { $0.measuredVO2max }.filter { $0 > 0 })
+                ?? mean(d.compactMap { $0.vo2max }.filter { $0 > 0 }),
             restingHR: mean(d.compactMap { $0.restingHR }.filter { $0 > 0 }),
             leanMassPct: leanMass)
     }
@@ -183,7 +191,8 @@ public extension VitalityEngine {
         guard let projected = compute(projIn) else { return nil }
         let pace = clamp(1 + (projected.ageDelta - current.ageDelta) / projectionYears, minPace, maxPace)
         return Healthspan(asOf: asOf, current: current, projected: projected, paceOfAging: pace,
-                          longInputs: longIn, recentInputs: recentIn, recoveriesLast31: rec)
+                          longInputs: longIn, recentInputs: recentIn, recoveriesLast31: rec,
+                          coveredDays: dated.filter { $0.day.covered }.count)
     }
 
     /// The white paper's four Pace of Aging readings. The display rounds to one decimal, so "steady" is the

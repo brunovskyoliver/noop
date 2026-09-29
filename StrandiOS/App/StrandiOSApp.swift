@@ -631,6 +631,7 @@ enum DemoScreens {
         case "devicescatalog": return AnyView(DeviceCardCatalog())
         case "fitnessage": return AnyView(FitnessAgeDemoScreen())
         case "vitality": return AnyView(VitalityDemoScreen())
+        case "broophealthspan": return AnyView(BroopHealthspanView())
         case "addwizard": return AnyView(AddWizardDemoHost())
         // Oura onboarding: the Add-device wizard deep-linked straight to the Oura factory-reset-and-adopt
         // prep step (the Beta banner + get/lose card + the red irreversible-consent gate), screenshot-able

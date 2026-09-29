@@ -2682,26 +2682,13 @@ final class IntelligenceEngine: ObservableObject {
             )
         }
 
-        // ── Vitality / Body Age / Pace of Aging (Phase 7) , weekly, keyed to the week's Saturday ──────
-        // Body Age reads the last 180 days (WHOOP Healthspan's window): resting HR, HRV, sleep duration +
-        // regularity, steps, VO₂max vs the age/sex recommendation, and workout HR-zone time. Pace of Aging
-        // compares the last 30 days with those 180 (VitalityWindow.swift). VitalityEngine gates on ≥3
-        // inputs, so a sparse window writes nothing; Pace needs ≥60 worn days and is skipped until then.
-        // The inputs come from `Repository.vitalityDays`, the same reader the Health screen's breakdown
-        // uses, with this pass's fresh scores overlaid on the stored history.
-        let vDays = await repo.vitalityDays(endingOn: newestDay, fresh: dailies)
-        if let hs = VitalityEngine.healthspan(days: vDays, asOf: newestDay,
-                                              chronoAge: Double(profile.age), sex: profile.sex) {
-            let satKey = IntelligenceEngine.saturdayKey(onOrBefore: newestDay)
-            var vPts = [
-                MetricPoint(day: satKey, key: "vitality", value: hs.bodyAge.vitality),
-                MetricPoint(day: satKey, key: "body_age", value: hs.bodyAge.bodyAge),
-            ]
-            if let pace = hs.paceOfAging {
-                vPts.append(MetricPoint(day: satKey, key: "pace_of_aging", value: pace))
-            }
-            _ = try? await store.upsertMetricSeries(vPts, deviceId: computedId)
-        }
+        // ── Healthspan v2: Broop Age / Pace of Aging, weekly, keyed to the update SUNDAY ─────────────────
+        // WHOOP-method Broop Age over the last 180 days (nine factors, VitalityEngine), gated on 21
+        // recoveries in 31 days, via `Repository.healthspan`, the same resolver the screens call. This
+        // pass's fresh scores overlay the stored history. See IntelligenceEngine+Healthspan.swift.
+        await Self.writeWeeklyHealthspan(repo: repo, store: store, computedId: computedId,
+                                         profileAge: profile.age, sex: profile.sex,
+                                         newestDay: newestDay, fresh: dailies)
 
         markPostLoopPhase("weekly")
         // ── Steps ESTIMATE (WHOOP 4.0) , DAILY, keyed to each strap-only day ────────────────────────

@@ -62,7 +62,7 @@ final class HealthspanV2Tests: XCTestCase {
 
     func testKnownDeltas() {
         XCTAssertEqual(years(.sleepHours, 6), 10 * ln(1.12), accuracy: 1e-9)             // +1.133
-        XCTAssertEqual(years(.sleepHours, 8), -0.15, accuracy: 1e-9)
+        XCTAssertEqual(years(.sleepHours, 8), 0, accuracy: 1e-9)
         XCTAssertEqual(years(.sleepConsistency, 70 - 19), 10 * ln(1.53), accuracy: 1e-9) // +4.253
         XCTAssertEqual(years(.sleepConsistency, 85), 10 * ln(0.90), accuracy: 1e-9)      // −1.054
         XCTAssertEqual(years(.zone45, 0), -10 * ln(0.82) * 10 / 15, accuracy: 1e-9)      // +1.323
@@ -150,7 +150,21 @@ final class HealthspanV2Tests: XCTestCase {
                                  zone13MinPerWeek: 124, zone45MinPerWeek: 7, strengthMinPerWeek: 56,
                                  steps: 11_500, vo2max: 40.0, restingHR: 63, leanMassPct: 73))!
         XCTAssertEqual(m.ageDelta, -2.11, accuracy: 0.01)
-        XCTAssertEqual(f.ageDelta, -2.39, accuracy: 0.01)
+        XCTAssertEqual(f.ageDelta, -2.34, accuracy: 0.01)
+    }
+
+    func testMeasuredVO2DoesNotRewriteEarlierWindows() {
+        var history = days(180, endingOn: "2026-09-27") { _ in
+            .init(day: "", restingHR: 60, sleepHours: 7, vo2max: 40, hasRecovery: true)
+        }
+        let earlier = VE.healthspan(days: history, asOf: "2026-08-30", chronoAge: 40, sex: "male")!
+        history[179].measuredVO2max = 50
+        let unchanged = VE.healthspan(days: history, asOf: "2026-08-30", chronoAge: 40, sex: "male")!
+        XCTAssertEqual(earlier, unchanged)
+        let latest = VE.healthspan(days: history, asOf: "2026-09-27", chronoAge: 40, sex: "male")!
+        XCTAssertEqual(latest.longInputs.vo2max, 50)
+        XCTAssertNil(latest.longInputs.strengthMinPerWeek)
+        XCTAssertEqual(latest.current.impact(.strength)?.years, 0)
     }
 
     // MARK: Window, gate, cadence

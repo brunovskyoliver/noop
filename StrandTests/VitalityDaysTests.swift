@@ -56,6 +56,24 @@ final class VitalityDaysTests: XCTestCase {
         XCTAssertEqual(days[2].vo2max, 44)
     }
 
+    /// Strength time: strength-sport workouts count; a Lift Log session counts only when no workout row
+    /// shares its start and sport (the paired row already counted it).
+    func testStrengthMinutesWithoutDoubleCounting() {
+        func row(_ start: Int, _ sport: String) -> WorkoutRow {
+            WorkoutRow(startTs: start, endTs: start + 1_800, sport: sport, source: "whoop",
+                       durationS: 1_800, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                       distanceM: nil, zonesJSON: nil, notes: nil, steps: nil,
+                       suggestedClass: nil, suggestedClassConfidence: nil)
+        }
+        let days = Repository.vitalityDays(
+            dailies: [], workouts: [row(1_000, "Strength Training"), row(1_500, "Running")],
+            lifts: [.init(startTs: 1_000, endTs: 3_400, sport: "Strength Training"),   // paired → skipped
+                    .init(startTs: 1_200, endTs: 2_400, sport: "Strength Training")],  // unpaired → 20 min
+            vo2ByDay: [:], dayOf: { _ in "2026-09-01" })
+        XCTAssertEqual(days.count, 1)
+        XCTAssertEqual(days[0].strengthMin, 30 + 20, accuracy: 1e-9)
+    }
+
     func testWindowStart() {
         XCTAssertEqual(Repository.vitalityWindowStart(endingOn: "2026-09-24"), "2026-03-29")
     }

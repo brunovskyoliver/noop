@@ -508,6 +508,11 @@ final class AppModel: ObservableObject {
             // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
             // the 0–100 axis. Guarded by a persisted flag, so this is a no-op on every subsequent launch.
             await self.intelligence.runEffortRescoreIfNeeded()
+            // One-shot Healthspan v2 backfill: replace every stored v1 Body Age / Pace / Vitality row with v2
+            // values for each past Sunday. Persisted flag → no-op after the first completed run.
+            await IntelligenceEngine.runHealthspanV2BackfillIfNeeded(
+                repo: self.repo, profileAge: self.profile.age, sex: self.profile.sex,
+                log: { [live = self.live] in live.append(log: $0, domain: nil) })
             while !Task.isCancelled {
                 // #547 RE-POLLUTION: a sync since the last tick may have armed a re-heal (its ingest gate
                 // dropped bad-clock records). `runTimestampHealIfNeeded` honours the pending flag even after
