@@ -208,6 +208,9 @@ struct BroopHealthspanView: View {
                         Text(verbatim: BroopHealthspanData.yearsLine(-delta))
                             .font(BroopType.demi(19))
                             .foregroundStyle(BroopHealthspanPalette.delta)
+                        Text("Calendar age \(BroopFormat.one(data.snap.chronoAge))")
+                            .font(BroopType.regular(13))
+                            .foregroundStyle(BroopPalette.textSecondary)
                     } else {
                         Text(data.loaded ? lockedCopy : String(localized: "Reading your Healthspan…"))
                             .font(BroopType.regular(14))

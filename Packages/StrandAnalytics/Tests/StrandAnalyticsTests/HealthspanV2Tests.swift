@@ -321,6 +321,16 @@ final class HealthspanV2Tests: XCTestCase {
 /// The Sleep screen's consistency resolver, moved from `SleepModel.consistencySeries`.
 final class SleepConsistencyTests: XCTestCase {
 
+    func testStoredRestConsistencyIsSharedWhenImportsDoNotCoverLatestDay() {
+        let days = ["2026-09-01", "2026-09-02"]
+        let stored = ["2026-09-01": 70.0, "2026-09-02": 85.0]
+        let result = SleepConsistency.resolve(dayKeys: days, importedPct: [:], nights: [], computedPct: stored)
+        XCTAssertEqual(result.map(\.pct), [70, 85])
+        let imported = SleepConsistency.resolve(dayKeys: days, importedPct: ["2026-09-02": 60],
+                                                nights: [], computedPct: stored)
+        XCTAssertEqual(imported.map(\.pct), [60])
+    }
+
     func testBedMinutesWrap() {
         XCTAssertEqual(SleepConsistency.bedMinutes(hour: 23, minute: 30), 1410)
         XCTAssertEqual(SleepConsistency.bedMinutes(hour: 0, minute: 30), 1470)

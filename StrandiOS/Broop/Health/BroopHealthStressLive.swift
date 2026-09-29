@@ -130,7 +130,7 @@ struct BroopHealthStressNow: Equatable {
         case nil:
             guard let e = latest, let l = e.level else { return nil }
             return BroopHealthStressNow(level: l, active: false,
-                                        time: Date(timeIntervalSince1970: TimeInterval(e.startTs + StressMonitor.epochSeconds)),
+                                        time: Date(timeIntervalSince1970: min(now.timeIntervalSince1970, TimeInterval(e.startTs + StressMonitor.epochSeconds))),
                                         source: .latest)
         }
     }

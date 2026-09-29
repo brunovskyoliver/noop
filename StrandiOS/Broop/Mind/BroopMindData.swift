@@ -45,7 +45,7 @@ extension Repository {
 
 /// Everything the Mind screen and the Health-tab card show, resolved once. Resilience and Cumulative Stress
 /// come from their engines over `mindDays` (stress summaries from `Repository.stressDaySummaries`, Rest
-/// from the stored `sleep_performance` series and Charge from the day rows, the same sources Home reads),
+/// from the shared `restScore` resolver and Charge from the day rows, the same sources Home reads),
 /// so the card and the screen can never disagree.
 struct BroopMindData {
     struct CheckIn: Identifiable, Equatable {
@@ -84,14 +84,13 @@ struct BroopMindData {
     static func load(repo: Repository) async -> BroopMindData {
         let today = Repository.dayString(Date())
         async let summariesA = repo.stressDaySummaries(days: 120)
-        async let restA = repo.exploreSeries(key: "sleep_performance", source: "my-whoop", days: 120)
         async let pssA = repo.mindCheckInSeries(.pss4)
         async let gadA = repo.mindCheckInSeries(.gad2)
         async let phqA = repo.mindCheckInSeries(.phq2)
         let summaries = await summariesA
-        let rest = await restA
         let pss = await pssA, gad = await gadA, phq = await phqA
         let dailies = repo.days
+        let rest = dailies.compactMap { day in repo.restScore(for: day).map { (day: day.day, value: $0) } }
 
         return await Task.detached(priority: .userInitiated) {
             build(today: today, summaries: summaries, rest: rest, dailies: dailies,
