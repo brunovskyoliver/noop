@@ -5,13 +5,14 @@ import StrandAnalytics
 import WhoopStore
 
 /// Strength Trainer over the classic Lift Log: MY WORKOUTS lists the saved programs (start, edit, create,
-/// import) and PROGRESS carries this week's sets per muscle and the finished sessions. The program
-/// editor, the spreadsheet import and a past session's detail stay the classic sheets (rarely used
-/// editors, shown under the Broop skin). Lifting never changes Effort, exactly as on the classic screen.
+/// import) and PROGRESS carries this week's sets per muscle and the finished sessions. The builder, the
+/// spreadsheet import and a past session's detail are the native `BroopFinalBLift…` sheets over the
+/// classic rules. Lifting never changes Effort, exactly as on the classic screen.
 struct BroopActivityStrengthView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var session: LiftSessionController
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.broopCloseHostSheet) private var closeHostSheet
 
     enum Tab: Hashable { case workouts, progress }
     @State private var tab: Tab = .workouts
@@ -44,16 +45,16 @@ struct BroopActivityStrengthView: View {
         .broopActivityPage()
         .refreshable { await load() }
         .task(id: "\(repo.refreshSeq)-\(session.savedSessions)") { await load() }
-        .sheet(item: $editing) { t in LiftProgramEditorSheet(program: t.program) { await load() } }
-        .sheet(isPresented: $importing) { LiftProgramImportSheet { await load() } }
-        .sheet(item: $viewing) { t in LiftSessionDetailSheet(session: t.session) { await load() } }
+        .sheet(item: $editing) { t in BroopFinalBLiftProgramEditor(program: t.program) { await load() } }
+        .sheet(isPresented: $importing) { BroopFinalBLiftImportSheet { await load() } }
+        .sheet(item: $viewing) { t in BroopFinalBLiftSessionDetail(session: t.session) { await load() } }
     }
 
     // MARK: My workouts
 
     @ViewBuilder private var workoutsTab: some View {
         if session.isActive {
-            Button { session.isPresented = true } label: {
+            Button { Task { await openSession() } } label: {
                 HStack(spacing: 12) {
                     Circle().fill(BroopActivityPalette.mint).frame(width: 8, height: 8)
                     BroopCaps(String(localized: "Session running"), size: 11, color: BroopActivityPalette.mint)
@@ -160,8 +161,23 @@ struct BroopActivityStrengthView: View {
                                 targetRpe: item.targetRpe, targetWeightKg: item.targetWeightKg, note: item.note,
                                 programItemId: item.id)
         }
-        guard !session.isActive else { session.isPresented = true; return }
-        session.start(plan: plan, programId: program.id, programName: program.name)
+        if !session.isActive {
+            session.start(plan: plan, programId: program.id, programName: program.name)
+        }
+        await openSession()
+    }
+
+    /// Show the running session. The shell presents it; when this screen is itself a shell sheet (from
+    /// the "+" menu), that sheet closes first so the session can take its place.
+    private func openSession() async {
+        guard let closeHostSheet else {
+            session.isPresented = true
+            return
+        }
+        session.isPresented = false
+        closeHostSheet()
+        try? await Task.sleep(for: .milliseconds(550))
+        session.isPresented = true
     }
 
     // MARK: Progress

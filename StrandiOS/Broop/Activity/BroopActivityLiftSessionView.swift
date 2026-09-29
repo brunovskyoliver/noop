@@ -63,7 +63,7 @@ struct BroopActivityLiftSessionView: View {
             BroopActivityLiftFinishSheet { session.isPresented = false }
         }
         .sheet(isPresented: $addingExercise) {
-            LiftSessionExerciseSheet { name, primary, secondaries in
+            BroopFinalBLiftExerciseSheet { name, primary, secondaries in
                 guard session.addExercise(name, primaryMuscle: primary, secondaryMuscles: secondaries) else { return }
                 tab = .exercises
                 scrollTarget = (session.engine?.plan.count ?? 1) - 1
@@ -593,6 +593,7 @@ struct BroopActivityLiftFinishSheet: View {
             .padding(BroopMetrics.page)
         }
         .scrollDismissesKeyboard(.interactively)
+        .broopFinalBKeyboardDone()
         .background(Color(broopHex: 0x1E2327).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .presentationDragIndicator(.visible)

@@ -86,8 +86,8 @@ struct BroopActivityLiveHRView: View {
             BroopActivityStartCover(onClose: { workoutCover = false })
         }
         .sheet(isPresented: $hrvSheet) {
-            HRVSnapshotView(onClose: { hrvSheet = false },
-                            source: (WhoopModel(rawValue: selectedModelRaw) ?? .whoop4) == .whoop5mg ? .opticalPPG : .chestStrap)
+            BroopFinalBHRVSnapshotView(onClose: { hrvSheet = false },
+                                       source: (WhoopModel(rawValue: selectedModelRaw) ?? .whoop4) == .whoop5mg ? .opticalPPG : .chestStrap)
         }
     }
 }

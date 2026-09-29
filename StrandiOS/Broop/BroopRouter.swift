@@ -91,6 +91,7 @@ struct BroopPresentedScreen: View {
         NavigationStack {
             BroopScreenView(screen: screen)
                 .broopDestinations()
+                .environment(\.broopCloseHostSheet, onClose)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { onClose() } label: {
@@ -101,6 +102,20 @@ struct BroopPresentedScreen: View {
                 }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+/// Closes the shell sheet a screen was presented in (nil when the screen is pushed on a tab). A screen
+/// that hands off to something the shell presents (the running gym session) closes its host first,
+/// since the shell cannot present a second sheet over its own.
+private struct BroopCloseHostSheetKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var broopCloseHostSheet: (() -> Void)? {
+        get { self[BroopCloseHostSheetKey.self] }
+        set { self[BroopCloseHostSheetKey.self] = newValue }
     }
 }
 

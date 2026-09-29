@@ -289,7 +289,7 @@ struct BroopActivityBreatheView: View {
                     }
                 }
                 .padding(.top, 14)
-                StressCheckInCard(center: injectedNudge ?? fallbackNudge) { startOneMinute() }
+                BroopFinalBStressCheckIn(center: injectedNudge ?? fallbackNudge) { startOneMinute() }
                     .padding(.top, 16)
                 if let controller = box.controller {
                     switch mode {
@@ -300,10 +300,15 @@ struct BroopActivityBreatheView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, BroopMetrics.tabBarClearance)
+            .padding(.bottom, 24)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Breathwork"), inBar: true, onBack: { dismiss() })
+        }
+        // The session CTA is pinned, WHOOP-style, so it sits above the floating tab bar (or the sheet's
+        // bottom edge) on first render instead of scrolling in from under it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if mode == .breathe { breatheCTA }
         }
         .broopActivityPage()
         .background(BroopActivityBreatheBinder(engine: engine, box: box))
@@ -393,15 +398,6 @@ struct BroopActivityBreatheView: View {
         }
         .padding(.top, 18)
 
-        HStack(spacing: 10) {
-            BroopActivityButton(title: engine.running ? String(localized: "Stop session") : String(localized: "Start session"),
-                                kind: engine.running ? .outline : .filled, height: 54) {
-                engine.running ? engine.stop() : engine.start()
-            }
-            BroopActivityTestBuzz()
-        }
-        .padding(.top, 22)
-
         if let line = engine.outcomeLine {
             HStack(spacing: 10) {
                 Image(systemName: "wind").foregroundStyle(BroopPalette.rest)
@@ -431,6 +427,25 @@ struct BroopActivityBreatheView: View {
         coherence.padding(.top, 12)
         BroopActivityHapticHint(text: String(localized: "Connect your strap for haptic guidance. You'll feel one pulse on the inhale, two on the exhale, so you can breathe with your eyes closed."))
             .padding(.top, 12)
+    }
+
+    private var breatheCTA: some View {
+        HStack(spacing: 10) {
+            BroopActivityButton(title: engine.running ? String(localized: "Stop session") : String(localized: "Start session"),
+                                kind: engine.running ? .outline : .filled, height: 54) {
+                engine.running ? engine.stop() : engine.start()
+            }
+            // Opaque base: the button dims itself while unbonded, which would show the page through it.
+            BroopActivityTestBuzz().background(Circle().fill(BroopPalette.bgBottom))
+        }
+        .padding(.horizontal, BroopMetrics.page)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
+        .background(
+            LinearGradient(colors: [BroopPalette.bgBottom.opacity(0), BroopPalette.bgBottom],
+                           startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     private func chips<T: Hashable>(_ items: [T], selected: T, label: @escaping (T) -> String, pick: @escaping (T) -> Void) -> some View {

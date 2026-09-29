@@ -182,9 +182,10 @@ struct BroopActivityIntervalsView: View {
                     .padding(.top, 12)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, BroopMetrics.tabBarClearance)
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
+            // The scroll view already insets its content for the floating tab bar (and a sheet has none),
+            // so the page only needs its own breathing room here, not the full tab-bar clearance.
+            .padding(.bottom, 24)
+        }        .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Interval timer"), inBar: true, onBack: { dismiss() })
         }
         .broopActivityPage()
