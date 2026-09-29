@@ -307,7 +307,8 @@ private struct BroopAccountDeviceContent: View {
                           size: 10.5, color: BroopAccountStyle.caption)
             }
             VStack(spacing: BroopAccountStyle.rowGap) {
-                ForEach(activeDevices) { device in
+                // Active band first; the registry order is kept everywhere else (e.g. the strap compare).
+                ForEach(activeDevices.sorted { ($0.status == .active ? 0 : 1) < ($1.status == .active ? 0 : 1) }) { device in
                     BroopAccountBandRow(
                         device: device,
                         pill: pill(device),
@@ -581,8 +582,8 @@ private struct BroopAccountStrapHero: View {
                                 .foregroundStyle(BroopPalette.textPrimary)
                                 .broopNumeral(54)
                         } else {
-                            Text(verbatim: "--")
-                                .font(BroopType.number(54))
+                            Text(verbatim: "–")
+                                .font(BroopType.medium(44))
                                 .foregroundStyle(BroopPalette.textSecondary)
                         }
                         Text(verbatim: "%").font(BroopType.number(22)).foregroundStyle(BroopPalette.textPrimary)

@@ -21,46 +21,30 @@ struct BroopAccountSettingsView: View {
         BroopAccountPage(spacing: 30) {
             BroopAccountSection(title: String(localized: "Account")) {
                 VStack(spacing: BroopAccountStyle.rowGap) {
-                    BroopAccountPageLink(symbol: "person.crop.circle", title: String(localized: "Profile Information"),
-                                         subtitle: String(localized: "Age \(profile.age) · \(sexLabel)")) {
-                        BroopAccountProfilePage()
-                    }
-                    BroopAccountPageLink(symbol: "heart.circle", title: String(localized: "Heart Rate Zones"),
-                                         subtitle: String(localized: "Max HR \(profile.hrMax) bpm")) {
-                        BroopAccountHeartRatePage()
-                    }
-                    BroopAccountPageLink(symbol: "ruler", title: String(localized: "Units"),
+                    BroopAccountLink(value: BroopAccountRoute.profile, symbol: "person.crop.circle", title: String(localized: "Profile Information"),
+                                         subtitle: String(localized: "Age \(profile.age) · \(sexLabel)"))
+                    BroopAccountLink(value: BroopAccountRoute.heartRate, symbol: "heart.circle", title: String(localized: "Heart Rate Zones"),
+                                         subtitle: String(localized: "Max HR \(profile.hrMax) bpm"))
+                    BroopAccountLink(value: BroopAccountRoute.units, symbol: "ruler", title: String(localized: "Units"),
                                          subtitle: unitSystemRaw == UnitSystem.imperial.rawValue
-                                            ? String(localized: "Imperial") : String(localized: "Metric")) {
-                        BroopAccountUnitsPage()
-                    }
+                                            ? String(localized: "Imperial") : String(localized: "Metric"))
                 }
             }
             BroopAccountSection(title: String(localized: "App")) {
                 VStack(spacing: BroopAccountStyle.rowGap) {
-                    BroopAccountPageLink(symbol: "bell", title: String(localized: "Notifications")) {
-                        BroopAccountNotificationsPage()
-                    }
-                    BroopAccountPageLink(symbol: "circle.lefthalf.filled", title: String(localized: "Appearance"),
-                                         subtitle: String(localized: "Language, clock, theme and colours")) {
-                        BroopAccountAppearancePage()
-                    }
-                    BroopAccountPageLink(symbol: "sparkles", title: String(localized: "Coach & Features")) {
-                        BroopAccountFeaturesPage()
-                    }
-                    BroopAccountPageLink(symbol: "applewatch.side.right", title: String(localized: "Strap & Sync"),
-                                         subtitle: String(localized: "Connection, strap log, Live Activities")) {
-                        BroopAccountStrapPage()
-                    }
+                    BroopAccountLink(value: BroopAccountRoute.notifications, symbol: "bell", title: String(localized: "Notifications"))
+                    BroopAccountLink(value: BroopAccountRoute.appearance, symbol: "circle.lefthalf.filled", title: String(localized: "Appearance"),
+                                         subtitle: String(localized: "Language, clock, theme and colours"))
+                    BroopAccountLink(value: BroopAccountRoute.features, symbol: "sparkles", title: String(localized: "Coach & Features"))
+                    BroopAccountLink(value: BroopAccountRoute.strap, symbol: "applewatch.side.right", title: String(localized: "Strap & Sync"),
+                                         subtitle: String(localized: "Connection, strap log, Live Activities"))
                     classicInterfaceCard
                 }
             }
             BroopAccountSection(title: String(localized: "Data & Privacy")) {
                 VStack(spacing: BroopAccountStyle.rowGap) {
-                    BroopAccountPageLink(symbol: "externaldrive", title: String(localized: "Backup & Export"),
-                                         subtitle: String(localized: "Back up, restore, export CSV")) {
-                        BroopAccountDataPage()
-                    }
+                    BroopAccountLink(value: BroopAccountRoute.data, symbol: "externaldrive", title: String(localized: "Backup & Export"),
+                                         subtitle: String(localized: "Back up, restore, export CSV"))
                     BroopAccountPageLink(symbol: "internaldrive", title: String(localized: "Storage")) {
                         StorageView().broopClassicScreen()
                     }
@@ -68,25 +52,20 @@ struct BroopAccountSettingsView: View {
             }
             BroopAccountSection(title: String(localized: "Advanced")) {
                 VStack(spacing: BroopAccountStyle.rowGap) {
-                    BroopAccountPageLink(symbol: "slider.horizontal.3", title: String(localized: "Scoring & Recovery"),
-                                         subtitle: String(localized: "Charge baseline, HRV capture, sleep staging")) {
-                        BroopAccountScoringPage()
-                    }
-                    BroopAccountPageLink(symbol: "flask", title: String(localized: "Experimental")) {
-                        BroopAccountExperimentalPage()
-                    }
+                    BroopAccountLink(value: BroopAccountRoute.scoring, symbol: "slider.horizontal.3", title: String(localized: "Scoring & Recovery"),
+                                         subtitle: String(localized: "Charge baseline, HRV capture, sleep staging"))
+                    BroopAccountLink(value: BroopAccountRoute.experimental, symbol: "flask", title: String(localized: "Experimental"))
                     BroopAccountLink(value: BroopScreen.testCentre, symbol: "stethoscope",
                                      title: String(localized: "Developer · Test Centre"),
                                      subtitle: String(localized: "Tests, probes and the bug-report bundle"))
                 }
             }
             BroopAccountSection(title: String(localized: "Support")) {
-                BroopAccountPageLink(symbol: "info.circle", title: String(localized: "About")) {
-                    BroopAccountAboutPage()
-                }
+                BroopAccountLink(value: BroopAccountRoute.about, symbol: "info.circle", title: String(localized: "About"))
             }
         }
         .broopAccountChrome(String(localized: "App Settings"))
+        .broopAccountRoutes()
     }
 
     private var sexLabel: String { BroopAccountFormat.sex(profile.sex) }

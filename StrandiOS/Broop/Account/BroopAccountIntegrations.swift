@@ -114,9 +114,9 @@ struct BroopAccountSourceDashboard<Extra: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
-            rangeTabs
+            if metrics.contains(where: { hasData($0.key) }) { rangeTabs }
             tileGrid
-            ForEach(sections, id: \.title) { section in
+            ForEach(sections.filter { $0.keys.contains(where: hasData) }, id: \.title) { section in
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         BroopAccountSectionLabel(text: section.title)
@@ -125,7 +125,7 @@ struct BroopAccountSourceDashboard<Extra: View>: View {
                     }
                     extra(section.title)
                     LazyVStack(spacing: 10) {
-                        ForEach(section.keys, id: \.self) { key in
+                        ForEach(section.keys.filter(hasData), id: \.self) { key in
                             if let metric = metrics.first(where: { $0.key == key }), metric.chart {
                                 BroopAccountChartCard(metric: metric, resolved: resolved[key], selected: range)
                             }
@@ -138,6 +138,9 @@ struct BroopAccountSourceDashboard<Extra: View>: View {
         .onChange(of: range) { _, _ in rebuild() }
         .onChange(of: version) { _, _ in rebuild() }
     }
+
+    /// Metrics the source never recorded are left out rather than drawn as empty cards.
+    private func hasData(_ key: String) -> Bool { !(series[key] ?? []).isEmpty }
 
     private func rebuild() {
         var out: [String: BroopAccountResolved] = [:]
@@ -176,7 +179,7 @@ struct BroopAccountSourceDashboard<Extra: View>: View {
 
     private var tileGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            ForEach(metrics.filter(\.tile)) { metric in
+            ForEach(metrics.filter { $0.tile && hasData($0.key) }) { metric in
                 BroopAccountStatTile(metric: metric, resolved: resolved[metric.key])
             }
             ForEach(extraTiles, id: \.title) { tile in

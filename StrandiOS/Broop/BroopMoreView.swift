@@ -36,7 +36,7 @@ struct BroopMoreView: View {
                     }
                     Button { router.requestedDestination = .liveSession } label: {
                         BroopAccountMenuRow(symbol: "record.circle", title: String(localized: "Live Session"),
-                                            subtitle: String(localized: "A guarded workout that buzzes to keep you on track"))
+                                            subtitle: String(localized: "A guarded workout with strap cues"))
                     }
                     .buttonStyle(BroopPressableStyle())
                 }
@@ -74,10 +74,8 @@ struct BroopMoreView: View {
                                      title: String(localized: "Device Settings"))
                     BroopAccountLink(value: BroopScreen.settings, symbol: "list.bullet.clipboard",
                                      title: String(localized: "App Settings"))
-                    BroopAccountPageLink(symbol: "link", title: String(localized: "Integrations"),
-                                         subtitle: String(localized: "Apple Health, Mi Band, imports, Shortcuts")) {
-                        BroopAccountIntegrationsView()
-                    }
+                    BroopAccountLink(value: BroopAccountRoute.integrations, symbol: "link", title: String(localized: "Integrations"),
+                                         subtitle: String(localized: "Apple Health, Mi Band, imports, Shortcuts"))
                     BroopAccountLink(value: BroopScreen.backupSync, symbol: "externaldrive.badge.icloud",
                                      title: String(localized: "Backup & Sync"))
                     BroopAccountLink(value: BroopScreen.automations, symbol: "wand.and.stars",
@@ -94,9 +92,7 @@ struct BroopMoreView: View {
                                      title: String(localized: "What Your Strap Reads"))
                     BroopAccountLink(value: BroopScreen.classicToday, symbol: "rectangle.grid.1x2",
                                      title: String(localized: "Classic Today"))
-                    BroopAccountPageLink(symbol: "info.circle", title: String(localized: "About")) {
-                        BroopAccountAboutPage()
-                    }
+                    BroopAccountLink(value: BroopAccountRoute.about, symbol: "info.circle", title: String(localized: "About"))
                 }
 
                 footer.padding(.top, 40)
@@ -109,14 +105,13 @@ struct BroopMoreView: View {
         .broopStatusBarScrim()
         .background(BroopBackground())
         .task(id: repo.refreshSeq) { streak = Self.streakCounts(repo.days) }
+        .broopAccountRoutes()
     }
 
     // MARK: Header
 
     private var profileHeader: some View {
-        NavigationLink {
-            BroopAccountProfilePage()
-        } label: {
+        NavigationLink(value: BroopAccountRoute.profile) {
             HStack(spacing: 16) {
                 ProfileAvatarView(imageData: profile.avatarImageData, size: 64)
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))

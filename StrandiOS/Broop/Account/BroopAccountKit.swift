@@ -25,6 +25,45 @@ enum BroopAccountStyle {
     static let rowGap: CGFloat = 10
 }
 
+// MARK: - Routes
+
+/// Account sub-pages, pushed by value so links inside them (to `BroopScreen`s) keep working: a value
+/// link does nothing inside a page that was pushed with a view-destination link on a path-bound stack.
+enum BroopAccountRoute: Hashable {
+    case profile, heartRate, units, notifications, appearance, features, strap, data, scoring, experimental
+    case about, integrations
+}
+
+struct BroopAccountRouteView: View {
+    let route: BroopAccountRoute
+
+    var body: some View {
+        switch route {
+        case .profile: BroopAccountProfilePage()
+        case .heartRate: BroopAccountHeartRatePage()
+        case .units: BroopAccountUnitsPage()
+        case .notifications: BroopAccountNotificationsPage()
+        case .appearance: BroopAccountAppearancePage()
+        case .features: BroopAccountFeaturesPage()
+        case .strap: BroopAccountStrapPage()
+        case .data: BroopAccountDataPage()
+        case .scoring: BroopAccountScoringPage()
+        case .experimental: BroopAccountExperimentalPage()
+        case .about: BroopAccountAboutPage()
+        case .integrations: BroopAccountIntegrationsView()
+        }
+    }
+}
+
+extension View {
+    /// Registers `BroopAccountRoute` on the stack. Applied by each Account entry screen (More, App
+    /// Settings) because either can be the first on a stack; when both are, SwiftUI keeps the
+    /// registration closest to the root, which maps to the same view.
+    func broopAccountRoutes() -> some View {
+        navigationDestination(for: BroopAccountRoute.self) { BroopAccountRouteView(route: $0) }
+    }
+}
+
 // MARK: - Page chrome
 
 extension View {
