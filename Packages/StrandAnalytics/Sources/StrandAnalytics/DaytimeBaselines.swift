@@ -137,9 +137,15 @@ public extension DaytimeStress {
         -> (hr: BaselineState, rmssd: BaselineState?) {
         var hrAggs: [Double?] = []
         var rmssdAggs: [Double?] = []
-        hrAggs.reserveCapacity(aggregates.count)
-        rmssdAggs.reserveCapacity(aggregates.count)
-        for agg in aggregates {
+        // WHOOP compares against "your personalized baseline from the past 14 days". Only the last
+        // `StressMonitor.baselineWindowDays` days are folded, so the EWMA below is bounded to that window
+        // (weights ~1 → 0.5 across it at the 14-day half-life) instead of reaching back through every
+        // day a caller happened to read. Stress Monitor v2 (`StressMonitor.wakeReference`) takes the
+        // plain median of the same per-day aggregate over the same 14 days.
+        let windowed = aggregates.suffix(StressMonitor.baselineWindowDays)
+        hrAggs.reserveCapacity(windowed.count)
+        rmssdAggs.reserveCapacity(windowed.count)
+        for agg in windowed {
             hrAggs.append(agg.hr)
             rmssdAggs.append(agg.rmssd)
         }

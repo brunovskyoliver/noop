@@ -75,16 +75,17 @@ enum PuffinExperiment {
 
     static var spo2CandidateDisplayEnabled: Bool { UserDefaults.standard.bool(forKey: spo2CandidateDisplayKey) }
 
-    /// Opt-in "Personal daytime-stress baseline" (#463): score TODAY's intraday stress timeline against a
-    /// PERSONAL cross-day rolling baseline (Oura-style `.baselineRelative`) instead of the day's own calm
-    /// hours (`.dayRelative`, the default). Default OFF — the validated r≈0.6 HR-only margin is so far
-    /// SINGLE-SUBJECT (see `DaytimeStress.baselineRelativeHighMarginBPM`), so this stays a chooseable lens,
-    /// not a silent default, until it is validated on more subjects. When OFF, `StressView` /
-    /// `StressScreen` pass no mode and the read is byte-identical to before. Mirrors the Android
-    /// `NoopPrefs.KEY_STRESS_PERSONAL_BASELINE`.
+    /// "Personal daytime-stress baseline" (#463): score TODAY's intraday stress timeline against a
+    /// PERSONAL 14-day baseline (Oura-style `.baselineRelative`) instead of the day's own calm hours
+    /// (`.dayRelative`). Fork (Stress Monitor v2): default ON, matching WHOOP's "compared to your baseline
+    /// from the past 14 days". The classic hourly screen keeps the switch as a fallback to the day-relative
+    /// lens; an explicit OFF stored by an earlier build is honoured. The Broop Stress Monitor always uses the
+    /// v2 personal baseline (`StressMonitor`). iOS-only fork change; the Android default is unchanged.
     static let stressPersonalBaselineKey = "noopStressPersonalBaseline"
 
-    static var stressPersonalBaselineEnabled: Bool { UserDefaults.standard.bool(forKey: stressPersonalBaselineKey) }
+    static var stressPersonalBaselineEnabled: Bool {
+        UserDefaults.standard.object(forKey: stressPersonalBaselineKey) as? Bool ?? true
+    }
 
     /// Opt-in "Banister Effort" (#1545): score Effort with Banister's EXPONENTIAL TRIMP instead of the
     /// default Edwards 5-zone summation.
