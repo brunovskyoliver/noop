@@ -3149,6 +3149,9 @@ final class IntelligenceEngine: ObservableObject {
         // early guard-return), so an interrupted/failed run can't advance the watermark past unscored data.
         guard !Task.isCancelled else { return }
         if settleDebt, !wmKey.isEmpty { UserDefaults.standard.set(wmKey, forKey: Self.analyzeWatermarkKey) }
+        if maxDays >= 4000, stressPass != nil, RestScoringPrefs.v2Enabled == restV2On {
+            UserDefaults.standard.set(true, forKey: Self.stressRestBackfillFlagKey)
+        }
         markPostLoopPhase("tail")
         diagnosticSink?(AnalysisPhaseTally.logLine(scope: "postLoop", postLoopPhases), nil)
         // #1538: clear the started-mark and bank how long a COMPLETED pass costs on this install. The
