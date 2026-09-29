@@ -602,6 +602,23 @@ private struct iOSRootView: View {
 }
 
 #if DEBUG
+/// Owns the `BroopStore` the Broop shell normally injects (the Sleep screen reads it).
+private struct BroopStoreDemoHost<Content: View>: View {
+    @StateObject private var store = BroopStore()
+    @ViewBuilder let content: Content
+    var body: some View { content.environmentObject(store) }
+}
+
+/// Starts a manual workout so the live screen and its Strain Coach can be captured.
+private struct BroopCoachDemoHost: View {
+    @EnvironmentObject private var model: AppModel
+    var body: some View {
+        BroopActivityLiveView(onClose: {})
+            .background(BroopBackground())
+            .onAppear { if model.activeWorkout == nil { model.startWorkout() } }
+    }
+}
+
 /// DEBUG-only screenshot harness. Maps `--demo-screen <name>` to a single screen so a seeded
 /// simulator build can be captured deterministically (verification + marketing). Stripped from Release.
 enum DemoScreens {
@@ -632,6 +649,10 @@ enum DemoScreens {
         case "fitnessage": return AnyView(FitnessAgeDemoScreen())
         case "vitality": return AnyView(VitalityDemoScreen())
         case "broophealthspan": return AnyView(BroopHealthspanView())
+        case "broopsleep": return AnyView(BroopStoreDemoHost { BroopScreenView(screen: .sleep) })
+        case "broopenergy": return AnyView(BroopScreenView(screen: .energy))
+        case "broopenergyinfo": return AnyView(ScrollView { BroopEnergyInfo().padding(16) }.background(BroopBackground()))
+        case "broopcoach": return AnyView(BroopCoachDemoHost())
         case "addwizard": return AnyView(AddWizardDemoHost())
         // Oura onboarding: the Add-device wizard deep-linked straight to the Oura factory-reset-and-adopt
         // prep step (the Beta banner + get/lose card + the red irreversible-consent gate), screenshot-able
