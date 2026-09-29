@@ -84,8 +84,17 @@ extension IntelligenceEngine {
                                                    sessions: sessions, workouts: workouts)
             let readFrom = min(b.start, windows.mainSleep?.start ?? b.start)
             guard let fp = await repo.hrFingerprint(from: readFrom, to: b.end - 1), fp.count > 0 else {
-                // No raw heart rate: nothing to score, and nothing of ours to keep for the day.
-                stored[day] = stored[day]?.filter { !out.replaceKeys.contains($0.key) }
+                // Raw retention can expire before the derived history. Preserve the last stored
+                // summary when its source samples are unavailable; this day cannot be re-scored.
+                // Explicit history deletion removes these metric rows in its own transaction.
+                let retained = (stored[day] ?? [:]).filter { out.replaceKeys.contains($0.key) }
+                for (key, value) in retained {
+                    out.points.append(MetricPoint(day: day, key: key, value: value))
+                }
+                if let value = retained[StressDaySummary.Key.sleepStressPct] {
+                    out.sleepStressByDay[day] = value
+                }
+                if !retained.isEmpty { out.reused += 1 }
                 continue
             }
             let revision = await repo.stressInputRevision(from: readFrom, to: b.end - 1)
