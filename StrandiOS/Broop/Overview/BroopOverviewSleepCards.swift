@@ -34,12 +34,15 @@ struct BroopOverviewSleepFreshness: View {
     @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var intelligence: IntelligenceEngine
     let latestWakeTs: Int?
+    /// True when today's Rest is scored from today's own row: last night is in, even with no session here.
+    var nightScored = false
 
     var body: some View {
         let calendar = Calendar.current
         let now = Date()
         let start = calendar.startOfDay(for: now)
-        let current = latestWakeTs.map { calendar.isDate(Date(timeIntervalSince1970: TimeInterval($0)), inSameDayAs: now) } ?? false
+        let current = nightScored
+            || (latestWakeTs.map { calendar.isDate(Date(timeIntervalSince1970: TimeInterval($0)), inSameDayAs: now) } ?? false)
         let queued = live.lastSyncedAt.map { (0..<5).contains(now.timeIntervalSince1970 - $0) } ?? false
         let status = resolveSleepFreshness(
             hasCurrentNight: current,

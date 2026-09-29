@@ -36,7 +36,9 @@ struct BroopOverviewSleepScreen: View {
 
                 if let undo { undoBanner(undo).padding(.top, 8) }
                 if store.dayOffset == 0 {
-                    BroopOverviewSleepFreshness(latestWakeTs: snap?.night?.session.endTs).padding(.top, 8)
+                    BroopOverviewSleepFreshness(latestWakeTs: snap?.night?.session.endTs,
+                                                nightScored: snap.map { $0.rest != nil && $0.restCarryCaption == nil } ?? false)
+                        .padding(.top, 8)
                 }
 
                 BroopOverviewHeroRing(
@@ -213,7 +215,9 @@ struct BroopOverviewSleepScreen: View {
             } else {
                 BroopOverviewCard {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("No sleep recorded for this day.")
+                        Text((snap?.asleepMinutes ?? 0) > 0
+                             ? String(localized: "This night's stages aren't on this iPhone; its figures above come from your day's record.")
+                             : String(localized: "No sleep recorded for this day."))
                             .font(BroopType.medium(15))
                             .foregroundStyle(BroopPalette.textBody)
                         BroopOverviewFillButton(symbol: "plus", title: String(localized: "Add sleep")) {

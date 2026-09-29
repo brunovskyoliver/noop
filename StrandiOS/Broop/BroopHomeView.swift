@@ -322,6 +322,15 @@ struct BroopHomeView: View {
                         )
                     }
                     .buttonStyle(BroopPressableStyle())
+                } else if let asleep = snap?.asleepMinutes, asleep > 0 {
+                    // The day row carries the night (an import, or a session removed after scoring) but no
+                    // session on this iPhone: still the night the Rest dial scores, so show it, without times.
+                    NavigationLink(value: BroopScreen.sleep) {
+                        BroopOverviewActivityRow(symbol: "moon.fill", value: BroopFormat.duration(asleep),
+                                                 color: BroopPalette.rest, name: String(localized: "Sleep"),
+                                                 start: nil, end: nil)
+                    }
+                    .buttonStyle(BroopPressableStyle())
                 } else if snap != nil {
                     noSleepRow
                 }
@@ -481,8 +490,9 @@ struct BroopOverviewActivityRow: View {
     let value: String
     let color: Color
     let name: String
-    let start: Date
-    let end: Date
+    /// nil when the activity has figures but no clock window on this iPhone (an imported night).
+    let start: Date?
+    let end: Date?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -496,12 +506,14 @@ struct BroopOverviewActivityRow: View {
 
             BroopCaps(name, size: 11.5).lineLimit(2)
             Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(verbatim: startText)
-                Text(verbatim: BroopFormat.time(end))
+            if let start, let end {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(verbatim: startText(start, end))
+                    Text(verbatim: BroopFormat.time(end))
+                }
+                .font(BroopType.demi(12))
+                .foregroundStyle(BroopPalette.textBody)
             }
-            .font(BroopType.demi(12))
-            .foregroundStyle(BroopPalette.textBody)
             Capsule().fill(color).frame(width: 2, height: 28)
                 .padding(.trailing, 6)
         }
@@ -510,7 +522,7 @@ struct BroopOverviewActivityRow: View {
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(BroopOverviewPalette.inner))
     }
 
-    private var startText: String {
+    private func startText(_ start: Date, _ end: Date) -> String {
         let t = BroopFormat.time(start)
         guard !Calendar.current.isDate(start, inSameDayAs: end) else { return t }
         let day = start.formatted(.dateTime.weekday(.abbreviated).locale(AppLanguage.activeLocale))
