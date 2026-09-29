@@ -105,9 +105,9 @@ struct BroopMindData {
         func entry(_ day: String) -> MindDay { byDay[day] ?? MindDay(day: day) }
         for s in summaries {
             var d = entry(s.day)
-            d.highStressMin = s.highMin
-            d.lowStressMin = s.lowMin
-            d.scoredMin = s.scoredMin
+            d.highStressMin = Double(s.highMin)
+            d.lowStressMin = Double(s.lowMin)
+            d.scoredMin = Double(s.scoredMin)
             d.sleepStressPct = s.sleepStressPct
             byDay[s.day] = d
         }

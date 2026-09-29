@@ -75,16 +75,16 @@ enum BroopMindCopy {
         switch (r.level >= .solid, heavy) {
         case (true, false):
             return (String(localized: "Well Balanced"),
-                    String(localized: "You're recovering from what the days throw at you. Keep the habits that protect sleep and your calm time."))
+                    String(localized: "Your recorded recovery and low-stress time balance the recent stress load in this estimate."))
         case (true, true):
             return (String(localized: "Holding Up Under Load"),
-                    String(localized: "Your recovery is keeping pace for now, but stress has been adding up this month. Build in lighter days before it catches up."))
+                    String(localized: "The 14-day balance is solid or higher, while the 31-day load is elevated. The two windows describe different periods."))
         case (false, true):
             return (String(localized: "Running Low"),
-                    String(localized: "Stress has been outpacing recovery. Prioritise sleep, keep training easy and make room for time that is genuinely calm."))
+                    String(localized: "The recent balance is below Solid and the monthly load is elevated. Check the recorded components and compare them with how you feel."))
         case (false, false):
             return (String(localized: "Room to Recover"),
-                    String(localized: "Load is moderate, but recovery is on the low side. More consistent sleep and a few calm breaks each day will lift this."))
+                    String(localized: "The recent balance is below Solid. The components below show the stress and recovery data available for this period."))
         }
     }
 }
@@ -120,7 +120,7 @@ struct BroopMindView: View {
                 checkInSection.padding(.top, BroopMetrics.section)
                 moodSection.padding(.top, BroopMetrics.section)
                 methodSection.padding(.top, BroopMetrics.section)
-                BroopHealthFootnote(text: String(localized: "Mind shows wellness trends from heart rate and HRV. It is not a medical device and cannot diagnose anxiety, depression or any other condition."))
+                BroopHealthFootnote(text: String(localized: "Mind shows estimates from recorded stress, sleep and recovery. It is not a medical device and cannot diagnose anxiety, depression or any other condition."))
                     .padding(.top, 24)
             }
             .padding(.horizontal, BroopMetrics.page)
@@ -287,7 +287,7 @@ struct BroopMindView: View {
                             Text("/ 100").font(BroopType.medium(13)).foregroundStyle(BroopPalette.textSecondary)
                         }
                         BroopMindRuler(value: c.score, labels: CumulativeStressEngine.Level.allCases.map(BroopMindCopy.name))
-                            .frame(height: 44)
+                            .frame(height: 52)
                         if let line = BroopMindCopy.trendLine(c.trend, resilience: false) {
                             BroopCaps(line, size: 10.5, color: BroopPalette.textSecondary)
                         }
@@ -352,7 +352,7 @@ struct BroopMindView: View {
                         if data.checkIns.count >= 2 { BroopMindCheckInChart(checkIns: data.checkIns).frame(height: 120) }
                         linksBlock
                     } else {
-                        Text("Once a month, answer eight short questions about stress, worry and mood. Broop keeps the answers on this phone and, after a few months, shows how they move with your Charge and HRV.")
+                        Text("Once a month, answer eight short questions about stress, worry and mood. Broop stores the scores locally and, after a few months, shows how they move with your Charge and HRV.")
                             .font(BroopType.regular(15))
                             .foregroundStyle(BroopPalette.textBody)
                             .fixedSize(horizontal: false, vertical: true)
@@ -457,7 +457,7 @@ struct BroopMindView: View {
                     methodItem(String(localized: "Cumulative Stress"), String(localized: "A 31-day average of daily stress load: waking time in high stress (half the weight), stress during sleep and a low Charge (a quarter each). It needs 21 days of data and moves slowly on purpose."))
                     methodItem(String(localized: "Check-in"), String(localized: "PSS-4 (perceived stress, last month), GAD-2 and PHQ-2 (worry and mood, last two weeks) are short, widely used questionnaires. Scores are compared only with your own Charge and HRV. A higher score is not a diagnosis."))
                     methodItem(String(localized: "About these estimates"), String(localized: "Broop uses its own weights and thresholds, inspired by published descriptions of Oura’s rolling windows. These scores have not been clinically validated and are not Oura scores. Missing inputs are omitted and remaining weights are renormalised."))
-                    methodItem(String(localized: "Why no mental age"), String(localized: "No wearable can measure a brain or mental age from heart data. Broop shows what heart rate and HRV can honestly support: how much stress you've carried and how well you've recovered."))
+                    methodItem(String(localized: "Why no mental age"), String(localized: "No wearable can measure a brain or mental age from heart data. Broop shows rolling estimates from the recorded stress and recovery signals."))
                 }
             }
         }
@@ -540,12 +540,14 @@ struct BroopMindRuler: View {
                 }
             }
             .frame(height: 30)
-            HStack {
+            GeometryReader { geo in
+                let centers = [0.10, 0.30, 0.50, 0.80]
                 ForEach(Array(labels.enumerated()), id: \.element) { i, label in
                     Text(verbatim: label).font(BroopType.medium(11)).foregroundStyle(BroopPalette.textSecondary)
-                    if i < labels.count - 1 { Spacer() }
+                        .position(x: geo.size.width * centers[i], y: geo.size.height / 2)
                 }
             }
+            .frame(height: 16)
         }
         .accessibilityElement()
         .accessibilityLabel(Text(verbatim: "\(Int(value.rounded())) of 100"))

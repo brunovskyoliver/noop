@@ -4,7 +4,7 @@ import StrandAnalytics
 import StrandDesign
 
 /// The optional monthly check-in: PSS-4, GAD-2 and PHQ-2 with their published wording and answer scales,
-/// scored by `MindCheckIn` and saved on this phone only. The result screen reports totals without
+/// scored by `MindCheckIn` and stored locally. The result screen reports totals without
 /// labels like "anxious" or "depressed"; at or above the two-item screening cutoff it shows one neutral
 /// suggestion to talk to a professional.
 struct BroopMindCheckInSheet: View {
@@ -72,7 +72,7 @@ struct BroopMindCheckInSheet: View {
     }
 
     @ViewBuilder private var form: some View {
-        Text("Eight short questions. There are no right answers, and they stay on this phone.")
+        Text("Eight short questions. There are no right answers, and your scores are stored locally.")
             .font(BroopType.regular(15))
             .foregroundStyle(BroopPalette.textBody)
         ForEach(questions) { q in
