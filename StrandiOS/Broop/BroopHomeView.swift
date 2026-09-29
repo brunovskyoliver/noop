@@ -212,21 +212,7 @@ struct BroopHomeView: View {
             .buttonStyle(BroopPressableStyle())
 
             NavigationLink(value: BroopScreen.stress) {
-                let stress = snap?.stress
-                let color = stress.map { BroopVitals.stressColor($0.band) } ?? BroopPalette.textSecondary
-                BroopMonitorTile(
-                    title: [String(localized: "Stress"), String(localized: "Monitor")],
-                    status: [stress.map { $0.band.title } ?? String(localized: "Calibrating")],
-                    statusColor: color,
-                    detail: stress == nil ? String(localized: "Needs a few nights") : String(localized: "Latest")
-                ) {
-                    Text(verbatim: stress.map { BroopFormat.one($0.score) } ?? "–")
-                        .font(BroopType.number(13.5))
-                        .broopNumeral(13.5, color: color)
-                        .foregroundStyle(color)
-                        .frame(width: 25, height: 24)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.22)))
-                }
+                BroopHealthStressHomeTile()
             }
             .buttonStyle(BroopPressableStyle())
         }

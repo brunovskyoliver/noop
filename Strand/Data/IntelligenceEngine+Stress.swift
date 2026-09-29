@@ -29,7 +29,7 @@ struct StressRestPassOutput {
 extension IntelligenceEngine {
 
     /// Bump when the stress method changes, so every cached day is re-scored once.
-    nonisolated static let stressAlgoVersion = "v2.1"
+    nonisolated static let stressAlgoVersion = "v2.2"
     nonisolated static let stressPassCacheKey = "intelligence.stressMonitor.dayKeys.v2"
 
     /// One-shot flag: the first launch with Stress Monitor v2 / Rest v2 re-scores the whole history once,
@@ -88,7 +88,8 @@ extension IntelligenceEngine {
                 stored[day] = stored[day]?.filter { !out.replaceKeys.contains($0.key) }
                 continue
             }
-            let key = [stressAlgoVersion, "\(fp.count)", "\(fp.maxTs)", "\(b.end)",
+            let revision = await repo.stressInputRevision(from: readFrom, to: b.end - 1)
+            let key = [stressAlgoVersion, revision, "\(fp.count)", "\(fp.maxTs)", "\(b.end)",
                        windows.sleepWindows.map { "\($0.start)-\($0.end)" }.joined(separator: ","),
                        windows.mainSleep.map { "\($0.start)-\($0.end)" } ?? "-",
                        windows.activity.map { "\($0.start)-\($0.end)" }.joined(separator: ","),

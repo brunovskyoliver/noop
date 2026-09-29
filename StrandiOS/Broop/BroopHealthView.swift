@@ -20,7 +20,6 @@ struct BroopHealthView: View {
 
     @State private var vitals = BroopHealthVitalSet()
     @State private var vitalsLoaded = false
-    @State private var stress: StressModel?
     @State private var healthspan = BroopHealthspanData()
     @State private var weight: (value: Double, day: String)?
 
@@ -116,9 +115,7 @@ struct BroopHealthView: View {
     private func load() async {
         vitals = await BroopHealthVitalSet.load(repo: repo)
         vitalsLoaded = true
-        let stored = await repo.series(key: "stress", source: "my-whoop")
-        let days = repo.days
-        stress = await CancellableAnalysis.run { StressModel(days: days, stored: stored) }
+
         healthspan = await BroopHealthspanData.load(repo: repo, profile: profile)
         weight = (await repo.exploreSeries(key: "weight", source: "apple-health")).last.map { ($0.value, $0.day) }
     }
@@ -217,30 +214,7 @@ struct BroopHealthView: View {
     private var stressCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             BroopHealthCardTitle(title: String(localized: "Stress Monitor"))
-            if let stress {
-                HStack(alignment: .center, spacing: 14) {
-                    let color = BroopHealthStressBand.color(stress.band)
-                    Text(verbatim: StressTrace.formatLevel(stress.score))
-                        .font(BroopType.number(22))
-                        .foregroundStyle(color)
-                        .frame(width: 54, height: 44)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(color.opacity(0.2)))
-                    VStack(alignment: .leading, spacing: 3) {
-                        BroopCaps(stress.band.title, size: 13, color: color)
-                        Text(verbatim: stress.usingStored ? String(localized: "Recorded daily score")
-                             : String(localized: "From resting HR and HRV vs. your 30 days"))
-                            .font(BroopType.regular(13))
-                            .foregroundStyle(BroopPalette.textSecondary)
-                    }
-                    Spacer(minLength: 8)
-                    BroopHealthMiniBars(values: stress.sparkValues, domain: 0...3, color: { BroopHealthPalette.stress($0) })
-                        .frame(width: 96, height: 40)
-                }
-            } else {
-                Text("Stress appears once there are a few nights of resting heart rate and HRV.")
-                    .font(BroopType.medium(15)).foregroundStyle(BroopPalette.textBody)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            BroopHealthStressCardBody()
         }
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))

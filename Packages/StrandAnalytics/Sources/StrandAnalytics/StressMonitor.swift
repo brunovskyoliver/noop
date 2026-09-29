@@ -167,7 +167,8 @@ public enum StressMonitor {
     public enum EpochState: String, Sendable, Equatable {
         /// Awake, not moving: scored against the waking reference.
         case waking
-        /// Inside a sleep period: scored against the nocturnal reference.
+        /// Inside a sleep period: scored against the nocturnal reference (level nil when the epoch had too
+        /// little heart rate).
         case sleep
         /// Awake but moving or exercising: masked, no level.
         case activity
@@ -404,7 +405,16 @@ public enum StressMonitor {
         let dayRR = input.rr.filter { dayRange.contains($0.ts) }
 
         // 1) This day's own aggregates.
-        let floorAgg = DaytimeStress.dayDaytimeAggregate(hr: dayHR, rr: dayRR,
+        let moving = Set(WorkoutDetector.activitySeries(input.gravity)
+            .filter { $0.intensity > WorkoutDetector.motionThreshold }
+            .map { DaytimeStress.floorDiv($0.ts - input.dayStart, epochSeconds) })
+        let calmHR = dayHR.filter { sample in
+            !input.sleepWindows.contains { $0.contains(sample.ts) }
+                && !(input.mainSleep?.contains(sample.ts) ?? false)
+                && !input.activityWindows.contains { $0.contains(sample.ts) }
+                && !moving.contains(DaytimeStress.floorDiv(sample.ts - input.dayStart, epochSeconds))
+        }
+        let floorAgg = DaytimeStress.dayDaytimeAggregate(hr: calmHR, rr: dayRR,
                                                          tzOffsetSeconds: input.tzOffsetSeconds).hr
         let night = input.mainSleep.flatMap {
             nightAggregate(hr: input.hr, rr: input.rr, mainSleep: $0, anchor: input.dayStart)
@@ -446,7 +456,8 @@ public enum StressMonitor {
                     rmssd = HRVAnalyzer.analyze(rawRR: b?.rr ?? []).rmssd
                     level = sleepLevel(z: sleepZ(meanHR: meanHR, rmssd: rmssd, ref: ref.night))
                 }
-                epochs.append(Epoch(startTs: start, state: meanHR == nil ? .noData : .sleep, level: level,
+                // Sleep stays `.sleep` even without enough HR (level nil), so the sleep band is continuous.
+                epochs.append(Epoch(startTs: start, state: .sleep, level: level,
                                     meanHR: meanHR, rmssd: rmssd, inMainSleep: inMain))
                 continue
             }
@@ -484,7 +495,7 @@ public enum StressMonitor {
                 scored += 1
                 if lvl >= highFloor { high += 1 }
             }
-            if scored >= minNightEpochs { sleepStressPct = 100.0 * Double(high) / Double(scored) }
+            if scored >= minNightEpochs && scored * epochSeconds * 2 >= main.duration { sleepStressPct = 100.0 * Double(high) / Double(scored) }
         }
 
         let summary = summarize(day: input.day, epochs: epochs, sleepStressPct: sleepStressPct)
