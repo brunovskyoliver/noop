@@ -97,10 +97,13 @@ struct BroopAccountAutomationsView: View {
                 }
             }
             section(String(localized: "Strain target"),
-                    footer: String(localized: "A once-a-day nudge when your Effort reaches the low end of today's optimal strain range, worked out from your recovery.")) {
+                    footer: String(localized: "Once-a-day nudges when your Effort reaches the low end of today's target range, or passes its top. The range comes from your Charge, sleep debt and any illness heads-up.")) {
                 BroopAccountToggle(title: String(localized: "Notify when optimal strain is reached"),
                                    detail: String(localized: "Posts after your strap syncs and NOOP scores the day — not the exact second you cross it. At most once per day."),
                                    isOn: $behavior.strainTargetNudge)
+                BroopAccountToggle(title: String(localized: "Notify when above target"),
+                                   detail: String(localized: "A heads-up when your Effort passes the top of today's target range, so you can ease off. At most once per day."),
+                                   isOn: $behavior.strainTargetUpperNudge)
             }
         }
         .broopAccountChrome(String(localized: "Automations"))
@@ -116,6 +119,12 @@ struct BroopAccountAutomationsView: View {
         }
         .onChange(of: behavior.batteryAlerts) { _, on in if on { BatteryNotifier.requestAuthorization() } }
         .onChange(of: behavior.strainTargetNudge) { _, on in
+            if on {
+                StrainTargetNotifier.requestAuthorization()
+                model.evaluateStrainTarget()
+            }
+        }
+        .onChange(of: behavior.strainTargetUpperNudge) { _, on in
             if on {
                 StrainTargetNotifier.requestAuthorization()
                 model.evaluateStrainTarget()

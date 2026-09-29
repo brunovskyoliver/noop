@@ -199,7 +199,9 @@ final class BroopStore: ObservableObject {
         // Effort: live for today (same scorer and params as Liquid), else the stored row.
         var liveStrain: Double?
         if isToday {
-            let maxHR = profile.age > 0 ? StrainScorer.tanakaHRmax(age: Double(profile.age)) : nil
+            // The same HRmax the stored daily pass scores with (override, else Tanaka), so live and stored agree.
+            let maxHR = StrainScorer.effortMaxHR(override: profile.hrMaxOverride > 0 ? Double(profile.hrMaxOverride) : nil,
+                                                 age: Double(profile.age))
             let restHR = day?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
             let method = PuffinExperiment.effortMethod
             let sex = profile.sex

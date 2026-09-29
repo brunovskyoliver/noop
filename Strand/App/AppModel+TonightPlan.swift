@@ -44,6 +44,10 @@ extension AppModel {
                                             wakeMinute: tonightWakeMinute(), timeZone: .current)
         let plan = SleepPlanner.plan(inputs)
         tonightPlan = plan
+        if StrainTargetContext.shared.sleepDebtMin != inputs.debtMin {
+            StrainTargetContext.shared.sleepDebtMin = inputs.debtMin
+            evaluateStrainTarget()
+        }
         WindDownNudge.syncPlannedWindow(((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440)
     }
 

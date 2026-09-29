@@ -1669,7 +1669,9 @@ struct LiquidTodayView: View {
             // other whole-window HR consumer already passes.
             let todayHr = await repo.hrSamples(from: from, to: to, limit: 200_000)
             guard !Task.isCancelled else { return }
-            let maxHR = profile.age > 0 ? StrainScorer.tanakaHRmax(age: Double(profile.age)) : nil
+            // The same HRmax the stored daily pass scores with (override, else Tanaka), so live and stored agree.
+            let maxHR = StrainScorer.effortMaxHR(override: profile.hrMaxOverride > 0 ? Double(profile.hrMaxOverride) : nil,
+                                                 age: Double(profile.age))
             let restHR = day?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
             let method = PuffinExperiment.effortMethod
             let sex = profile.sex

@@ -117,6 +117,14 @@ final class AppModel: ObservableObject {
         repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
     }
 
+    /// The HRmax every Effort readout scores with (`StrainScorer.effortMaxHR`: the Settings override, else
+    /// Tanaka), the same one the stored daily pass uses, so a workout, the live day ring and the stored
+    /// day cannot score one heart rate differently.
+    var effortMaxHR: Double {
+        StrainScorer.effortMaxHR(override: profile.hrMaxOverride > 0 ? Double(profile.hrMaxOverride) : nil,
+                                 age: Double(profile.age)) ?? Double(StrainScorer.defaultMaxHR())
+    }
+
     /// A manual workout in progress. `samples` accumulate from the smoothed live `bpm`; `liveStrain`
     /// is recomputed as the window grows so the active card can show strain building in real time.
     struct ActiveWorkout: Equatable {
@@ -170,7 +178,9 @@ final class AppModel: ObservableObject {
         let firedSignals: [String]
     }
     /// Illness/strain early-warning (recent RHR up + HRV down + skin-temp up vs baseline). nil = clear.
-    @Published var healthAlert: HealthAlert?
+    @Published var healthAlert: HealthAlert? {
+        didSet { if (oldValue != nil) != (healthAlert != nil) { StrainTargetContext.shared.illness = healthAlert != nil } }
+    }
 
     // MARK: - v5 pillar snapshot (engines run in the analytics pass; the views read these)
     //
@@ -1100,7 +1110,7 @@ final class AppModel: ObservableObject {
         // during the session and the one saved at the end use one resting HR.
         let restingHR = workoutRestingHR
         let strain = samples.count >= 2
-            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax),
+            ? StrainScorer.strain(samples, maxHR: effortMaxHR,
                                   restingHR: restingHR,
                                   method: PuffinExperiment.effortMethod, sex: profile.sex) : nil
         // Estimate calories from the captured HR window (same Keytel/Harris–Benedict model the
@@ -1161,7 +1171,7 @@ final class AppModel: ObservableObject {
         }
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())
-        w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
+        w.liveStrain = StrainScorer.strain(w.samples, maxHR: effortMaxHR,
                                               restingHR: workoutRestingHR,
                                               method: PuffinExperiment.effortMethod, sex: profile.sex) ?? 0
         activeWorkout = w
@@ -2157,21 +2167,6 @@ final class AppModel: ObservableObject {
             // Notifications retain their established copy contract; Home renders the semantic result.
             IllnessNotifier.post(result.copy)
         }
-    }
-
-    /// #593: once-a-day "optimal strain reached" nudge. Reads the resolved today-row (the same
-    /// logical-day resolution every dashboard surface uses), converts the stored 0-100 Effort to the
-    /// 0-21 coupled axis with the SHIPPED formatter (so it matches every Effort read-out), and gates
-    /// against the LOW end of today's recovery-derived optimal band (#43). The notifier's persisted
-    /// day gate makes this safe to fire on every days republish; nil recovery (calibrating) yields a
-    /// nil band → no target → no notification. Android twin: AppViewModel's days-collector call.
-    func evaluateStrainTarget() {
-        guard let row = repo.today else { return }
-        StrainTargetNotifier.onDayUpdate(
-            day: row.day,
-            dayStrain21: row.strain.map { UnitFormatter.effortValue($0, scale: .whoop) },
-            target21: CoupledView.optimalStrainRange(recovery: row.recovery)?.lowerBound,
-            enabled: behavior.strainTargetNudge)
     }
 
     /// Re-run the illness watch over the cached history. Called when the Automations toggle

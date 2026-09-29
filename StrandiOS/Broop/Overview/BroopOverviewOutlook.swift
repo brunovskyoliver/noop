@@ -159,8 +159,8 @@ struct BroopOutlookSheet: View {
         }
         if let effort = snap.effort {
             var tail = " " + String(localized: "so far")
-            if let target = BroopOverviewEffortTarget(charge: snap.charge), snap.effortMax == 21 {
-                tail += String(localized: ", with a target of \(target.range.lowerBound) to \(target.range.upperBound) for your Charge")
+            if let target = BroopOverviewEffortTarget(snap: snap) {
+                tail += String(localized: ", with a target of \(target.lowerText) to \(target.upperText) for your Charge")
             }
             out.append(line(BroopScore.effort.format(effort) + " " + String(localized: "Effort"), tail + "."))
         }

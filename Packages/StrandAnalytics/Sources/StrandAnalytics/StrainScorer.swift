@@ -138,6 +138,15 @@ public enum StrainScorer {
     /// Tanaka (2001): HRmax = 208 − 0.7 × age (gender-independent).
     public static func tanakaHRmax(age: Double) -> Double { 208.0 - 0.7 * age }
 
+    /// THE HRmax a day's Effort is scored with: the Settings override when set, else Tanaka from age, else
+    /// nil (the scorer's own default). The stored daily pass and the live day rings each resolved this
+    /// themselves, and the live rings ignored the override, so with an override set the live and stored
+    /// Effort for the same day disagreed and the display took whichever was higher.
+    public static func effortMaxHR(override: Double?, age: Double) -> Double? {
+        if let override, override > 0 { return override }
+        return age > 0 ? tanakaHRmax(age: age) : nil
+    }
+
     /// Classic 220 − age. Last-resort fallback only.
     public static func defaultMaxHR(age: Int = defaultAge) -> Int { 220 - age }
 

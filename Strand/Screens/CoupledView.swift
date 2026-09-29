@@ -27,6 +27,7 @@ import Foundation
 
 struct CoupledView: View {
     @EnvironmentObject var repo: Repository
+    @EnvironmentObject var model: AppModel
 
     /// "Card transparency" (0–100, default 100): fades the coupled glance cards in lockstep with the
     /// frosted cards; content stays readable. Mirrors Kotlin `NoopPrefs.cardOpacityPercent`.
@@ -358,7 +359,7 @@ struct CoupledView: View {
             Text("OPTIMAL")
                 .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                 .foregroundStyle(StrandPalette.textSecondary)
-            Text(Self.optimalStrainRangeText(recovery: recovery))
+            Text(optimalText)
                 .font(StrandFont.number(20))
                 .foregroundStyle(StrandPalette.chargeColor)
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -367,11 +368,21 @@ struct CoupledView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The optimal band's upper bound as a 0–1 fraction of the 0–21 axis, for the tube fill. 0 (empty) when
+    /// Today's target band from the one resolver (`AppModel.strainTarget`), which Home and the live coach
+    /// read too, from today's OWN Charge (never a carried prior night's). nil when today is unscored.
+    private var targetBand: StrainTarget.Band? { model.strainTarget(charge: day?.recovery, isToday: true) }
+
+    /// The band on this screen's 0–21 axis ("9.3 to 14.0"), or a dash.
+    private var optimalText: String {
+        guard let b = targetBand else { return "—" }
+        return String(localized: "\(UnitFormatter.effortDisplay(b.lower, scale: strainScale)) to \(UnitFormatter.effortDisplay(b.upper, scale: strainScale))")
+    }
+
+    /// The band's upper bound as a 0–1 fraction of the Effort axis, for the tube fill. 0 (empty) when
     /// recovery is unknown so the tube never fabricates a band.
     private var optimalUpperFraction: Double {
-        guard let band = Self.optimalStrainRange(recovery: recovery) else { return 0 }
-        return max(0, min(1, Double(band.upperBound) / 21))
+        guard let b = targetBand else { return 0 }
+        return max(0, min(1, b.upper / StrainScorer.maxStrain))
     }
 
     /// The heroStat idiom (WorkoutsView.swift:500–509): an UPPERCASE tracked overline over a big tinted
@@ -694,35 +705,6 @@ struct CoupledView: View {
     static func hoursMinutes(_ minutes: Double) -> String {
         let total = Swift.max(0, Int(minutes.rounded()))
         return "\(total / 60)h \(total % 60)m"
-    }
-
-    // MARK: - OPTIMAL strain range (task #43), pure display-only recovery→strain mapping
-    //
-    // The classic coupled read suggests a Day-Strain target BAND from today's recovery: a green day earns a
-    // higher optimal band, a red day a lower one. This is PRESENTATION ONLY, it is never fed back into any
-    // score or engine; it just tells the user where a "matched" strain would sit on the 0–21 axis. The bands
-    // are the APPROVED mapping and MUST stay byte-identical to the Android `optimalStrainRange`:
-    //
-    //   recovery ≥ 67 (green)       → 14–18 of 21
-    //   34 ≤ recovery ≤ 66 (yellow) → 10–14
-    //   recovery < 34 (red)         → 4–10
-    //
-    // nil recovery (calibrating / unscored day) → nil, the caller renders a dash, never a guessed band.
-
-    /// The pure recovery→optimal-strain band. Returns nil when recovery is unknown. Bands per the doc above.
-    static func optimalStrainRange(recovery: Double?) -> ClosedRange<Int>? {
-        guard let r = recovery else { return nil }
-        switch r {
-        case 67...:   return 14...18
-        case 34..<67: return 10...14
-        default:      return 4...10
-        }
-    }
-
-    /// The optimal band as display text ("14 to 18" / "—"). Byte-identical formatting to Android.
-    static func optimalStrainRangeText(recovery: Double?) -> String {
-        guard let band = optimalStrainRange(recovery: recovery) else { return "—" }
-        return String(localized: "\(band.lowerBound) to \(band.upperBound)")
     }
 }
 

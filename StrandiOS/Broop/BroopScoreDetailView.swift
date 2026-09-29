@@ -236,6 +236,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
 struct BroopOverviewEffortScreen: View {
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
+    @ObservedObject private var strainContext = StrainTargetContext.shared
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
 
@@ -243,7 +244,7 @@ struct BroopOverviewEffortScreen: View {
         BroopOverviewDeepDive(section: .effort) { snap in
             let effort = snap?.effort
             let max = snap?.effortMax ?? 21
-            let target = BroopOverviewEffortTarget(charge: snap?.charge)
+            let target = BroopOverviewEffortTarget(snap: snap)
             BroopOverviewHeroRing(fraction: effort.map { $0 / max }, color: BroopPalette.effort,
                                   valueText: effort.map(BroopScore.effort.format),
                                   label: [String(localized: "Effort")],
@@ -312,8 +313,7 @@ struct BroopOverviewEffortScreen: View {
         default: band = String(localized: "Effort between \(v(18)) and \(top) is near maximal. Dedicate additional time to rest and recovery.")
         }
         if let target {
-            let lo = v(Double(target.range.lowerBound)), hi = v(Double(target.range.upperBound))
-            return band + " " + String(localized: "For today's Charge, a target between \(lo) and \(hi) balances training and recovery.")
+            return band + " " + String(localized: "For today's Charge, a target between \(target.lowerText) and \(target.upperText) balances training and recovery.")
         }
         return band + " " + String(localized: "Your optimal target appears once today's Charge is calculated.")
     }

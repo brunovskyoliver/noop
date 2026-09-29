@@ -5037,7 +5037,9 @@ struct TodayView: View {
             // other whole-window HR consumer already passes.
             let todayHr = await repo.hrSamples(from: effortStart, to: windowEndInclusive,
                                                limit: 200_000)
-            let maxHR = profile.age > 0 ? StrainScorer.tanakaHRmax(age: Double(profile.age)) : nil
+            // The same HRmax the stored daily pass scores with (override, else Tanaka), so live and stored agree.
+            let maxHR = StrainScorer.effortMaxHR(override: profile.hrMaxOverride > 0 ? Double(profile.hrMaxOverride) : nil,
+                                                 age: Double(profile.age))
             let restHR = displayDay?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
             liveStrainLocal = StrainScorer.strain(todayHr, maxHR: maxHR, restingHR: restHR,
                                         method: PuffinExperiment.effortMethod, sex: profile.sex)

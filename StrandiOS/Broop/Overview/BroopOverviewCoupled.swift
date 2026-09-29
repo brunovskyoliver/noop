@@ -10,6 +10,7 @@ import WhoopStore
 /// resolves it (same helpers, same carry and calibration rules), so the two never disagree.
 struct BroopOverviewCoupledScreen: View {
     @EnvironmentObject private var repo: Repository
+    @ObservedObject private var strainContext = StrainTargetContext.shared
     @State private var habitual: Int?
     @State private var showBreakdown = false
 
@@ -128,7 +129,8 @@ struct BroopOverviewCoupledScreen: View {
     }
 
     private var strainCard: some View {
-        let band = CoupledView.optimalStrainRange(recovery: recovery)
+        // The one strain-target resolver (Home, the classic Coupled read and the live coach read it too).
+        let target = BroopOverviewEffortTarget(strainContext.band(charge: day?.recovery, isToday: true), effortMax: 21)
         return BroopOverviewCard {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
@@ -143,11 +145,10 @@ struct BroopOverviewCoupledScreen: View {
                 HStack(spacing: 18) {
                     BroopOverviewDial(fraction: strain21.map { $0 / 21 }, color: BroopPalette.effort,
                                       valueText: strain21.map(BroopFormat.one),
-                                      band: band.map { (Double($0.lowerBound) / 21)...(Double($0.upperBound) / 21) },
-                                      tick: band.map { Double($0.lowerBound + $0.upperBound) / 42 },
+                                      band: target?.band, tick: target?.tick,
                                       diameter: 104, lineWidth: 7)
                     VStack(alignment: .leading, spacing: 12) {
-                        stat(String(localized: "Optimal"), CoupledView.optimalStrainRangeText(recovery: recovery),
+                        stat(String(localized: "Optimal"), target.map { String(localized: "\($0.lowerText) to \($0.upperText)") } ?? "—",
                              recovery.map(BroopPalette.band) ?? BroopPalette.textSecondary)
                         stat(String(localized: "Calories"), day?.activeKcalEst.map { "\(Int($0.rounded())) kcal" } ?? "—",
                              BroopPalette.textPrimary)

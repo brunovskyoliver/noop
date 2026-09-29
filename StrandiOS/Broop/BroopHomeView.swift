@@ -12,6 +12,8 @@ struct BroopHomeView: View {
     @EnvironmentObject private var profile: ProfileStore
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
+    /// The strain target's non-Charge inputs (debt, illness, goal); rarely publishes.
+    @ObservedObject private var strainContext = StrainTargetContext.shared
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
@@ -162,7 +164,7 @@ struct BroopHomeView: View {
                 NavigationLink(value: BroopRoute.score(score)) {
                     VStack(spacing: 11) {
                         let value = snap?.value(score)
-                        let target = score == .effort ? BroopOverviewEffortTarget(charge: snap?.charge) : nil
+                        let target = score == .effort ? BroopOverviewEffortTarget(snap: snap) : nil
                         BroopOverviewDial(fraction: fraction(score, snap),
                                           color: score.color(for: value ?? 0),
                                           valueText: value.map(score.format),
@@ -174,6 +176,12 @@ struct BroopHomeView: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 9, weight: .heavy))
                                 .foregroundStyle(BroopPalette.textPrimary)
+                        }
+                        if let target, let value {
+                            // Progress toward today's band, from the same resolver as the dial's arc.
+                            Text(verbatim: target.progressText(displayEffort: value))
+                                .font(BroopType.medium(11)).foregroundStyle(BroopPalette.textSecondary)
+                                .lineLimit(1).minimumScaleFactor(0.8)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -553,18 +561,50 @@ struct BroopOverviewDashboardRow: View {
     }
 }
 
-/// The optimal Effort band for the day's Charge (`CoupledView.optimalStrainRange`, the approved display
-/// mapping), as fractions of the dial, with the tick at its midpoint. nil without a Charge.
+/// A day's Effort target band from the one resolver (`StrainTargetContext.band`) as dial fractions, the
+/// tick at its midpoint, and its bounds on the dial's own scale (`effortMax` 21 or 100), so the copy beside a
+/// dial never quotes the other scale. nil without a Charge.
 struct BroopOverviewEffortTarget {
     let band: ClosedRange<Double>
     let tick: Double
-    let range: ClosedRange<Int>
+    let target: StrainTarget.Band
+    let lowerText: String
+    let upperText: String
+    private let effortMax: Double
 
-    init?(charge: Double?) {
-        guard let r = CoupledView.optimalStrainRange(recovery: charge) else { return nil }
-        range = r
-        band = (Double(r.lowerBound) / 21)...(Double(r.upperBound) / 21)
+    init?(_ target: StrainTarget.Band?, effortMax: Double) {
+        guard let target else { return nil }
+        self.target = target
+        self.effortMax = effortMax
+        band = (target.lower / StrainScorer.maxStrain)...(target.upper / StrainScorer.maxStrain)
         tick = (band.lowerBound + band.upperBound) / 2
+        lowerText = BroopScore.effort.format(target.lower * effortMax / StrainScorer.maxStrain)
+        upperText = BroopScore.effort.format(target.upper * effortMax / StrainScorer.maxStrain)
+    }
+
+    /// From a snapshot: the day's OWN scored Charge only. A carried prior-night Charge gets no target, the
+    /// same rule the notifier, the Coupled reads and the live coach follow (they read the day row).
+    @MainActor
+    init?(snap: BroopSnapshot?) {
+        guard case .scored(let charge)? = snap?.chargeDisplay else { return nil }
+        self.init(StrainTargetContext.shared.band(charge: charge, isToday: snap?.isToday ?? false),
+                  effortMax: snap?.effortMax ?? 21)
+    }
+
+    /// Where a displayed Effort (on this dial's scale) sits against the band.
+    func zone(displayEffort: Double) -> StrainTarget.Zone {
+        target.zone(effort: displayEffort * StrainScorer.maxStrain / effortMax)
+    }
+
+    /// Home's progress line under the Effort dial: how far below the band, in it, or above it.
+    func progressText(displayEffort: Double) -> String {
+        switch zone(displayEffort: displayEffort) {
+        case .restoring:
+            let gap = target.lower * effortMax / StrainScorer.maxStrain - displayEffort
+            return String(localized: "\(BroopScore.effort.format(gap)) to target")
+        case .optimal: return String(localized: "In target")
+        case .overreaching: return String(localized: "Above target")
+        }
     }
 }
 

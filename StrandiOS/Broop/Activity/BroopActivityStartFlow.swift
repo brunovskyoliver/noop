@@ -203,6 +203,8 @@ struct BroopActivityLiveView: View {
                 VStack(spacing: 0) {
                     BroopActivityEffortRing()
                         .padding(.top, 26)
+                    BroopActivityStrainCoach()
+                        .padding(.top, 22)
                     BroopActivityLiveHeart()
                         .padding(.top, 30)
                     BroopActivityLiveAverages()

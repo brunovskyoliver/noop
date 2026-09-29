@@ -41,6 +41,9 @@ struct BroopAccountNotificationsPage: View {
                     BroopAccountToggle(title: String(localized: "Optimal strain reached"),
                                        detail: String(localized: "Posts after your strap syncs and NOOP scores the day — not the exact second you cross it. At most once per day."),
                                        isOn: $behavior.strainTargetNudge)
+                    BroopAccountToggle(title: String(localized: "Above strain target"),
+                                       detail: String(localized: "A heads-up when your Effort passes the top of today's target range, so you can ease off. At most once per day."),
+                                       isOn: $behavior.strainTargetUpperNudge)
                     BroopAccountToggle(title: String(localized: "Early-illness signs"),
                                        detail: String(localized: "Needs at least 14 days of history. When two or more signals drift together you get a banner on the dashboard and a notification, at most once a day."),
                                        isOn: $behavior.illnessWatch)
@@ -60,6 +63,12 @@ struct BroopAccountNotificationsPage: View {
         .onChange(of: workoutDetectedNotifyEnabled) { _, on in if on { WorkoutDetectedNotifier.requestAuthorization() } }
         .onChange(of: behavior.batteryAlerts) { _, on in if on { BatteryNotifier.requestAuthorization() } }
         .onChange(of: behavior.strainTargetNudge) { _, on in
+            if on {
+                StrainTargetNotifier.requestAuthorization()
+                model.evaluateStrainTarget()
+            }
+        }
+        .onChange(of: behavior.strainTargetUpperNudge) { _, on in
             if on {
                 StrainTargetNotifier.requestAuthorization()
                 model.evaluateStrainTarget()
@@ -392,6 +401,7 @@ struct BroopAccountScoringPage: View {
     @AppStorage(PuffinExperiment.experimentalSleepV2Key) private var experimentalSleepV2Enabled = true
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
     @AppStorage(RestScoringPrefs.v2Key) private var restV2Enabled = true
+    @AppStorage(StrainTargetPrefs.goalKey) private var strainGoalRaw = StrainTarget.Goal.maintain.rawValue
     @State private var showRecalibrateConfirm = false
     @State private var showRecalibrated = false
 
@@ -412,6 +422,18 @@ struct BroopAccountScoringPage: View {
                     BroopAccountToggle(title: String(localized: "Sleep Performance (4 parts)"),
                                        detail: String(localized: "Scores Rest like WHOOP's 2025 Sleep Performance: hours vs. needed 55%, sleep consistency 15%, sleep efficiency 15% and sleep stress 15%. Restorative sleep is still shown, just not scored. A part that could not be measured for a night is left out and the rest are re-weighted. Off uses the older formula (hours, efficiency, restorative sleep and consistency)."),
                                        isOn: $restV2Enabled)
+                }
+            }
+            BroopAccountSection(title: String(localized: "Effort target"),
+                                footer: String(localized: "Your daily Effort target comes from today's Charge, lowered when you carry sleep debt or an illness heads-up is showing. The goal shifts the whole range.")) {
+                BroopAccountGroup {
+                    BroopAccountPicker(title: String(localized: "Goal"),
+                                       detail: String(localized: "Restore lowers the range by 3 on the 21-point scale (about 14 of 100), Build raises it by 2 (about 10 of 100)."),
+                                       selection: $strainGoalRaw, options: [
+                        (StrainTarget.Goal.restore.rawValue, String(localized: "Restore")),
+                        (StrainTarget.Goal.maintain.rawValue, String(localized: "Maintain")),
+                        (StrainTarget.Goal.build.rawValue, String(localized: "Build")),
+                    ])
                 }
             }
             BroopAccountSection(title: String(localized: "HRV")) {
@@ -447,6 +469,10 @@ struct BroopAccountScoringPage: View {
         .onChange(of: continuousHrvEnabled) { _, on in model.ble.setKeepRealtimeForData(on) }
         .onChange(of: continuousHrvOvernightOnly) { _, _ in
             model.ble.setKeepRealtimeForData(PuffinExperiment.keepRealtimeForDataEnabled)
+        }
+        .onChange(of: strainGoalRaw) { _, _ in
+            StrainTargetContext.shared.goal = StrainTargetPrefs.goal
+            model.evaluateStrainTarget()
         }
         .onChange(of: hrvWindowRaw) { _, _ in
             Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }

@@ -439,6 +439,7 @@ private struct LiveSessionCard: View {
                     mini(String(localized: "Peak"), w.peakHr > 0 ? "\(w.peakHr)" : "–")
                     mini(String(localized: "Effort"), UnitFormatter.effortDisplay(w.liveStrain, scale: scale))
                 }
+                BroopActivityStrainCoach()
                 HStack(spacing: 10) {
                     BroopActivityButton(title: w.isPaused ? String(localized: "Resume") : String(localized: "Pause"),
                                         symbol: w.isPaused ? "play.fill" : "pause.fill", kind: .grey, height: 44) {
