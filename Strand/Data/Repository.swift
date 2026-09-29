@@ -188,6 +188,9 @@ final class Repository: ObservableObject {
     @Published var sleeps: [CachedSleepSession] = []
     /// Imported (export-verbatim) sleep figures by day. Empty until a WHOOP import lands.
     @Published var importedSleep: [String: ImportedSleepFigures] = [:]
+    /// On-device sleep figures per day (the stored computed Rest and its v2 parts), read by `restScore(for:)`
+    /// in Repository+Stress.swift so every screen resolves Rest the same way.
+    @Published private(set) var computedSleepFigures: [String: ComputedSleepFigures] = [:]
     @Published var loaded = false
     /// How much history each source currently holds, recomputed on every `refresh()`. Powers the
     /// Data Sources "Freshness Pipeline" card so the user can see imported vs computed vs Apple coverage.
@@ -950,6 +953,7 @@ final class Repository: ObservableObject {
         let cons = await unionMetricSeries(store: store, key: "sleep_consistency", from: fromDay, to: toDay)
         let need = await unionMetricSeries(store: store, key: "sleep_need_min", from: fromDay, to: toDay)
         let debt = await unionMetricSeries(store: store, key: "sleep_debt_min", from: fromDay, to: toDay)
+        let computedFigures = await loadComputedSleepFigures(store: store, from: fromDay, to: toDay)
 
         // Merge + sort OFF the main actor (FIX 3): the figures build, the two O(n log n) daily/sleep merges,
         // the source-row sort, and the freshness counts are all pure over the rows just read, so they run in
@@ -989,6 +993,7 @@ final class Repository: ObservableObject {
             && merged.days == days
             && merged.sleeps == sleeps
             && merged.importedSleep == importedSleep
+            && computedFigures == computedSleepFigures
             && merged.vitalRows == vitalRows
             && merged.freshness == freshness
         guard !unchanged else { return }
@@ -996,6 +1001,7 @@ final class Repository: ObservableObject {
         // One consistent publish per refresh: assign every cache, flip `loaded`, then bump `refreshSeq` so
         // the intraday-updating views reload exactly once for this real change.
         self.importedSleep = merged.importedSleep
+        self.computedSleepFigures = computedFigures
         self.days = merged.days
         self.sleeps = merged.sleeps
         self.vitalRows = merged.vitalRows
@@ -2536,7 +2542,7 @@ final class Repository: ObservableObject {
         case "sleep_deep_min", "deep_min": return d.deepMin
         case "sleep_rem_min", "rem_min":   return d.remMin
         case "sleep_light_min", "core_min": return d.lightMin
-        case "sleep_performance": return AnalyticsEngine.Rest.composite(daily: d)
+        case "sleep_performance": return Self.restFallback(daily: d)
         case "steps":            return d.steps.map(Double.init)
         case "active_kcal", "energy_kcal": return d.activeKcalEst
         default:                 return nil
