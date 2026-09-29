@@ -213,8 +213,33 @@ archive_matching_profiles() {
     done
 }
 
+# Put back the profiles `archive_matching_profiles` moved aside, so a failed renewal leaves the Mac able to
+# build with the old ones until they expire. A profile already present by name is left alone.
+restore_archived_profiles() {
+    local backup_root="$1"
+    local directory_label
+    local profile_dir
+    local profile_path
+
+    for directory_label in 'xcode-userdata' 'mobiledevice'; do
+        if [ "$directory_label" = 'xcode-userdata' ]; then
+            profile_dir="$PROFILE_DIR_XCODE"
+        else
+            profile_dir="$PROFILE_DIR_LEGACY"
+        fi
+        [ -d "${backup_root}/${directory_label}" ] || continue
+        for profile_path in "${backup_root}/${directory_label}"/*.mobileprovision; do
+            [ -f "$profile_path" ] || continue
+            /bin/mkdir -p "$profile_dir"
+            [ -e "${profile_dir}/$(/usr/bin/basename "$profile_path")" ] && continue
+            /bin/mv "$profile_path" "${profile_dir}/"
+        done
+    done
+}
+
 run_refresh() {
-    local backup_root
+    local backup_root=''
+    local build_log
     local current_epoch
     local expiry_remaining
     local install_pending=0
@@ -254,6 +279,7 @@ run_refresh() {
     /usr/bin/touch "$PENDING_INSTALL_FILE"
 
     log 'Renewing profiles and building NOOP with command-line Xcode tools.'
+    build_log="${STATE_ROOT}/last-build.log"
     if ! /usr/bin/xcodebuild \
         -project "${PROJECT_ROOT}/Strand.xcodeproj" \
         -scheme NOOPiOS \
@@ -263,11 +289,19 @@ run_refresh() {
         -allowProvisioningUpdates \
         -quiet \
         COMPILER_INDEX_STORE_ENABLE=NO \
-        build; then
+        build > "$build_log" 2>&1; then
+        /bin/cat "$build_log"
+        [ -n "$backup_root" ] && restore_archived_profiles "$backup_root"
         log 'Build or signing failed. The existing phone installation was not removed.'
-        notify 'NOOP refresh failed' 'The signed build failed. Check the refresh log on the Mac.'
+        if /usr/bin/grep -q 'No Accounts' "$build_log"; then
+            log 'Xcode has no Apple account signed in, so profiles cannot be renewed.'
+            notify 'NOOP refresh failed' 'Xcode has no Apple account. Sign in under Xcode > Settings > Accounts.'
+        else
+            notify 'NOOP refresh failed' 'The signed build failed. Check the refresh log on the Mac.'
+        fi
         return 1
     fi
+    /bin/cat "$build_log"
 
     if [ ! -d "$APP_PATH" ]; then
         log "Build succeeded, but the expected app bundle is missing: ${APP_PATH}"

@@ -94,6 +94,17 @@ mv "$NOOP_PROFILE_DIR_XCODE/watch.mobileprovision" "${TEST_ROOT}/watch.disabled"
 find_profile_state
 assert_equal 'a missing required identifier reduces profile count' '3' "$PROFILE_COUNT"
 
+BACKUP_ROOT="${TEST_ROOT}/backup"
+archive_matching_profiles "$BACKUP_ROOT"
+find_profile_state
+assert_equal 'archiving moves every NOOP profile aside' '0' "$PROFILE_COUNT"
+touch "$NOOP_PROFILE_DIR_XCODE/widgets.mobileprovision"
+restore_archived_profiles "$BACKUP_ROOT"
+find_profile_state
+assert_equal 'a failed renewal restores the archived profiles' '3' "$PROFILE_COUNT"
+assert_success 'a profile already present is not overwritten' \
+    test -f "${BACKUP_ROOT}/xcode-userdata/widgets.mobileprovision"
+
 mkdir -p "$LOCK_DIR"
 assert_failure 'a newly created incomplete lock is treated as active' acquire_lock
 rmdir "$LOCK_DIR"

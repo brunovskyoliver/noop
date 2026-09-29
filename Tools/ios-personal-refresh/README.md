@@ -2,7 +2,7 @@
 
 This private macOS LaunchAgent keeps a free-Apple-ID NOOP installation signed without leaving the Xcode GUI open.
 
-The agent wakes at login and once an hour. It normally reads the four NOOP provisioning profiles and exits in under a second. When the earliest profile has less than 48 hours remaining, it checks whether the paired iPhone is reachable over USB or the local network. Only then does it archive the old NOOP profiles, run the command-line Xcode build with automatic signing, and install the new app bundle. A failed installation remains pending and is retried within an hour when the phone is reachable. It never launches `Xcode.app` and does not launch NOOP after a background refresh.
+The agent wakes at login and once an hour. It normally reads the four NOOP provisioning profiles and exits in under a second. When the earliest profile has less than 48 hours remaining, it checks whether the paired iPhone is reachable over USB or the local network. Only then does it archive the old NOOP profiles, run the command-line Xcode build with automatic signing, and install the new app bundle. If the build or signing fails, the archived profiles are moved back so the Mac can still build with them until they expire; when Xcode has no Apple account signed in, the notification says so. A failed installation remains pending and is retried within an hour when the phone is reachable. It never launches `Xcode.app` and does not launch NOOP after a background refresh.
 
 Install for one device:
 
