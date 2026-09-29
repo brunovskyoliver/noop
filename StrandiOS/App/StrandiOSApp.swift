@@ -242,6 +242,11 @@ struct StrandiOSApp: App {
                 .environment(\.locale, AppLanguage.activeLocale)
                 .chartStyle(chartStyleRaw)
                 .noopAccent(accentRaw, customHex: accentCustomHex)
+                // Broop: white controls everywhere, including the launch gates and alerts presented from
+                // this root (the Shortcut-import alert below), which sit outside RootTabView's own tint.
+                // There is no AccentColor asset, so without this they fall back to system blue on the iOS
+                // versions whose alert buttons follow the tint. nil leaves the classic look untouched.
+                .tint(broopEnabled ? BroopPalette.textPrimary : nil)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
                 // fixed-geometry tiles/gauges stay legible at the largest accessibility sizes rather than
                 // clipping; the common Larger-Text range still scales fully.
@@ -456,6 +461,8 @@ private struct iOSRootView: View {
     @AppStorage("noop.onboarded") private var onboarded = false
     @AppStorage("noop.lastSeenChangelogVersion") private var lastSeenChangelog = ""
     @AppStorage("noop.acceptedTermsVersion") private var acceptedTerms = ""
+    /// Broop swaps only the faces of the gates below; keys, order and conditions stay the same.
+    @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
     @State private var showWhatsNew = false
     /// Starts false so a cold-launch external action can't race this view's onAppear decision about the
     /// automatic What's New sheet. It becomes true only when no sheet is due or its dismissal completes.
@@ -487,7 +494,7 @@ private struct iOSRootView: View {
                 demoBypass || (onboarded && acceptedTerms == Terms.currentVersion
                     && automaticLaunchSheetResolved))
             if !onboarded && !demoBypass {
-                OnboardingWizard(onFinished: {
+                onboardingGate(onFinished: {
                     onboarded = true
                     // A brand-new user just saw the expectations in onboarding — don't also pop the
                     // changelog at them; mark them current.
@@ -499,7 +506,7 @@ private struct iOSRootView: View {
             // Terms acknowledgment gate — over EVERYTHING (before onboarding/pairing/Bluetooth) until
             // the current terms version is accepted; re-appears if the terms materially change.
             if acceptedTerms != Terms.currentVersion && !demoBypass {
-                TermsGateView(onAccept: {
+                termsGate(onAccept: {
                     // Keep any external action behind the gate while the accepted-terms change decides
                     // whether What's New must present next. This write must precede acceptedTerms.
                     automaticLaunchSheetResolved = false
@@ -512,7 +519,7 @@ private struct iOSRootView: View {
         .animation(.easeInOut(duration: 0.35), value: onboarded)
         .animation(.easeInOut(duration: 0.35), value: acceptedTerms)
         .sheet(isPresented: $showWhatsNew, onDismiss: { automaticLaunchSheetResolved = true }) {
-            WhatsNewView(onClose: {
+            whatsNewSheet(onClose: {
                 lastSeenChangelog = AppChangelog.currentVersion
                 showWhatsNew = false
             })
@@ -537,6 +544,35 @@ private struct iOSRootView: View {
             }
         }
         .onChange(of: acceptedTerms) { _, _ in showWhatsNewIfDue() }
+    }
+
+    // The Broop UI shows the Broop face of each gate. The callbacks, and so everything they store, are
+    // the ones the classic gates receive.
+    @ViewBuilder
+    private func onboardingGate(onFinished: @escaping () -> Void) -> some View {
+        if broopEnabled {
+            BroopFinalBOnboardingWizard(onFinished: onFinished)
+        } else {
+            OnboardingWizard(onFinished: onFinished)
+        }
+    }
+
+    @ViewBuilder
+    private func termsGate(onAccept: @escaping () -> Void) -> some View {
+        if broopEnabled {
+            BroopFinalBOnboardingTermsGate(onAccept: onAccept)
+        } else {
+            TermsGateView(onAccept: onAccept)
+        }
+    }
+
+    @ViewBuilder
+    private func whatsNewSheet(onClose: @escaping () -> Void) -> some View {
+        if broopEnabled {
+            BroopFinalBOnboardingWhatsNew(onClose: onClose)
+        } else {
+            WhatsNewView(onClose: onClose)
+        }
     }
 
     /// DEBUG: launched with --demo-seed, skip the first-run gates (onboarding / terms / What's New) so the
