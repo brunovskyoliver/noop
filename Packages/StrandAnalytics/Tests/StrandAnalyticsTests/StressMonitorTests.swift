@@ -34,6 +34,23 @@ final class StressMonitorTests: XCTestCase {
                                sleepWindows: sleep, mainSleep: main, activityWindows: workouts)
     }
 
+    func testSparseNightDoesNotPretendToRepresentWholeSleep() {
+        let main = StressMonitor.Interval(start: day0, end: day0 + 8 * 3600)
+        let result = StressMonitor.analyzeDay(input(hr: hr(day0, day0 + 3600, bpm: 70),
+                                                   sleep: [main], main: main),
+                                               priorFloors: [], priorNights: [])
+        XCTAssertNil(result.summary.sleepStressPct)
+    }
+
+    func testAllExerciseCannotEstablishCalmBaseline() {
+        let workout = StressMonitor.Interval(start: day0 + 8 * 3600, end: day0 + 18 * 3600)
+        let result = StressMonitor.analyzeDay(input(hr: hr(workout.start, workout.end, bpm: 130),
+                                                   workouts: [workout]), priorFloors: [], priorNights: [])
+        XCTAssertNil(result.wakeFloorAggregate)
+        XCTAssertNil(result.wake)
+        XCTAssertFalse(result.summary.hasWaking)
+    }
+
     // MARK: - Level maps
 
     func testWakeLevelAnchors() {

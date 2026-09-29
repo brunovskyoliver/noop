@@ -152,6 +152,20 @@ extension Repository {
         return (floors, nights)
     }
 
+    /// Includes HR, R-R and motion writes, including corrected records with unchanged timestamps.
+    func stressInputRevision(from: Int, to: Int) async -> String {
+        guard let store = await storeHandle() else { return UUID().uuidString }
+        var revisions: [String] = []
+        let devices = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
+        let ids = Self.rawWhoopSourceIds(activeDeviceId: deviceId, registeredWhoopIds: devices.filter {
+            $0.brand.caseInsensitiveCompare("WHOOP") == .orderedSame
+        }.map(\.id))
+        for id in ids {
+            revisions.append((try? await store.analysisWindowRevision(deviceId: id, from: from, to: to)) ?? UUID().uuidString)
+        }
+        return revisions.joined(separator: "|")
+    }
+
     // MARK: - Day analysis (the funnel)
 
     /// Score one local day. The analysis pass passes its own session / workout lists and running priors;
@@ -162,6 +176,12 @@ extension Repository {
                            priors: (floors: [Double?], nights: [StressMonitor.NightAggregate?])? = nil,
                            now: Date = Date()) async -> StressMonitor.DayResult? {
         guard let b = Self.stressDayBounds(dayKey, now: now), b.end > b.start else { return nil }
+        #if DEBUG
+        if AppleDemoSeeder.requested, let demo = await runUnescalated({ AppleDemoSeeder.stressDemoDay(dayKey: dayKey, now: now) }) {
+            stressDayMemo[dayKey] = ("demo", demo)
+            return demo
+        }
+        #endif
         let daysAgo = max(0, Int((now.timeIntervalSince1970 - Double(b.start)) / 86_400))
         let sess: [CachedSleepSession]
         if let sessions { sess = sessions } else { sess = await allSleepSessions(days: daysAgo + 3) }
@@ -178,7 +198,8 @@ extension Repository {
         }
         let readFrom = min(b.start, windows.mainSleep?.start ?? b.start)
         guard let fp = await hrFingerprint(from: readFrom, to: b.end - 1) else { return nil }
-        let sig = "\(fp.count)|\(fp.maxTs)|\(b.end)|\(windows.sleepWindows.map { "\($0.start)-\($0.end)" })"
+        let revision = await stressInputRevision(from: readFrom, to: b.end - 1)
+        let sig = "\(revision)|\(refreshSeq)|\(deviceId)|\(fp.count)|\(fp.maxTs)|\(b.end)|\(windows.sleepWindows.map { "\($0.start)-\($0.end)" })"
             + "|\(windows.mainSleep.map { "\($0.start)-\($0.end)" } ?? "-")"
             + "|\(windows.activity.map { "\($0.start)-\($0.end)" })|\(pri.floors)|\(pri.nights.map { $0.map { "\($0.hr),\($0.hrSpread),\($0.lnRMSSD ?? -1)" } ?? "-" })"
         if let m = stressDayMemo[dayKey], m.sig == sig { return m.result }
@@ -226,9 +247,9 @@ extension Repository {
         }
         var out = byDay.compactMap { StressDaySummary.fromStored(day: $0.key, values: $0.value) }
         let todayKey = Self.localDayKey(Date())
-        if let fresh = stressDayMemo[todayKey]?.result.summary, fresh.hasWaking || fresh.sleepStressPct != nil {
+        if let fresh = stressDayMemo[todayKey]?.result.summary {
             out.removeAll { $0.day == todayKey }
-            out.append(fresh)
+            if fresh.hasWaking || fresh.sleepStressPct != nil { out.append(fresh) }
         }
         return out.sorted { $0.day < $1.day }
     }
