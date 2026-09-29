@@ -54,6 +54,8 @@ public final class LiveState: ObservableObject {
     /// radio-off / connect-fail / disconnect). Twin of the Android LiveState.streamingLiveHR.
     @Published public var streamingLiveHR: Bool = false
     @Published public var heartRate: Int? = nil
+    /// Readable WHOOP packet arrivals, including repeated BPM. Does not invalidate the full UI snapshot.
+    public let heartRatePackets = PassthroughSubject<Int, Never>()
     /// Whether the heavy R10/R11 realtime burst is currently armed (the "live feed"). Tracks the
     /// realtime INTENT (startRealtime/stopRealtime), NOT `heartRate` — the lightweight 0x2A37 profile
     /// keeps setting heartRate while bonded, so a heartRate-driven toggle could never read "off". The
@@ -701,7 +703,9 @@ public final class LiveState: ObservableObject {
     /// A readable heart-rate sample arrived (`BLEManager`'s standard profile, `FrameRouter`'s realtime frames): move the
     /// silence deadline on. One timer, rescheduled at most every tenth of the wait (once a second in use), so it costs
     /// nothing while samples flow and fires once when they stop.
-    public func noteReadableHeartRate() {
+    /// When supplied, BPM also reaches packet subscribers before any UI value deduplication or timer throttling.
+    public func noteReadableHeartRate(bpm: Int? = nil) {
+        if let bpm, (30...220).contains(bpm) { heartRatePackets.send(bpm) }
         let now = DispatchTime.now()
         let rearmNanos = UInt64(heartRateSilence / 10 * 1_000_000_000)
         if let armed = heartRateSilenceArmedAt, now.uptimeNanoseconds &- armed.uptimeNanoseconds < rearmNanos { return }

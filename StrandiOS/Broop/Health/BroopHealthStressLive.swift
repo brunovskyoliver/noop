@@ -15,20 +15,20 @@ final class BroopHealthStressLive: ObservableObject {
     /// The current live reading (nil = not connected, too few samples, or no waking reference yet).
     @Published private(set) var reading: StressMonitor.LiveReading?
 
-    private var samples: [(ts: Int, bpm: Double)] = []
+    private var window = StressMonitor.LiveWindow()
     private var wake: StressMonitor.WakeReference?
     private var clients = 0
     private var scope: String?
     private var workoutActive = false
     private var workoutEnded: Date?
     private var subscriptions = Set<AnyCancellable>()
-    private var lastPacket: Date?
     private var loop: Task<Void, Never>?
 
     /// Start (or join) the sampler. `wake` is today's waking reference from `Repository.stressToday()`.
     func attach(live: LiveState, model: AppModel, reference: StressMonitor.WakeReference, scope: String) {
         if self.scope != scope || wake != reference {
-            samples.removeAll(); lastPacket = nil; reading = nil
+            window.reset(); reading = nil
+            if self.scope != scope { workoutEnded = nil }
             wake = reference; self.scope = scope
         }
         clients += 1
@@ -37,11 +37,27 @@ final class BroopHealthStressLive: ObservableObject {
             guard let self else { return }
             if self.workoutActive && !active { self.workoutEnded = Date() }
             self.workoutActive = active
-            if active { self.samples.removeAll() }
+            if active { self.window.reset() }
             self.recompute()
         }.store(in: &subscriptions)
+        // Packet arrivals stay observable even when the Bluetooth UI suppresses an unchanged BPM.
+        live.heartRatePackets.sink { [weak self] bpm in
+            guard live.connected else { return }
+            self?.receive(bpm: Double(bpm))
+        }.store(in: &subscriptions)
+        live.$connected.removeDuplicates().sink { [weak self] connected in
+            guard !connected else { return }
+            self?.window.reset()
+            self?.reading = nil
+        }.store(in: &subscriptions)
         live.$heartRate.dropFirst().sink { [weak self] bpm in
-            guard live.connected, let bpm, bpm > 0 else { return }
+            // Other live sources publish their BPM directly. Nil also signals an off-wrist clear.
+            guard let bpm else {
+                self?.window.reset()
+                self?.reading = nil
+                return
+            }
+            guard live.connected else { return }
             self?.receive(bpm: Double(bpm))
         }.store(in: &subscriptions)
         live.$rrSeq.dropFirst().sink { [weak self] _ in
@@ -54,7 +70,7 @@ final class BroopHealthStressLive: ObservableObject {
         }.store(in: &subscriptions)
         loop = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
                 guard let self else { return }
                 self.tick(live: live)
             }
@@ -66,47 +82,44 @@ final class BroopHealthStressLive: ObservableObject {
         if clients == 0 {
             loop?.cancel(); loop = nil
             subscriptions.removeAll()
-            samples.removeAll(); lastPacket = nil; reading = nil; wake = nil; scope = nil
+            window.reset(); reading = nil; wake = nil; scope = nil
+            workoutActive = false; workoutEnded = nil
         }
     }
 
     private func receive(bpm: Double) {
         let now = Date()
         let ts = Int(now.timeIntervalSince1970)
-        lastPacket = now
-        guard !workoutActive else { reading = .active; return }
-        // At most one observation per second even if both characteristics publish.
-        if samples.last?.ts == ts { samples.removeLast() }
-        samples.append((ts, bpm))
-        samples.removeAll { ts - $0.ts >= StressMonitor.liveWindowSeconds }
+        window.receive(bpm: bpm, at: ts)
         recompute()
     }
 
     private func tick(live: LiveState) {
         guard scope?.hasPrefix(Repository.localDayKey(Date()) + "|") == true else {
-            samples.removeAll(); wake = nil; reading = nil
+            window.reset(); wake = nil; reading = nil
             return
         }
-        guard live.connected, let lastPacket, Date().timeIntervalSince(lastPacket) < 15 else {
-            samples.removeAll(); reading = nil
+        guard live.connected else {
+            window.reset(); reading = nil
             return
         }
-        samples.removeAll { Int(Date().timeIntervalSince1970) - $0.ts >= StressMonitor.liveWindowSeconds }
+        window.expire(at: Int(Date().timeIntervalSince1970))
         recompute()
     }
 
     private func recompute() {
+        guard window.meanHR != nil else { reading = nil; return }
         var next: StressMonitor.LiveReading?
         if workoutActive {
             next = .active
         } else if let wake {
             let recentWorkout = workoutEnded.map { Date().timeIntervalSince($0) < 15 * 60 } ?? false
-            let mean = samples.isEmpty ? 0 : samples.map(\.bpm).reduce(0, +) / Double(samples.count)
+            let mean = window.meanHR ?? 0
             if recentWorkout && mean > wake.floorHR + DaytimeStress.postActivityShadowBPM {
                 next = .active
             } else {
-            next = StressMonitor.liveReading(hrWindow: samples.map(\.bpm), wake: wake)
-            if case let .level(l)? = next { next = .level((l * 10).rounded() / 10) }
+                next = window.reading(wake: wake)
+                if case let .level(l)? = next { next = .level((l * 10).rounded() / 10) }
             }
         }
         if next != reading { reading = next }

@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import StrandAnalytics
 import WhoopProtocol
 import WhoopStore
@@ -67,6 +68,22 @@ final class FrameIntegrityGateTests: XCTestCase {
         router.handle(frame: bytes(realtimeHex))
         XCTAssertEqual(live.heartRate, 60, "control: the untouched frame still drives live state")
         XCTAssertEqual(live.lastFrameType, "REALTIME_DATA")
+    }
+
+    func testSteadyHeartRatePacketsRemainObservableWithoutRepublishingTheValue() {
+        let live = LiveState()
+        let router = FrameRouter(state: live)
+        var packets: [Int] = []
+        var changes: [Int?] = []
+        let packetSubscription = live.heartRatePackets.sink { packets.append($0) }
+        let valueSubscription = live.$heartRate.dropFirst().sink { changes.append($0) }
+        withExtendedLifetime((packetSubscription, valueSubscription)) {
+            for _ in 0..<60 { router.handle(frame: bytes(realtimeHex)) }
+            XCTAssertEqual(packets, Array(repeating: 60, count: 60))
+            XCTAssertEqual(changes, [60], "steady packets must not redraw all LiveState observers")
+            router.handle(frame: headerBroken())
+            XCTAssertEqual(packets.count, 60, "invalid frames must not reach the packet stream")
+        }
     }
 
     func testRouterRejectsADeclaredLengthBelowTheFamilyMinimum() {

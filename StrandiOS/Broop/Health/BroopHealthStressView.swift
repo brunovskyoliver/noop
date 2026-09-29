@@ -108,11 +108,16 @@ private struct BroopHealthStressGauge: View {
     let day: StressMonitor.DayResult?
     let isToday: Bool
     @ObservedObject private var live = BroopHealthStressLive.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
 
     var body: some View {
         let reading = BroopHealthStressNow.resolve(live: isToday ? live.reading : nil, latest: day?.latest)
         ZStack {
             BroopHealthStressArc(value: reading?.level)
+                .animation(reading?.source == .live && reading?.level != nil
+                           ? StrandMotion.drawIn(reduced: motion.poseStill(reduceMotion)) : nil,
+                           value: reading?.level)
             VStack(spacing: BroopMetrics.innerRadius) {
                 Text(verbatim: reading?.level.map(StressTrace.formatLevel) ?? "--")
                     .font(BroopType.number(60)).foregroundStyle(BroopPalette.textPrimary)
@@ -161,8 +166,14 @@ private struct BroopHealthStressTimeline: View {
     }
 }
 
-private struct BroopHealthStressArc: View {
-    let value: Double?
+private struct BroopHealthStressArc: View, Animatable {
+    var value: Double?
+
+    // Canvas needs an interpolated value to move the needle between packet updates.
+    var animatableData: Double {
+        get { value ?? 0 }
+        set { if value != nil { value = newValue } }
+    }
 
     var body: some View {
         Canvas { ctx, size in

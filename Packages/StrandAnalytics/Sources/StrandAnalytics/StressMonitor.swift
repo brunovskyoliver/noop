@@ -526,8 +526,8 @@ public enum StressMonitor {
     // MARK: - Live
 
     /// Live window length (seconds of 1 Hz heart rate) and the minimum samples to report a level.
-    public static let liveWindowSeconds = 300
-    public static let liveMinSamples = 60
+    public static let liveWindowSeconds = 60
+    public static let liveMinSamples = 30
     /// A live window this far above the calm floor is read as movement, not stress. There is no motion
     /// channel on the live path, and psychological stress at rest rarely lifts HR this much; above it the
     /// readout says "active" instead of claiming a stress level. Heuristic, stated as such.
@@ -536,6 +536,45 @@ public enum StressMonitor {
     public enum LiveReading: Equatable, Sendable {
         case level(Double)
         case active
+    }
+
+    /// Packet-driven window. Repeated values count; multiple channels in one second count once.
+    /// A gap clears the window before the next packet, even if no timer ran during suspension.
+    public struct LiveWindow: Sendable {
+        public static let silenceSeconds = 15
+        private var samples: [(ts: Int, bpm: Double)] = []
+        private var lastPacket: Int?
+
+        public init() {}
+
+        public mutating func reset() {
+            samples.removeAll()
+            lastPacket = nil
+        }
+
+        public mutating func receive(bpm: Double, at ts: Int) {
+            guard bpm.isFinite, (30...220).contains(bpm) else { return }
+            expire(at: ts)
+            lastPacket = ts
+            if samples.last?.ts == ts { samples.removeLast() }
+            samples.append((ts, bpm))
+        }
+
+        public mutating func expire(at ts: Int) {
+            if let lastPacket, ts < lastPacket || ts - lastPacket >= Self.silenceSeconds {
+                reset()
+            }
+            samples.removeAll { ts - $0.ts >= liveWindowSeconds }
+        }
+
+        public var meanHR: Double? {
+            guard !samples.isEmpty else { return nil }
+            return samples.map(\.bpm).reduce(0, +) / Double(samples.count)
+        }
+
+        public func reading(wake: WakeReference) -> LiveReading? {
+            liveReading(hrWindow: samples.map(\.bpm), wake: wake)
+        }
     }
 
     /// Score the most recent live heart-rate window (bpm values, oldest → newest) against the waking

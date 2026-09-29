@@ -279,6 +279,58 @@ final class StressMonitorTests: XCTestCase {
 
     // MARK: - Live
 
+    func testLiveWindowCountsSteadyPacketsButNotDuplicateChannels() {
+        let ref = StressMonitor.WakeReference(floorHR: 60, personal: true, days: 14)
+        var window = StressMonitor.LiveWindow()
+        for _ in 0..<100 { window.receive(bpm: 60, at: day0) }
+        XCTAssertNil(window.reading(wake: ref), "a burst is not thirty measured seconds")
+        for second in 1..<30 { window.receive(bpm: 60, at: day0 + second) }
+        XCTAssertEqual(window.reading(wake: ref), .level(1))
+    }
+
+    func testLiveWindowExpiresAndStartsFreshAfterSilenceOrClockChange() {
+        let ref = StressMonitor.WakeReference(floorHR: 60, personal: true, days: 14)
+        var window = StressMonitor.LiveWindow()
+        for second in 0..<60 { window.receive(bpm: 75, at: day0 + second) }
+        window.expire(at: day0 + 73)
+        XCTAssertEqual(window.reading(wake: ref), .level(2))
+        window.expire(at: day0 + 74)
+        XCTAssertNil(window.reading(wake: ref))
+        for second in 75..<135 { window.receive(bpm: 60, at: day0 + second) }
+        XCTAssertEqual(window.reading(wake: ref), .level(1))
+        // No timer tick during suspension: the first resumed packet must clear the old window.
+        window.receive(bpm: 75, at: day0 + 150)
+        XCTAssertNil(window.reading(wake: ref))
+        for second in 151..<181 { window.receive(bpm: 75, at: day0 + second) }
+        window.receive(bpm: 60, at: day0 + 100)
+        XCTAssertNil(window.reading(wake: ref), "a backwards clock cannot preserve future packets")
+    }
+
+    func testLiveWindowResetAndInvalidPacketsCannotLeaveALiveReading() {
+        let ref = StressMonitor.WakeReference(floorHR: 60, personal: true, days: 14)
+        var window = StressMonitor.LiveWindow()
+        for second in 0..<60 { window.receive(bpm: 60, at: day0 + second) }
+        window.receive(bpm: .nan, at: day0 + 74)
+        window.receive(bpm: 0, at: day0 + 74)
+        window.expire(at: day0 + 74)
+        XCTAssertNil(window.reading(wake: ref), "invalid packets do not extend freshness")
+        for second in 75..<135 { window.receive(bpm: 60, at: day0 + second) }
+        window.reset()
+        XCTAssertNil(window.reading(wake: ref))
+        XCTAssertNil(window.meanHR)
+    }
+
+    func testLiveReadingFollowsRisingAndFallingPulseWithinOneMinute() {
+        let ref = StressMonitor.WakeReference(floorHR: 60, personal: true, days: 14)
+        var window = Array(repeating: 60.0, count: 300)
+        for bpm in [75.0, 67.5, 60.0, 50.0] {
+            window.append(contentsOf: Array(repeating: bpm, count: 60))
+            guard case let .level(level)? = StressMonitor.liveReading(hrWindow: window, wake: ref)
+            else { return XCTFail("expected live stress for \(bpm) bpm") }
+            XCTAssertEqual(level, StressMonitor.wakeLevel(meanHR: bpm, floorHR: 60), accuracy: 1e-9)
+        }
+    }
+
     func testLiveReadingRecoversLevelsAndFlagsActivity() {
         let ref = StressMonitor.WakeReference(floorHR: 60, personal: true, days: 14)
         for (bpm, expected) in [(60.0, 1.0), (67.5, 1.5), (75.0, 2.0)] {
@@ -287,7 +339,7 @@ final class StressMonitorTests: XCTestCase {
             XCTAssertEqual(l, expected, accuracy: 1e-9)
         }
         XCTAssertEqual(StressMonitor.liveReading(hrWindow: Array(repeating: 100, count: 120), wake: ref), .active)
-        XCTAssertNil(StressMonitor.liveReading(hrWindow: Array(repeating: 70, count: 30), wake: ref))
+        XCTAssertNil(StressMonitor.liveReading(hrWindow: Array(repeating: 70, count: 29), wake: ref))
         XCTAssertNil(StressMonitor.liveReading(hrWindow: Array(repeating: 0, count: 300), wake: ref),
                      "implausible samples are dropped")
     }
