@@ -22,14 +22,14 @@ extension IntelligenceEngine {
          MetricPoint(day: h.asOf, key: "vitality", value: h.current.vitality)]
     }
 
-    /// The weekly pass: recompute the latest Sunday on or before `newestDay` and upsert it. Re-running
+    /// The weekly pass: recompute the current update Sunday and upsert it. Re-running
     /// during the week rewrites the same Sunday row from the same (now complete) Sunday window, so the
     /// value settles on Monday and then holds until the next Sunday. Writes nothing while the recovery
     /// gate fails, so a stopped strap leaves the last value in place, as WHOOP does.
     static func writeWeeklyHealthspan(repo: Repository, store: WhoopStore, computedId: String,
                                       profileAge: Int, sex: String, newestDay: String,
                                       fresh: [DailyMetric]) async {
-        let sunday = VitalityEngine.sundayKey(onOrBefore: newestDay) ?? newestDay
+        let sunday = Repository.healthspanUpdateDay()
         guard let h = await repo.healthspan(asOf: sunday, profileAge: profileAge, sex: sex,
                                             fresh: fresh) else { return }
         _ = try? await store.upsertMetricSeries(Self.healthspanPoints(h), deviceId: computedId)
