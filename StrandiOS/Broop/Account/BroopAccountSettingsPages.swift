@@ -402,6 +402,7 @@ struct BroopAccountScoringPage: View {
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
     @AppStorage(RestScoringPrefs.v2Key) private var restV2Enabled = true
     @AppStorage(StrainTargetPrefs.goalKey) private var strainGoalRaw = StrainTarget.Goal.maintain.rawValue
+    @AppStorage(EnergyPrefs.showKey) private var showEnergy = true
     @State private var showRecalibrateConfirm = false
     @State private var showRecalibrated = false
 
@@ -434,6 +435,13 @@ struct BroopAccountScoringPage: View {
                         (StrainTarget.Goal.maintain.rawValue, String(localized: "Maintain")),
                         (StrainTarget.Goal.build.rawValue, String(localized: "Build")),
                     ])
+                }
+            }
+            BroopAccountSection(title: String(localized: "Energy")) {
+                BroopAccountGroup {
+                    BroopAccountToggle(title: String(localized: "Show Energy"),
+                                       detail: String(localized: "A 0–100 estimate of your reserves, charged by restful sleep and drained by stress and exercise. Shown on Home and in Health. It does not change any score."),
+                                       isOn: $showEnergy)
                 }
             }
             BroopAccountSection(title: String(localized: "HRV")) {

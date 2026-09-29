@@ -18,6 +18,7 @@ struct BroopHealthView: View {
     @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateOn = false
     @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
 
+    @AppStorage(EnergyPrefs.showKey) private var showEnergy = true
     @State private var vitals = BroopHealthVitalSet()
     @State private var vitalsLoaded = false
     @State private var healthspan = BroopHealthspanData()
@@ -35,6 +36,9 @@ struct BroopHealthView: View {
                     NavigationLink(value: BroopScreen.health) { monitorCard }
                     NavigationLink(value: BroopScreen.stress) { stressCard }
                     NavigationLink(value: BroopScreen.mind) { BroopMindCard() }
+                    if showEnergy {
+                        NavigationLink(value: BroopScreen.energy) { BroopEnergyCard() }
+                    }
                 }
                 .buttonStyle(BroopPressableStyle())
                 .padding(.top, 18)

@@ -16,7 +16,7 @@ enum BroopScreen: Hashable, Identifiable {
     // Activity
     case workouts, live, liftLog, breathe, intervals
     // Health
-    case health, stress, labBook, rhythm, metricExplorer, trends, hydration, compare, healthspan, mind
+    case health, stress, labBook, rhythm, metricExplorer, trends, hydration, compare, healthspan, mind, energy
     case metric(key: String, source: String?)
     // Insights
     case journal, insightsHub, intelligence, fusedRecord, coach, alarms
@@ -71,7 +71,7 @@ struct BroopScreenView: View {
             BroopOverviewScreens(screen: screen)
         case .workouts, .live, .liftLog, .breathe, .intervals:
             BroopActivityScreens(screen: screen)
-        case .health, .stress, .labBook, .rhythm, .metricExplorer, .trends, .hydration, .compare, .healthspan, .mind, .metric:
+        case .health, .stress, .labBook, .rhythm, .metricExplorer, .trends, .hydration, .compare, .healthspan, .mind, .energy, .metric:
             BroopHealthScreens(screen: screen)
         case .journal, .insightsHub, .intelligence, .fusedRecord, .coach, .alarms:
             BroopInsightsScreens(screen: screen)

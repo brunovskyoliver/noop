@@ -15,6 +15,7 @@ struct BroopHomeView: View {
     /// The strain target's non-Charge inputs (debt, illness, goal); rarely publishes.
     @ObservedObject private var strainContext = StrainTargetContext.shared
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
+    @AppStorage(EnergyPrefs.showKey) private var showEnergy = true
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
 
@@ -42,6 +43,11 @@ struct BroopHomeView: View {
                         if now != collapsed { withAnimation(.easeOut(duration: 0.18)) { collapsed = now } }
                     }
                 monitors(snap).padding(.top, 26)
+                if showEnergy && store.dayOffset == 0 {
+                    NavigationLink(value: BroopScreen.energy) { BroopEnergyCard() }
+                        .buttonStyle(BroopPressableStyle())
+                        .padding(.top, 10)
+                }
                 myDayTitle.padding(.top, 34)
                 outlookRow.padding(.top, 14)
                 activities(snap).padding(.top, 12)

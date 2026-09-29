@@ -10,6 +10,10 @@ import StrandAnalytics
 // screens use) against running 14-day aggregates, oldest → newest, so a re-scored early day feeds the
 // baselines of the days after it. A day whose raw heart rate, sleep windows, workouts and prior
 // aggregates are unchanged since the last pass is not re-read; its stored values are carried forward.
+//
+// Energy (`EnergyReservoir`) is integrated in the same loop from each day's stress analysis, starting at
+// the previous day's stored end, so the level carries across midnight. A day whose stress inputs, start
+// level and heart profile are unchanged keeps its stored Energy summary.
 
 /// What the stress block hands the rest of the pass.
 struct StressRestPassOutput {
@@ -43,7 +47,7 @@ extension IntelligenceEngine {
                                workouts: [WorkoutRow]) async -> StressRestPassOutput? {
         guard let oldest = windowDays.first, let newest = windowDays.last else { return StressRestPassOutput() }
         var out = StressRestPassOutput()
-        out.replaceKeys = StressDaySummary.Key.all + Repository.stressAggregateKeys
+        out.replaceKeys = StressDaySummary.Key.all + Repository.stressAggregateKeys + EnergyDaySummary.Key.all
 
         // Rest v2 consistency for every window night: tonight vs the previous four days, through the same
         // epoch vector and pairing as the 7-day Sleep Regularity Index (naps and wake after onset included).
@@ -53,10 +57,11 @@ extension IntelligenceEngine {
 
         // Stored values over the window plus the 14 days before it.
         let lead = Repository.stressDayKey(offset: -StressMonitor.baselineWindowDays, from: oldest) ?? oldest
-        var stored = await repo.stressStoredValues(keys: StressDaySummary.Key.all + Repository.stressAggregateKeys,
-                                                   from: lead, to: newest)
+        var stored = await repo.stressStoredValues(keys: out.replaceKeys, from: lead, to: newest)
         var cache = (UserDefaults.standard.dictionary(forKey: stressPassCacheKey) as? [String: String]) ?? [:]
         var nextCache: [String: String] = [:]
+        let energyCache = (UserDefaults.standard.dictionary(forKey: Repository.energyPassCacheKey) as? [String: String]) ?? [:]
+        var nextEnergyCache: [String: String] = [:]
         var paceMark = DispatchTime.now().uptimeNanoseconds
 
         for day in windowDays {
@@ -71,7 +76,14 @@ extension IntelligenceEngine {
                 // Raw retention can expire before the derived history. Preserve the last stored
                 // summary when its source samples are unavailable; this day cannot be re-scored.
                 // Explicit history deletion removes these metric rows in its own transaction.
-                let retained = (stored[day] ?? [:]).filter { out.replaceKeys.contains($0.key) }
+                var retained = (stored[day] ?? [:]).filter { out.replaceKeys.contains($0.key) }
+                // A strap-off day still carries Energy: the empty analysis holds the level flat.
+                if retained[EnergyDaySummary.Key.end] == nil,
+                   let e = await energyDay(repo: repo, day: day, stored: stored, sessions: sessions,
+                                           workouts: workouts, priors: priors, stress: nil) {
+                    for p in e.storedPairs { retained[p.key] = p.value }
+                    stored[day, default: [:]].merge(retained) { _, new in new }
+                }
                 for (key, value) in retained {
                     out.points.append(MetricPoint(day: day, key: key, value: value))
                 }
@@ -90,6 +102,7 @@ extension IntelligenceEngine {
                        priors.nights.map { $0.map { "\($0.hr),\($0.hrSpread),\($0.lnRMSSD ?? -1)" } ?? "-" }.joined(separator: ";")]
                 .joined(separator: "|")
             var values: [String: Double] = [:]
+            var fresh: StressMonitor.DayResult?
             if cache[day] == key, let prior = stored[day],
                prior.keys.contains(where: { StressDaySummary.Key.all.contains($0) || Repository.stressAggregateKeys.contains($0) }) {
                 values = prior.filter { out.replaceKeys.contains($0.key) }
@@ -101,8 +114,21 @@ extension IntelligenceEngine {
                 if let f = r.wakeFloorAggregate { values[StressMonitor.wakeFloorKey] = f }
                 if let n = r.nightAggregate { for p in n.storedPairs { values[p.key] = p.value } }
                 out.scored += 1
+                fresh = r
             }
             nextCache[day] = key
+            // Energy: keep the stored summary only when stress, start level and heart profile are unchanged.
+            let prevEnd = Repository.stressDayKey(offset: -1, from: day).flatMap { stored[$0]?[EnergyDaySummary.Key.end] }
+            let heart = await repo.energyHeart(dayKey: day)
+            let energyKey = "\(key)|\(prevEnd.map { String(format: "%.2f", $0) } ?? "-")|\(heart.restingHR)|\(heart.maxHR)"
+            if !(energyCache[day] == energyKey && fresh == nil && values[EnergyDaySummary.Key.end] != nil) {
+                values = values.filter { !EnergyDaySummary.Key.all.contains($0.key) }
+                if let e = await energyDay(repo: repo, day: day, stored: stored, sessions: sessions,
+                                           workouts: workouts, priors: priors, stress: fresh) {
+                    for p in e.storedPairs { values[p.key] = p.value }
+                }
+            }
+            nextEnergyCache[day] = energyKey
             // The running aggregates the following days' baselines read.
             var merged = (stored[day] ?? [:]).filter { !out.replaceKeys.contains($0.key) }
             for (k, v) in values { merged[k] = v }
@@ -114,7 +140,23 @@ extension IntelligenceEngine {
         for (k, v) in cache where k < oldest { nextCache[k] = v }
         cache = nextCache.filter { $0.key >= (Repository.stressDayKey(offset: -40, from: newest) ?? oldest) }
         UserDefaults.standard.set(cache, forKey: stressPassCacheKey)
+        UserDefaults.standard.set(nextEnergyCache, forKey: Repository.energyPassCacheKey)
         return out
+    }
+
+    /// One day's Energy summary from its stress analysis (read through the funnel when not passed) and the
+    /// previous day's stored end in the pass's running `stored`. nil while calibrating.
+    private static func energyDay(repo: Repository, day: String, stored: [String: [String: Double]],
+                                  sessions: [CachedSleepSession], workouts: [WorkoutRow],
+                                  priors: (floors: [Double?], nights: [StressMonitor.NightAggregate?]),
+                                  stress: StressMonitor.DayResult?) async -> EnergyDaySummary? {
+        let prevEnd = Repository.stressDayKey(offset: -1, from: day).flatMap { stored[$0]?[EnergyDaySummary.Key.end] }
+        var r = stress
+        if r == nil {
+            r = await repo.stressDayAnalysis(dayKey: day, sessions: sessions, workouts: workouts, priors: priors)
+        }
+        guard let r else { return nil }
+        return EnergyReservoir.day(r, startLevel: prevEnd, heart: await repo.energyHeart(dayKey: day))?.summary
     }
 
     /// The Rest (0–100) a night scores in this pass: Rest v2 with the pass's personalised need, the

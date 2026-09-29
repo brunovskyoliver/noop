@@ -37,10 +37,28 @@ extension AppleDemoSeeder {
     static func seedStress(into store: WhoopStore, deviceId: String) async throws {
         let today = Repository.localDayKey(Date())
         var points: [MetricPoint] = []
+        // Energy through the production engine, carried day to day like the analysis pass, with the day's
+        // resting HR as `Repository.energyHeart(dayKey:)` reads it.
+        let from = Repository.stressDayKey(offset: -119, from: today) ?? today
+        let restByDay = Dictionary((try await store.dailyMetrics(deviceId: deviceId, from: from, to: today))
+            .map { ($0.day, $0.restingHr.map(Double.init)) }, uniquingKeysWith: { a, _ in a })
+        var energyEnd: Double?
         for back in (0..<120).reversed() {
             guard let key = Repository.stressDayKey(offset: -back, from: today),
                   let day = stressDemoDay(dayKey: key) else { continue }
             points += day.summary.storedPairs.map { MetricPoint(day: key, key: $0.key, value: $0.value) }
+            if let e = EnergyReservoir.day(day, startLevel: energyEnd,
+                                           heart: Repository.energyHeart(restingHR: restByDay[key] ?? nil)) {
+                // The stored (rounded) end is what the next day reads back.
+                let pairs = e.summary.storedPairs
+                points += pairs.map { MetricPoint(day: key, key: $0.key, value: $0.value) }
+                energyEnd = pairs.first { $0.key == EnergyDaySummary.Key.end }?.value
+                if back == 0 {
+                    NSLog("Broop demo energy %@: wake=%@ low=%@ charged=%.1f drained=%.1f (stress %.1f activity %.1f baseline %.1f)",
+                          key, e.summary.wake.map { String(format: "%.1f", $0) } ?? "-", String(format: "%.1f", e.summary.low),
+                          e.summary.charged, e.summary.drained, e.summary.drainStress, e.summary.drainActivity, e.summary.drainBaseline)
+                }
+            }
         }
         _ = try await store.upsertMetricSeries(points, deviceId: deviceId)
         let rows = try await store.dailyMetrics(deviceId: deviceId, from: today, to: today)
