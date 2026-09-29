@@ -2,23 +2,25 @@
 import SwiftUI
 import StrandDesign
 
-/// Account group: settings, devices, data, integrations and app utilities.
+/// Account group: settings, devices, data, integrations and app utilities. Every screen here is a
+/// native Broop view except the developer Test Centre (a diagnostics tool, kept classic under the Broop
+/// skin) and Classic Today (the classic dashboard on purpose).
 struct BroopAccountScreens: View {
     let screen: BroopScreen
 
     var body: some View {
         switch screen {
-        case .settings: SettingsView().broopClassicScreen()
-        case .devices: DevicesView().broopClassicScreen()
-        case .appleHealth: AppleHealthView().broopClassicScreen()
-        case .miBand: XiaomiBandView().broopClassicScreen()
-        case .dataSources: DataSourcesView().broopClassicScreen()
-        case .backupSync: BackupSyncView().broopClassicScreen()
-        case .shortcutsExport: ShortcutExportSettingsView().broopClassicScreen()
-        case .noopLimitations: NoopLimitationsView().broopClassicScreen()
-        case .automations: AutomationsView().broopClassicScreen()
-        case .siriShortcuts: SiriShortcutsSettingsView().broopClassicScreen()
-        case .powerSaving: PowerSavingView().broopClassicScreen()
+        case .settings: BroopAccountSettingsView()
+        case .devices: BroopAccountDeviceView()
+        case .appleHealth: BroopAccountAppleHealthView()
+        case .miBand: BroopAccountMiBandView()
+        case .dataSources: BroopAccountDataSourcesView()
+        case .backupSync: BroopAccountBackupSyncView()
+        case .shortcutsExport: BroopAccountShortcutsExportView()
+        case .noopLimitations: BroopAccountLimitationsView()
+        case .automations: BroopAccountAutomationsView()
+        case .siriShortcuts: BroopAccountSiriView()
+        case .powerSaving: BroopAccountPowerSavingView()
         case .testCentre: TestCentreView().broopClassicScreen()
         case .classicToday: BroopClassicTodayRoot().broopClassicScreen()
         default: EmptyView()

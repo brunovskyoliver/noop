@@ -1373,7 +1373,7 @@ private struct ForgetDeviceSheet: ViewModifier {
 /// #690: the body-location probe's confirm + result dialogs as one ViewModifier, so they're type-checked
 /// in isolation instead of extending the DevicesView `.confirmationDialog`/`.sheet` chain (which is already
 /// near the iOS Swift type-checker's budget). `model`/`live` auto-inject from the parent's environment.
-private struct BodyLocationProbeSheets: ViewModifier {
+struct BodyLocationProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
     @Binding var target: PairedDevice?
@@ -1445,7 +1445,7 @@ private struct BodyLocationProbeResultView: View {
 /// #761: the READ-ONLY feature-flag enumeration probe's confirm + result dialogs, isolated into a
 /// ViewModifier for the same reason `BodyLocationProbeSheets` is — keeping the DevicesView
 /// `.confirmationDialog`/`.sheet` chain inside the iOS Swift type-checker's budget.
-private struct FeatureFlagProbeSheets: ViewModifier {
+struct FeatureFlagProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
     @Binding var target: PairedDevice?
@@ -1480,7 +1480,7 @@ private struct FeatureFlagProbeSheets: ViewModifier {
 /// the start flow: `SELECT_WRIST` writes strap state that survives a disconnect, and the right/left
 /// mapping is inferred from the client enum's order rather than confirmed on hardware. A persistent
 /// write nobody has verified is exactly the kind of thing that should cost a deliberate extra tap.
-private struct EcgProbeSheets: ViewModifier {
+struct EcgProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
     @Binding var target: PairedDevice?
@@ -1648,7 +1648,7 @@ private struct EcgProbeResultView: View {
 /// #103: the READ-ONLY device-config read probe's confirm + result dialogs, isolated into a
 /// ViewModifier for the same reason `FeatureFlagProbeSheets` is — keeping the DevicesView
 /// `.confirmationDialog`/`.sheet` chain inside the iOS Swift type-checker's budget.
-private struct DeviceConfigProbeSheets: ViewModifier {
+struct DeviceConfigProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
     @Binding var target: PairedDevice?
