@@ -55,15 +55,6 @@ struct BroopAccountRouteView: View {
     }
 }
 
-extension View {
-    /// Registers `BroopAccountRoute` on the stack. Applied by each Account entry screen (More, App
-    /// Settings) because either can be the first on a stack; when both are, SwiftUI keeps the
-    /// registration closest to the root, which maps to the same view.
-    func broopAccountRoutes() -> some View {
-        navigationDestination(for: BroopAccountRoute.self) { BroopAccountRouteView(route: $0) }
-    }
-}
-
 // MARK: - Page chrome
 
 extension View {
@@ -372,26 +363,6 @@ struct BroopAccountPicker<Value: Hashable>: View {
             }
             .accessibilityLabel(Text(verbatim: title))
         }
-    }
-}
-
-/// A row that pushes an inline destination, with the current value on the right and a chevron.
-struct BroopAccountDisclosureRow<Destination: View>: View {
-    let title: String
-    var value: String? = nil
-    var detail: String? = nil
-    @ViewBuilder var destination: () -> Destination
-
-    var body: some View {
-        NavigationLink {
-            destination()
-        } label: {
-            BroopAccountRow(title: title, detail: detail) {
-                BroopAccountChevronValue(value: value)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(BroopPressableStyle())
     }
 }
 

@@ -34,7 +34,7 @@ struct BroopHealthView: View {
                     .padding(.horizontal, -BroopMetrics.page)
                     .padding(.top, 8)
                 VStack(spacing: 14) {
-                    NavigationLink { BroopHealthspanView() } label: { healthspanCard }
+                    NavigationLink(value: BroopScreen.healthspan) { healthspanCard }
                     NavigationLink(value: BroopScreen.health) { monitorCard }
                     NavigationLink(value: BroopScreen.stress) { stressCard }
                 }
@@ -44,7 +44,7 @@ struct BroopHealthView: View {
                 BroopHealthHeading(text: String(localized: "Heart & Fitness")).padding(.top, BroopMetrics.section)
                 VStack(spacing: 12) {
                     BroopHealthHRVStatusCard(showsLink: true)
-                    NavigationLink { BroopHealthspanView() } label: { fitnessCard }
+                    NavigationLink(value: BroopScreen.healthspan) { fitnessCard }
                         .buttonStyle(BroopPressableStyle())
                 }
                 .padding(.top, 12)

@@ -65,11 +65,6 @@ struct BroopHomeView: View {
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)-\(effortScaleRaw)-\(dayCycleModeRaw)") {
             await store.reload(repo: repo, profile: profile)
         }
-        .navigationDestination(for: BroopRoute.self) { route in
-            switch route {
-            case .score(let score): BroopScoreDetailView(initial: score)
-            }
-        }
         .sheet(isPresented: $showOutlook) {
             BroopOutlookSheet(onAskCoach: coachEnabled ? {
                 showOutlook = false

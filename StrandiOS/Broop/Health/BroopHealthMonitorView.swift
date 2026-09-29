@@ -56,7 +56,7 @@ struct BroopHealthMonitorView: View {
                 BroopHealthSkinTempSection().padding(.top, BroopMetrics.section)
 
                 VStack(spacing: 10) {
-                    NavigationLink { BroopHealthspanView() } label: {
+                    NavigationLink(value: BroopScreen.healthspan) {
                         BroopHealthRow(symbol: "hourglass", title: String(localized: "Healthspan & Fitness Age"))
                     }
                     NavigationLink(value: BroopScreen.labBook) {

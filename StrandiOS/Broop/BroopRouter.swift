@@ -16,7 +16,7 @@ enum BroopScreen: Hashable, Identifiable {
     // Activity
     case workouts, live, liftLog, breathe, intervals
     // Health
-    case health, stress, labBook, rhythm, metricExplorer, trends, hydration, compare
+    case health, stress, labBook, rhythm, metricExplorer, trends, hydration, compare, healthspan
     case metric(key: String, source: String?)
     // Insights
     case journal, insightsHub, intelligence, fusedRecord, coach, alarms
@@ -71,7 +71,7 @@ struct BroopScreenView: View {
             BroopOverviewScreens(screen: screen)
         case .workouts, .live, .liftLog, .breathe, .intervals:
             BroopActivityScreens(screen: screen)
-        case .health, .stress, .labBook, .rhythm, .metricExplorer, .trends, .hydration, .compare, .metric:
+        case .health, .stress, .labBook, .rhythm, .metricExplorer, .trends, .hydration, .compare, .healthspan, .metric:
             BroopHealthScreens(screen: screen)
         case .journal, .insightsHub, .intelligence, .fusedRecord, .coach, .alarms:
             BroopInsightsScreens(screen: screen)
@@ -105,12 +105,24 @@ struct BroopPresentedScreen: View {
 }
 
 extension View {
-    /// Registers `BroopScreen` and classic `TabRoute` pushes on a Broop navigation stack. Apply once to
-    /// the root content of each stack (a double registration double-pushes).
+    /// Registers every value route a Broop stack can push: `BroopScreen`, classic `TabRoute`, the score
+    /// deep dives (`BroopRoute`) and the Account sub-pages (`BroopAccountRoute`). Apply once to the root
+    /// content of each stack (a double registration double-pushes) and nowhere else.
+    ///
+    /// Screens push by VALUE only. On a path-bound stack a value link does nothing inside a page that was
+    /// pushed with a view-destination link (`NavigationLink { Dest() }`), so a page that can itself link
+    /// onwards must be a route here, never an inline destination. Leaf pages with no links may still be
+    /// inline destinations.
     func broopDestinations() -> some View {
         self
             .navigationDestination(for: BroopScreen.self) { BroopScreenView(screen: $0) }
             .navigationDestination(for: TabRoute.self) { BroopScreenView(screen: BroopScreen($0)) }
+            .navigationDestination(for: BroopRoute.self) { route in
+                switch route {
+                case .score(let score): BroopScoreDetailView(initial: score)
+                }
+            }
+            .navigationDestination(for: BroopAccountRoute.self) { BroopAccountRouteView(route: $0) }
     }
 
     /// Chrome for a classic screen shown inside a Broop stack: the Broop background, a visible inline

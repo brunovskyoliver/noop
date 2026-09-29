@@ -65,7 +65,6 @@ struct BroopAccountSettingsView: View {
             }
         }
         .broopAccountChrome(String(localized: "App Settings"))
-        .broopAccountRoutes()
     }
 
     private var sexLabel: String { BroopAccountFormat.sex(profile.sex) }

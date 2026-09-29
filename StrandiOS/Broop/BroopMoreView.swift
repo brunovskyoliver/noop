@@ -105,7 +105,6 @@ struct BroopMoreView: View {
         .broopStatusBarScrim()
         .background(BroopBackground())
         .task(id: repo.refreshSeq) { streak = Self.streakCounts(repo.days) }
-        .broopAccountRoutes()
     }
 
     // MARK: Header

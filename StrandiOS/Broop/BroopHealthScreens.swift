@@ -16,6 +16,7 @@ struct BroopHealthScreens: View {
         case .trends: BroopHealthTrendsView()
         case .hydration: BroopHealthHydrationView()
         case .compare: BroopHealthCompareView()
+        case .healthspan: BroopHealthspanView()
         case .metric(let key, let source): metric(key: key, source: source)
         default: EmptyView()
         }
