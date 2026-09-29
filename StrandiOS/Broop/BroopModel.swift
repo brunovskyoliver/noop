@@ -61,6 +61,8 @@ struct BroopSnapshot {
     /// weighs: hours vs needed, consistency, efficiency (above) and restorative share (above).
     var hoursVsNeededPct: Double?
     var consistency: Double?
+    /// Rest v2: the night's Sleep Stress (0–100 % of the main sleep in HIGH stress), nil when not scored.
+    var sleepStressPct: Double?
     /// Named readings against the 30 days before the selected day.
     var asleepReading: BroopReading?
     var restorativeMinReading: BroopReading?
@@ -344,15 +346,31 @@ final class BroopStore: ObservableObject {
         // Hours vs needed and consistency through SleepModel's own series builders, fed only the rows up to
         // the selected day, so the value is the one the classic Sleep tiles show for that night.
         if let asleep, asleep > 0, let need = s.needMinutes, need > 0 { s.hoursVsNeededPct = asleep / need * 100 }
+        // Rest v2: the parts the score actually used, as the analysis pass stored them (the export's own
+        // need still wins where it carried one, exactly as the Sleep tiles resolve it).
+        let v2Parts = repo.restParts(dayKey: sleepKey)
+        if repo.importedSleep[sleepKey]?.needMin == nil, let pct = v2Parts?.hoursVsNeedPct { s.hoursVsNeededPct = pct }
+        if RestScoringPrefs.v2Enabled {
+            if let stored = v2Parts?.sleepStressPct {
+                s.sleepStressPct = stored
+            } else {
+                s.sleepStressPct = await repo.stressDaySummaries(days: offset + 3).last { $0.day == sleepKey }?.sleepStressPct
+            }
+        }
         // Off the main actor: it keys every stored sleep by day and walks the whole history.
         let allSleeps = repo.sleeps
         let imported = repo.importedSleep
-        s.consistency = await CancellableAnalysis.run {
-            let sleepsUpTo = allSleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
-            guard let last = sleepsUpTo.last,
-                  Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey else { return nil }
-            return SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
-                                                importedSleep: imported).latest
+        let storedConsistency = repo.importedSleep[sleepKey]?.consistencyPct == nil ? v2Parts?.consistencyPct : nil
+        if let storedConsistency {
+            s.consistency = storedConsistency
+        } else {
+            s.consistency = await CancellableAnalysis.run {
+                let sleepsUpTo = allSleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
+                guard let last = sleepsUpTo.last,
+                      Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey else { return nil }
+                return SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
+                                                    importedSleep: imported).latest
+            }
         }
         guard !Task.isCancelled else { return }
 

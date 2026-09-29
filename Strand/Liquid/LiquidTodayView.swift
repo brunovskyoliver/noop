@@ -1849,7 +1849,8 @@ struct LiquidTodayView: View {
                 allSessions: hostedSessions,
                 importedSleep: repo.importedSleep,
                 habitualMidsleepSec: hostedHabitual,
-                motionByStart: hostedMotion))
+                motionByStart: hostedMotion,
+                computedSleep: repo.computedSleepFigures))
         } else {
             hostedSleepModel = nil
         }

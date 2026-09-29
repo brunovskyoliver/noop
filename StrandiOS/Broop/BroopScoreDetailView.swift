@@ -191,7 +191,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if let row = row, let b = ChargeBreakdownWiring.breakdown(
                         days: repo.days, row: row,
-                        sleepPerfPercent: repo.importedSleep[row.day]?.performancePct ?? AnalyticsEngine.Rest.composite(daily: row),
+                        sleepPerfPercent: repo.restScore(for: row),
                         hrvBaselineEpoch: Baselines.hrvBaselineEpoch()), !b.drivers.isEmpty {
                         BroopOverviewCard {
                             BroopFinalAChargeBreakdown(drivers: b.drivers, confidence: b.confidence,

@@ -143,9 +143,15 @@ struct BroopOverviewSleepScreen: View {
                 rating: BroopOverviewRating.performance, key: "sleep_consistency"),
             row("eff", "bed.double", String(localized: "Sleep Efficiency"), snap?.efficiency,
                 rating: BroopOverviewRating.performance, key: "sleep_efficiency"),
-            row("rest", "sparkles", String(localized: "Restorative Sleep"), snap?.restorativePct,
-                rating: BroopOverviewRating.restorative, key: "restorative_pct"),
-        ]
+        ] + (RestScoringPrefs.v2Enabled
+            // Rest v2 scores Sleep Stress, not restorative sleep (which stays in the night card and stats).
+            ? [BroopOverviewContributor(id: "stress", symbol: "gauge.with.dots.needle.33percent",
+                                        label: String(localized: "High Sleep Stress"),
+                                        value: snap?.sleepStressPct.map { BroopFormat.whole($0) + "%" } ?? "--",
+                                        rating: snap?.sleepStressPct.map(BroopOverviewSleepStressRating.rating) ?? .sufficient,
+                                        link: .metric(key: StressDaySummary.Key.sleepStressPct, source: nil))]
+            : [row("rest", "sparkles", String(localized: "Restorative Sleep"), snap?.restorativePct,
+                   rating: BroopOverviewRating.restorative, key: "restorative_pct")])
     }
 
     /// One read of the night: the band word, then the weakest contributor to work on.
@@ -159,6 +165,8 @@ struct BroopOverviewSleepScreen: View {
             (String(localized: "Hours vs. Needed"), snap?.hoursVsNeededPct),
             (String(localized: "Sleep Consistency"), snap?.consistency),
             (String(localized: "Sleep Efficiency"), snap?.efficiency),
+            (String(localized: "Sleep Stress"), RestScoringPrefs.v2Enabled
+                ? snap?.sleepStressPct.map { 100 - min($0 / AnalyticsEngine.RestV2.sleepStressZeroCreditPct, 1) * 100 } : nil),
         ]
         for (name, v) in parts { if let v, v < (weakest?.1 ?? .infinity) { weakest = (name, v) } }
         switch band {
@@ -409,7 +417,8 @@ struct BroopOverviewSleepScreen: View {
         let motion = await repo.sessionMotions(sessions: sessions)
         guard !Task.isCancelled else { return }
         let inputs = SleepModelInputs(days: repo.days, sleeps: repo.sleeps, allSessions: sessions,
-                                      importedSleep: repo.importedSleep, habitualMidsleepSec: hab, motionByStart: motion)
+                                      importedSleep: repo.importedSleep, habitualMidsleepSec: hab, motionByStart: motion,
+                                      computedSleep: repo.computedSleepFigures)
         let days = repo.days
         let built = await CancellableAnalysis.run { SleepModel.build(inputs) }
         var t: [SleepStage: BroopOverviewStageTypical] = [:]

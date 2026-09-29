@@ -32,7 +32,7 @@ struct BroopOverviewCoupledScreen: View {
 
     private var sleepPerformance: Double? {
         guard let d = day else { return nil }
-        return repo.importedSleep[d.day]?.performancePct ?? AnalyticsEngine.Rest.composite(daily: d)
+        return repo.restScore(for: d)
     }
 
     private var readiness: ReadinessEngine.Level {

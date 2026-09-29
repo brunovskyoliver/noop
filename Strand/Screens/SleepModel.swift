@@ -237,6 +237,9 @@ struct SleepModelInputs {
     let habitualMidsleepSec: Int?
     /// Per-epoch motion keyed by detected block start (`SleepView.motionByStart`).
     let motionByStart: [Int: [Double]]
+    /// On-device sleep figures (`Repository.computedSleepFigures`): the stored computed Rest and its v2
+    /// parts, so the tiles resolve Rest, hours-vs-needed and consistency exactly as the score did.
+    var computedSleep: [String: ComputedSleepFigures] = [:]
 }
 
 // MARK: - Pure derivation pipeline
@@ -417,13 +420,13 @@ extension SleepModel {
         return (fresh?.value, latestDay, mean(series), series)
     }
 
-    /// Sleep performance %: the imported WHOOP figure when the export carried one for that day;
-    /// else the REAL resolved Rest composite for that day. (#614 follow-up)
-    static func performanceSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures]) -> Metric {
+    /// Sleep performance %: through the one Rest resolver (`Repository.resolveRest`): the imported WHOOP
+    /// figure, else the stored computed Rest, else the same-formula fallback. (#614 follow-up)
+    static func performanceSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures],
+                                  computed: [String: ComputedSleepFigures] = [:]) -> Metric {
         let imported = importedSleep
         return metric(days: days) { d in
-            if let p = imported[d.day]?.performancePct { return p }   // export-verbatim
-            return AnalyticsEngine.Rest.composite(daily: d)            // real resolved Rest composite
+            Repository.resolveRest(daily: d, imported: imported[d.day], computed: computed[d.day])
         }
     }
 
@@ -437,10 +440,16 @@ extension SleepModel {
     /// Consistency: prefer the imported sleep_consistency series when it covers the latest night;
     /// else the APPROXIMATE rolling bedtime-spread score.
     static func consistencySeries(days: [DailyMetric], sleeps: [CachedSleepSession],
-                                  importedSleep: [String: ImportedSleepFigures]) -> Metric {
+                                  importedSleep: [String: ImportedSleepFigures],
+                                  computed: [String: ComputedSleepFigures] = [:]) -> Metric {
         let imported = importedSleep
         if let lastDay = days.last?.day, imported[lastDay]?.consistencyPct != nil {
             let series = days.compactMap { imported[$0.day]?.consistencyPct }
+            return (series.last, nil, mean(series), series)
+        }
+        // Rest v2: the consistency the score used (stored by the pass), when the latest night has one.
+        if RestScoringPrefs.v2Enabled, let lastDay = days.last?.day, computed[lastDay]?.consistencyPct != nil {
+            let series = days.compactMap { computed[$0.day]?.consistencyPct }
             return (series.last, nil, mean(series), series)
         }
         let cal = Calendar.current
@@ -468,11 +477,16 @@ extension SleepModel {
 
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the
     /// APPROXIMATE personal-mean need.
-    static func hoursVsNeededSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures]) -> Metric {
+    static func hoursVsNeededSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures],
+                                    computed: [String: ComputedSleepFigures] = [:]) -> Metric {
         let imported = importedSleep
         let fallbackNeed = sleepNeedMin(days: days)
+        let v2 = RestScoringPrefs.v2Enabled
         return metric(days: days) { d in
             guard let asleep = d.totalSleepMin, asleep > 0 else { return nil }
+            // Rest v2: the hours-vs-need the score used (the engine's personalised need), unless the
+            // export carried its own need for the day.
+            if v2, imported[d.day]?.needMin == nil, let pct = computed[d.day]?.hoursVsNeedPct { return pct }
             let need = imported[d.day]?.needMin ?? fallbackNeed
             guard need > 0 else { return nil }
             return asleep / need * 100
@@ -571,10 +585,13 @@ extension SleepModel {
             intervals: night.intervals,
             isPersistedHypnogram: (night.realSegments?.count ?? 0) >= 2,
             isStubNight: isStub,
-            performance: performanceSeries(days: inputs.days, importedSleep: inputs.importedSleep),
+            performance: performanceSeries(days: inputs.days, importedSleep: inputs.importedSleep,
+                                           computed: inputs.computedSleep),
             efficiency: efficiencySeries(days: inputs.days),
-            consistency: consistencySeries(days: inputs.days, sleeps: inputs.sleeps, importedSleep: inputs.importedSleep),
-            hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep),
+            consistency: consistencySeries(days: inputs.days, sleeps: inputs.sleeps, importedSleep: inputs.importedSleep,
+                                           computed: inputs.computedSleep),
+            hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep,
+                                               computed: inputs.computedSleep),
             restorative: restorativeSeries(days: inputs.days),
             respiratory: respiratorySeries(days: inputs.days),
             sleepDebt: sleepDebtSeries(days: inputs.days, importedSleep: inputs.importedSleep, napSleepMinByDay: napSleepMinByDay),

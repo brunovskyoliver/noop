@@ -60,6 +60,7 @@ struct SettingsView: View {
     /// Default OFF — it re-scores the whole window against a different recipe. See
     /// [PuffinExperiment.banisterEffortKey].
     @AppStorage(PuffinExperiment.banisterEffortKey) private var banisterEffortEnabled = false
+    @AppStorage(RestScoringPrefs.v2Key) private var restV2Enabled = true
 
     /// Opt-in "Continuous HRV capture" (off by default) — holds the dense realtime stream armed 24/7 so
     /// the strap banks beat-to-beat R-R for better overnight HRV/recovery/sleep, at a battery cost.
@@ -1018,6 +1019,24 @@ struct SettingsView: View {
                     Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
                 }
                 Text("Scores Effort on an exponential intensity curve (Banister TRIMP) instead of the default heart-rate zones (Edwards). The default earns nothing below half of your heart-rate reserve, so an hour of lifting — where hard sets average out against the rests — can score close to zero. The exponential curve has no floor and weights short, hard efforts far more heavily. Re-scores your history, and both scales reach the same maximum. Off by default.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Fork: Rest v2 (WHOOP's four-part Sleep Performance). Same switch as Broop Settings → Scoring.
+                Divider().overlay(StrandPalette.hairline)
+                Toggle(isOn: $restV2Enabled) {
+                    Text("Rest: 4-part Sleep Performance")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .onChangeCompat(of: restV2Enabled) { _ in
+                    // Re-derive every stored sleep_performance and the Charge that reads it.
+                    Task { await model.intelligence.rescoreForRestModeChange(); await model.repo.refresh() }
+                }
+                Text("Scores Rest from hours vs. needed (55%), sleep consistency (15%), sleep efficiency (15%) and sleep stress (15%), like WHOOP's 2025 Sleep Performance. Restorative sleep is shown but not scored. A part that could not be measured is left out and the others re-weighted. Re-scores your history. On by default.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
