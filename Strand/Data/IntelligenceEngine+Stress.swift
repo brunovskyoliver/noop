@@ -157,7 +157,7 @@ extension IntelligenceEngine {
     func runStressRestBackfillIfNeeded(historyDays: Int = 4000) async {
         guard !UserDefaults.standard.bool(forKey: Self.stressRestBackfillFlagKey) else { return }
         await analyzeRecent(maxDays: historyDays)
-        if !computing { UserDefaults.standard.set(true, forKey: Self.stressRestBackfillFlagKey) }
+        // Completion is recorded only at the successful end of the full-history pass.
     }
 
     /// Settings → Scoring toggled Rest v2: re-score the whole history so every stored `sleep_performance`
