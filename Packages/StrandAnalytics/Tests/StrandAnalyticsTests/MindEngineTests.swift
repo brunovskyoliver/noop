@@ -224,4 +224,26 @@ final class MindEngineTests: XCTestCase {
         // A check-in with no signal in its window is dropped, not paired with zero.
         XCTAssertNil(MindCheckIn.correlate(scores: scores, signal: [], windowDays: 14))
     }
+    func testDuplicateDaysCannotSatisfyColdStart() {
+        let one = MindDay(day: "2026-09-28", highStressMin: 60, lowStressMin: 300, scoredMin: 600)
+        XCTAssertNil(ResilienceEngine.compute(days: Array(repeating: one, count: 21), asOf: one.day))
+        XCTAssertNil(CumulativeStressEngine.compute(days: Array(repeating: one, count: 21), asOf: one.day))
+    }
+
+    func testMissingBandsAndNonFiniteValuesDoNotBecomeCalmDays() {
+        let missing = MindDay(day: "2026-09-28", scoredMin: 600, sleepStressPct: .nan, rest: .infinity)
+        XCTAssertFalse(missing.hasDaytimeStress)
+        XCTAssertNil(CumulativeStressEngine.dayLoad(missing))
+        let impossible = MindDay(day: "2026-09-28", highStressMin: 500, lowStressMin: 300, scoredMin: 600)
+        XCTAssertFalse(impossible.hasDaytimeStress)
+        let healthy = days(14, steady(high: 60, low: 300, rest: .nan, charge: 70))
+        XCTAssertTrue(ResilienceEngine.compute(days: healthy, asOf: "2026-09-28")!.score.isFinite)
+    }
+
+    func testDuplicateCheckInsDoNotInflateCorrelation() {
+        let scores = Array(repeating: (day: "2026-09-28", value: 2.0), count: 6)
+        XCTAssertNil(MindCheckIn.correlate(scores: scores,
+                                         signal: [(day: "2026-09-28", value: 80)], windowDays: 14))
+    }
+
 }

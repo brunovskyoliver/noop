@@ -3,7 +3,7 @@ import Foundation
 // MindCheckIn.swift — scoring for the optional monthly Mind check-in, and the correlation of its scores
 // with the body's own signals.
 //
-// Three short, freely usable self-report forms, the same three WHOOP's monthly Mental Health Survey used
+// Three short self-report forms, the same three WHOOP's monthly Mental Health Survey used
 // (JMIR 2025, e64955):
 //
 //   • PSS-4, the 4-item Perceived Stress Scale. Cohen S, Kamarck T, Mermelstein R. "A global measure of
@@ -77,9 +77,14 @@ public enum MindCheckIn {
     public static func correlate(scores: [(day: String, value: Double)],
                                  signal: [(day: String, value: Double)],
                                  windowDays: Int) -> Correlation? {
-        let dated = signal.compactMap { p -> (Int, Double)? in MindEngine.epoch(p.day).map { ($0, p.value) } }
+        guard windowDays > 0 else { return nil }
+        let uniqueSignal = Dictionary(signal.filter { $0.value.isFinite }.map { ($0.day, $0.value) },
+                                      uniquingKeysWith: { _, new in new })
+        let dated = uniqueSignal.compactMap { p -> (Int, Double)? in MindEngine.epoch(p.key).map { ($0, p.value) } }
+        let uniqueScores = Dictionary(scores.filter { $0.value.isFinite }.map { ($0.day, $0.value) },
+                                      uniquingKeysWith: { _, new in new })
         var pairs: [(Double, Double)] = []
-        for s in scores.sorted(by: { $0.day < $1.day }) {
+        for s in uniqueScores.map({ (day: $0.key, value: $0.value) }).sorted(by: { $0.day < $1.day }) {
             guard let end = MindEngine.epoch(s.day) else { continue }
             let xs = dated.filter { $0.0 <= end && $0.0 > end - windowDays }.map { $0.1 }
             guard !xs.isEmpty else { continue }

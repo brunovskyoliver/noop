@@ -35,6 +35,7 @@ struct BroopHealthView: View {
                     NavigationLink(value: BroopScreen.healthspan) { healthspanCard }
                     NavigationLink(value: BroopScreen.health) { monitorCard }
                     NavigationLink(value: BroopScreen.stress) { stressCard }
+                    NavigationLink(value: BroopScreen.mind) { BroopMindCard() }
                 }
                 .buttonStyle(BroopPressableStyle())
                 .padding(.top, 18)

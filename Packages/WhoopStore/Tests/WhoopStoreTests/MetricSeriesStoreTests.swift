@@ -4,6 +4,25 @@ import GRDB
 
 final class MetricSeriesStoreTests: XCTestCase {
 
+    func testDeleteRelatedPointsKeepsOtherDaysSourcesAndKeys() async throws {
+        let store = try await WhoopStore.inMemory()
+        let rows = [MetricPoint(day: "2026-09-29", key: "mind_pss4", value: 8),
+                    MetricPoint(day: "2026-09-29", key: "mind_gad2", value: 3),
+                    MetricPoint(day: "2026-09-28", key: "mind_pss4", value: 6),
+                    MetricPoint(day: "2026-09-29", key: "mood", value: 4)]
+        try await store.upsertMetricSeries(rows, deviceId: "noop-mind")
+        try await store.upsertMetricSeries(rows, deviceId: "other")
+        let removed = try await store.deleteMetricSeriesPoints(deviceId: "noop-mind", day: "2026-09-29",
+                                                               keys: ["mind_pss4", "mind_gad2", "mind_phq2"])
+        XCTAssertEqual(removed, 2)
+        let kept = try await store.metricSeries(deviceId: "noop-mind", key: "mind_pss4", from: "2026-09-01", to: "2026-09-30")
+        XCTAssertEqual(kept.map(\.value), [6])
+        let other = try await store.metricSeries(deviceId: "other", key: "mind_pss4", from: "2026-09-01", to: "2026-09-30")
+        XCTAssertEqual(other.count, 2)
+        let mood = try await store.metricSeries(deviceId: "noop-mind", key: "mood", from: "2026-09-01", to: "2026-09-30")
+        XCTAssertEqual(mood.map(\.value), [4])
+    }
+
     // MARK: - migration (v9 creates the table with the right PK + index)
 
     func testV9CreatesMetricSeriesTable() async throws {

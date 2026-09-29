@@ -49,7 +49,14 @@ public struct MindDay: Equatable, Sendable {
     }
 
     /// Enough waking stress coverage to count the day toward a daytime share.
-    var hasDaytimeStress: Bool { (scoredMin ?? 0) >= MindEngine.minScoredMinutesPerDay }
+    public var hasDaytimeStress: Bool {
+        guard let scoredMin, let highStressMin, let lowStressMin,
+              scoredMin.isFinite, highStressMin.isFinite, lowStressMin.isFinite,
+              scoredMin >= MindEngine.minScoredMinutesPerDay,
+              highStressMin >= 0, lowStressMin >= 0,
+              highStressMin + lowStressMin <= scoredMin else { return false }
+        return true
+    }
 }
 
 /// Direction of a rolling Mind score compared with its value a week earlier.
@@ -64,23 +71,30 @@ public enum MindEngine {
     /// Trends compare the latest value with the value this many days earlier.
     public static let trendLookbackDays = 7
 
+    static func validPercent(_ x: Double?) -> Double? {
+        guard let x, x.isFinite, (0...100).contains(x) else { return nil }
+        return x
+    }
+
     static func clamp01(_ x: Double) -> Double { min(1, max(0, x)) }
 
     /// Days since 1970-01-01 for "yyyy-MM-dd" (shared integer calendar math, see VitalityWindow).
-    static func epoch(_ s: String) -> Int? { VitalityEngine.epochDay(s) }
+    public static func epoch(_ s: String) -> Int? { VitalityEngine.epochDay(s) }
 
     /// The days whose date falls in the `length` days ending at `asOf` (inclusive), oldest first.
-    static func window(_ days: [MindDay], asOf: String, length: Int) -> [MindDay] {
+    public static func window(_ days: [MindDay], asOf: String, length: Int) -> [MindDay] {
         guard let end = epoch(asOf) else { return [] }
-        return days.compactMap { d -> (Int, MindDay)? in epoch(d.day).map { ($0, d) } }
-            .filter { $0.0 <= end && $0.0 > end - length }
-            .sorted { $0.0 < $1.0 }
-            .map { $0.1 }
+        var unique: [Int: MindDay] = [:]
+        for day in days {
+            guard let key = epoch(day.day), key <= end, key > end - length else { continue }
+            unique[key] = day
+        }
+        return unique.keys.sorted().compactMap { unique[$0] }
     }
 
     /// The "yyyy-MM-dd" string `offset` days after `day` (negative = before). Integer civil-from-days
     /// (Hinnant), so it needs no calendar either.
-    static func shift(_ day: String, by offset: Int) -> String? {
+    public static func shift(_ day: String, by offset: Int) -> String? {
         guard let e = epoch(day) else { return nil }
         let z = e + offset + 719_468
         let era = (z >= 0 ? z : z - 146_096) / 146_097
@@ -196,7 +210,7 @@ public enum ResilienceEngine {
         let low = stress.reduce(0) { $0 + max(0, $1.lowStressMin ?? 0) } / scored
 
         let nightValues = win.compactMap { d -> Double? in
-            let parts = [d.rest, d.charge].compactMap { $0 }.map { MindEngine.clamp01($0 / 100) }
+            let parts = [d.rest, d.charge].compactMap(MindEngine.validPercent).map { MindEngine.clamp01($0 / 100) }
             return parts.isEmpty ? nil : parts.reduce(0, +) / Double(parts.count)
         }
         let nightMean = nightValues.count >= minNights
@@ -264,12 +278,12 @@ public enum CumulativeStressEngine {
 
     /// One day's load (0–1) and its parts, or nil when the day has no stress-derived signal. Charge alone
     /// does not make a stress day: without daytime or sleep stress the day is skipped, not guessed.
-    static func dayLoad(_ d: MindDay) -> (load: Double, daytime: Double?, sleep: Double?, recovery: Double?)? {
+    public static func dayLoad(_ d: MindDay) -> (load: Double, daytime: Double?, sleep: Double?, recovery: Double?)? {
         let daytime: Double? = d.hasDaytimeStress
             ? MindEngine.clamp01((max(0, d.highStressMin ?? 0) / (d.scoredMin ?? 1)) / daytimeCeiling) : nil
-        let sleep = d.sleepStressPct.map { MindEngine.clamp01($0 / sleepCeiling) }
+        let sleep = MindEngine.validPercent(d.sleepStressPct).map { MindEngine.clamp01($0 / sleepCeiling) }
         guard daytime != nil || sleep != nil else { return nil }
-        let recovery = d.charge.map { MindEngine.clamp01((chargeNoLoad - $0) / (chargeNoLoad - chargeFullLoad)) }
+        let recovery = MindEngine.validPercent(d.charge).map { MindEngine.clamp01((chargeNoLoad - $0) / (chargeNoLoad - chargeFullLoad)) }
         var num = 0.0, den = 0.0
         if let daytime { num += wDaytime * daytime; den += wDaytime }
         if let sleep { num += wSleep * sleep; den += wSleep }

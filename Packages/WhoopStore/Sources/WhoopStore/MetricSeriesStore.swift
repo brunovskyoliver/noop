@@ -104,6 +104,20 @@ extension WhoopStore {
         }
     }
 
+    /// Remove related user-entered points atomically so a failed write cannot leave half a check-in.
+    @discardableResult
+    public func deleteMetricSeriesPoints(deviceId: String, day: String, keys: [String]) async throws -> Int {
+        try syncWrite { db in
+            var count = 0
+            for key in Set(keys) {
+                try db.execute(sql: "DELETE FROM metricSeries WHERE deviceId = ? AND day = ? AND key = ?",
+                               arguments: [deviceId, day, key])
+                count += db.changesCount
+            }
+            return count
+        }
+    }
+
     /// Delete every point for one source/key pair in a single statement. Returns the number of rows
     /// removed; deleting an absent series is an idempotent zero-row change.
     @discardableResult
