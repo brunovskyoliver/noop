@@ -37,13 +37,6 @@ struct BroopOverviewDayChartScreen: View {
         let snap = store.snapshot
         ScrollView {
             VStack(spacing: 0) {
-                BroopOverviewNavBar(
-                    title: BroopOverviewFormat.dayTitle(store),
-                    canGoBack: store.dayOffset < store.maxOffset(repo: repo),
-                    canGoForward: store.dayOffset > 0,
-                    onBack: { zoomDomain = nil; withAnimation(.snappy) { store.step(1, repo: repo) } },
-                    onForward: { zoomDomain = nil; withAnimation(.snappy) { store.step(-1, repo: repo) } })
-                .padding(.horizontal, -BroopMetrics.page)
 
                 HStack {
                     BroopCaps(metric.title, size: 13)
@@ -63,9 +56,16 @@ struct BroopOverviewDayChartScreen: View {
             .padding(.bottom, 110)
         }
         .scrollIndicators(.hidden)
-        .broopStatusBarScrim()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopOverviewNavBar(
+                title: BroopOverviewFormat.dayTitle(store),
+                canGoBack: store.dayOffset < store.maxOffset(repo: repo),
+                canGoForward: store.dayOffset > 0,
+                onBack: { zoomDomain = nil; withAnimation(.snappy) { store.step(1, repo: repo) } },
+                onForward: { zoomDomain = nil; withAnimation(.snappy) { store.step(-1, repo: repo) } })
+        }
         .background(BroopBackground())
-        .toolbar(.hidden, for: .navigationBar)
+        .broopBarChrome()
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)") { await store.reload(repo: repo, profile: profile) }
         .task(id: taskKey) { await reload() }
         .task(id: "\(Int(dayStart.timeIntervalSince1970))|\(repo.refreshSeq)") { await reloadAnnotations() }

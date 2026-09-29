@@ -90,22 +90,32 @@ struct BroopActivityDetailView: View {
             }
             .padding(.bottom, 60)
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopNavHeader(center: { EmptyView() }, trailing: { actionsMenu })
+        }
         .broopActivityPage()
-        .task { await load() }
+        .task(id: "\(row.startTs)-\(row.endTs)-\(repo.refreshSeq)") { await load() }
     }
 
     // MARK: Header
 
+    private var actionsMenu: some View {
+        Menu {
+            actions.menu(for: row, afterDestructive: { dismiss() })
+            if route.count >= 2 {
+                Button { exportingRoute = true } label: { Label("Export route", systemImage: "square.and.arrow.up") }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text("Actions"))
+    }
+
     private var header: some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 30, height: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Back"))
             WorkoutTypeIcon(workoutType: row.sport, size: 34, weight: .semibold, color: .white)
             VStack(alignment: .leading, spacing: 2) {
                 BroopCaps(WorkoutSource.displaySport(row), size: 14).lineLimit(1)
@@ -114,18 +124,6 @@ struct BroopActivityDetailView: View {
                     .foregroundStyle(BroopPalette.textSecondary)
             }
             Spacer()
-            Menu {
-                actions.menu(for: row, afterDestructive: { dismiss() })
-                if route.count >= 2 {
-                    Button { exportingRoute = true } label: { Label("Export route", systemImage: "square.and.arrow.up") }
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 18, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel(Text("Actions"))
         }
         .foregroundStyle(BroopPalette.textPrimary)
         .confirmationDialog("Export route", isPresented: $exportingRoute, titleVisibility: .visible) {

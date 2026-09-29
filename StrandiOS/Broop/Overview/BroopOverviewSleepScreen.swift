@@ -33,14 +33,6 @@ struct BroopOverviewSleepScreen: View {
         let snap = store.snapshot
         ScrollView {
             LazyVStack(spacing: 0) {
-                BroopOverviewNavBar(
-                    title: BroopOverviewFormat.dayTitle(store),
-                    canGoBack: store.dayOffset < store.maxOffset(repo: repo),
-                    canGoForward: store.dayOffset > 0,
-                    onBack: { withAnimation(.snappy) { store.step(1, repo: repo) } },
-                    onForward: { withAnimation(.snappy) { store.step(-1, repo: repo) } },
-                    onInfo: { showGuide = true })
-                .padding(.horizontal, -BroopMetrics.page)
 
                 if let undo { undoBanner(undo).padding(.top, 8) }
                 if store.dayOffset == 0 {
@@ -90,9 +82,17 @@ struct BroopOverviewSleepScreen: View {
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
-        .broopStatusBarScrim()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopOverviewNavBar(
+                title: BroopOverviewFormat.dayTitle(store),
+                canGoBack: store.dayOffset < store.maxOffset(repo: repo),
+                canGoForward: store.dayOffset > 0,
+                onBack: { withAnimation(.snappy) { store.step(1, repo: repo) } },
+                onForward: { withAnimation(.snappy) { store.step(-1, repo: repo) } },
+                onInfo: { showGuide = true })
+        }
         .background(BroopBackground())
-        .toolbar(.hidden, for: .navigationBar)
+        .broopBarChrome()
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)") { await store.reload(repo: repo, profile: profile) }
         .task(id: repo.refreshSeq) { await loadModel() }
         .task(id: snap?.night?.session.effectiveStartTs ?? 0) { await loadHR(snap?.night) }

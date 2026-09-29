@@ -57,8 +57,6 @@ struct BroopOverviewCoupledScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                BroopOverviewNavBar(title: String(localized: "Today"))
-                    .padding(.horizontal, -BroopMetrics.page)
                 Button { showBreakdown = true } label: { recoveryHero }
                     .buttonStyle(BroopPressableStyle())
                     .padding(.top, 20)
@@ -78,9 +76,11 @@ struct BroopOverviewCoupledScreen: View {
             .padding(.bottom, 110)
         }
         .scrollIndicators(.hidden)
-        .broopStatusBarScrim()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopOverviewNavBar(title: String(localized: "Today"))
+        }
         .background(BroopBackground())
-        .toolbar(.hidden, for: .navigationBar)
+        .broopBarChrome()
         .task(id: repo.refreshSeq) { habitual = await repo.habitualMidsleepSec() }
         .sheet(isPresented: $showBreakdown) {
             BroopOverviewCoupledBreakdown(row: day?.recovery != nil ? day : carried,

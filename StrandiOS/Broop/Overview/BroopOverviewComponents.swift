@@ -74,10 +74,9 @@ struct BroopOverviewNavBar: View {
     var onBack: (() -> Void)? = nil
     var onForward: (() -> Void)? = nil
     var onInfo: (() -> Void)? = nil
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ZStack {
+        BroopNavHeader {
             HStack(spacing: 10) {
                 if let onBack {
                     Button(action: onBack) {
@@ -87,9 +86,7 @@ struct BroopOverviewNavBar: View {
                     .disabled(!canGoBack)
                     .accessibilityLabel(Text("Previous day"))
                 }
-                BroopCaps(title, size: 13.5)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                BroopNavTitle(title: title)
                 if let onForward {
                     Button(action: onForward) {
                         Image(systemName: "chevron.right").frame(width: 28, height: 36)
@@ -102,35 +99,11 @@ struct BroopOverviewNavBar: View {
             .font(.system(size: 13, weight: .bold))
             .foregroundStyle(BroopPalette.textPrimary)
             .buttonStyle(.plain)
-
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 22, weight: .regular))
-                        .foregroundStyle(BroopPalette.textPrimary)
-                        .frame(width: 44, height: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Back"))
-                Spacer()
-                if let onInfo {
-                    Button(action: onInfo) {
-                        Image(systemName: "info")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(BroopPalette.textSecondary)
-                            .frame(width: 30, height: 30)
-                            .overlay(Circle().stroke(BroopPalette.textSecondary, lineWidth: 1.4))
-                            .frame(width: 44, height: 44, alignment: .trailing)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("How this is calculated"))
-                }
+        } trailing: {
+            if let onInfo {
+                BroopNavIcon(symbol: "info.circle", label: String(localized: "How this is calculated"), action: onInfo)
             }
         }
-        .frame(height: 48)
-        .padding(.horizontal, BroopMetrics.page)
     }
 }
 

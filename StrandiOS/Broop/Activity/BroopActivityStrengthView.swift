@@ -29,8 +29,6 @@ struct BroopActivityStrengthView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                BroopActivityHeader(title: String(localized: "Strength trainer"), onBack: { dismiss() })
-                    .padding(.top, 4)
                 BroopUnderlineTabs(options: [Tab.workouts, Tab.progress], selection: $tab) {
                     $0 == .workouts ? String(localized: "My workouts") : String(localized: "Progress")
                 }
@@ -39,6 +37,9 @@ struct BroopActivityStrengthView: View {
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.bottom, 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopActivityHeader(title: String(localized: "Strength trainer"), inBar: true, onBack: { dismiss() })
         }
         .broopActivityPage()
         .refreshable { await load() }

@@ -33,15 +33,15 @@ enum BroopInsightsPalette {
 // MARK: - Chrome
 
 extension View {
-    /// Native Broop chrome plus a centred, tracked caps title ("JOURNAL", "SLEEP PLANNER").
-    func broopInsightsChrome(_ title: String) -> some View {
-        self
-            .broopScreenChrome()
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    BroopCaps(title, size: 13).lineLimit(1)
-                }
-            }
+    /// The shared pinned header with a centred caps title ("JOURNAL", "SLEEP PLANNER"). `fill` matches
+    /// the top of the screen's own background.
+    func broopInsightsChrome<Trailing: View>(_ title: String, fill: Color = BroopPalette.bgTop,
+                                             @ViewBuilder trailing: () -> Trailing) -> some View {
+        broopNavPage(header: BroopNavHeader(fill: fill, center: { BroopNavTitle(title: title) }, trailing: trailing))
+    }
+
+    func broopInsightsChrome(_ title: String, fill: Color = BroopPalette.bgTop) -> some View {
+        broopInsightsChrome(title, fill: fill) { EmptyView() }
     }
 }
 

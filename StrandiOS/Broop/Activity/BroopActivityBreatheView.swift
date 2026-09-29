@@ -281,7 +281,6 @@ struct BroopActivityBreatheView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                BroopActivityHeader(title: String(localized: "Breathwork"), onBack: { dismiss() }).padding(.top, 4)
                 BroopUnderlineTabs(options: [Mode.breathe, .resonance, .calm], selection: $mode) {
                     switch $0 {
                     case .breathe: return String(localized: "Breathe")
@@ -302,6 +301,9 @@ struct BroopActivityBreatheView: View {
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.bottom, 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopActivityHeader(title: String(localized: "Breathwork"), inBar: true, onBack: { dismiss() })
         }
         .broopActivityPage()
         .background(BroopActivityBreatheBinder(engine: engine, box: box))

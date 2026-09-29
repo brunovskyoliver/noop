@@ -89,43 +89,29 @@ struct BroopActivityHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
     var leadingSymbol: String = "chevron.left"
+    /// On a pushed page (in its top inset) the header rides the system bar; in a sheet it is a row.
+    var inBar = false
     let onBack: () -> Void
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 2) {
-                BroopCaps(title, size: 12.5)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                if let subtitle {
-                    Text(verbatim: subtitle)
-                        .font(BroopType.demi(12.5))
-                        .foregroundStyle(BroopPalette.textSecondary)
-                }
-            }
-            .padding(.horizontal, 56)
-            HStack {
-                Button(action: onBack) {
-                    Image(systemName: leadingSymbol)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(BroopPalette.textPrimary)
-                        .frame(width: 44, height: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(leadingSymbol == "xmark" ? "Close" : "Back"))
-                Spacer()
-                trailing
-            }
+        if inBar {
+            BroopNavHeader(center: { BroopNavTitle(title: title, subtitle: subtitle) }, trailing: { trailing })
+        } else {
+            // The shared inline header; callers sit it in a padded sheet, so undo its own page padding.
+            BroopNavHeader(fill: .clear, inline: true, onBack: onBack,
+                           leadingSymbol: leadingSymbol == "chevron.left" ? nil : leadingSymbol,
+                           center: { BroopNavTitle(title: title, subtitle: subtitle) },
+                           trailing: { trailing })
+                .padding(.horizontal, -BroopMetrics.page)
         }
-        .frame(minHeight: 48)
     }
 }
 
 extension BroopActivityHeader where Trailing == EmptyView {
-    init(title: String, subtitle: String? = nil, leadingSymbol: String = "chevron.left", onBack: @escaping () -> Void) {
-        self.init(title: title, subtitle: subtitle, leadingSymbol: leadingSymbol, onBack: onBack) { EmptyView() }
+    init(title: String, subtitle: String? = nil, leadingSymbol: String = "chevron.left", inBar: Bool = false,
+         onBack: @escaping () -> Void) {
+        self.init(title: title, subtitle: subtitle, leadingSymbol: leadingSymbol, inBar: inBar, onBack: onBack) { EmptyView() }
     }
 }
 
@@ -389,7 +375,7 @@ extension View {
             .scrollIndicators(.hidden)
             .broopStatusBarScrim()
             .background(BroopBackground())
-            .toolbar(.hidden, for: .navigationBar)
+            .broopBarChrome()
             .preferredColorScheme(.dark)
     }
 }

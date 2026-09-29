@@ -67,46 +67,18 @@ enum BroopHealthPalette {
 
 // MARK: - Screen chrome
 
-/// Pinned header for a pushed Health screen: back chevron, centred caps title, optional caps subtitle and
-/// an optional trailing control. The system bar is hidden, so a sheet presentation dismisses from here too.
+/// Pinned header for a pushed Health screen: the shared `BroopNavHeader`.
 struct BroopHealthHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
     var showsBack = true
     var fill: Color = BroopPalette.bgTop
     @ViewBuilder var trailing: Trailing
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 3) {
-                BroopCaps(title, size: 13)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                if let subtitle {
-                    BroopCaps(subtitle, size: 10, color: BroopPalette.textSecondary)
-                }
-            }
-            .padding(.horizontal, 56)
-            HStack {
-                if showsBack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 19, weight: .semibold))
-                            .foregroundStyle(BroopPalette.textPrimary)
-                            .frame(width: 44, height: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Back"))
-                }
-                Spacer()
-                trailing
-            }
-        }
-        .frame(height: 50)
-        .padding(.horizontal, BroopMetrics.page)
-        .background(fill.ignoresSafeArea(edges: .top))
+        BroopNavHeader(showsBack: showsBack, fill: fill,
+                       center: { BroopNavTitle(title: title, subtitle: subtitle) },
+                       trailing: { trailing })
     }
 }
 
@@ -121,29 +93,19 @@ extension View {
     func broopHealthScreen() -> some View {
         self
             .background(BroopBackground())
-            .toolbar(.hidden, for: .navigationBar)
+            .broopBarChrome()
             .tint(BroopPalette.textPrimary)
             .preferredColorScheme(.dark)
     }
 }
 
-/// A trailing round icon button for the header (gear, info).
+/// A trailing icon for the header (gear, info): the shared `BroopNavIcon`.
 struct BroopHealthHeaderIcon: View {
     let symbol: String
     let label: String
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(BroopPalette.textPrimary)
-                .frame(width: 44, height: 44, alignment: .trailing)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(verbatim: label))
-    }
+    var body: some View { BroopNavIcon(symbol: symbol, label: label, action: action) }
 }
 
 // MARK: - Controls

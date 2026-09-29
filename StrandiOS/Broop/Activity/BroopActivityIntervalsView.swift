@@ -100,7 +100,6 @@ struct BroopActivityIntervalsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                BroopActivityHeader(title: String(localized: "Interval timer"), onBack: { dismiss() }).padding(.top, 4)
                 HStack {
                     BroopActivityIntervalBondChip()
                     Spacer()
@@ -184,6 +183,9 @@ struct BroopActivityIntervalsView: View {
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.bottom, 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopActivityHeader(title: String(localized: "Interval timer"), inBar: true, onBack: { dismiss() })
         }
         .broopActivityPage()
         .background(BroopActivityIntervalBinder(engine: engine))

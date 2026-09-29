@@ -113,7 +113,7 @@ struct BroopHealthspanView: View {
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         )
-        .toolbar(.hidden, for: .navigationBar)
+        .broopBarChrome()
         .preferredColorScheme(.dark)
         .task(id: repo.refreshSeq) { data = await BroopHealthspanData.load(repo: repo, profile: profile) }
     }

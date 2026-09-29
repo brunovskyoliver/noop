@@ -102,14 +102,8 @@ struct BroopInsightsJournalView: View {
                 )
         }
         .background(BroopInsightsJournalBackground())
-        .broopInsightsChrome(String(localized: "Journal"))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showCustomize = true } label: {
-                    Image(systemName: "pencil").font(.system(size: 16, weight: .semibold))
-                }
-                .accessibilityLabel(Text("Customize journal"))
-            }
+        .broopInsightsChrome(String(localized: "Journal"), fill: BroopInsightsJournalBackground.topColor) {
+            BroopNavIcon(symbol: "pencil", label: String(localized: "Customize journal")) { showCustomize = true }
         }
         .sheet(isPresented: $showCustomize) {
             BroopInsightsJournalCustomizeSheet(catalog: catalog, importedQuestions: model.importedQuestions)
@@ -455,10 +449,16 @@ struct BroopInsightsJournalView: View {
 /// The Journal canvas: a coloured wash at the top fading to the page black. Sand in the morning and
 /// daytime, violet in the evening, as the WHOOP journal does.
 struct BroopInsightsJournalBackground: View {
-    var body: some View {
+    private static var evening: Bool {
         let hour = Calendar.current.component(.hour, from: Date())
-        let evening = hour >= 17 || hour < 4
-        let top = evening ? Color(broopHex: 0x3F2F7A) : Color(broopHex: 0x8F7D66)
+        return hour >= 17 || hour < 4
+    }
+    /// The gradient's top colour, which the pinned header fills with.
+    static var topColor: Color { evening ? Color(broopHex: 0x3F2F7A) : Color(broopHex: 0x8F7D66) }
+
+    var body: some View {
+        let evening = Self.evening
+        let top = Self.topColor
         let mid = evening ? Color(broopHex: 0x241F44) : Color(broopHex: 0x3C4650)
         LinearGradient(stops: [
             .init(color: top, location: 0),

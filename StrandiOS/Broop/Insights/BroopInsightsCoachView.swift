@@ -33,13 +33,9 @@ struct BroopInsightsCoachView: View {
             }
         }
         .background(BroopInsightsCoachBackground())
-        .broopScreenChrome()
-        .toolbar {
-            ToolbarItem(placement: .principal) { versionPill }
-            if coach.isConfigured {
-                ToolbarItem(placement: .topBarTrailing) { menu }
-            }
-        }
+        .broopNavPage(header: BroopNavHeader(fill: BroopInsightsCoachBackground.topColor) { versionPill } trailing: {
+            if coach.isConfigured { menu }
+        })
         .sheet(isPresented: $showProviderSettings) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showSettings) {
             CoachSettingsView().environmentObject(coach).environmentObject(repo)
@@ -76,14 +72,22 @@ struct BroopInsightsCoachView: View {
 
     // MARK: Header
 
+    /// The model when one is set, else the provider's short name ("Custom", not "Custom (OpenAI-compatible)").
+    private var pillTitle: String {
+        guard coach.isConfigured else { return String(localized: "Coach") }
+        if !coach.model.isEmpty { return coach.model }
+        let name = coach.provider.displayName
+        return name.components(separatedBy: " (").first ?? name
+    }
+
     private var versionPill: some View {
         HStack(spacing: 8) {
             BroopBadge(size: 24, gradientRing: true)
-            Text(verbatim: !coach.isConfigured ? String(localized: "Coach")
-                 : (coach.model.isEmpty ? coach.provider.displayName : coach.model))
+            Text(verbatim: pillTitle)
                 .font(BroopType.demi(13.5))
                 .foregroundStyle(BroopPalette.textBody)
                 .lineLimit(1)
+                .truncationMode(.middle)
                 .frame(maxWidth: 170)
         }
         .padding(.leading, 4)
@@ -105,7 +109,11 @@ struct BroopInsightsCoachView: View {
                 Label(String(localized: "Disconnect"), systemImage: "xmark.circle")
             }
         } label: {
-            Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold))
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(BroopPalette.textPrimary)
+                .frame(width: 40, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel(Text("Coach menu"))
     }
@@ -410,11 +418,14 @@ struct BroopInsightsCoachView: View {
 
 /// Coach canvas: an indigo glow at the top fading to near-black.
 struct BroopInsightsCoachBackground: View {
+    /// The gradient's top colour, which the pinned header fills with.
+    static let topColor = Color(broopHex: 0x241E42)
+
     var body: some View {
         ZStack {
             BroopPalette.bgBottom
             LinearGradient(stops: [
-                .init(color: Color(broopHex: 0x241E42), location: 0),
+                .init(color: Self.topColor, location: 0),
                 .init(color: Color(broopHex: 0x121628), location: 0.38),
                 .init(color: BroopPalette.bgBottom, location: 0.7),
             ], startPoint: .top, endPoint: .bottom)

@@ -56,14 +56,8 @@ struct BroopInsightsAlarmView: View {
             }
             .ignoresSafeArea()
         }
-        .broopInsightsChrome(String(localized: "Sleep planner"))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { sheet = .weeklyPlan } label: {
-                    Image(systemName: "calendar").font(.system(size: 16, weight: .semibold))
-                }
-                .accessibilityLabel(Text("Weekly plan"))
-            }
+        .broopInsightsChrome(String(localized: "Sleep planner")) {
+            BroopNavIcon(symbol: "calendar", label: String(localized: "Weekly plan")) { sheet = .weeklyPlan }
         }
         .sheet(item: $sheet) { s in sheetView(s) }
         .alert(String(localized: "Notifications are off"), isPresented: $showNotifDeniedAlert) {

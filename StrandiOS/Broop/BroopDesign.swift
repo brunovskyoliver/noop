@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import UIKit
 
 // Broop design system: tokens and building blocks for the Broop iOS interface. Sizes, weights and
 // colours were measured from reference screenshots at 3 px/pt (see Prototype/Broop/README.md).
@@ -65,6 +66,10 @@ enum BroopMetrics {
     static let cardRadius: CGFloat = 12
     static let rowRadius: CGFloat = 10
     static let badgeRadius: CGFloat = 5
+    /// Height of the pinned screen header (`BroopNavHeader`).
+    static let navHeight: CGFloat = 50
+    /// Caps size of a screen title in the header.
+    static let navTitleSize: CGFloat = 13
 }
 
 extension Color {
@@ -824,4 +829,152 @@ struct BroopNavTile: View {
         .contentShape(Rectangle())
     }
 }
+
+// MARK: - Navigation header
+
+/// The one header every pushed Broop screen uses: the system navigation bar (native back button and edge /
+/// content swipe back) carrying a centred caps title or a custom centre and optional trailing controls,
+/// over a solid `fill` that runs up under the status bar. Place it in the page's top safe-area inset (or
+/// use `broopNavPage`); it takes no height of its own.
+///
+/// `inline` draws the same header as a plain row instead, for sheets without a navigation stack (the
+/// leading button then dismisses, or runs `onBack`).
+struct BroopNavHeader<Center: View, Trailing: View>: View {
+    var showsBack = true
+    var fill: Color = BroopPalette.bgTop
+    var inline = false
+    /// Inline only: overrides the leading button (default: dismiss) and its glyph (default: chevron).
+    var onBack: (() -> Void)? = nil
+    var leadingSymbol: String? = nil
+    @ViewBuilder var center: Center
+    @ViewBuilder var trailing: Trailing
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        if inline { inlineRow } else { barItems }
+    }
+
+    private var barItems: some View {
+        Color.clear
+            .frame(height: 0)
+            .background(fill.ignoresSafeArea(edges: .top))
+            .toolbar {
+                ToolbarItem(placement: .principal) { center }
+                if Trailing.self != EmptyView.self {
+                    ToolbarItem(placement: .topBarTrailing) { trailing }
+                }
+            }
+            .navigationBarBackButtonHidden(!showsBack)
+    }
+
+    private var inlineRow: some View {
+        ZStack {
+            center.padding(.horizontal, 56)
+            HStack(spacing: 4) {
+                if showsBack {
+                    let symbol = leadingSymbol ?? "chevron.left"
+                    Button { if let onBack { onBack() } else { dismiss() } } label: {
+                        Image(systemName: symbol)
+                            .font(.system(size: symbol == "xmark" ? 17 : 19, weight: .semibold))
+                            .foregroundStyle(BroopPalette.textPrimary)
+                            .frame(width: 44, height: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(symbol == "xmark" ? "Close" : "Back"))
+                }
+                Spacer(minLength: 0)
+                trailing
+            }
+        }
+        .frame(height: BroopMetrics.navHeight)
+        .padding(.horizontal, BroopMetrics.page)
+        .frame(maxWidth: .infinity)
+        .background(fill.ignoresSafeArea(edges: .top))
+    }
+}
+
+/// The header's standard centre: a tracked caps title with an optional caps subtitle.
+struct BroopNavTitle: View {
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(spacing: 3) {
+            BroopCaps(title, size: BroopMetrics.navTitleSize)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .accessibilityAddTraits(.isHeader)
+            if let subtitle {
+                BroopCaps(subtitle, size: 10, color: BroopPalette.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+}
+
+/// A plain trailing icon for the header (info, gear, calendar, edit).
+struct BroopNavIcon: View {
+    let symbol: String
+    let label: String
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(BroopPalette.textPrimary)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: label))
+    }
+}
+
+extension BroopNavHeader where Center == BroopNavTitle {
+    init(title: String, subtitle: String? = nil, showsBack: Bool = true, @ViewBuilder trailing: () -> Trailing) {
+        self.init(showsBack: showsBack, center: { BroopNavTitle(title: title, subtitle: subtitle) }, trailing: trailing)
+    }
+}
+
+extension BroopNavHeader where Center == BroopNavTitle, Trailing == EmptyView {
+    init(title: String, subtitle: String? = nil, showsBack: Bool = true) {
+        self.init(showsBack: showsBack, center: { BroopNavTitle(title: title, subtitle: subtitle) }, trailing: { EmptyView() })
+    }
+}
+
+extension View {
+    /// A pushed Broop screen: `BroopNavHeader` with a caps title, the Broop background and bar chrome.
+    /// Every pushed screen goes through this or `broopNavPage(header:)` (or places a `BroopNavHeader` in
+    /// its top inset and applies `broopBarChrome`), so headers, back buttons and titles match everywhere.
+    func broopNavPage<Trailing: View>(_ title: String, subtitle: String? = nil,
+                                      @ViewBuilder trailing: () -> Trailing) -> some View {
+        broopNavPage(header: BroopNavHeader(center: { BroopNavTitle(title: title, subtitle: subtitle) }, trailing: trailing))
+    }
+
+    func broopNavPage(_ title: String, subtitle: String? = nil) -> some View {
+        broopNavPage(title, subtitle: subtitle) { EmptyView() }
+    }
+
+    /// Same, with a custom header (a day navigator in the centre, say).
+    func broopNavPage<Header: View>(header: Header) -> some View {
+        self
+            .safeAreaInset(edge: .top, spacing: 0) { header }
+            .background(BroopBackground())
+            .broopBarChrome()
+    }
+
+    /// The system bar as every pushed Broop screen shows it: inline, transparent (the header's fill sits
+    /// behind it), white tint, dark.
+    func broopBarChrome() -> some View {
+        self
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar(.visible, for: .navigationBar)
+            .tint(BroopPalette.textPrimary)
+            .preferredColorScheme(.dark)
+    }
+}
+
 #endif

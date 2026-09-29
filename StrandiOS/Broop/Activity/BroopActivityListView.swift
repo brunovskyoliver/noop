@@ -112,19 +112,6 @@ struct BroopActivityListView: View {
         let trendRows = recoveryTrendRows(from: unscoped)
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                BroopActivityHeader(title: String(localized: "Activities"), onBack: { dismiss() }) {
-                    if tab == .log, rows.contains(where: WorkoutMerge.isMergeable) {
-                        Button(selectionMode ? String(localized: "Done") : String(localized: "Select")) {
-                            withAnimation(.snappy) {
-                                selectionMode.toggle()
-                                if !selectionMode { selected.removeAll() }
-                            }
-                        }
-                        .font(BroopType.demi(15))
-                        .foregroundStyle(BroopPalette.textPrimary)
-                    }
-                }
-                .padding(.top, 4)
 
                 actionButtons.padding(.top, 10)
                 BroopActivityDetectedCard().padding(.top, 12)
@@ -153,6 +140,20 @@ struct BroopActivityListView: View {
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.bottom, 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopActivityHeader(title: String(localized: "Activities"), inBar: true, onBack: { dismiss() }) {
+                if tab == .log, rows.contains(where: WorkoutMerge.isMergeable) {
+                    Button(selectionMode ? String(localized: "Done") : String(localized: "Select")) {
+                        withAnimation(.snappy) {
+                            selectionMode.toggle()
+                            if !selectionMode { selected.removeAll() }
+                        }
+                    }
+                    .font(BroopType.demi(15))
+                    .foregroundStyle(BroopPalette.textPrimary)
+                }
+            }
         }
         .broopActivityPage()
         .refreshable { await repo.refresh() }

@@ -33,14 +33,6 @@ private struct BroopOverviewDeepDive<Content: View>: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                BroopOverviewNavBar(
-                    title: BroopOverviewFormat.dayTitle(store),
-                    canGoBack: store.dayOffset < store.maxOffset(repo: repo),
-                    canGoForward: store.dayOffset > 0,
-                    onBack: { withAnimation(.snappy) { store.step(1, repo: repo) } },
-                    onForward: { withAnimation(.snappy) { store.step(-1, repo: repo) } },
-                    onInfo: { showGuide = true })
-                .padding(.horizontal, -BroopMetrics.page)
                 content(store.snapshot)
             }
             .padding(.horizontal, BroopMetrics.page)
@@ -48,9 +40,17 @@ private struct BroopOverviewDeepDive<Content: View>: View {
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
-        .broopStatusBarScrim()
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopOverviewNavBar(
+                title: BroopOverviewFormat.dayTitle(store),
+                canGoBack: store.dayOffset < store.maxOffset(repo: repo),
+                canGoForward: store.dayOffset > 0,
+                onBack: { withAnimation(.snappy) { store.step(1, repo: repo) } },
+                onForward: { withAnimation(.snappy) { store.step(-1, repo: repo) } },
+                onInfo: { showGuide = true })
+        }
         .background(BroopBackground())
-        .toolbar(.hidden, for: .navigationBar)
+        .broopBarChrome()
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)") { await store.reload(repo: repo, profile: profile) }
         .sheet(isPresented: $showGuide) {
             NavigationStack { ScoringGuideView(initialSection: section, onClose: { showGuide = false }) }

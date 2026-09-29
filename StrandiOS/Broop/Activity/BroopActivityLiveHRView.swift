@@ -49,8 +49,6 @@ struct BroopActivityLiveHRView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                BroopActivityHeader(title: String(localized: "Live heart rate"), onBack: { dismiss() })
-                    .padding(.horizontal, BroopMetrics.page)
                 LiveHero().padding(.top, 8)
                 VStack(alignment: .leading, spacing: 12) {
                     LiveBanners()
@@ -73,6 +71,9 @@ struct BroopActivityLiveHRView: View {
                 .padding(.top, 16)
             }
             .padding(.bottom, 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            BroopActivityHeader(title: String(localized: "Live heart rate"), inBar: true, onBack: { dismiss() })
         }
         .broopActivityPage()
         .background(LiveLifecycle(workoutCover: $workoutCover))

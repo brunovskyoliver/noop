@@ -58,18 +58,9 @@ struct BroopAccountRouteView: View {
 // MARK: - Page chrome
 
 extension View {
-    /// A pushed Account page: Broop background, inline bar and a centred tracked caps title.
+    /// A pushed Account page: the shared pinned header with a centred caps title.
     func broopAccountChrome(_ title: String) -> some View {
-        self
-            .broopScreenChrome(nil)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    BroopCaps(title, size: 13.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .accessibilityAddTraits(.isHeader)
-                }
-            }
+        broopNavPage(title)
     }
 }
 

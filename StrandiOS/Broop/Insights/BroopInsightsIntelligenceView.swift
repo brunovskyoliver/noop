@@ -42,15 +42,11 @@ struct BroopInsightsIntelligenceView: View {
             .padding(.bottom, 60)
         }
         .scrollIndicators(.hidden)
-        .broopInsightsChrome(String(localized: "Intelligence"))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { Task { await intelligence.analyzeRecent() } } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .semibold))
-                }
-                .disabled(intelligence.computing)
-                .accessibilityLabel(Text("Recompute"))
+        .broopInsightsChrome(String(localized: "Intelligence")) {
+            BroopNavIcon(symbol: "arrow.clockwise", label: String(localized: "Recompute")) {
+                Task { await intelligence.analyzeRecent() }
             }
+            .disabled(intelligence.computing)
         }
         .task { if intelligence.results.isEmpty { await intelligence.analyzeRecent() } }
     }
