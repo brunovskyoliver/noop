@@ -182,7 +182,7 @@ struct BroopActivityIntervalsView: View {
                     .padding(.top, 12)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 80)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Interval timer"), inBar: true, onBack: { dismiss() })

@@ -65,7 +65,7 @@ private struct BroopAccountDeviceContent: View {
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.top, 8)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .task(id: activeDevices.count) { strapCompare = await BroopAccountStrapCompare.load(devices: activeDevices, repo: model.repo) }

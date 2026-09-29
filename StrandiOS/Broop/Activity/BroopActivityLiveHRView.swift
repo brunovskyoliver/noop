@@ -75,7 +75,7 @@ struct BroopActivityLiveHRView: View {
                 .padding(.horizontal, BroopMetrics.page)
                 .padding(.top, 16)
             }
-            .padding(.bottom, 80)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Live heart rate"), inBar: true, onBack: { dismiss() })

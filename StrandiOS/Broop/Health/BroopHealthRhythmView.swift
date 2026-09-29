@@ -32,7 +32,7 @@ struct BroopHealthRhythmView: View {
                 if consentGiven { visualization } else { consent }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) {

@@ -74,7 +74,7 @@ struct BroopHealthMonitorView: View {
                     .padding(.top, 24)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }

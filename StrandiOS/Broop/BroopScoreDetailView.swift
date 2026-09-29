@@ -36,7 +36,7 @@ private struct BroopOverviewDeepDive<Content: View>: View {
                 content(store.snapshot)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
@@ -289,18 +289,27 @@ struct BroopOverviewEffortScreen: View {
         return out
     }
 
+    /// WHOOP's Effort bands, stated on the scale the dial shows (0–21 or 0–100), so the copy never quotes
+    /// a number from a different scale than the one beside it.
     private func coachText(_ snap: BroopSnapshot?, target: BroopOverviewEffortTarget?) -> String {
         guard let effort = snap?.effort else { return String(localized: "No Effort recorded for this day yet.") }
-        let on21 = (snap?.effortMax ?? 21) == 21 ? effort : effort * 21 / 100
+        let max = snap?.effortMax ?? 21
+        let on21 = max == 21 ? effort : effort * 21 / max
+        func v(_ x21: Double) -> String {
+            let x = x21 * max / 21
+            return max == 21 ? (x == x.rounded() ? String(Int(x)) : BroopFormat.one(x)) : BroopFormat.whole(x)
+        }
+        let top = v(21)
         let band: String
         switch on21 {
-        case ..<10: band = String(localized: "Effort under 10 is light, leaving room for more activity or recovery.")
-        case ..<14: band = String(localized: "Effort between 10 and 13.9 is moderate: your cardiovascular system has been active without overreaching.")
-        case ..<18: band = String(localized: "Effort between 14 and 17.9 is strenuous, meaning your cardiovascular system has been working hard.")
-        default: band = String(localized: "Effort between 18 and 21 is near maximal. Dedicate additional time to rest and recovery.")
+        case ..<10: band = String(localized: "Effort under \(v(10)) is light, leaving room for more activity or recovery.")
+        case ..<14: band = String(localized: "Effort between \(v(10)) and \(v(14)) is moderate: your cardiovascular system has been active without overreaching.")
+        case ..<18: band = String(localized: "Effort between \(v(14)) and \(v(18)) is strenuous, meaning your cardiovascular system has been working hard.")
+        default: band = String(localized: "Effort between \(v(18)) and \(top) is near maximal. Dedicate additional time to rest and recovery.")
         }
         if let target {
-            return band + " " + String(localized: "For today's Charge, a target between \(target.range.lowerBound) and \(target.range.upperBound) (on the 21 scale) balances training and recovery.")
+            let lo = v(Double(target.range.lowerBound)), hi = v(Double(target.range.upperBound))
+            return band + " " + String(localized: "For today's Charge, a target between \(lo) and \(hi) balances training and recovery.")
         }
         return band + " " + String(localized: "Your optimal target appears once today's Charge is calculated.")
     }

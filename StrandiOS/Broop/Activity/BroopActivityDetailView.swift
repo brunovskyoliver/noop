@@ -88,7 +88,7 @@ struct BroopActivityDetailView: View {
                     .padding(.horizontal, BroopMetrics.page)
                     .padding(.top, 26)
             }
-            .padding(.bottom, 60)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopNavHeader(center: { EmptyView() }, trailing: { actionsMenu })

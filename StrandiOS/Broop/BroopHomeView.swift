@@ -16,10 +16,14 @@ struct BroopHomeView: View {
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
 
-    /// Switches the shell to the Health tab.
+    /// Switches the shell to the Health tab. Kept for the shell's call site; the Health Monitor tile now
+    /// pushes the Health Monitor screen, as WHOOP's does.
     let onOpenHealth: () -> Void
 
     @State private var showOutlook = false
+    /// Add Activity and Start Activity open the same form and flow as the "+" menu, not a list.
+    @State private var addingActivity = false
+    @State private var startingActivity = false
     /// True once the dials have scrolled under the status bar. Flipped only on the crossing, so scrolling
     /// does not re-render Home.
     @State private var collapsed = false
@@ -51,7 +55,7 @@ struct BroopHomeView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .refreshable { await repo.refresh() }
@@ -64,6 +68,10 @@ struct BroopHomeView: View {
         // Keyed like Liquid's load(): data, day, and the settings the snapshot bakes in.
         .task(id: "\(repo.refreshSeq)-\(store.dayOffset)-\(effortScaleRaw)-\(dayCycleModeRaw)") {
             await store.reload(repo: repo, profile: profile)
+        }
+        .sheet(isPresented: $addingActivity) { BroopHomeAddActivitySheet { addingActivity = false } }
+        .fullScreenCover(isPresented: $startingActivity) {
+            BroopActivityStartCover(onClose: { startingActivity = false })
         }
         .sheet(isPresented: $showOutlook) {
             BroopOutlookSheet(onAskCoach: coachEnabled ? {
@@ -184,7 +192,8 @@ struct BroopHomeView: View {
         let ok = outside.isEmpty
         let statusColor = withData.isEmpty ? BroopPalette.textSecondary : (ok ? BroopPalette.teal : BroopPalette.warning)
         return HStack(spacing: 10) {
-            Button(action: onOpenHealth) {
+            // WHOOP: the tile opens the Health Monitor screen (not the Health tab).
+            NavigationLink(value: BroopScreen.health) {
                 BroopMonitorTile(
                     title: [String(localized: "Health"), String(localized: "Monitor")],
                     status: withData.isEmpty ? [String(localized: "No data")]
@@ -335,11 +344,11 @@ struct BroopHomeView: View {
 
                 HStack(spacing: 10) {
                     BroopOverviewFillButton(symbol: "plus", title: String(localized: "Add Activity")) {
-                        router.openWorkouts()
+                        addingActivity = true
                     }
                     if store.dayOffset == 0 {
                         BroopOverviewFillButton(symbol: "stopwatch", title: String(localized: "Start Activity")) {
-                            router.openActiveWorkout()
+                            startingActivity = true
                         }
                     }
                 }
@@ -710,6 +719,24 @@ enum BroopVitals {
         case .neutral: return BroopPalette.textSecondary
         case .watch: return BroopPalette.bandMid
         case .bad: return BroopPalette.warning
+        }
+    }
+}
+/// Home's Add Activity: the "+" menu's manual-activity form, saved through the same repository path.
+/// Its own view so Home does not observe the intelligence engine.
+private struct BroopHomeAddActivitySheet: View {
+    let onClose: () -> Void
+    @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var intelligence: IntelligenceEngine
+
+    var body: some View {
+        BroopActivityEditSheet(editing: nil) { row, _ in
+            Task {
+                await repo.saveManualWorkout(row, replacing: nil)
+                await intelligence.analyzeRecent()
+                await repo.refresh()
+            }
+            onClose()
         }
     }
 }

@@ -37,7 +37,7 @@ struct BroopInsightsHubView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 60)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .broopInsightsChrome(String(localized: "What moves you"))

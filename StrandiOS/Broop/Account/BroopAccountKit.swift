@@ -74,7 +74,7 @@ struct BroopAccountPage<Content: View>: View {
             VStack(alignment: .leading, spacing: spacing) { content }
                 .padding(.horizontal, BroopMetrics.page)
                 .padding(.top, 12)
-                .padding(.bottom, 110)
+                .padding(.bottom, BroopMetrics.tabBarClearance)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)

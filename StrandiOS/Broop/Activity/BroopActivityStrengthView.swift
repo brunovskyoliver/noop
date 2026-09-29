@@ -36,7 +36,7 @@ struct BroopActivityStrengthView: View {
                 if tab == .workouts { workoutsTab } else { progressTab }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 80)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Strength trainer"), inBar: true, onBack: { dismiss() })

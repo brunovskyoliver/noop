@@ -348,7 +348,7 @@ struct BroopInsightsClassicPage<Content: View>: View {
             VStack(alignment: .leading, spacing: 16) { content }
                 .padding(.horizontal, BroopMetrics.page)
                 .padding(.top, 8)
-                .padding(.bottom, 60)
+                .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .broopInsightsChrome(title)

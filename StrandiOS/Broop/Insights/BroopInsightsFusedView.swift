@@ -54,7 +54,7 @@ struct BroopInsightsFusedView: View {
                 .padding(.top, 24)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 60)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .broopInsightsChrome(String(localized: "Your data, fused"))

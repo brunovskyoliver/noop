@@ -300,7 +300,7 @@ struct BroopActivityBreatheView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 80)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             BroopActivityHeader(title: String(localized: "Breathwork"), inBar: true, onBack: { dismiss() })

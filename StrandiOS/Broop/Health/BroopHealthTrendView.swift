@@ -209,7 +209,7 @@ struct BroopHealthTrendView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) { BroopHealthHeader(title: String(localized: "Trend View")) }

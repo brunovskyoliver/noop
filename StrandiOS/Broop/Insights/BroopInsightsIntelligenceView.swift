@@ -39,7 +39,7 @@ struct BroopInsightsIntelligenceView: View {
                 statusOrList.padding(.top, BroopMetrics.section)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 60)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .broopInsightsChrome(String(localized: "Intelligence")) {

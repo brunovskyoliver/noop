@@ -41,7 +41,7 @@ struct BroopInsightsImpactView: View {
                 }
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 60)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .broopInsightsChrome(String(localized: "Journal insights"))
@@ -58,6 +58,10 @@ struct BroopInsightsImpactView: View {
             BroopInsightsHeadline(text: String(localized: "\(outcome.outcomeName) Impact Analysis"), size: 26)
             BroopInsightsBody(text: String(localized: "See how the behaviours you log line up with your \(outcome.outcomeName.lowercased()). Tap a behaviour to view more details."),
                               color: BroopPalette.textSecondary)
+            // Two screens rank the same behaviours against the same outcome; say how this one differs so
+            // their figures never read as a contradiction.
+            BroopInsightsBody(text: String(localized: "Compares days you logged a behaviour with days you didn't, on the same morning. What Moves You tests each behaviour up to two mornings later and keeps the strongest lag, so its figures can differ."),
+                              size: 13, color: BroopPalette.textSecondary)
         }
     }
 
@@ -149,7 +153,7 @@ struct BroopInsightsImpactView: View {
                                   size: 13, color: BroopPalette.textSecondary)
                 if experimentCandidates.isEmpty {
                     BroopInsightsBody(text: String(localized: "Log at least one behaviour in your journal before starting an experiment."),
-                                      size: 13, color: BroopPalette.textTertiary)
+                                      size: 13, color: BroopPalette.textSecondary)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         BroopCaps(String(localized: "Behaviour"), size: 10, color: BroopPalette.textSecondary)

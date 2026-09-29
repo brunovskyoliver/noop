@@ -210,8 +210,16 @@ struct BroopInsightsAlarmView: View {
         .frame(minWidth: 130)
     }
 
+    /// The time in bed between the bedtime and wake time shown above the band. Equal to `tier.inBedMin`
+    /// when the goal is reachable; when the bedtime is held at the earliest usual one it is the shorter
+    /// window that bedtime really gives (the figure the Sleep screen's planner card shows too).
+    static func windowMin(plan: SleepPlanner.Plan, tier: SleepPlanner.Tier) -> Double {
+        Double(((plan.wakeMinute - tier.bedMinute) % 1440 + 1440) % 1440)
+    }
+
     private func band(plan: SleepPlanner.Plan, tier: SleepPlanner.Tier, pinned: Bool) -> some View {
-        GeometryReader { geo in
+        let inBed = Self.windowMin(plan: plan, tier: tier)
+        return GeometryReader { geo in
             let w = geo.size.width
             let left = w * 0.18
             let right = w * 0.82
@@ -232,7 +240,7 @@ struct BroopInsightsAlarmView: View {
                 ForEach([left, right], id: \.self) { x in
                     Rectangle().fill(Color.white).frame(width: 2.5, height: 34).offset(x: x - 1.25, y: 55)
                 }
-                Text(verbatim: BroopFormat.duration(tier.inBedMin))
+                Text(verbatim: BroopFormat.duration(inBed))
                     .font(BroopType.number(20))
                     .foregroundStyle(BroopPalette.textPrimary)
                     .padding(.horizontal, 18)
@@ -273,7 +281,7 @@ struct BroopInsightsAlarmView: View {
         }
         .frame(height: 160)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Time in bed \(BroopFormat.duration(tier.inBedMin)), sleep need \(BroopFormat.duration(plan.needMin))"))
+        .accessibilityLabel(Text("Time in bed \(BroopFormat.duration(inBed)), sleep need \(BroopFormat.duration(plan.needMin))"))
     }
 
     // MARK: Alarm panel

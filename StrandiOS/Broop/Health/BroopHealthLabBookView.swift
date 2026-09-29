@@ -65,7 +65,7 @@ struct BroopHealthLabBookView: View {
                 .padding(.top, 28)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .refreshable { await load() }
@@ -329,7 +329,7 @@ struct BroopHealthMarkerDetail: View {
                     .padding(.top, 18)
             }
             .padding(.horizontal, BroopMetrics.page)
-            .padding(.bottom, 110)
+            .padding(.bottom, BroopMetrics.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) {

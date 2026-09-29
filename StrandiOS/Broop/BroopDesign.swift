@@ -66,6 +66,8 @@ enum BroopMetrics {
     static let cardRadius: CGFloat = 12
     static let rowRadius: CGFloat = 10
     static let badgeRadius: CGFloat = 5
+    /// Bottom padding that clears the floating tab bar at the end of a scrolling page.
+    static let tabBarClearance: CGFloat = 110
     /// Height of the pinned screen header (`BroopNavHeader`).
     static let navHeight: CGFloat = 50
     /// Caps size of a screen title in the header.
