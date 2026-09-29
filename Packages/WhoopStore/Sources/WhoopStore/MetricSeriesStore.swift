@@ -50,6 +50,21 @@ extension WhoopStore {
         return n
     }
 
+    /// Atomically replaces derived metric history for the named sources and keys. A failed insert
+    /// rolls back the removals, preserving the previous history for a later retry.
+    public func replaceDerivedMetricSeries(_ rows: [MetricPoint], deviceId: String,
+                                          replacingSourceIds: [String], keys: [String]) async throws {
+        try syncWrite { db in
+            for source in Set(replacingSourceIds) {
+                for key in Set(keys) {
+                    try db.execute(sql: "DELETE FROM metricSeries WHERE deviceId = ? AND key = ?",
+                                   arguments: [source, key])
+                }
+            }
+            _ = try Self.upsertMetricSeries(rows, deviceId: deviceId, in: db)
+        }
+    }
+
     // MARK: - Reads
 
     /// Points for a single `key` on days in [from, to] (lexicographic YYYY-MM-DD compare),

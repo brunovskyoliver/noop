@@ -438,41 +438,30 @@ extension SleepModel {
     }
 
     /// Consistency: prefer the imported sleep_consistency series when it covers the latest night;
-    /// else the APPROXIMATE rolling bedtime-spread score.
+    /// else the APPROXIMATE rolling bedtime-spread score. The rule lives in `SleepConsistency.resolve`
+    /// (StrandAnalytics) so Healthspan's sleep-consistency factor reads exactly this value.
     static func consistencySeries(days: [DailyMetric], sleeps: [CachedSleepSession],
                                   importedSleep: [String: ImportedSleepFigures],
                                   computed: [String: ComputedSleepFigures] = [:]) -> Metric {
-        let imported = importedSleep
-        if let lastDay = days.last?.day, imported[lastDay]?.consistencyPct != nil {
-            let series = days.compactMap { imported[$0.day]?.consistencyPct }
-            return (series.last, nil, mean(series), series)
-        }
-        // Rest v2: the consistency the score used (stored by the pass), when the latest night has one.
-        if RestScoringPrefs.v2Enabled, let lastDay = days.last?.day, computed[lastDay]?.consistencyPct != nil {
-            let series = days.compactMap { computed[$0.day]?.consistencyPct }
-            return (series.last, nil, mean(series), series)
-        }
+        let series = SleepConsistency.resolve(
+            dayKeys: days.map(\.day),
+            importedPct: importedSleep.compactMapValues(\.consistencyPct),
+            nights: consistencyNights(sleeps),
+            computedPct: RestScoringPrefs.v2Enabled ? computed.compactMapValues(\.consistencyPct) : [:]).map(\.pct)
+        guard !series.isEmpty else { return (nil, nil, nil, []) }
+        return (series.last, nil, mean(series), series)
+    }
+
+    /// Convert sleep onsets to local dates and continuous evening minutes for consistency.
+    static func consistencyNights(_ sleeps: [CachedSleepSession]) -> [SleepConsistency.Night] {
         let cal = Calendar.current
-        func bedMinutes(_ s: CachedSleepSession) -> Double {
-            let d = Date(timeIntervalSince1970: TimeInterval(s.effectiveStartTs))
-            let comps = cal.dateComponents([.hour, .minute], from: d)
-            var m = Double((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
-            if m < 12 * 60 { m += 24 * 60 }   // wrap evening onsets into one continuous scale
-            return m
+        return sleeps.map { s in
+            let start = Date(timeIntervalSince1970: TimeInterval(s.effectiveStartTs))
+            let c = cal.dateComponents([.hour, .minute], from: start)
+            return SleepConsistency.Night(
+                day: Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(s.endTs))),
+                bedMinutes: SleepConsistency.bedMinutes(hour: c.hour ?? 0, minute: c.minute ?? 0))
         }
-        let mins = sleeps.map(bedMinutes)
-        guard mins.count >= 3 else { return (nil, nil, nil, []) }
-        var scores: [Double] = []
-        for i in mins.indices {
-            let lo = Swift.max(0, i - 13)
-            let window = Array(mins[lo...i])
-            guard window.count >= 3 else { continue }
-            let m = window.reduce(0, +) / Double(window.count)
-            let variance = window.map { ($0 - m) * ($0 - m) }.reduce(0, +) / Double(window.count)
-            let sd = variance.squareRoot()
-            scores.append(Swift.max(0, Swift.min(100, 100 * (1 - sd / 120))))
-        }
-        return (scores.last, nil, mean(scores), scores)
     }
 
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the

@@ -130,7 +130,7 @@ struct BroopHealthView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(verbatim: BroopFormat.one(age))
                             .font(BroopType.number(40)).foregroundStyle(BroopPalette.textPrimary).broopNumeral(40)
-                        BroopCaps(String(localized: "Body Age"), size: 10.5, color: BroopPalette.textSecondary)
+                        BroopCaps(String(localized: "Broop Age"), size: 10.5, color: BroopPalette.textSecondary)
                     }
                     Rectangle().fill(BroopPalette.hairline).frame(width: 1, height: 44)
                     VStack(alignment: .leading, spacing: 6) {
@@ -140,7 +140,7 @@ struct BroopHealthView: View {
                                 .foregroundStyle(delta >= 0 ? BroopHealthPalette.mint : BroopHealthPalette.amber)
                         }
                         Text(verbatim: healthspan.pace.map { "\(BroopFormat.one($0))x " + String(localized: "pace of aging") }
-                             ?? String(localized: "Pace of Aging after about two months"))
+                             ?? String(localized: "Updated every Sunday"))
                             .font(BroopType.medium(13.5))
                             .foregroundStyle(BroopPalette.textBody)
                     }
@@ -149,8 +149,8 @@ struct BroopHealthView: View {
                 BroopHealthPaceRuler(pace: healthspan.pace).frame(height: 16)
             } else {
                 Text(healthspan.loaded
-                     ? "Keep wearing your strap. A few more days and we can show your Body Age and Pace of Aging."
-                     : "Reading your Healthspan…")
+                     ? String(localized: "Keep wearing your strap. Log 21 recoveries in a month (\(healthspan.snap.recoveriesLast31) so far) to unlock your Broop Age and Pace of Aging.")
+                     : String(localized: "Reading your Healthspan…"))
                     .font(BroopType.medium(15))
                     .foregroundStyle(BroopPalette.textBody)
                     .fixedSize(horizontal: false, vertical: true)

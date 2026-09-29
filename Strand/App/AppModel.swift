@@ -512,6 +512,11 @@ final class AppModel: ObservableObject {
             // so an existing install gets stored stress history and consistent Rest/Charge. Flagged, so a
             // no-op on every later launch.
             await self.intelligence.runStressRestBackfillIfNeeded()
+            // One-shot Healthspan v2 backfill: replace every stored v1 Body Age / Pace / Vitality row with v2
+            // values for each past Sunday. Persisted flag → no-op after the first completed run.
+            await IntelligenceEngine.runHealthspanV2BackfillIfNeeded(
+                repo: self.repo, profileAge: self.profile.age, sex: self.profile.sex,
+                log: { [live = self.live] in live.append(log: $0, domain: nil) })
             while !Task.isCancelled {
                 // #547 RE-POLLUTION: a sync since the last tick may have armed a re-heal (its ingest gate
                 // dropped bad-clock records). `runTimestampHealIfNeeded` honours the pending flag even after

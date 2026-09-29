@@ -53,9 +53,12 @@ public enum SleepConsistency {
     ///   - importedPct: imported `sleep_consistency` by day.
     ///   - nights: one entry per night, oldest first.
     public static func resolve(dayKeys: [String], importedPct: [String: Double],
-                               nights: [Night]) -> [(day: String, pct: Double)] {
+                               nights: [Night], computedPct: [String: Double] = [:]) -> [(day: String, pct: Double)] {
         if let last = dayKeys.last, importedPct[last] != nil {
             return dayKeys.compactMap { d in importedPct[d].map { (day: d, pct: $0) } }
+        }
+        if let last = dayKeys.last, computedPct[last] != nil {
+            return dayKeys.compactMap { d in computedPct[d].map { (day: d, pct: $0) } }
         }
         let scores = rollingScores(bedMinutes: nights.map(\.bedMinutes))
         var out: [(day: String, pct: Double)] = []

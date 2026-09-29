@@ -195,7 +195,10 @@ public enum VitalityEngine {
         return bySex(sex, male: row(vo2RecMale), female: row(vo2RecFemale))
     }
 
-    /// The recommendation for `factor` at `age` / `sex`:
+    /// The recommendation for `factor` at `age` / `sex`.
+    /// The age ramps below are Broop assumptions; WHOOP does not publish their exact functions.
+    /// They must not be described as WHOOP's fitted targets:
+
     ///   • sleep hours 7 h (white paper: below 7 h adds years);
     ///   • sleep consistency 70 % (white paper: 70 % is neutral);
     ///   • zones 1–3: 100 min/week up to age 30, falling linearly to 70 at 70 (white paper: "70–100, lower
@@ -229,12 +232,10 @@ public enum VitalityEngine {
     /// Hours of sleep. Itani et al. 2017, Sleep Med 32:246-256 (doi:10.1016/j.sleep.2016.08.006,
     /// https://pubmed.ncbi.nlm.nih.gov/27743803/): short sleep RR 1.12 for all-cause mortality, with the
     /// meta-regression showing risk rising linearly below ~6 h. Modelled as ln(1.12) per hour below 7 h,
-    /// capped at a 3-hour deficit (≤ 4 h counts as 4 h). Between 7 and 9 h WHOOP gives a "minor reduction":
-    /// a triangle peaking at −0.015 (−0.15 years) at 8 h and back to 0 at 9 h. Above 9 h WHOOP applies no
-    /// effect (reverse causation dominates long sleep; Cappuccio 2010, doi:10.1093/sleep/33.5.585), so 0.
+    /// capped at a 3-hour deficit. Seven hours and above are neutral in this fork, following the
+    /// requested 7–9-hour neutral range; no long-sleep penalty is applied.
     static func cSleepHours(_ h: Double) -> Double {
-        if h < 7 { return log(1.12) * (7 - max(h, 4)) }
-        return interp(h, [(7, 0), (8, -0.015), (9, 0)])
+        h < 7 ? log(1.12) * (7 - max(h, 4)) : 0
     }
 
     /// Sleep consistency %. Windred et al. 2024, Sleep 47(1):zsad253 (doi:10.1093/sleep/zsad253,

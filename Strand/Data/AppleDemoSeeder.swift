@@ -201,10 +201,12 @@ enum AppleDemoSeeder {
         // --- weekly Fitness Age + VO2max estimate (the engine stamps these on each week's
         //     Saturday; mirror that here so the Fitness Age screen renders under --demo-seed).
         //     Trends from ~42 → ~36 (younger) as the demo "fitness" drift climbs; vo2max ~44 → ~50.
+        //     Healthspan (body_age / pace_of_aging / vitality) is NOT seeded: the one-shot Healthspan v2
+        //     backfill computes every Sunday from these seeded inputs through the real engine, so the demo
+        //     shows genuine numbers (strength time from the Strength / HIIT / Yoga workouts; no lean-mass
+        //     reading, so the screen shows its "Add lean mass" hint).
         var fitnessAge = 42.0
         var vo2 = 44.0
-        var vitality = 55.0      // weekly Vitality (0–100) trending up as the demo habits improve
-        var bodyAgeDemo = 40.0   // Body Age (years) trending down (younger)
         for i in 0..<DAYS {
             let date = cal.date(byAdding: .day, value: i, to: startDay)!
             guard cal.component(.weekday, from: date) == 7 else { continue }  // 7 = Saturday
@@ -213,14 +215,8 @@ enum AppleDemoSeeder {
                 value: round1((fitnessAge + gauss(&rng, 0.0, 0.3)).clamped(34.0, 44.0))))
             series.append(MetricPoint(day: day, key: "vo2max_est",
                 value: round1((vo2 + gauss(&rng, 0.0, 0.4)).clamped(42.0, 52.0))))
-            series.append(MetricPoint(day: day, key: "vitality",
-                value: round1((vitality + gauss(&rng, 0.0, 1.0)).clamped(40.0, 80.0))))
-            series.append(MetricPoint(day: day, key: "body_age",
-                value: round1((bodyAgeDemo + gauss(&rng, 0.0, 0.3)).clamped(30.0, 45.0))))
             fitnessAge -= 0.75  // ~6 yr younger across the 8 seeded Saturdays
             vo2 += 0.75
-            vitality += 2.0
-            bodyAgeDemo -= 0.6
         }
 
         _ = try await store.upsertDailyMetrics(daily, deviceId: whoop)

@@ -1197,47 +1197,44 @@ private struct ReadinessChecklistCard: View {
 
 // MARK: - Vitality / Body Age
 
-/// The "Vitality" section: a weekly wellness score (0–100), a Body Age in years and Pace of Aging, computed
-/// by IntelligenceEngine from the published mortality-hazard model over the last 180 days and read back
-/// from the metricSeries. A wellness trend from your habits — NOT a clinical biological age. The "what's
-/// driving this" lines recompute the factors from the same 180-day reader the engine uses
-/// (`Repository.vitalityDays`), so they explain the stored headline rather than a different window.
+/// The Healthspan section: Body Age (Healthspan v2, the WHOOP-method effective age over nine habits and
+/// fitness markers from the last 180 days, updated weekly on Sunday), Pace of Aging and the per-factor age
+/// impacts, all from `Repository.healthspanSnapshot`, the one resolver the weekly store pass and the iOS
+/// screens also use. The derived Vitality gauge comes from the same delta. A wellness estimate from your
+/// habits, NOT a clinical biological age.
 private struct VitalitySection: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var profile: ProfileStore
-    @State private var vitality: Double?
-    @State private var bodyAge: Double?
-    @State private var pace: Double?
-    @State private var contributions: [VitalityEngine.Contribution] = []
+    @State private var snap = HealthspanSnapshot.empty
     @State private var loaded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Vitality", overline: "Weekly",
-                          trailing: bodyAge != nil ? String(localized: "Body Age \(Int((bodyAge ?? 0).rounded()))") : nil)
-            if let v = vitality, let ba = bodyAge {
+                          trailing: snap.bodyAge.map { String(localized: "Body Age \(Int($0.rounded()))") })
+            if let v = snap.vitality, let ba = snap.bodyAge {
                 hero(vitality: v, bodyAge: ba)
             } else if loaded {
-                ComingSoon(what: "A few more days and we can show your Vitality.", symbol: "sparkles")
+                ComingSoon(what: "Body Age unlocks after 21 recoveries in a month (\(snap.recoveriesLast31) of 21 so far).",
+                           symbol: "sparkles")
             } else {
                 ComingSoon(what: "Reading your Vitality…", symbol: "sparkles")
             }
         }
-        .task(id: repo.refreshSeq) { await load() }
+        .task(id: repo.refreshSeq) {
+            snap = await repo.healthspanSnapshot(profileAge: profile.age, sex: profile.sex)
+            loaded = true
+        }
     }
 
     private func hero(vitality v: Double, bodyAge ba: Double) -> some View {
-        let delta = Double(profile.age) - ba
-        let younger = delta >= 0
+        let delta = snap.delta ?? 0
+        let younger = delta <= 0
         let yrs = Int(abs(delta).rounded())
-        let sorted = contributions.sorted { $0.ageImpactYears < $1.ageImpactYears }
-        let best = sorted.first
-        let worst = sorted.last
         return VStack(alignment: .leading, spacing: NoopMetrics.space4) {
             HStack(alignment: .center, spacing: NoopMetrics.space5) {
-                // The weekly Vitality score (0…100) as the signature liquid gauge: a vessel tinted to the
-                // Charge world, filled to the score, with the number counting up over it (Today's
-                // HeroScoreCell idiom). Taps splash the gauge; the number is hit-transparent.
+                // The weekly Vitality score (0…100, derived from the Body Age delta) as the signature liquid
+                // gauge. Taps splash the gauge; the number is hit-transparent.
                 VStack(alignment: .leading, spacing: NoopMetrics.space1) {
                     Text("Vitality").strandOverline()
                     ZStack {
@@ -1258,7 +1255,7 @@ private struct VitalitySection: View {
                 VStack(alignment: .trailing, spacing: NoopMetrics.space1) {
                     Text("Body Age").strandOverline()
                     CountUpText(value: ba,
-                                format: { "\(Int($0.rounded()))" },
+                                format: { $0.formatted(.number.precision(.fractionLength(1))) },
                                 font: StrandFont.number(34),
                                 color: StrandPalette.textPrimary)
                     Text(bodyAgeDeltaLine(yrs: yrs, younger: younger))
@@ -1267,16 +1264,12 @@ private struct VitalitySection: View {
                 }
             }
             paceRow
-            if (best?.lnHazard ?? 0) < 0 || (worst?.lnHazard ?? 0) > 0 {
+            if let r = snap.result {
                 Divider().overlay(StrandPalette.hairline)
-                if let best, best.lnHazard < 0 {
-                    Text("Helping most: \(best.label)")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.statusPositive)
-                }
-                if let worst, worst.lnHazard > 0 {
-                    Text("Holding you back: \(worst.label)")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.statusWarning)
-                }
+                ForEach(r.current.impacts, id: \.factor) { impactRow($0) }
+            } else if snap.isStale {
+                Text("Not updated this week: Body Age needs 21 recoveries in the last 31 days.")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
             }
             Text("A wellness estimate from your habits, not a clinical biological age.")
                 .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
@@ -1291,14 +1284,33 @@ private struct VitalitySection: View {
         .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous))
     }
 
+    /// One factor: label, the 6-month value, and its signed age impact (a missing input says so).
+    private func impactRow(_ i: VitalityEngine.Impact) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
+            Text(verbatim: i.factor.label).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            Spacer(minLength: 0)
+            if let v = i.value {
+                Text(verbatim: HealthspanFormat.value(i.factor, v))
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                Text(verbatim: HealthspanFormat.years(i.years))
+                    .font(StrandFont.number(15))
+                    .foregroundStyle(abs(i.years) < 0.05 ? StrandPalette.textPrimary
+                                     : (i.years < 0 ? StrandPalette.statusPositive : StrandPalette.statusWarning))
+            } else {
+                Text("No data · no effect").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     /// Pace of Aging: how fast Body Age would move if the last 30 days' habits held for six months
-    /// (1.0× = one year per calendar year). Needs about two months of wear before it appears.
+    /// (1.0× = one year per calendar year).
     @ViewBuilder private var paceRow: some View {
         Divider().overlay(StrandPalette.hairline)
         HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.space2) {
             Text("Pace of Aging").strandOverline()
             Spacer(minLength: 0)
-            if let p = pace {
+            if let p = snap.pace {
                 let band = VitalityEngine.paceBand(p)
                 Text(verbatim: p.formatted(.number.precision(.fractionLength(1))) + "×")
                     .font(StrandFont.number(22))
@@ -1309,9 +1321,7 @@ private struct VitalitySection: View {
             }
         }
         .accessibilityElement(children: .combine)
-        Text(pace == nil
-             ? String(localized: "Pace of Aging appears after about two months of wear.")
-             : String(localized: "Your last 30 days compared with your last 6 months."))
+        Text("Your last 30 days held for six months, compared with your last 6 months.")
             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
     }
 
@@ -1334,21 +1344,6 @@ private struct VitalitySection: View {
         case (false, true):  return String(localized: "1 yr older")
         case (false, false): return String(localized: "\(yrs) yrs older")
         }
-    }
-
-    private func load() async {
-        vitality = (await repo.exploreSeries(key: "vitality", source: "my-whoop")).last?.value
-        let latestAge = (await repo.exploreSeries(key: "body_age", source: "my-whoop")).last
-        bodyAge = latestAge?.value
-        // Only the pace written alongside the current Body Age: an older week's pace must not sit next
-        // to a newer Body Age after history drops below the pace threshold.
-        pace = (await repo.exploreSeries(key: "pace_of_aging", source: "my-whoop"))
-            .last { $0.day == latestAge?.day }?.value
-        let today = Repository.dayString(Date())
-        let days = await repo.vitalityDays(endingOn: today)
-        contributions = VitalityEngine.healthspan(days: days, asOf: today, chronoAge: Double(profile.age),
-                                                  sex: profile.sex)?.bodyAge.contributions ?? []
-        loaded = true
     }
 }
 

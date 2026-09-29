@@ -23,6 +23,38 @@ final class MetricSeriesStoreTests: XCTestCase {
         XCTAssertEqual(mood.map(\.value), [4])
     }
 
+    func testDerivedReplacementRollsBackWhenInsertFails() async throws {
+        let store = try await WhoopStore.inMemory()
+        let original = MetricPoint(day: "2026-09-20", key: "body_age", value: 30)
+        try await store.upsertMetricSeries([original], deviceId: "computed")
+        do {
+            try await store.replaceDerivedMetricSeries(
+                [MetricPoint(day: "2026-09-27", key: "body_age", value: .nan)],
+                deviceId: "computed", replacingSourceIds: ["computed"], keys: ["body_age"])
+            XCTFail("NaN must fail the non-null value constraint")
+        } catch {}
+        let remaining = try await store.metricSeries(deviceId: "computed", key: "body_age",
+                                                      from: "2000-01-01", to: "2099-12-31")
+        XCTAssertEqual(remaining, [original])
+    }
+
+    func testDerivedReplacementLeavesOtherMetricsAndSourcesIntact() async throws {
+        let store = try await WhoopStore.inMemory()
+        let old = MetricPoint(day: "2026-09-19", key: "body_age", value: 30)
+        let other = MetricPoint(day: "2026-09-19", key: "steps", value: 8000)
+        try await store.upsertMetricSeries([old, other], deviceId: "computed")
+        try await store.upsertMetricSeries([old], deviceId: "other-device")
+        let replacement = MetricPoint(day: "2026-09-20", key: "body_age", value: 29)
+        try await store.replaceDerivedMetricSeries([replacement], deviceId: "computed",
+            replacingSourceIds: ["computed"], keys: ["body_age"])
+        let ages = try await store.metricSeries(deviceId: "computed", key: "body_age", from: "2000", to: "2099")
+        let steps = try await store.metricSeries(deviceId: "computed", key: "steps", from: "2000", to: "2099")
+        let unrelated = try await store.metricSeries(deviceId: "other-device", key: "body_age", from: "2000", to: "2099")
+        XCTAssertEqual(ages, [replacement])
+        XCTAssertEqual(steps, [other])
+        XCTAssertEqual(unrelated, [old])
+    }
+
     // MARK: - migration (v9 creates the table with the right PK + index)
 
     func testV9CreatesMetricSeriesTable() async throws {
