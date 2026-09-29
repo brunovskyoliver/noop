@@ -156,7 +156,9 @@ struct BroopHealthTrendsView: View {
     private var weekAnchor: String { WeeklyDigestEngine.addDays(Repository.localDayKey(Date()), weekOffset * 7) }
 
     private var weekReview: some View {
-        let digest = WeeklyDigestSource.digest(from: repo.days, anchorDay: weekAnchor)
+        let digest = WeeklyDigestSource.digest(from: repo.days, anchorDay: weekAnchor,
+                                               importedSleep: repo.importedSleep,
+                                               computedSleep: repo.computedSleepFigures)
         return VStack(alignment: .leading, spacing: 14) {
             BroopHealthDateNav(label: weekOffset == 0 ? String(localized: "This week")
                                : (weekOffset == -1 ? String(localized: "Last week") : weeklyDigestRangeLabel(digest)),

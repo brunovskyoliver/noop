@@ -391,6 +391,7 @@ struct BroopAccountScoringPage: View {
     @AppStorage(UnitPrefs.hrvWindowKey) private var hrvWindowRaw = HrvWindow.whole.rawValue
     @AppStorage(PuffinExperiment.experimentalSleepV2Key) private var experimentalSleepV2Enabled = true
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
+    @AppStorage(RestScoringPrefs.v2Key) private var restV2Enabled = true
     @State private var showRecalibrateConfirm = false
     @State private var showRecalibrated = false
 
@@ -403,6 +404,14 @@ struct BroopAccountScoringPage: View {
                                           detail: String(localized: "Restarts the roughly 4-night build-up for Charge and your HRV baseline from tonight.")) {
                         showRecalibrateConfirm = true
                     }
+                }
+            }
+            BroopAccountSection(title: String(localized: "Rest"),
+                                footer: String(localized: "Changing this re-scores your whole history in the background, so Rest and the Charge that reads it move together.")) {
+                BroopAccountGroup {
+                    BroopAccountToggle(title: String(localized: "Sleep Performance (4 parts)"),
+                                       detail: String(localized: "Scores Rest like WHOOP's 2025 Sleep Performance: hours vs. needed 55%, sleep consistency 15%, sleep efficiency 15% and sleep stress 15%. Restorative sleep is still shown, just not scored. A part that could not be measured for a night is left out and the rest are re-weighted. Off uses the older formula (hours, efficiency, restorative sleep and consistency)."),
+                                       isOn: $restV2Enabled)
                 }
             }
             BroopAccountSection(title: String(localized: "HRV")) {
@@ -441,6 +450,11 @@ struct BroopAccountScoringPage: View {
         }
         .onChange(of: hrvWindowRaw) { _, _ in
             Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+        }
+        .onChange(of: restV2Enabled) { _, _ in
+            // Every stored sleep_performance and the Charge that reads it are re-derived over the whole
+            // history (days whose raw heart rate is still on the device).
+            Task { await model.intelligence.rescoreForRestModeChange(); await model.repo.refresh() }
         }
         .confirmationDialog("Recalibrate your Charge baseline?", isPresented: $showRecalibrateConfirm, titleVisibility: .visible) {
             Button("Recalibrate") { recalibrate() }

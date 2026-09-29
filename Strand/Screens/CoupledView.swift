@@ -101,8 +101,7 @@ struct CoupledView: View {
     /// Never a local hours-vs-need approximation (keeps the coupled read in agreement with Today's Rest).
     private var sleepPerformance: Double? {
         guard let d = day else { return nil }
-        if let p = repo.importedSleep[d.day]?.performancePct { return p }
-        return AnalyticsEngine.Rest.composite(daily: d)
+        return repo.restScore(for: d)
     }
 
     /// On-device readiness, computed EXACTLY as Today does (ReadinessEngine.evaluate over the same rows,

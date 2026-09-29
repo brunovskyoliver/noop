@@ -410,7 +410,7 @@ struct SleepView: View {
         let wakeDay = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(night.session.endTs)))
         if let p = repo.importedSleep[wakeDay]?.performancePct { return p }
         guard let daily = repo.days.last(where: { $0.day == wakeDay }) else { return nil }
-        return AnalyticsEngine.Rest.composite(daily: daily)
+        return repo.restScore(for: daily)
     }
 
     /// Dispatch a reorderable Sleep section to its card. Naps rides with `.stages` (drawn inside the stages
@@ -1805,7 +1805,8 @@ struct SleepView: View {
             allSessions: allSessions,
             importedSleep: repo.importedSleep,
             habitualMidsleepSec: habitualMidsleepSec,
-            motionByStart: motionByStart))
+            motionByStart: motionByStart,
+            computedSleep: repo.computedSleepFigures))
     }
 
     // MARK: - Derived model
