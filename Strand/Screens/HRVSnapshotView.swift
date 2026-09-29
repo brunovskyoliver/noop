@@ -428,32 +428,38 @@ struct HRVSnapshotView: View {
         ScreenIdle.keepAwake(false)
         let captureMs = captureElapsedMs() ?? Self.captureSeconds * 1000
         captureStart = nil
-        let raw = captureBuffer.map(Double.init)
-        // A capture whose collected beat time exceeds the wall clock it ran for held duplicated
-        // beats (e.g. overlapping live sources) — refuse the number rather than publish it.
+        result = Self.analyzeCapture(rawRR: captureBuffer, captureMs: captureMs) { line in
+            live.append(log: line, domain: .hrv)
+        }
+        phase = .done
+    }
+
+    /// The finish-time analysis over a completed capture, shared with the Broop sheet so both run the
+    /// same gates. A capture whose collected beat time exceeds the wall clock it ran for held duplicated
+    /// beats (e.g. overlapping live sources) and is refused rather than published.
+    ///
+    /// HRV & Autonomic test mode (Group G): when the mode is on, the cleaning trace (nInput / nClean /
+    /// rejected fraction, the range + Malik ectopic counts, the minBeats + spot gates, RMSSD/SDNN/meanNN)
+    /// goes to `traceLog` tagged `.hrv`. analyzeTrace returns the SAME HRVResult `analyze` would (it
+    /// reuses analyze verbatim), so the headline RMSSD is byte-identical with the trace on or off. Zero
+    /// cost when off: the gate is one UserDefaults bool read and analyzeTrace is never called.
+    @MainActor
+    static func analyzeCapture(rawRR: [Int], captureMs: Int,
+                               traceLog: (String) -> Void) -> HRVAnalyzer.HRVResult {
+        let raw = rawRR.map(Double.init)
         if HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: raw.reduce(0, +),
                                               captureMs: Double(captureMs)) {
-            result = HRVAnalyzer.HRVResult(rmssd: nil, sdnn: nil, meanNN: nil, pnn50: nil,
-                                           nInput: raw.count, nClean: 0)
-            phase = .done
-            return
+            return HRVAnalyzer.HRVResult(rmssd: nil, sdnn: nil, meanNN: nil, pnn50: nil,
+                                         nInput: raw.count, nClean: 0)
         }
-        // HRV & Autonomic test mode (Group G): when the mode is on, emit the cleaning trace (nInput /
-        // nClean / rejected fraction, the range + Malik ectopic counts, the minBeats + spot gates,
-        // RMSSD/SDNN/meanNN) tagged `.hrv`. analyzeTrace returns the SAME HRVResult `analyze` would
-        // (it reuses analyze verbatim), so the headline RMSSD is byte-identical with the trace on or off.
-        // Zero cost when off: the gate is one UserDefaults bool read and analyzeTrace is never called, so
-        // the plain `analyze` path below runs untouched.
         if TestCentre.active(.hrv) {
             let (traced, lines) = HRVAnalyzer.analyzeTrace(
                 rawRR: raw, maxRejectedFraction: HRVAnalyzer.defaultSpotMaxRejectedFraction, path: "spot")
-            for line in lines { live.append(log: line, domain: .hrv) }
-            result = traced
-        } else {
-            result = HRVAnalyzer.analyze(rawRR: raw,
-                                         maxRejectedFraction: HRVAnalyzer.defaultSpotMaxRejectedFraction)
+            for line in lines { traceLog(line) }
+            return traced
         }
-        phase = .done
+        return HRVAnalyzer.analyze(rawRR: raw,
+                                   maxRejectedFraction: HRVAnalyzer.defaultSpotMaxRejectedFraction)
     }
 
     // MARK: - Live R-R ingest (mirrors BreathingView)
@@ -474,20 +480,24 @@ struct HRVSnapshotView: View {
     /// earlier one, matching every other importer's upsert semantics.
     private func save(_ result: HRVAnalyzer.HRVResult) {
         guard let rmssd = result.rmssd else { return }
-        let day = Repository.dayString(Date())
-        let point = MetricPoint(day: day, key: HRVSnapshot.metricKey, value: rmssd)
         saved = true                    // optimistic — the write is local + idempotent
         Task {
-            guard let store = await model.repo.storeHandle() else {
-                saved = false
-                return
-            }
-            do {
-                try await store.upsertMetricSeries([point], deviceId: HRVSnapshot.sourceId)
-                await model.repo.refresh()
-            } catch {
-                saved = false
-            }
+            if !(await Self.persist(rmssd: rmssd, repo: model.repo)) { saved = false }
+        }
+    }
+
+    /// Bank one snapshot RMSSD under today's day and refresh the repository. Returns false when the
+    /// store is unavailable or the write fails. Shared with the Broop sheet so both write the same row.
+    static func persist(rmssd: Double, repo: Repository) async -> Bool {
+        let day = Repository.dayString(Date())
+        let point = MetricPoint(day: day, key: HRVSnapshot.metricKey, value: rmssd)
+        guard let store = await repo.storeHandle() else { return false }
+        do {
+            try await store.upsertMetricSeries([point], deviceId: HRVSnapshot.sourceId)
+            await repo.refresh()
+            return true
+        } catch {
+            return false
         }
     }
 
