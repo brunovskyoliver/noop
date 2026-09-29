@@ -18,14 +18,28 @@ final class BroopHealthStressLive: ObservableObject {
     private var samples: [(ts: Int, bpm: Double)] = []
     private var wake: StressMonitor.WakeReference?
     private var clients = 0
+    private var scope: String?
+    private var workoutActive = false
+    private var workoutEnded: Date?
     private var subscriptions = Set<AnyCancellable>()
     private var lastPacket: Date?
     private var loop: Task<Void, Never>?
 
     /// Start (or join) the sampler. `wake` is today's waking reference from `Repository.stressToday()`.
-    func attach(live: LiveState, model: AppModel) {
+    func attach(live: LiveState, model: AppModel, reference: StressMonitor.WakeReference, scope: String) {
+        if self.scope != scope || wake != reference {
+            samples.removeAll(); lastPacket = nil; reading = nil
+            wake = reference; self.scope = scope
+        }
         clients += 1
         guard loop == nil else { return }
+        model.$activeWorkout.map { $0 != nil }.removeDuplicates().sink { [weak self] active in
+            guard let self else { return }
+            if self.workoutActive && !active { self.workoutEnded = Date() }
+            self.workoutActive = active
+            if active { self.samples.removeAll() }
+            self.recompute()
+        }.store(in: &subscriptions)
         live.$heartRate.dropFirst().sink { [weak self] bpm in
             guard live.connected, let bpm, bpm > 0 else { return }
             self?.receive(bpm: Double(bpm))
@@ -42,7 +56,7 @@ final class BroopHealthStressLive: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard let self else { return }
-                self.tick(live: live, model: model)
+                self.tick(live: live)
             }
         }
     }
@@ -52,20 +66,15 @@ final class BroopHealthStressLive: ObservableObject {
         if clients == 0 {
             loop?.cancel(); loop = nil
             subscriptions.removeAll()
-            samples.removeAll(); lastPacket = nil; reading = nil
+            samples.removeAll(); lastPacket = nil; reading = nil; wake = nil; scope = nil
         }
-    }
-
-    func setReference(_ ref: StressMonitor.WakeReference?) {
-        guard ref != wake else { return }
-        wake = ref
-        recompute()
     }
 
     private func receive(bpm: Double) {
         let now = Date()
         let ts = Int(now.timeIntervalSince1970)
         lastPacket = now
+        guard !workoutActive else { reading = .active; return }
         // At most one observation per second even if both characteristics publish.
         if samples.last?.ts == ts { samples.removeLast() }
         samples.append((ts, bpm))
@@ -73,7 +82,11 @@ final class BroopHealthStressLive: ObservableObject {
         recompute()
     }
 
-    private func tick(live: LiveState, model: AppModel) {
+    private func tick(live: LiveState) {
+        guard scope?.hasPrefix(Repository.localDayKey(Date()) + "|") == true else {
+            samples.removeAll(); wake = nil; reading = nil
+            return
+        }
         guard live.connected, let lastPacket, Date().timeIntervalSince(lastPacket) < 15 else {
             samples.removeAll(); reading = nil
             return
@@ -84,9 +97,17 @@ final class BroopHealthStressLive: ObservableObject {
 
     private func recompute() {
         var next: StressMonitor.LiveReading?
-        if let wake {
+        if workoutActive {
+            next = .active
+        } else if let wake {
+            let recentWorkout = workoutEnded.map { Date().timeIntervalSince($0) < 15 * 60 } ?? false
+            let mean = samples.isEmpty ? 0 : samples.map(\.bpm).reduce(0, +) / Double(samples.count)
+            if recentWorkout && mean > wake.floorHR + DaytimeStress.postActivityShadowBPM {
+                next = .active
+            } else {
             next = StressMonitor.liveReading(hrWindow: samples.map(\.bpm), wake: wake)
             if case let .level(l)? = next { next = .level((l * 10).rounded() / 10) }
+            }
         }
         if next != reading { reading = next }
     }
@@ -119,20 +140,24 @@ struct BroopHealthStressNow: Equatable {
 private struct BroopHealthStressLiveAttach: ViewModifier {
     @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var repo: Repository
     let reference: StressMonitor.WakeReference?
+    let day: String?
 
     func body(content: Content) -> some View {
-        content
-            .onAppear { BroopHealthStressLive.shared.attach(live: live, model: model) }
-            .onDisappear { BroopHealthStressLive.shared.detach() }
-            .onChange(of: reference) { _, r in if let r { BroopHealthStressLive.shared.setReference(r) } }
-            .task { if let reference { BroopHealthStressLive.shared.setReference(reference) } }
+        let scope = "\(day ?? "")|\(repo.deviceId)"
+        content.task(id: "\(scope)|\(String(describing: reference))") {
+            guard day == Repository.localDayKey(Date()), let reference else { return }
+            BroopHealthStressLive.shared.attach(live: live, model: model, reference: reference, scope: scope)
+            defer { BroopHealthStressLive.shared.detach() }
+            do { while !Task.isCancelled { try await Task.sleep(for: .seconds(60)) } } catch { }
+        }
     }
 }
 
 extension View {
-    func broopHealthStressLive(reference: StressMonitor.WakeReference?) -> some View {
-        modifier(BroopHealthStressLiveAttach(reference: reference))
+    func broopHealthStressLive(reference: StressMonitor.WakeReference?, day: String?) -> some View {
+        modifier(BroopHealthStressLiveAttach(reference: reference, day: day))
     }
 }
 
@@ -150,7 +175,7 @@ struct BroopHealthStressHomeTile: View {
         let color = band.map { BroopVitals.stressColor($0) } ?? BroopPalette.textSecondary
         BroopMonitorTile(
             title: [String(localized: "Stress"), String(localized: "Monitor")],
-            status: [now?.active == true ? String(localized: "Elevated pulse") : (band?.title ?? (loaded ? String(localized: "No data") : String(localized: "Calibrating")))],
+            status: [now?.active == true ? String(localized: "Activity / elevated pulse") : (band?.title ?? (loaded ? String(localized: "No data") : String(localized: "Calibrating")))],
             statusColor: now?.active == true ? BroopPalette.textPrimary : color,
             detail: now.map { n in n.source == .live ? String(localized: "Live") : (n.time.map { $0.formatted(date: .omitted, time: .shortened) } ?? "") }
                 ?? String(localized: "Wear to measure")
@@ -166,7 +191,7 @@ struct BroopHealthStressHomeTile: View {
             today = await repo.stressToday()
             loaded = true
         }
-        .broopHealthStressLive(reference: today?.wake)
+        .broopHealthStressLive(reference: today?.wake, day: today?.day)
     }
 }
 
@@ -189,7 +214,7 @@ struct BroopHealthStressCardBody: View {
                         .foregroundStyle(BroopPalette.textPrimary)
                         .broopNumeral(40)
                     VStack(alignment: .leading, spacing: 3) {
-                        BroopCaps(now.active ? String(localized: "Elevated pulse") : (band?.title ?? ""), size: 13, color: color)
+                        BroopCaps(now.active ? String(localized: "Activity / elevated pulse") : (band?.title ?? ""), size: 13, color: color)
                         Text(verbatim: now.source == .live ? String(localized: "Live")
                              : String(localized: "Last updated \(now.time?.formatted(date: .omitted, time: .shortened) ?? "")"))
                             .font(BroopType.medium(13))
@@ -214,7 +239,7 @@ struct BroopHealthStressCardBody: View {
             today = await repo.stressToday()
             loaded = true
         }
-        .broopHealthStressLive(reference: today?.wake)
+        .broopHealthStressLive(reference: today?.wake, day: today?.day)
     }
 }
 

@@ -116,7 +116,7 @@ private struct BroopHealthStressGauge: View {
             VStack(spacing: BroopMetrics.innerRadius) {
                 Text(verbatim: reading?.level.map(StressTrace.formatLevel) ?? "--")
                     .font(BroopType.number(60)).foregroundStyle(BroopPalette.textPrimary)
-                BroopCaps(reading?.active == true ? String(localized: "Elevated pulse") : reading?.level.map { StressBand(score: $0).title } ?? String(localized: "No reading"), size: 13)
+                BroopCaps(reading?.active == true ? String(localized: "Activity / elevated pulse") : reading?.level.map { StressBand(score: $0).title } ?? String(localized: "No reading"), size: 13)
                 Text(reading?.source == .live ? "Live" : "Latest measured")
                     .font(BroopType.medium(13)).foregroundStyle(BroopPalette.textSecondary)
                 if let time = reading?.time, reading?.source != .live {
@@ -125,7 +125,7 @@ private struct BroopHealthStressGauge: View {
             }
         }
         .frame(height: 240)
-        .broopHealthStressLive(reference: isToday ? day?.wake : nil)
+        .broopHealthStressLive(reference: isToday ? day?.wake : nil, day: isToday ? day?.day : nil)
     }
 }
 
