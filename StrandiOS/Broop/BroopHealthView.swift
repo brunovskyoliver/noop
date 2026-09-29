@@ -15,7 +15,6 @@ import StrandDesign
 struct BroopHealthView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
-    @EnvironmentObject private var model: AppModel
     @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateOn = false
     @AppStorage(AppModel.cycleAwarenessKey) private var cycleEnabled = false
 
@@ -24,7 +23,6 @@ struct BroopHealthView: View {
     @State private var stress: StressModel?
     @State private var healthspan = BroopHealthspanData()
     @State private var weight: (value: Double, day: String)?
-    @State private var cycleTracker = false
 
     var body: some View {
         ScrollView {
@@ -49,10 +47,9 @@ struct BroopHealthView: View {
                 }
                 .padding(.top, 12)
 
-                if cycleEnabled, let cycle = model.cyclePhase {
-                    Button { cycleTracker = true } label: { cycleCard(cycle) }
-                        .buttonStyle(BroopPressableStyle())
-                        .padding(.top, 12)
+                if cycleEnabled {
+                    // AppModel republishes about once a second; only this leaf observes it.
+                    BroopHealthCycleEntry().padding(.top, 12)
                 }
 
                 BroopHealthHeading(text: String(localized: "Body")).padding(.top, BroopMetrics.section)
@@ -109,13 +106,6 @@ struct BroopHealthView: View {
         .broopStatusBarScrim()
         .background(BroopBackground())
         .task(id: "\(repo.refreshSeq)|\(spo2CandidateOn)") { await load() }
-        .sheet(isPresented: $cycleTracker) {
-            if let cycle = model.cyclePhase {
-                CycleTrackerView(result: cycle, curve: model.cycleCurve)
-                    .environmentObject(repo)
-                    .environmentObject(model)
-            }
-        }
     }
 
     private var unitSystem: UnitSystem {
@@ -287,8 +277,28 @@ struct BroopHealthView: View {
         }
         .frame(maxWidth: .infinity)
     }
+}
 
-    // MARK: Cycle
+/// The cycle-awareness row and its tracker sheet. The only part of the Health tab that reads `AppModel`,
+/// so its once-a-second republish re-renders this row, not the tab.
+private struct BroopHealthCycleEntry: View {
+    @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var model: AppModel
+    @State private var showTracker = false
+
+    var body: some View {
+        if let cycle = model.cyclePhase {
+            Button { showTracker = true } label: { cycleCard(cycle) }
+                .buttonStyle(BroopPressableStyle())
+                .sheet(isPresented: $showTracker) {
+                    if let cycle = model.cyclePhase {
+                        CycleTrackerView(result: cycle, curve: model.cycleCurve)
+                            .environmentObject(repo)
+                            .environmentObject(model)
+                    }
+                }
+        }
+    }
 
     private func cycleCard(_ cycle: CyclePhaseEngine.Result) -> some View {
         HStack(spacing: 14) {

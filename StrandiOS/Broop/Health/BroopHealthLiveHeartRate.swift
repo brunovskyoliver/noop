@@ -15,7 +15,6 @@ struct BroopHealthLiveHeartRate: View {
 
     /// Rolling 3-minute buffer, sampled on a fixed 1 Hz clock (the classic hero's #941 rule).
     @State private var samples: [Double] = []
-    private let sampleTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     private var displayHR: Int? {
         if let hr = model.bpm, hr > 0 { return hr }
@@ -68,10 +67,15 @@ struct BroopHealthLiveHeartRate: View {
         .padding(.horizontal, BroopMetrics.page + 8)
         .padding(.vertical, 22)
         .background(BroopHealthGrid().opacity(0.9))
-        .onReceive(sampleTimer) { _ in
-            guard let v = displayHR, (30...220).contains(v) else { return }
-            samples.append(Double(v))
-            if samples.count > 180 { samples.removeFirst(samples.count - 180) }
+        // A 1 Hz clock owned by the view's lifetime (a Timer publisher stored on the struct is rebuilt,
+        // and resubscribed, every time a parent re-creates this view).
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let v = displayHR, (30...220).contains(v) else { continue }
+                samples.append(Double(v))
+                if samples.count > 180 { samples.removeFirst(samples.count - 180) }
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: hr.map { String(localized: "Heart rate \($0) beats per minute") }

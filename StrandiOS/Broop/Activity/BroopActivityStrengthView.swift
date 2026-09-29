@@ -192,7 +192,7 @@ struct BroopActivityStrengthView: View {
             Text("Finished sessions land here, with every set you logged.")
                 .font(BroopType.regular(14)).foregroundStyle(BroopPalette.textSecondary)
         }
-        VStack(spacing: 8) {
+        LazyVStack(spacing: 8) {
             ForEach(history, id: \.id) { s in
                 Button { viewing = SessionTarget(id: s.id, session: s) } label: {
                     HStack(spacing: 14) {

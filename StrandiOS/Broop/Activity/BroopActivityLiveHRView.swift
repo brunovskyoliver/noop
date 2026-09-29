@@ -24,11 +24,16 @@ enum BroopActivityLiveDevice {
     static func battery(_ model: AppModel, _ live: LiveState) -> Int? {
         LiveConsoleReadout.batteryPercent(activeIsWhoop: isWhoop(model), whoopPct: live.batteryPct, ringPct: live.ouraBatteryPct)
     }
-    static func lastSync(_ ts: TimeInterval?) -> String {
-        guard let ts else { return String(localized: "Never") }
+    /// Built once: `lastSync` runs on every live publish.
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .short
-        return f.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
+        return f
+    }()
+
+    static func lastSync(_ ts: TimeInterval?) -> String {
+        guard let ts else { return String(localized: "Never") }
+        return relativeFormatter.localizedString(for: Date(timeIntervalSince1970: ts), relativeTo: Date())
     }
 }
 

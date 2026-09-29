@@ -162,7 +162,6 @@ struct BroopOverviewNapsCard: View {
 /// and a `sleep_mark` metric-series row. Logging only; it never moves the detected night.
 struct BroopOverviewSleepMarks: View {
     @EnvironmentObject private var repo: Repository
-    @EnvironmentObject private var live: LiveState
     @State private var lastMark: SleepMark?
 
     var body: some View {
@@ -192,7 +191,7 @@ struct BroopOverviewSleepMarks: View {
     private func log(_ type: SleepMarkType) {
         let mark = SleepMark(type: type)
         withAnimation(.easeOut(duration: 0.2)) { lastMark = mark }
-        live.append(log: mark.logLine)
+        AppModel.shared?.live.append(log: mark.logLine)  // not observed: marks must not follow the live stream
         Task {
             guard let store = await repo.storeHandle() else { return }
             _ = try? await store.upsertMetricSeries([mark.metricPoint], deviceId: repo.deviceId)

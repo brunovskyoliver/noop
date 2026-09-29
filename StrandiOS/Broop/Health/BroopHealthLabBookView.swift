@@ -11,7 +11,6 @@ import WhoopStore
 /// the same store calls. The add-reading form is the classic `MarkerEditorView` under the Broop skin.
 struct BroopHealthLabBookView: View {
     @EnvironmentObject private var repo: Repository
-    @EnvironmentObject private var live: LiveState
 
     @State private var markers: [LabMarkerRow] = []
     @State private var loaded = false
@@ -255,7 +254,9 @@ struct BroopHealthLabBookView: View {
 
     /// Counts only into the strap log, never a file name or a value (#421).
     private func log(_ line: String) {
-        live.append(log: "[\(AppModel.logTimeFormatter.string(from: Date()))] Import \(line)")
+        // Through the app model rather than an observed LiveState: logging must not subscribe this whole
+        // screen to the live stream.
+        AppModel.shared?.live.append(log: "[\(AppModel.logTimeFormatter.string(from: Date()))] Import \(line)")
     }
 }
 

@@ -150,7 +150,8 @@ struct BroopInsightsIntelligenceView: View {
                                   text: String(localized: "This builds from the strap as it syncs. Effort and rest appear after you have worn it and slept a night. Charge needs about four nights of sleep to learn your baseline (you'll see \"Calibrating\" until then), and keeps sharpening over your first couple of weeks. On a WHOOP 5 or MG the strap banks little history, so the night count can climb slowly or sit at 0 of 4 until you have worn it across a few nights. That's its sync limit, not a fault. Import your WHOOP export to skip the wait."))
             }
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            let filtered = self.filtered
+            LazyVStack(alignment: .leading, spacing: 12) {
                 BroopInsightsSectionRule(title: String(localized: "By day"), trailing: filtered.count == 1 ? String(localized: "1 day") : String(localized: "\(filtered.count) days"))
                 BroopUnderlineTabs(options: Range.allCases, selection: $range) { $0.label }
                     .padding(.bottom, 4)

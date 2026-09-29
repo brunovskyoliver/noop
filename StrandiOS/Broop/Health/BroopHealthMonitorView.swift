@@ -10,7 +10,6 @@ import WhoopStore
 /// shareable report.
 struct BroopHealthMonitorView: View {
     @EnvironmentObject private var repo: Repository
-    @EnvironmentObject private var model: AppModel
 
     @State private var vitals = BroopHealthVitalSet()
     @State private var loaded = false
@@ -261,19 +260,40 @@ private struct BroopHealthCatchUp: View {
 
 /// The 7-night HRV status against the usual range (`HRVStatus`, classic `HRVStatusSection` rebuilt).
 struct BroopHealthHRVStatusCard: View {
-    @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var model: AppModel
     var showsLink = false
 
-    private var outcome: HRVStatus.Outcome {
-        let nights = repo.days.map { HRVStatus.Night(day: $0.day, rmssd: $0.avgHrv) }
-        let today = Repository.dayString(Date())
-        let flagged: Set<String> = model.illnessSignal.map { $0.level == .raised || $0.level == .alreadyUnwell } == true
-            ? [today] : []
-        return HRVStatus.evaluate(nights: nights, asOf: today, flaggedDays: flagged)
+    var body: some View {
+        // AppModel republishes about once a second; only the illness flag matters here, and the card below
+        // is equatable on it, so a tick re-runs this line and nothing else.
+        let unwell = model.illnessSignal.map { $0.level == .raised || $0.level == .alreadyUnwell } == true
+        BroopHealthHRVStatusContent(unwell: unwell, showsLink: showsLink).equatable()
     }
+}
+
+/// The HRV status card itself: the history pass runs once per data refresh, not per render.
+private struct BroopHealthHRVStatusContent: View, Equatable {
+    let unwell: Bool
+    let showsLink: Bool
+    @EnvironmentObject private var repo: Repository
+    @State private var outcome: HRVStatus.Outcome?
+
+    static func == (a: Self, b: Self) -> Bool { a.unwell == b.unwell && a.showsLink == b.showsLink }
 
     var body: some View {
+        Group {
+            if let outcome { linked(outcome) }
+        }
+        .task(id: "\(repo.refreshSeq)|\(unwell)") {
+            let nights = repo.days.map { HRVStatus.Night(day: $0.day, rmssd: $0.avgHrv) }
+            let today = Repository.dayString(Date())
+            let flagged: Set<String> = unwell ? [today] : []
+            outcome = await CancellableAnalysis.run { HRVStatus.evaluate(nights: nights, asOf: today, flaggedDays: flagged) }
+        }
+    }
+
+    @ViewBuilder
+    private func linked(_ outcome: HRVStatus.Outcome) -> some View {
         let content = card(outcome)
         if showsLink {
             NavigationLink(value: BroopScreen.metric(key: "hrv", source: "my-whoop")) { content }

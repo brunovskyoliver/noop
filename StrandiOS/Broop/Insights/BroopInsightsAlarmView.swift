@@ -522,32 +522,46 @@ struct BroopInsightsAlarmView: View {
 
     private var nextStrapAlarmLabel: String? {
         guard let next = nextStrapAlarm() else { return nil }
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("EEEE jj:mm")
-        return f.string(from: next)
+        return Self.formatter("EEEE jj:mm").string(from: next)
     }
 
     private func nextStrapAlarmStamp(from now: Date) -> String? {
-        nextStrapAlarm(from: now).map { date in
-            let f = DateFormatter()
-            f.locale = AppLanguage.activeLocale
-            f.setLocalizedDateFormatFromTemplate("EEE d MMM jj:mm")
-            return f.string(from: date)
-        }
+        nextStrapAlarm(from: now).map { Self.formatter("EEE d MMM jj:mm").string(from: $0) }
+    }
+
+    /// The screen re-renders with `AppModel` (about once a second), so its formatters are built once per
+    /// template and locale, not per render.
+    private static var formatters: [String: DateFormatter] = [:]
+    private static func formatter(_ template: String) -> DateFormatter {
+        let locale = AppLanguage.activeLocale
+        let key = "\(template)|\(locale.identifier)"
+        if let f = formatters[key] { return f }
+        let f = DateFormatter()
+        f.locale = locale
+        f.setLocalizedDateFormatFromTemplate(template)
+        formatters[key] = f
+        return f
+    }
+
+    private static var countdownFormatters: [String: DateComponentsFormatter] = [:]
+    private static func countdownFormatter() -> DateComponentsFormatter {
+        let locale = AppLanguage.activeLocale
+        if let f = countdownFormatters[locale.identifier] { return f }
+        let f = DateComponentsFormatter()
+        f.calendar = { var c = Calendar.current; c.locale = locale; return c }()
+        f.unitsStyle = .full
+        f.allowedUnits = [.day, .hour, .minute]
+        f.zeroFormattingBehavior = .dropAll
+        f.maximumUnitCount = 3
+        countdownFormatters[locale.identifier] = f
+        return f
     }
 
     private func strapAlarmCountdown(from now: Date) -> String? {
         guard let next = nextStrapAlarm(from: now) else { return nil }
         let seconds = next.timeIntervalSince(now)
         guard seconds >= 60 else { return String(localized: "Alarm in less than a minute") }
-        let f = DateComponentsFormatter()
-        f.calendar = { var c = Calendar.current; c.locale = AppLanguage.activeLocale; return c }()
-        f.unitsStyle = .full
-        f.allowedUnits = [.day, .hour, .minute]
-        f.zeroFormattingBehavior = .dropAll
-        f.maximumUnitCount = 3
-        guard let span = f.string(from: seconds), !span.isEmpty else { return nil }
+        guard let span = Self.countdownFormatter().string(from: seconds), !span.isEmpty else { return nil }
         return String(localized: "Alarm in \(span)")
     }
 

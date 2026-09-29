@@ -344,12 +344,17 @@ final class BroopStore: ObservableObject {
         // Hours vs needed and consistency through SleepModel's own series builders, fed only the rows up to
         // the selected day, so the value is the one the classic Sleep tiles show for that night.
         if let asleep, asleep > 0, let need = s.needMinutes, need > 0 { s.hoursVsNeededPct = asleep / need * 100 }
-        let sleepsUpTo = repo.sleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
-        if let last = sleepsUpTo.last,
-           Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey {
-            s.consistency = SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
-                                                         importedSleep: repo.importedSleep).latest
+        // Off the main actor: it keys every stored sleep by day and walks the whole history.
+        let allSleeps = repo.sleeps
+        let imported = repo.importedSleep
+        s.consistency = await CancellableAnalysis.run {
+            let sleepsUpTo = allSleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
+            guard let last = sleepsUpTo.last,
+                  Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey else { return nil }
+            return SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
+                                                importedSleep: imported).latest
         }
+        guard !Task.isCancelled else { return }
 
         let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps, format: whole) { $0.steps.map(Double.init) }
         let kcalStat = stat(String(localized: "Active calories"), unit: "kcal", better: .neutral, value: s.activeKcal, format: whole) { $0.activeKcalEst }
@@ -367,12 +372,12 @@ final class BroopStore: ObservableObject {
         s.journalDays = await repo.nativeJournalDays(from: weekStart, to: key)
         guard !Task.isCancelled else { return }
 
-        s.streak = StreakCalculator.streaks(
-            dayKeys: days.map(\.day),
-            qualified: days.map { $0.recovery != nil },
-            today: AnalyticsEngine.dayString(Int(Date().timeIntervalSince1970),
-                                             offsetSec: TimeZone.current.secondsFromGMT())
-        ).current
+        let todayString = AnalyticsEngine.dayString(Int(Date().timeIntervalSince1970),
+                                                    offsetSec: TimeZone.current.secondsFromGMT())
+        s.streak = await CancellableAnalysis.run {
+            StreakCalculator.streaks(dayKeys: days.map(\.day), qualified: days.map { $0.recovery != nil },
+                                     today: todayString).current
+        }
 
         // Drop a stale result if the day changed while this pass was running.
         guard offset == dayOffset, !Task.isCancelled else { return }

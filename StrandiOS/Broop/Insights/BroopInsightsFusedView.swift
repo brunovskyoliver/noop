@@ -7,7 +7,6 @@ import StrandAnalytics
 // side-by-side compare sheet. Nothing is merged or averaged here, only shown.
 
 struct BroopInsightsFusedView: View {
-    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var repo: Repository
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
@@ -60,7 +59,8 @@ struct BroopInsightsFusedView: View {
         .scrollIndicators(.hidden)
         .broopInsightsChrome(String(localized: "Your data, fused"))
         .task(id: repo.refreshSeq) {
-            record = await model.buildTodayFusedRecord()
+            // The app model is read, not observed: it republishes about once a second.
+            if let model = AppModel.shared { record = await model.buildTodayFusedRecord() }
             loaded = true
         }
         .sheet(item: $comparing) { row in
