@@ -28,7 +28,9 @@ Rest v2 weights sufficiency at 55%, consistency at 15%, efficiency at 15%, and s
 
 `swift test --package-path Packages/StrandAnalytics --filter 'StressMonitorTests|RestV2Tests'` passed 28 tests on 2026-09-29. Tests cover multiple injected stress shares, level anchors, cold start, HRV suppression, workout/post-workout masking, sleep coverage, exercise-only baseline rejection, missing Rest components and consistency shifts. `git diff --check` passed, and XcodeGen generated the app project.
 
-The integrating thread owns the required complete package run, iOS/macOS builds, simulator screenshots and physical-phone Release installation. Those checks were not claimed by this subtask.
+Integrated verification passed the full 2,168-test analytics suite, iOS simulator and macOS app builds, 10 targeted app tests and the signed Release build. Simulator screenshots cover Stress, Sleep and Home, including matching imported Rest and Sleep Stress readouts. Release was installed and launched on the owner’s iPhone on 2026-09-29. Real-strap live behavior remains unverified. Evidence is in `~/agent-runs/2026-09-29-healthspan-stress-mind/`.
+
+The matched demo daily row scored 86.06 with legacy Rest and 83.30 with v2, using an eight-hour need, 80% consistency and 5.21% Sleep Stress. Imported demo Rest remains 89 on both Home and Sleep.
 
 ## Limits
 

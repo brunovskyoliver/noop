@@ -16,8 +16,14 @@ The first successful run replaces old Saturday history with recomputed Sunday va
 
 Continued the previous thread's committed engine and unfinished reader/UI work. Fixed strap-only recovery coverage, missing-strength handling, future VO2 measurements affecting earlier history, atomic replacement and retry behavior. Removed the temporary scroll argument and decorative glow. Added numeric targets and contributor trends, and disclosed method differences in the screen's information text.
 
-Verification: 20 Healthspan engine tests and 3 shared sleep-consistency tests pass. The 15 metric-series store tests pass, including replacement rollback and preservation of unrelated sources and metrics. Changed Swift source parses successfully. Full iOS/macOS builds, app-target tests, simulator screenshots and physical-phone installation are owned by the integrating thread and must be recorded there before delivery.
+Verification: 20 Healthspan engine tests and 3 shared sleep-consistency tests pass. The 15 metric-series store tests pass, including replacement rollback and preservation of unrelated sources and metrics. Changed Swift source parses successfully. Integrated app verification and phone installation are recorded below.
 
 No claim of clinical validity or numerical equivalence with WHOOP is made. Local physiological scoring and imported source accuracy remain upstream limitations. The old demo seed used fabricated Body Age values, so comparing those numbers with the new computed demo would not measure an algorithm change.
 
 A compiled comparison using the original v1 source and current v2 source on matched synthetic inputs produced `v1 Body Age 37.8692` and `v2 Broop Age 36.6386`. Inputs: male, age 40, RHR 58, VO2 42 (reference 40), sleep 7.5 hours, consistency 75%, 9,000 steps/day, 140/14 minutes per week in zones 1–3/4–5. V1 also received HRV 33 ms against a 33 ms norm (zero impact); v2 received 60 strength minutes/week and 80% lean mass. This is a reproducible synthetic comparison, not an observed result for the phone owner or the seeded demo.
+
+## Integrated verification
+
+The completed feature passed the full 2,168-test StrandAnalytics run, the additional 4-test consistency run, 16 metric-series store tests and 10 targeted macOS app tests. XcodeGen, NOOPiOS simulator, Strand macOS and signed NOOPiOS Release builds passed. Simulator checks covered Healthspan contributor navigation, Stress, Mind, Home and Sleep. The Mind questionnaire save and confirmed-delete flow passed with expected totals. The Release was installed and launched on the owner's iPhone on 2026-09-29. No real-strap stress validation was performed.
+
+The local completion report, screenshots and logs are in `~/agent-runs/2026-09-29-healthspan-stress-mind/`. The demo shows Broop Age 23.9 against calendar age 30.0 and Pace -0.3x. No changes were pushed.
