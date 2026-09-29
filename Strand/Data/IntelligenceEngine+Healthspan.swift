@@ -42,13 +42,15 @@ extension IntelligenceEngine {
     /// runs off the main actor.
     static func runHealthspanV2BackfillIfNeeded(repo: Repository, profileAge: Int, sex: String,
                                                 log: ((String) -> Void)? = nil) async {
-        let flagKey = Self.healthspanV2BackfillFlagKey + "." + repo.deviceId
+        let deviceId = repo.deviceId
+        let flagKey = Self.healthspanV2BackfillFlagKey + "." + deviceId
         guard !UserDefaults.standard.bool(forKey: flagKey), profileAge > 0,
               let computedId = repo.computedReadIds.first, !repo.days.isEmpty else { return }
         guard let store = await repo.storeHandle() else { return }   // retry next launch
         let today = Repository.dayString(Date())
         let currentSunday = Repository.healthspanUpdateDay(today: today)
-        if profileAge > 0, let first = repo.days.first?.day, first <= currentSunday {
+        guard let first = repo.days.first?.day, first <= currentSunday else { return }
+        do {
             let history = await repo.healthspanHistory(from: first, to: currentSunday)
             let sundays = VitalityEngine.sundays(from: first, to: currentSunday)
             let ages = sundays.map { Repository.healthspanAge(profileAge: profileAge, asOf: $0,
@@ -56,6 +58,10 @@ extension IntelligenceEngine {
             let points: [MetricPoint] = await Task.detached(priority: .utility) {
                 Self.backfillPoints(history: history, sundays: sundays, ages: ages, sex: sex)
             }.value
+            // A sparse first launch or an unavailable input source is not a completed backfill.
+            // Keep the prior derived rows until a replacement can be calculated; the snapshot excludes
+            // v1 Saturday points. A device switch during the read must not write across identities.
+            guard !points.isEmpty, repo.deviceId == deviceId else { return }
             do {
                 try await store.replaceDerivedMetricSeries(points, deviceId: computedId,
                     replacingSourceIds: repo.computedReadIds + repo.importedReadIds,
@@ -70,6 +76,7 @@ extension IntelligenceEngine {
             NSLog("%@", line)
             log?(line)
         }
+        guard repo.deviceId == deviceId else { return }
         UserDefaults.standard.set(true, forKey: flagKey)
         await repo.refresh()
     }
