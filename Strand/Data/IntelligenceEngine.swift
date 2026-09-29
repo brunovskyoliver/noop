@@ -2246,6 +2246,42 @@ final class IntelligenceEngine: ObservableObject {
             nowLocalMidnight: nowLocalMidnight, now: now, offsetSec: tzOffset,
             maxDays: maxDays, strictCanonicalAlias: strictCanonicalAlias)
         var appliedLegacySnapshots: [String: LegacyScoreSnapshot] = [:]
+
+        // ── Stress Monitor v2 + Rest v2 inputs (fork; IntelligenceEngine+Stress.swift) ─────────────────
+        // Before pass 2, because Charge reads Rest and Rest v2 reads each night's Sleep Stress and
+        // consistency. Sessions: the stored merged nights (imports win per day, as the Sleep tab shows),
+        // plus this pass's freshly detected nights for wake days the store does not have yet.
+        let restV2On = RestScoringPrefs.v2Enabled
+        var stressWindowDays: [String] = []
+        for back in stride(from: maxDays - 1, through: 0, by: -1) {
+            let k = AnalyticsEngine.dayString(nowLocalMidnight - back * 86_400, offsetSec: tzOffset)
+            if stressWindowDays.last != k { stressWindowDays.append(k) }
+        }
+        var stressSessions = await repo.allSleepSessions(days: maxDays + 20)
+        let storedWakeDays = Set(stressSessions.map {
+            Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs)))
+        })
+        for fresh in scoredNights.flatMap({ $0.cachedSleep }) where !storedWakeDays.contains(
+            Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(fresh.endTs)))) {
+            stressSessions.append(fresh)
+        }
+        let stressWorkouts = await repo.workoutRowsUnreconciled(days: maxDays + 3)
+        let stressPass = await Self.stressRestPass(repo: repo, windowDays: stressWindowDays,
+                                                   sessions: stressSessions, workouts: stressWorkouts)
+        if let stressPass {
+            diagnosticSink?("stress v2: scored=\(stressPass.scored) reused=\(stressPass.reused) "
+                            + "nights=\(stressPass.sleepStressByDay.count) restV2=\(restV2On)", nil)
+        }
+        markPostLoopPhase("stress")
+        let sleepStressByDay = stressPass?.sleepStressByDay ?? [:]
+        let restConsistencyByDay = stressPass?.consistencyByDay ?? [:]
+        let restTraceActive = TestCentre.active(.sleep)
+        // The one Rest value a night scores this pass (Charge's sleep term and `sleep_performance`).
+        let passRest: (DailyMetric) -> Double? = { d in
+            Self.passRest(d, v2: restV2On, needHours: sleepNeedHours,
+                          consistency: restConsistencyByDay[d.day], sleepStressPct: sleepStressByDay[d.day])
+        }
+
         var paceMark = DispatchTime.now().uptimeNanoseconds
         for night in scoredNights {
             await RescoreBackgroundScheduler.paceIfBackgrounded(since: &paceMark)
@@ -2260,21 +2296,21 @@ final class IntelligenceEngine: ObservableObject {
                                          habitualMidsleepSec: habitualMidsleepSec)
             daily = DayCycleIntelligenceIntegration.applying(physiologicalSteps, to: daily)
             daily = Self.recomputeRecoveryDaily(daily, nightlySkinTempC: night.nightlySkin,
-                                               baselines: baselines2)
+                                               baselines: baselines2, rest: passRest)
             let recovery = daily.recovery
             let skinDev = daily.skinTempDevC
             // Charge term-breakdown trace (Group G): only when the Recovery test mode is on. Emits which
             // term moved Charge and which was nil and forced the renorm, tagged `.recovery`. The trace's
             // score is RecoveryScorer.recovery verbatim, so the `recovery` written above is unchanged.
             if recoveryTraceActive {
-                for line in recoveryTraceLines(daily, baselines2) { diagnosticSink?(line, .recovery) }
+                for line in recoveryTraceLines(daily, baselines2, rest: passRest) { diagnosticSink?(line, .recovery) }
             }
             let source = DaySource.classify(day: daily.day, importedWhoopDays: importedWhoopDays,
                                             appleHealthDays: appleHealthDays)
             // SHARED CONTRACT enrichment: the ordered Charge driver list + the relative skin-temp marker,
             // built from the SAME inputs `recomputeRecovery` reads so the rows can never disagree with the
             // headline. Both are empty/nil pre-baseline (cold-start), matching the score's own null-honesty.
-            let drivers = recomputeChargeDrivers(daily, baselines2)
+            let drivers = recomputeChargeDrivers(daily, baselines2, rest: passRest)
             let skinRel = RecoveryScorer.skinTempRelative(deviationC: skinDev)
             // Honest per-day Charge confidence (A3): the strap night reads `.solid`/`.building`/`.calibrating`
             // off the HRV baseline state rather than a blanket `.solid`, so a thin/provisional baseline shows
@@ -2350,8 +2386,22 @@ final class IntelligenceEngine: ObservableObject {
             // same `night.nightlySkin` the line above takes the deviation from — so the two can never
             // describe different nights, and no second derivation exists to drift.
             dailies.append(daily)
-            if let rest = AnalyticsEngine.Rest.composite(daily: daily) {
+            if let rest = passRest(daily) {
                 restPoints.append(MetricPoint(day: daily.day, key: "sleep_performance", value: rest))
+                if restV2On {
+                    restPoints += Self.restPartPoints(daily, needHours: sleepNeedHours,
+                                                      consistency: restConsistencyByDay[daily.day])
+                }
+                if restTraceActive {
+                    let legacy = AnalyticsEngine.Rest.composite(daily: daily).map { String(format: "%.1f", $0) } ?? "nil"
+                    let v2 = AnalyticsEngine.RestV2.composite(
+                        daily: daily, needHours: sleepNeedHours, consistency: restConsistencyByDay[daily.day],
+                        sleepStressPct: sleepStressByDay[daily.day]).map { String(format: "%.1f", $0) } ?? "nil"
+                    let cons = restConsistencyByDay[daily.day].map { String(format: "%.2f", $0) } ?? "nil"
+                    let ss = sleepStressByDay[daily.day].map { String(format: "%.1f", $0) } ?? "nil"
+                    diagnosticSink?("rest day=\(daily.day) legacy=\(legacy) v2=\(v2) cons=\(cons) "
+                                    + "sleepStress=\(ss) mode=\(restV2On ? "v2" : "legacy")", .sleep)
+                }
             }
             if let onset = physiologicalSteps.onsetByWakeDay[daily.day] {
                 restPoints.append(MetricPoint(day: daily.day,
@@ -2539,7 +2589,7 @@ final class IntelligenceEngine: ObservableObject {
                 dailies.append(scored)
                 importScoredDays.insert(w.day)
                 resolvedScoreOwnerByDay[w.day] = source
-                if let rest = AnalyticsEngine.Rest.composite(daily: scored) {
+                if let rest = passRest(scored) {
                     restPoints.append(MetricPoint(day: w.day, key: "sleep_performance", value: rest))
                 }
                 out.append(Computed(day: w.day, recovery: recovery, strain: scored.strain,
@@ -2616,14 +2666,19 @@ final class IntelligenceEngine: ObservableObject {
             }
             markerSources = sourceIds
         }
+        // Stress Monitor v2 keys + the Rest v2 parts are replaced over the window, so a day that lost a
+        // value (or Rest v2 switched off) does not keep a stale row. The stress keys are skipped entirely if
+        // the stress block was cancelled part-way, so a partial pass never deletes what it did not re-derive.
+        let stressReplaceKeys = (stressPass?.replaceKeys ?? [])
+            + [RestScoringPrefs.hoursVsNeedKey, RestScoringPrefs.consistencyKey]
         do { try await store.persistComputedScores(
             dailyMetrics: persistedDailies,
-            metricPoints: restPoints,
+            metricPoints: restPoints + (stressPass?.points ?? []),
             provenance: Array(provenanceByCell.values),
             deviceId: computedId,
             from: oldestDay,
             to: newestDay,
-            replaceMetricKeys: markerKeys,
+            replaceMetricKeys: markerKeys + stressReplaceKeys,
             additionalMetricPoints: markerPoints,
             replaceMetricSourceIds: markerSources
         ) } catch {
@@ -3296,11 +3351,19 @@ final class IntelligenceEngine: ObservableObject {
     /// Pass 1 has no seeded skin baseline. Attach the deviation before scoring so the score,
     /// explanation, trace and persisted row all consume the same temperature. Internal for regression tests.
     static func recomputeRecoveryDaily(_ daily: DailyMetric, nightlySkinTempC: Double?,
-                                       baselines: AnalyticsEngine.ProfileBaselines) -> DailyMetric {
+                                       baselines: AnalyticsEngine.ProfileBaselines,
+                                       rest: ((DailyMetric) -> Double?)? = nil) -> DailyMetric {
         let skinDev = recomputeSkinTempDev(nightlySkinTempC, baselines.skinTemp)
         let input = daily.with(recovery: daily.recovery, skinTempDevC: skinDev, skinTempC: nightlySkinTempC)
-        return input.with(recovery: recomputeRecovery(input, baselines), skinTempDevC: skinDev,
+        return input.with(recovery: recomputeRecovery(input, baselines, rest: rest), skinTempDevC: skinDev,
                           skinTempC: nightlySkinTempC)
+    }
+
+    /// Charge's sleep-quality term: the night's Rest ÷ 100 from the pass's Rest resolver (`rest`, Rest v2
+    /// when on), or the legacy composite when no resolver is given; raw efficiency when there is no Rest.
+    nonisolated static func chargeRestQuality(_ daily: DailyMetric, rest: ((DailyMetric) -> Double?)?) -> Double? {
+        let r = rest.map { $0(daily) } ?? AnalyticsEngine.Rest.composite(daily: daily)
+        return r.map { $0 / 100.0 } ?? daily.efficiency
     }
 
     /// Resolve conservative legacy snapshots before the computed-window upsert can replace them. The date
@@ -3347,12 +3410,13 @@ final class IntelligenceEngine: ObservableObject {
     /// baseline is usable (RecoveryScorer gates on `hrvBaseline.usable`, i.e. ≥ minNightsSeed valid
     /// nights) , so the honest null-until-4-nights cold-start is free. Mirrors AnalyticsEngine's own
     /// recovery call + Android IntelligenceEngine.recomputeRecovery. (#78)
-    private static func recomputeRecovery(_ daily: DailyMetric, _ baselines: AnalyticsEngine.ProfileBaselines) -> Double? {
+    private static func recomputeRecovery(_ daily: DailyMetric, _ baselines: AnalyticsEngine.ProfileBaselines,
+                                          rest: ((DailyMetric) -> Double?)? = nil) -> Double? {
         guard let hrvVal = daily.avgHrv, let rhrVal = daily.restingHr, let hrvBase = baselines.hrv else { return nil }
         // Charge enrichment: feed the Rest COMPOSITE (÷100) as the sleep-quality term instead of raw
         // efficiency, and fold in the night's skin-temp deviation. Both come from the persisted daily
         // fields (the raw streams are gone in pass 2). (Charge/Effort/Rest scoring redesign.)
-        let restQuality = AnalyticsEngine.Rest.composite(daily: daily).map { $0 / 100.0 } ?? daily.efficiency
+        let restQuality = Self.chargeRestQuality(daily, rest: rest)
         return RecoveryScorer.recovery(hrv: hrvVal, rhr: Double(rhrVal), resp: daily.respRateBpm,
                                        hrvBaseline: hrvBase, rhrBaseline: baselines.restingHR,
                                        respBaseline: baselines.resp, sleepPerf: restQuality,
@@ -3366,11 +3430,12 @@ final class IntelligenceEngine: ObservableObject {
     /// (HRV / RHR / HRV-baseline) is missing or the baseline isn't usable yet, mirroring `recomputeRecovery`'s
     /// own early-nil so a cold-start night shows the calibrating state rather than fabricated rows.
     private func recomputeChargeDrivers(_ daily: DailyMetric,
-                                        _ baselines: AnalyticsEngine.ProfileBaselines) -> [ChargeDriver] {
+                                        _ baselines: AnalyticsEngine.ProfileBaselines,
+                                        rest: ((DailyMetric) -> Double?)? = nil) -> [ChargeDriver] {
         guard let hrvVal = daily.avgHrv, let rhrVal = daily.restingHr, let hrvBase = baselines.hrv else {
             return []
         }
-        let restQuality = AnalyticsEngine.Rest.composite(daily: daily).map { $0 / 100.0 } ?? daily.efficiency
+        let restQuality = Self.chargeRestQuality(daily, rest: rest)
         return RecoveryScorer.chargeDrivers(hrv: hrvVal, rhr: Double(rhrVal), resp: daily.respRateBpm,
                                             hrvBaseline: hrvBase, rhrBaseline: baselines.restingHR,
                                             respBaseline: baselines.resp, sleepPerf: restQuality,
@@ -3383,12 +3448,13 @@ final class IntelligenceEngine: ObservableObject {
     /// trace can never diverge from the Charge number written for the day. Empty when a hard input
     /// (HRV / RHR / HRV-baseline) is missing, mirroring `recomputeRecovery`'s own early-nil. Only CALLED
     /// when `TestCentre.active(.recovery)` is true, so it costs nothing when the mode is off.
-    private func recoveryTraceLines(_ daily: DailyMetric, _ baselines: AnalyticsEngine.ProfileBaselines) -> [String] {
+    private func recoveryTraceLines(_ daily: DailyMetric, _ baselines: AnalyticsEngine.ProfileBaselines,
+                                    rest: ((DailyMetric) -> Double?)? = nil) -> [String] {
         guard let hrvVal = daily.avgHrv, let rhrVal = daily.restingHr, let hrvBase = baselines.hrv else {
             return ["charge day=\(daily.day) nilScore reason=missingInput "
                 + "(hrv/rhr/hrvBaseline required)"]
         }
-        let restQuality = AnalyticsEngine.Rest.composite(daily: daily).map { $0 / 100.0 } ?? daily.efficiency
+        let restQuality = Self.chargeRestQuality(daily, rest: rest)
         let (_, trace) = RecoveryScorer.recoveryTrace(
             hrv: hrvVal, rhr: Double(rhrVal), resp: daily.respRateBpm,
             hrvBaseline: hrvBase, rhrBaseline: baselines.restingHR,

@@ -508,6 +508,10 @@ final class AppModel: ObservableObject {
             // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
             // the 0–100 axis. Guarded by a persisted flag, so this is a no-op on every subsequent launch.
             await self.intelligence.runEffortRescoreIfNeeded()
+            // One-shot (fork): score Stress Monitor v2 summaries and Rest v2 over the whole history once,
+            // so an existing install gets stored stress history and consistent Rest/Charge. Flagged, so a
+            // no-op on every later launch.
+            await self.intelligence.runStressRestBackfillIfNeeded()
             while !Task.isCancelled {
                 // #547 RE-POLLUTION: a sync since the last tick may have armed a re-heal (its ingest gate
                 // dropped bad-clock records). `runTimestampHealIfNeeded` honours the pending flag even after
