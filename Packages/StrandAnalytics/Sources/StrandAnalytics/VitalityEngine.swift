@@ -58,7 +58,7 @@ public enum VitalityEngine {
         public var label: String {
             switch self {
             case .sleepHours: return "Hours of Sleep"
-            case .sleepConsistency: return "Sleep Consistency"
+            case .sleepConsistency: return "Sleep Regularity"
             case .zone13: return "Time in HR Zones 1-3 (Weekly)"
             case .zone45: return "Time in HR Zones 4-5 (Weekly)"
             case .strength: return "Strength Activity Time (Weekly)"
@@ -238,15 +238,19 @@ public enum VitalityEngine {
         h < 7 ? log(1.12) * (7 - max(h, 4)) : 0
     }
 
-    /// Sleep consistency %. Windred et al. 2024, Sleep 47(1):zsad253 (doi:10.1093/sleep/zsad253,
-    /// https://pmc.ncbi.nlm.nih.gov/articles/PMC10782489/): versus the median Sleep Regularity Index (60),
-    /// HR 1.53 at the 5th percentile (SRI 41, i.e. 19 points below) and 0.90 at the 95th (SRI 75, 15 points
-    /// above). NOOP's consistency % is not an SRI, so only the SPACING of those percentiles is borrowed,
-    /// centred on WHOOP's 70 % neutral point: ln(1.53)/19 per point below 70, ln(0.90)/15 per point above,
-    /// and never extrapolated past the published percentiles (floor 51 %, ceiling 85 %).
+    /// Sleep consistency %: the 7-day Sleep Regularity Index through `SleepRegularity.consistencyPercent`
+    /// (or imported WHOOP consistency). Windred et al. 2024, Sleep 47(1):zsad253 (doi:10.1093/sleep/zsad253),
+    /// UK Biobank, n = 60,977, median SRI 81.0 (IQR 73.8–86.3). Fully adjusted all-cause mortality versus the
+    /// least regular quintile (SRI < 71.6): HR 0.80 for 71.6–78.6, 0.75 for 78.6–83.2, 0.72 for 83.2–87.3
+    /// and 0.70 for 87.3–98.5. Knots sit at each quintile's midpoint (the top one at 90), with HR 1 at
+    /// WHOOP's 70 % neutral point, which is the least-regular quintile's upper edge. Windred gives no
+    /// gradient inside that bottom quintile, so below 70 the first step's slope (ln 0.80 per 5.1 points) is
+    /// extrapolated for 10 points only and held flat under 60 (HR ≈ 1.55 at the floor, close to the
+    /// previous cap). Flat above 90.
     static func cConsistency(_ c: Double) -> Double {
-        let x = clamp(c, 70 - 19, 70 + 15)
-        return x < 70 ? log(1.53) * (70 - x) / 19 : log(0.90) * (x - 70) / 15
+        let slope = log(0.80) / 5.1
+        return interp(c, [(60, -slope * 10), (70, 0), (75.1, log(0.80)), (80.9, log(0.75)),
+                          (85.25, log(0.72)), (90, log(0.70))])
     }
 
     /// Zones 1–3 min/week (moderate-intensity time). Lee et al. 2022, Circulation 146:523-534
@@ -387,12 +391,10 @@ public enum VitalityEngine {
                       impacts: imp, factorsUsed: used)
     }
 
-    // MARK: - Rest's regularity input (not a Healthspan input)
+    // MARK: - Legacy Rest's duration-regularity input (not a Healthspan input)
 
-    /// Sleep regularity (0–1) from nightly durations: 1 − coefficient of variation, clamped; nil under 3
-    /// nights. This is the Rest score's consistency input (IntelligenceEngine), kept here for that caller.
-    /// Healthspan v2 does NOT use it: its consistency factor reads the Sleep screen's value through
-    /// `SleepConsistency.resolve`.
+    /// Legacy Rest (Rest v2 off) duration regularity (0–1): 1 − coefficient of variation of nightly hours,
+    /// clamped; nil under 3 nights. Rest v2 and Healthspan read `SleepRegularity` instead.
     public static func sleepConsistency(nightlyHours: [Double]) -> Double? {
         let xs = nightlyHours.filter { $0 > 0 }
         guard xs.count >= 3 else { return nil }

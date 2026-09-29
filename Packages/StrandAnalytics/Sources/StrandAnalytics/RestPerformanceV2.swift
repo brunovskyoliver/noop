@@ -12,9 +12,9 @@ import WhoopStore
 //
 // Each part is a 0–1 credit:
 //   - sufficiency = min(asleep / need, 1), need = the engine's personalised need (`Rest.personalizedNeedHours`)
-//   - consistency = a Sleep Regularity Index over the main-sleep windows (Phillips et al. 2017, Sci Rep 7:3216):
-//     for each of the previous 4 nights, the share of a 24 h window whose sleep/wake state matches tonight's
-//     at the same clock time (A), mapped SRI-style as 2A − 1 and clamped to [0, 1], then averaged
+//   - consistency = `SleepRegularity.restConsistency`: tonight's 24 h sleep/wake epochs (naps and wake after
+//     onset included) against each of the previous 4 days at the same clock time, agreement A mapped
+//     SRI-style as 2A − 1, clamped to [0, 1], then averaged. Same engine as the 7-day SRI.
 //   - efficiency = asleep / in bed
 //   - sleep stress = 1 − min(pct / 30, 1): a night with 30 % or more of its sleep in HIGH stress earns no
 //     credit, a typical 0–5 % night keeps ≥ 83 %
@@ -33,9 +33,6 @@ public extension AnalyticsEngine {
 
         /// Sleep-stress share (0–100) at which the sleep-stress credit reaches zero.
         public static let sleepStressZeroCreditPct = 30.0
-        /// Previous nights the consistency compares against, and how many must be known.
-        public static let consistencyPriorNights = 4
-        public static let minConsistencyPriorNights = 2
 
         /// The four credits, each 0–1; nil = not measured for this night.
         public struct Parts: Equatable, Sendable {
@@ -90,44 +87,6 @@ public extension AnalyticsEngine {
             let e = eff > 1.0 ? eff / 100.0 : eff
             return parts(tstSeconds: tstMin * 60.0, efficiency: e, needHours: needHours,
                          consistency: consistency, sleepStressPct: sleepStressPct)
-        }
-
-        /// One main sleep, as a wall-clock interval, plus how many days before the scored night it ended.
-        public struct Night: Equatable, Sendable {
-            public let start: Int
-            public let end: Int
-            public let daysBefore: Int
-            public init(start: Int, end: Int, daysBefore: Int) {
-                self.start = start; self.end = end; self.daysBefore = daysBefore
-            }
-        }
-
-        /// Sleep Regularity Index–style consistency (0–1) of `tonight` against the previous nights
-        /// (`daysBefore` 1…4 are used). Each previous night is shifted forward by `daysBefore` × 24 h and
-        /// compared over the 24 h window ending 6 h after tonight's wake: agreement A = 1 − |symmetric
-        /// difference| / 24 h, credit = clamp(2A − 1). nil under `minConsistencyPriorNights` usable nights.
-        public static func consistency(tonight: Night, previous: [Night]) -> Double? {
-            let windowEnd = tonight.end + 6 * 3600
-            let windowStart = windowEnd - 86_400
-            func clip(_ a: Int, _ b: Int) -> (Int, Int)? {
-                let s = max(a, windowStart), e = min(b, windowEnd)
-                return e > s ? (s, e) : nil
-            }
-            guard let t = clip(tonight.start, tonight.end) else { return nil }
-            var credits: [Double] = []
-            for p in previous where p.daysBefore >= 1 && p.daysBefore <= consistencyPriorNights {
-                let shift = p.daysBefore * 86_400
-                let shifted = clip(p.start + shift, p.end + shift)
-                let lenT = t.1 - t.0
-                let lenP = shifted.map { $0.1 - $0.0 } ?? 0
-                var inter = 0
-                if let s = shifted { inter = max(0, min(t.1, s.1) - max(t.0, s.0)) }
-                let symDiff = lenT + lenP - 2 * inter
-                let agreement = 1.0 - Double(symDiff) / 86_400.0
-                credits.append(clamp01(2.0 * agreement - 1.0))
-            }
-            guard credits.count >= minConsistencyPriorNights else { return nil }
-            return credits.reduce(0, +) / Double(credits.count)
         }
     }
 }

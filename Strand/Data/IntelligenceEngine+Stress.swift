@@ -34,7 +34,8 @@ extension IntelligenceEngine {
 
     /// One-shot flag: the first launch with Stress Monitor v2 / Rest v2 re-scores the whole history once,
     /// so existing users get stored stress summaries and Rest v2 for every day that still has raw HR.
-    nonisolated static let stressRestBackfillFlagKey = "intelligence.stressRestV2.backfill.done"
+    /// ".sri": Rest v2 consistency moved to the Sleep Regularity engine, so history is re-scored once more.
+    nonisolated static let stressRestBackfillFlagKey = "intelligence.stressRestV2.sri.backfill.done"
 
     /// Run the stress block. `sessions` must already hold this pass's freshly detected nights; `workouts`
     /// the window's workouts. Returns nil when cancelled part-way (the caller then writes nothing for it).
@@ -44,28 +45,11 @@ extension IntelligenceEngine {
         var out = StressRestPassOutput()
         out.replaceKeys = StressDaySummary.Key.all + Repository.stressAggregateKeys
 
-        // Rest v2 consistency for every window night: main sleep vs the previous four.
-        var mainByDay: [String: StressMonitor.Interval] = [:]
-        let allDays = (-RestV2Days.lookback..<0).compactMap { Repository.stressDayKey(offset: $0, from: oldest) } + windowDays
-        for day in allDays {
-            guard let b = Repository.stressDayBounds(day, now: .distantFuture) else { continue }
-            if let m = Repository.mainSleep(dayStart: b.start, nextDayStart: b.next, sessions: sessions) {
-                mainByDay[day] = m
-            }
-        }
-        for day in windowDays {
-            guard let m = mainByDay[day] else { continue }
-            var prev: [AnalyticsEngine.RestV2.Night] = []
-            for back in 1...AnalyticsEngine.RestV2.consistencyPriorNights {
-                if let k = Repository.stressDayKey(offset: -back, from: day), let p = mainByDay[k] {
-                    prev.append(.init(start: p.start, end: p.end, daysBefore: back))
-                }
-            }
-            if let c = AnalyticsEngine.RestV2.consistency(tonight: .init(start: m.start, end: m.end, daysBefore: 0),
-                                                          previous: prev) {
-                out.consistencyByDay[day] = c
-            }
-        }
+        // Rest v2 consistency for every window night: tonight vs the previous four days, through the same
+        // epoch vector and pairing as the 7-day Sleep Regularity Index (naps and wake after onset included).
+        out.consistencyByDay = SleepRegularity.restConsistency(
+            days: windowDays,
+            sessions: sessions.map { SleepRegularity.Session(start: $0.effectiveStartTs, end: $0.endTs, stagesJSON: $0.stagesJSON) })
 
         // Stored values over the window plus the 14 days before it.
         let lead = Repository.stressDayKey(offset: -StressMonitor.baselineWindowDays, from: oldest) ?? oldest
@@ -131,11 +115,6 @@ extension IntelligenceEngine {
         cache = nextCache.filter { $0.key >= (Repository.stressDayKey(offset: -40, from: newest) ?? oldest) }
         UserDefaults.standard.set(cache, forKey: stressPassCacheKey)
         return out
-    }
-
-    private enum RestV2Days {
-        /// Nights before the window needed for the first window night's consistency.
-        static let lookback = AnalyticsEngine.RestV2.consistencyPriorNights + 1
     }
 
     /// The Rest (0–100) a night scores in this pass: Rest v2 with the pass's personalised need, the

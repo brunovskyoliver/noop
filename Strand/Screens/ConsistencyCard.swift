@@ -7,8 +7,8 @@ import WhoopStore
 // The Sleep tab surfaces "Consistency" only as a StatTile inside the Night-detail metric grid — there is
 // no standalone renderer for it. This card gives that single metric its own hostable view so it can be
 // surfaced in the Today tab on its own. Both the Sleep tab tile and this hosted card read the SAME
-// `SleepModel.consistency` metric (latest / typical / series) — the bedtime-onset-spread score that also
-// honours the imported-consistency preference and is byte-identical to Android's `consistencySeries` — so
+// `SleepModel.consistency` metric (latest / typical / series) — the imported WHOOP consistency when it covers
+// the newest night, else the 7-day Sleep Regularity Index (iOS/macOS fork; Android still differs) — so
 // the number, the vs-typical caption and the sparkline can never diverge between the two surfaces (the
 // parity contract). The tile presentation (value / caption / accent / sparkline) is a verbatim lift of the
 // `NightDetailCard` "Consistency" tile, so the hosted card reads byte-identically to the Sleep-tab tile.
@@ -29,7 +29,7 @@ struct ConsistencyCard: View {
             // Verbatim of the NightDetailCard "Consistency" tile so the hosted value matches the Sleep-tab
             // tile exactly; stretched to the card's full width as a single-metric summary.
             StatTile(
-                label: "Consistency",
+                label: model.consistencyIsImported ? "Consistency" : "Regularity, 7 days",
                 value: pctValue(cons.latest),
                 caption: tileCaption(latestDay: cons.latestDay, latest: cons.latest,
                                      typical: cons.typical, suffix: "%"),

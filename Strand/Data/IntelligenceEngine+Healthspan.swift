@@ -13,8 +13,9 @@ extension IntelligenceEngine {
     /// The three stored Healthspan keys.
     static let healthspanKeys = ["body_age", "pace_of_aging", "vitality"]
 
-    /// UserDefaults flag guarding the one-shot v2 backfill. Set once the pass completes.
-    static let healthspanV2BackfillFlagKey = "intelligence.healthspanV2.backfill.done"
+    /// UserDefaults flag guarding the one-shot v2 backfill. Set once the pass completes. ".sri": the
+    /// sleep-consistency input became the 7-day Sleep Regularity Index, so the history is recomputed once.
+    static let healthspanV2BackfillFlagKey = "intelligence.healthspanV2.sri.backfill.done"
 
     nonisolated static func healthspanPoints(_ h: VitalityEngine.Healthspan) -> [MetricPoint] {
         [MetricPoint(day: h.asOf, key: "body_age", value: h.current.bodyAge),

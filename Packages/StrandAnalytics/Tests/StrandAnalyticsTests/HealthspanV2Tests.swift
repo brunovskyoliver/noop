@@ -63,8 +63,11 @@ final class HealthspanV2Tests: XCTestCase {
     func testKnownDeltas() {
         XCTAssertEqual(years(.sleepHours, 6), 10 * ln(1.12), accuracy: 1e-9)             // +1.133
         XCTAssertEqual(years(.sleepHours, 8), 0, accuracy: 1e-9)
-        XCTAssertEqual(years(.sleepConsistency, 70 - 19), 10 * ln(1.53), accuracy: 1e-9) // +4.253
-        XCTAssertEqual(years(.sleepConsistency, 85), 10 * ln(0.90), accuracy: 1e-9)      // −1.054
+        // SRI knots (Windred 2024 quintiles): 60 → +10·(10/5.1)·−ln 0.80, quintile midpoints → their HRs.
+        XCTAssertEqual(years(.sleepConsistency, 60), -10 * ln(0.80) * 10 / 5.1, accuracy: 1e-9) // +4.375
+        XCTAssertEqual(years(.sleepConsistency, 75.1), 10 * ln(0.80), accuracy: 1e-9)   // −2.231
+        XCTAssertEqual(years(.sleepConsistency, 80.9), 10 * ln(0.75), accuracy: 1e-9)   // −2.877
+        XCTAssertEqual(years(.sleepConsistency, 90), 10 * ln(0.70), accuracy: 1e-9)     // −3.567
         XCTAssertEqual(years(.zone45, 0), -10 * ln(0.82) * 10 / 15, accuracy: 1e-9)      // +1.323
         XCTAssertEqual(years(.zone13, 150), 10 * ln(0.80) / 3, accuracy: 1e-9)           // −0.744
         XCTAssertEqual(years(.strength, 0), -10 * ln(0.88), accuracy: 1e-9)              // +1.278
@@ -86,8 +89,8 @@ final class HealthspanV2Tests: XCTestCase {
         XCTAssertEqual(years(.sleepHours, 2), years(.sleepHours, 4), accuracy: 1e-12)
         XCTAssertEqual(years(.strength, 300), years(.strength, 120), accuracy: 1e-12)   // no benefit past 2 h
         XCTAssertLessThan(years(.strength, 120), years(.strength, 60))
-        XCTAssertEqual(years(.sleepConsistency, 10), years(.sleepConsistency, 51), accuracy: 1e-12)
-        XCTAssertEqual(years(.sleepConsistency, 100), years(.sleepConsistency, 85), accuracy: 1e-12)
+        XCTAssertEqual(years(.sleepConsistency, 10), years(.sleepConsistency, 60), accuracy: 1e-12)
+        XCTAssertEqual(years(.sleepConsistency, 100), years(.sleepConsistency, 90), accuracy: 1e-12)
         XCTAssertEqual(years(.zone13, 2000), years(.zone13, 600), accuracy: 1e-12)
         XCTAssertEqual(years(.zone45, 200), years(.zone45, 53.6), accuracy: 1e-12)
         XCTAssertEqual(years(.vo2max, 100), years(.vo2max, 44 + 14), accuracy: 1e-12)  // ±4 MET
@@ -139,9 +142,9 @@ final class HealthspanV2Tests: XCTestCase {
     }
 
     /// White-paper sanity check: the WHOOP-median 30-year-olds of Table 2 come out at −1.6 years in WHOOP's
-    /// model. This model gives −2.11 (male) and −2.39 (female): the same direction and size, the gap is
+    /// model. This model gives −1.47 (male) and −1.92 (female): the same direction and size, the gap is
     /// WHOOP's unpublished overlap factors and its exact curves (the steps curve, Paluch 2022, carries
-    /// most of it at −1.49 years).
+    /// −1.49 years). Their 67–68 % consistency is WHOOP's scale, read here as if it were an SRI.
     func testWhoopMedianThirtyYearOlds() {
         let m = VE.compute(.init(chronoAge: 30, sex: "male", sleepHours: 7.0, sleepConsistency: 67,
                                  zone13MinPerWeek: 141, zone45MinPerWeek: 6, strengthMinPerWeek: 46,
@@ -149,8 +152,8 @@ final class HealthspanV2Tests: XCTestCase {
         let f = VE.compute(.init(chronoAge: 30, sex: "female", sleepHours: 7.3, sleepConsistency: 68,
                                  zone13MinPerWeek: 124, zone45MinPerWeek: 7, strengthMinPerWeek: 56,
                                  steps: 11_500, vo2max: 40.0, restingHR: 63, leanMassPct: 73))!
-        XCTAssertEqual(m.ageDelta, -2.11, accuracy: 0.01)
-        XCTAssertEqual(f.ageDelta, -2.34, accuracy: 0.01)
+        XCTAssertEqual(m.ageDelta, -1.47, accuracy: 0.01)
+        XCTAssertEqual(f.ageDelta, -1.92, accuracy: 0.01)
     }
 
     func testMeasuredVO2DoesNotRewriteEarlierWindows() {
@@ -315,49 +318,5 @@ final class HealthspanV2Tests: XCTestCase {
         XCTAssertEqual(VE.epochDay("1970-01-01"), 0)
         XCTAssertEqual(VE.epochDay("2026-09-24"), 20_720)
         XCTAssertNil(VE.epochDay("2026-13-01"))
-    }
-}
-
-/// The Sleep screen's consistency resolver, moved from `SleepModel.consistencySeries`.
-final class SleepConsistencyTests: XCTestCase {
-
-    func testStoredRestConsistencyIsSharedWhenImportsDoNotCoverLatestDay() {
-        let days = ["2026-09-01", "2026-09-02"]
-        let stored = ["2026-09-01": 70.0, "2026-09-02": 85.0]
-        let result = SleepConsistency.resolve(dayKeys: days, importedPct: [:], nights: [], computedPct: stored)
-        XCTAssertEqual(result.map(\.pct), [70, 85])
-        let imported = SleepConsistency.resolve(dayKeys: days, importedPct: ["2026-09-02": 60],
-                                                nights: [], computedPct: stored)
-        XCTAssertEqual(imported.map(\.pct), [60])
-    }
-
-    func testBedMinutesWrap() {
-        XCTAssertEqual(SleepConsistency.bedMinutes(hour: 23, minute: 30), 1410)
-        XCTAssertEqual(SleepConsistency.bedMinutes(hour: 0, minute: 30), 1470)
-        XCTAssertEqual(SleepConsistency.bedMinutes(hour: 12, minute: 0), 720)
-    }
-
-    func testRollingScores() {
-        XCTAssertEqual(SleepConsistency.rollingScores(bedMinutes: [1400, 1400]).compactMap { $0 }, [])
-        XCTAssertEqual(SleepConsistency.rollingScores(bedMinutes: [1400, 1400, 1400]).compactMap { $0 }, [100])
-        // SD 60 min over the window → 50.
-        let s = SleepConsistency.rollingScores(bedMinutes: [1340, 1460, 1340, 1460])
-        XCTAssertNil(s[1])
-        XCTAssertEqual(s[3]!, 50, accuracy: 1e-9)
-        // SD ≥ 120 min → 0.
-        XCTAssertEqual(SleepConsistency.rollingScores(bedMinutes: [1200, 1600, 1200, 1600]).last!!, 0)
-    }
-
-    func testImportedWinsOnlyWhenItCoversTheNewestDay() {
-        let nights = [SleepConsistency.Night(day: "2026-09-01", bedMinutes: 1400),
-                      .init(day: "2026-09-02", bedMinutes: 1400), .init(day: "2026-09-03", bedMinutes: 1400)]
-        let keys = ["2026-09-01", "2026-09-02", "2026-09-03"]
-        let covered = SleepConsistency.resolve(dayKeys: keys, importedPct: ["2026-09-01": 60, "2026-09-03": 80],
-                                               nights: nights)
-        XCTAssertEqual(covered.map(\.pct), [60, 80])
-        XCTAssertEqual(covered.map(\.day), ["2026-09-01", "2026-09-03"])
-        let stale = SleepConsistency.resolve(dayKeys: keys, importedPct: ["2026-09-01": 60], nights: nights)
-        XCTAssertEqual(stale.map(\.pct), [100])
-        XCTAssertEqual(stale.map(\.day), ["2026-09-03"])
     }
 }

@@ -53,5 +53,19 @@ extension AppleDemoSeeder {
                   new.map { String(format: "%.2f", $0) } ?? "missing", String(format: "%.2f", stress))
         }
     }
+
+    /// Rest v2's stored consistency part for every demo night, through the production engine (the analysis
+    /// pass does not run on the demo, which has no raw heart rate). Stored under the computed source, where
+    /// the analysis pass writes it.
+    static func seedRestConsistency(into store: WhoopStore, days: [String], sleeps: [CachedSleepSession]) async throws {
+        let sessions = sleeps.map { SleepRegularity.Session(start: $0.effectiveStartTs, end: $0.endTs, stagesJSON: $0.stagesJSON) }
+        let rest = SleepRegularity.restConsistency(days: days, sessions: sessions)
+        let points = rest.map { MetricPoint(day: $0.key, key: RestScoringPrefs.consistencyKey, value: ($0.value * 1000).rounded() / 10) }
+        _ = try await store.upsertMetricSeries(points, deviceId: whoop + "-noop")
+        let sri = SleepRegularity.sri(days: days.suffix(1), sessions: sessions)
+        NSLog("Broop demo regularity %@: sri7=%@ restConsistency=%@", days.last ?? "-",
+              sri.values.first.map { String(format: "%.2f", $0) } ?? "missing",
+              rest[days.last ?? ""].map { String(format: "%.3f", $0) } ?? "missing")
+    }
 }
 #endif

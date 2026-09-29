@@ -397,26 +397,6 @@ final class RestV2Tests: XCTestCase {
         XCTAssertNil(R.composite(daily: dm(day: "x", totalSleepMin: 400, efficiency: nil)))
     }
 
-    private func night(_ bed: Int, _ wake: Int, _ daysBefore: Int, base: Int = 1_700_000_000) -> R.Night {
-        // bed/wake as minutes relative to base (tonight's midnight), shifted back by daysBefore days.
-        R.Night(start: base + bed * 60 - daysBefore * 86_400, end: base + wake * 60 - daysBefore * 86_400,
-                daysBefore: daysBefore)
-    }
-
-    func testConsistencyRecoversKnownShifts() {
-        let tonight = night(-60, 420, 0)                      // 23:00 → 07:00
-        let same = (1...4).map { night(-60, 420, $0) }
-        XCTAssertEqual(R.consistency(tonight: tonight, previous: same) ?? 0, 1, accuracy: 1e-12)
-        // Every previous night 1 h later at both ends: |Δ| = 2 h → A = 22/24 → 2A−1 = 0.8333.
-        let late1 = (1...4).map { night(0, 480, $0) }
-        XCTAssertEqual(R.consistency(tonight: tonight, previous: late1) ?? 0, 1 - 4.0 / 24, accuracy: 1e-9)
-        // 2 h later at both ends → 1 − 8/24.
-        let late2 = (1...4).map { night(60, 540, $0) }
-        XCTAssertEqual(R.consistency(tonight: tonight, previous: late2) ?? 0, 1 - 8.0 / 24, accuracy: 1e-9)
-        // Nights further back than 4 are ignored; fewer than 2 usable → nil.
-        XCTAssertNil(R.consistency(tonight: tonight, previous: [night(-60, 420, 1), night(-60, 420, 6)]))
-    }
-
     func testConsistencyFeedsTheScore() {
         let d = dm(day: "x", totalSleepMin: 420, efficiency: 0.9)
         let good = R.composite(daily: d, needHours: 8, consistency: 1, sleepStressPct: 0)!

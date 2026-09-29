@@ -60,7 +60,9 @@ struct BroopSnapshot {
     /// Rest contributors for the selected night, each the same input `AnalyticsEngine.Rest.composite`
     /// weighs: hours vs needed, consistency, efficiency (above) and restorative share (above).
     var hoursVsNeededPct: Double?
+    /// Rest's "Consistency" part (tonight vs the previous 4 days); `consistencyImported` when it is WHOOP's.
     var consistency: Double?
+    var consistencyImported = false
     /// Rest v2: the night's Sleep Stress (0–100 % of the main sleep in HIGH stress), nil when not scored.
     var sleepStressPct: Double?
     /// Named readings against the 30 days before the selected day.
@@ -357,21 +359,10 @@ final class BroopStore: ObservableObject {
                 s.sleepStressPct = await repo.stressDaySummaries(days: offset + 3).last { $0.day == sleepKey }?.sleepStressPct
             }
         }
-        // Off the main actor: it keys every stored sleep by day and walks the whole history.
-        let allSleeps = repo.sleeps
-        let imported = repo.importedSleep
-        let storedConsistency = repo.importedSleep[sleepKey]?.consistencyPct == nil ? v2Parts?.consistencyPct : nil
-        if let storedConsistency {
-            s.consistency = storedConsistency
-        } else {
-            s.consistency = await CancellableAnalysis.run {
-                let sleepsUpTo = allSleeps.filter { Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval($0.endTs))) <= sleepKey }
-                guard let last = sleepsUpTo.last,
-                      Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(last.endTs))) == sleepKey else { return nil }
-                return SleepModel.consistencySeries(days: days.filter { $0.day <= sleepKey }, sleeps: sleepsUpTo,
-                                                    importedSleep: imported).latest
-            }
-        }
+        // Rest's "Consistency" part (tonight vs the previous 4 days): WHOOP's imported figure, else the one
+        // the analysis pass scored. Never the 7-day regularity, which is a different readout.
+        s.consistencyImported = repo.importedSleep[sleepKey]?.consistencyPct != nil
+        s.consistency = repo.importedSleep[sleepKey]?.consistencyPct ?? v2Parts?.consistencyPct
         guard !Task.isCancelled else { return }
 
         let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps, format: whole) { $0.steps.map(Double.init) }

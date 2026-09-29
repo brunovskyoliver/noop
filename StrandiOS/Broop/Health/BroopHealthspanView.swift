@@ -376,7 +376,7 @@ struct BroopHealthspanView: View {
     private func link(_ f: VitalityEngine.Factor) -> BroopScreen {
         switch f {
         case .sleepHours: return .metric(key: "sleep_total_min", source: "my-whoop")
-        case .sleepConsistency: return .metric(key: "sleep_consistency", source: "my-whoop")
+        case .sleepConsistency: return .sleep   // the 7-day regularity lives on the Sleep screen
         case .zone13, .zone45: return .workouts
         case .strength: return .liftLog
         case .steps: return .metric(key: "steps", source: MetricCatalog.combinedStepsSource)

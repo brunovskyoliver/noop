@@ -69,7 +69,7 @@ struct NightDetailCard: View {
                     sparkColor: StrandPalette.statusPositive)
 
                 StatTile(
-                    label: "Consistency",
+                    label: model.consistencyIsImported ? "Consistency" : "Regularity, 7 days",
                     value: pctValue(cons.latest),
                     caption: tileCaption(latestDay: cons.latestDay, latest: cons.latest,
                                          typical: cons.typical, suffix: "%"),

@@ -139,8 +139,14 @@ struct BroopOverviewSleepScreen: View {
         return [
             row("need", "clock", String(localized: "Hours vs. Needed"), snap?.hoursVsNeededPct.map { min($0, 100) },
                 rating: BroopOverviewRating.performance, key: "hours_vs_needed_pct"),
-            row("cons", "moon.stars", String(localized: "Sleep Consistency"), snap?.consistency,
-                rating: BroopOverviewRating.performance, key: "sleep_consistency"),
+            // Rest's own part (tonight vs the previous 4 days), not the 7-day regularity in the statistics.
+            // Only an imported WHOOP figure has a stored trend to open.
+            {
+                var c = row("cons", "moon.stars", String(localized: "Consistency"), snap?.consistency,
+                            rating: BroopOverviewRating.performance, key: "sleep_consistency")
+                if snap?.consistencyImported != true { c.link = nil }
+                return c
+            }(),
             row("eff", "bed.double", String(localized: "Sleep Efficiency"), snap?.efficiency,
                 rating: BroopOverviewRating.performance, key: "sleep_efficiency"),
         ] + (RestScoringPrefs.v2Enabled
@@ -163,7 +169,7 @@ struct BroopOverviewSleepScreen: View {
         var weakest: (String, Double)?
         let parts: [(String, Double?)] = [
             (String(localized: "Hours vs. Needed"), snap?.hoursVsNeededPct),
-            (String(localized: "Sleep Consistency"), snap?.consistency),
+            (String(localized: "Consistency"), snap?.consistency),
             (String(localized: "Sleep Efficiency"), snap?.efficiency),
             (String(localized: "Sleep Stress"), RestScoringPrefs.v2Enabled
                 ? snap?.sleepStressPct.map { 100 - min($0 / AnalyticsEngine.RestV2.sleepStressZeroCreditPct, 1) * 100 } : nil),

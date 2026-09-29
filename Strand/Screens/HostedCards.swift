@@ -42,7 +42,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// only as a StatTile in the Night-detail grid; the Today host gives it a standalone card
     /// (`HoursVsNeededCard`) reading the SAME `hoursVsNeeded` metric, so the value can't diverge.
     case hoursVsNeeded = "sleep.hoursVsNeeded"
-    /// Sleep tab · "Consistency" — the wearer's latest sleep-consistency percentage (bedtime-onset spread,
+    /// Sleep tab · "Consistency" — the wearer's latest sleep-consistency percentage (7-day Sleep Regularity Index,
     /// honouring the imported-consistency preference) rendered from the shared `SleepModel`
     /// (#today-hosted-cards). The Sleep tab surfaces this metric only as a StatTile in the Night-detail
     /// grid; the Today host gives it a standalone card (`ConsistencyCard`) reading the SAME `consistency`

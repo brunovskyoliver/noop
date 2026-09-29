@@ -411,7 +411,11 @@ struct BroopOverviewSleepStatsCard: View {
             VStack(spacing: 10) {
                 row("sleep_performance", "moon", String(localized: "Sleep Performance"), model.performance, pct)
                 row("hours_vs_needed_pct", "clock", String(localized: "Hours vs. Needed"), model.hoursVsNeeded, pct)
-                row("sleep_consistency", "moon.stars", String(localized: "Sleep Consistency"), model.consistency, pct)
+                // The imported WHOOP consistency has a stored trend; the 7-day regularity is computed here.
+                row(model.consistencyIsImported ? "sleep_consistency" : nil, "moon.stars",
+                    model.consistencyIsImported ? String(localized: "Sleep Consistency")
+                                                : String(localized: "Sleep regularity, 7 days"),
+                    model.consistency, pct)
                 row("sleep_efficiency", "bed.double", String(localized: "Sleep Efficiency"), model.efficiency, pct)
                 row("restorative_pct", "sparkles", String(localized: "Restorative Sleep"), model.restorative, pct)
                 row("resp_rate", "lungs", String(localized: "Respiratory Rate"), model.respiratory) { BroopFormat.one($0) }
@@ -422,33 +426,41 @@ struct BroopOverviewSleepStatsCard: View {
 
     private func pct(_ v: Double) -> String { BroopFormat.whole(v) + "%" }
 
-    private func row(_ key: String, _ symbol: String, _ label: String, _ m: SleepModel.Metric,
+    @ViewBuilder
+    private func row(_ key: String?, _ symbol: String, _ label: String, _ m: SleepModel.Metric,
                      _ format: @escaping (Double) -> String) -> some View {
-        NavigationLink(value: BroopScreen.metric(key: key, source: nil)) {
-            HStack(spacing: 14) {
-                Image(systemName: symbol).font(.system(size: 16, weight: .light))
-                    .foregroundStyle(BroopPalette.textSecondary).frame(width: 24)
-                VStack(alignment: .leading, spacing: 3) {
-                    BroopCaps(label, size: 11)
-                    if let carried = SleepModel.carriedMetricCaption(latestDay: m.latestDay, latest: m.latest) {
-                        Text(verbatim: carried).font(BroopType.medium(11.5)).foregroundStyle(BroopPalette.textTertiary)
-                    }
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(verbatim: m.latest.map(format) ?? "--")
-                        .font(BroopType.number(21)).broopNumeral(21)
-                        .foregroundStyle(BroopPalette.textPrimary)
-                    if let t = m.typical {
-                        Text(verbatim: format(t)).font(BroopType.number(12.5)).foregroundStyle(BroopPalette.textSecondary)
-                    }
+        if let key {
+            NavigationLink(value: BroopScreen.metric(key: key, source: nil)) { rowBody(symbol, label, m, format) }
+                .buttonStyle(BroopPressableStyle())
+        } else {
+            rowBody(symbol, label, m, format)
+        }
+    }
+
+    private func rowBody(_ symbol: String, _ label: String, _ m: SleepModel.Metric,
+                         _ format: @escaping (Double) -> String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol).font(.system(size: 16, weight: .light))
+                .foregroundStyle(BroopPalette.textSecondary).frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                BroopCaps(label, size: 11)
+                if let carried = SleepModel.carriedMetricCaption(latestDay: m.latestDay, latest: m.latest) {
+                    Text(verbatim: carried).font(BroopType.medium(11.5)).foregroundStyle(BroopPalette.textTertiary)
                 }
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 62)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(BroopPalette.card))
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(verbatim: m.latest.map(format) ?? "--")
+                    .font(BroopType.number(21)).broopNumeral(21)
+                    .foregroundStyle(BroopPalette.textPrimary)
+                if let t = m.typical {
+                    Text(verbatim: format(t)).font(BroopType.number(12.5)).foregroundStyle(BroopPalette.textSecondary)
+                }
+            }
         }
-        .buttonStyle(BroopPressableStyle())
+        .padding(.horizontal, 16)
+        .frame(minHeight: 62)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(BroopPalette.card))
     }
 }
 

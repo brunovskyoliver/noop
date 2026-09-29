@@ -202,6 +202,9 @@ struct SleepModel {
     let performance: Metric
     let efficiency: Metric
     let consistency: Metric
+    /// True when `consistency` is the imported WHOOP figure; false when it is the 7-day Sleep Regularity
+    /// Index. Labels read this so a WHOOP consistency is never called "regularity" or vice versa.
+    let consistencyIsImported: Bool
     let hoursVsNeeded: Metric
     let restorative: Metric
     let respiratory: Metric
@@ -225,11 +228,12 @@ struct SleepModel {
 struct SleepModelInputs {
     /// The cached per-day metric rows (`Repository.days`).
     let days: [DailyMetric]
-    /// One-per-night sessions (`Repository.sleeps`) — the `navSessions` fallback and the
-    /// consistency bedtime-spread series read this directly.
+    /// One-per-night sessions (`Repository.sleeps`) — the `navSessions` fallback.
     let sleeps: [CachedSleepSession]
-    /// Every un-deduplicated sleep block (`SleepView.allSessions`); empty until the fuller list loads,
-    /// in which case the builder falls back to `sleeps` exactly as `navSessions` did.
+    /// Every un-deduplicated sleep block (`Repository.allSleepSessions`); empty until the fuller list loads,
+    /// in which case the builder falls back to `sleeps` exactly as `navSessions` did. The 7-day regularity
+    /// reads ONLY this list (naps included), the same one Healthspan and the Rest pass read, so it shows no
+    /// value until it loads rather than a different one from the one-per-night list.
     let allSessions: [CachedSleepSession]
     /// Per-day imported WHOOP figures (`Repository.importedSleep`) — export-verbatim tile values.
     let importedSleep: [String: ImportedSleepFigures]
@@ -437,31 +441,30 @@ extension SleepModel {
         }
     }
 
-    /// Consistency: prefer the imported sleep_consistency series when it covers the latest night;
-    /// else the APPROXIMATE rolling bedtime-spread score. The rule lives in `SleepConsistency.resolve`
-    /// (StrandAnalytics) so Healthspan's sleep-consistency factor reads exactly this value.
+    /// Consistency: the imported sleep_consistency series when it covers the latest night (WHOOP's own
+    /// figure), else the 7-day Sleep Regularity Index as a % (`SleepRegularity.resolve`). Healthspan's
+    /// sleep-consistency factor reads exactly this value. Rest v2's 4-day "Consistency" is a separate part.
     static func consistencySeries(days: [DailyMetric], sleeps: [CachedSleepSession],
-                                  importedSleep: [String: ImportedSleepFigures],
-                                  computed: [String: ComputedSleepFigures] = [:]) -> Metric {
-        let series = SleepConsistency.resolve(
+                                  importedSleep: [String: ImportedSleepFigures]) -> Metric {
+        let series = SleepRegularity.resolve(
             dayKeys: days.map(\.day),
             importedPct: importedSleep.compactMapValues(\.consistencyPct),
-            nights: consistencyNights(sleeps),
-            computedPct: RestScoringPrefs.v2Enabled ? computed.compactMapValues(\.consistencyPct) : [:]).map(\.pct)
+            sriByDay: regularityByDay(days: days.map(\.day), sleeps: sleeps)).map(\.pct)
         guard !series.isEmpty else { return (nil, nil, nil, []) }
         return (series.last, nil, mean(series), series)
     }
 
-    /// Convert sleep onsets to local dates and continuous evening minutes for consistency.
-    static func consistencyNights(_ sleeps: [CachedSleepSession]) -> [SleepConsistency.Night] {
-        let cal = Calendar.current
-        return sleeps.map { s in
-            let start = Date(timeIntervalSince1970: TimeInterval(s.effectiveStartTs))
-            let c = cal.dateComponents([.hour, .minute], from: start)
-            return SleepConsistency.Night(
-                day: Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(s.endTs))),
-                bedMinutes: SleepConsistency.bedMinutes(hour: c.hour ?? 0, minute: c.minute ?? 0))
-        }
+    /// True when the consistency readout is the imported WHOOP figure rather than the 7-day SRI, so the
+    /// label can say which one it is.
+    static func consistencyIsImported(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures]) -> Bool {
+        days.last.map { importedSleep[$0.day]?.consistencyPct != nil } ?? false
+    }
+
+    /// The 7-day SRI for `days`, from `Repository.allSleepSessions` (naps included, wake after onset as wake).
+    static func regularityByDay(days: [String], sleeps: [CachedSleepSession]) -> [String: Double] {
+        SleepRegularity.sri(days: days, sessions: sleeps.map {
+            SleepRegularity.Session(start: $0.effectiveStartTs, end: $0.endTs, stagesJSON: $0.stagesJSON)
+        })
     }
 
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the
@@ -577,8 +580,8 @@ extension SleepModel {
             performance: performanceSeries(days: inputs.days, importedSleep: inputs.importedSleep,
                                            computed: inputs.computedSleep),
             efficiency: efficiencySeries(days: inputs.days),
-            consistency: consistencySeries(days: inputs.days, sleeps: inputs.sleeps, importedSleep: inputs.importedSleep,
-                                           computed: inputs.computedSleep),
+            consistency: consistencySeries(days: inputs.days, sleeps: inputs.allSessions, importedSleep: inputs.importedSleep),
+            consistencyIsImported: consistencyIsImported(days: inputs.days, importedSleep: inputs.importedSleep),
             hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep,
                                                computed: inputs.computedSleep),
             restorative: restorativeSeries(days: inputs.days),

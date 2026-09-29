@@ -45,7 +45,7 @@ extension Repository {
     /// - Strength minutes: every workout whose sport `VitalityEngine.isStrengthSport` accepts, plus each
     ///   finished Lift Log session that has NO workout row with the same start and sport (a logged session
     ///   normally also exists as a workout row under that natural key, so it is never counted twice).
-    /// - Sleep consistency: the Sleep screen's per-night value (`SleepConsistency.resolve`).
+    /// - Sleep consistency: the Sleep screen's 7-day regularity (`SleepRegularity.resolve`).
     /// - Steps: `stepsByDay` (the app's shared steps resolver) where it has the day, else the daily row.
     /// - `hasRecovery`: a scored Charge day (the white paper's "recovery" for the unlock gate).
     nonisolated static func vitalityDays(dailies: [DailyMetric], workouts: [WorkoutRow],
@@ -176,16 +176,17 @@ extension Repository {
             appleBodyFat: await series(key: "body_fat", source: "apple-health", days: lmLookback),
             leanKg: await series(key: "lean_mass", source: "apple-health", days: lmLookback),
             weightKg: await series(key: "weight", source: "apple-health", days: lmLookback))
-        // The Sleep screen's consistency, resolved over the full cached history exactly as SleepModel does.
+        // The Sleep screen's consistency, resolved exactly as SleepModel does: imported WHOOP figure when it
+        // covers the newest day, else the 7-day SRI from every stored sleep block (naps included).
         let dayKeys = days.map(\.day)
         let imported = importedSleep.compactMapValues(\.consistencyPct)
-        let computed = RestScoringPrefs.v2Enabled ? computedSleepFigures.compactMapValues(\.consistencyPct) : [:]
-        let sleepRows = sleeps
+        let sleepRows = await allSleepSessions(days: lookback + SleepRegularity.windowDays + 1)
         let dailies = Array(byDay.values)
         return await Task.detached(priority: .utility) {
             var consistency: [String: Double] = [:]
-            for p in SleepConsistency.resolve(dayKeys: dayKeys, importedPct: imported,
-                                              nights: SleepModel.consistencyNights(sleepRows), computedPct: computed)
+            for p in SleepRegularity.resolve(dayKeys: dayKeys, importedPct: imported,
+                                             sriByDay: SleepModel.regularityByDay(
+                                                days: dayKeys.filter { $0 >= from && $0 <= to }, sleeps: sleepRows))
             where p.day >= from && p.day <= to {
                 consistency[p.day] = p.pct
             }

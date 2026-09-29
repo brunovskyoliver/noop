@@ -60,6 +60,7 @@ enum AppleDemoSeeder {
 
     private static func seed(into store: WhoopStore) async throws {
         var rng = SplitMix64(seed: 0xC0FFEE)
+        var napRng = SplitMix64(seed: 0x5EEDA11)
         let cal = Calendar.current
         let zone = TimeZone.current
         let startDay = cal.date(byAdding: .day, value: -(DAYS - 1), to: cal.startOfDay(for: Date()))!
@@ -139,6 +140,16 @@ enum AppleDemoSeeder {
                 stagesJSON: segmentsJSON(onset: onset, deep: deep, rem: rem, light: light,
                                          awakeMin: Double(disturbances) * 1.6)))
 
+            // --- an afternoon nap on about a third of days, from its own RNG so the rest of the demo is
+            //     unchanged; the regularity index counts naps. ---
+            if napRng.nextDouble() < 0.33 {
+                let napStart = Int(cal.startOfDay(for: date).timeIntervalSince1970) + 14 * 3600 + napRng.nextInt(0, 120) * 60
+                let napLen = napRng.nextInt(20, 60) * 60
+                sleeps.append(CachedSleepSession(
+                    startTs: napStart, endTs: napStart + napLen, efficiency: 95, restingHr: rhr, avgHrv: round1(hrv),
+                    stagesJSON: "[{\"start\":\(napStart),\"end\":\(napStart + napLen),\"stage\":\"light\"}]"))
+            }
+
             // --- long-format extras (body composition) under my-whoop ---
             weight += gauss(&rng, -0.02, 0.18)
             series.append(MetricPoint(day: day, key: "weightKg", value: round2(weight)))
@@ -149,8 +160,9 @@ enum AppleDemoSeeder {
             let demoNeedMin = (totalSleep + gauss(&rng, 25.0, 20.0)).clamped(420.0, 560.0)
             series.append(MetricPoint(day: day, key: "sleep_performance",
                 value: round1(min(totalSleep / demoNeedMin * 100.0, 100.0))))
-            series.append(MetricPoint(day: day, key: "sleep_consistency",
-                value: round1(gauss(&rng, 80.0, 8.0).clamped(40.0, 100.0))))
+            // No imported sleep_consistency: the demo shows the 7-day Sleep Regularity Index computed from
+            // the seeded sessions. The draw is kept so every later demo value stays as it was.
+            _ = gauss(&rng, 80.0, 8.0)
             series.append(MetricPoint(day: day, key: "sleep_need_min", value: round1(demoNeedMin)))
             series.append(MetricPoint(day: day, key: "sleep_debt_min",
                 value: round1((demoNeedMin - totalSleep).atLeast(0.0))))
@@ -226,6 +238,7 @@ enum AppleDemoSeeder {
         if !workouts.isEmpty { _ = try await store.upsertWorkouts(workouts, deviceId: whoop) }
         if !journal.isEmpty { _ = try await store.upsertJournal(journal, deviceId: whoop) }
         try await seedStress(into: store, deviceId: whoop)
+        try await seedRestConsistency(into: store, days: daily.map(\.day), sleeps: sleeps)
         NSLog("AppleDemoSeeder: seeded \(daily.count) days, \(workouts.count) workouts.")
     }
 

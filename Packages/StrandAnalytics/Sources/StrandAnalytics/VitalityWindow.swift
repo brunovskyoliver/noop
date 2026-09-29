@@ -17,7 +17,7 @@ public extension VitalityEngine {
 
     /// One local day of inputs. Zone and strength minutes are that day's totals (0 when none);
     /// `vo2max` only on days that carry a VO₂max point; `sleepConsistency` is the Sleep screen's value
-    /// for that night (see `SleepConsistency.resolve`); `hasRecovery` marks a scored Charge day.
+    /// for that night (see `SleepRegularity.resolve`); `hasRecovery` marks a scored Charge day.
     struct Day: Equatable, Sendable {
         public var day: String            // yyyy-MM-dd, local
         public var restingHR: Double?
