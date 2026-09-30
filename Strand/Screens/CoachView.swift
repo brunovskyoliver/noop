@@ -141,7 +141,14 @@ struct CoachView: View {
             isPresented: $showClearConfirm,
             titleVisibility: .visible
         ) {
-            Button("Clear", role: .destructive) { coach.clearConversation() }
+            Button("Clear", role: .destructive) {
+                coach.clearConversation()
+                // A new conversation starts empty: drop the half-written question and any dictation in flight.
+                #if os(iOS)
+                voiceInput.cancel()
+                #endif
+                draft = ""
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.")

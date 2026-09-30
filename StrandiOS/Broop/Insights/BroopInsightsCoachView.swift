@@ -74,7 +74,12 @@ struct BroopInsightsCoachView: View {
             }
         }
         .confirmationDialog(String(localized: "Clear conversation?"), isPresented: $showClearConfirm, titleVisibility: .visible) {
-            Button(String(localized: "Clear"), role: .destructive) { coach.clearConversation() }
+            Button(String(localized: "Clear"), role: .destructive) {
+                coach.clearConversation()
+                // A new conversation starts empty: drop the half-written question and any dictation in flight.
+                voice.cancel()
+                draft = ""
+            }
             Button(String(localized: "Cancel"), role: .cancel) {}
         } message: {
             Text("This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.")
