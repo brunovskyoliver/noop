@@ -239,6 +239,7 @@ enum AppleDemoSeeder {
         if !journal.isEmpty { _ = try await store.upsertJournal(journal, deviceId: whoop) }
         try await seedStress(into: store, deviceId: whoop)
         try await seedRestConsistency(into: store, days: daily.map(\.day), sleeps: sleeps)
+        try await seedSleepHeartRate(into: store, sleeps: sleeps)
         NSLog("AppleDemoSeeder: seeded \(daily.count) days, \(workouts.count) workouts.")
     }
 

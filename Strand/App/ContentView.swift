@@ -12,6 +12,18 @@ struct ContentView: View {
     @State private var showWhatsNew = false
 
     var body: some View {
+        #if DEBUG
+        if CommandLine.arguments.contains("--demo-automations") {
+            AutomationsView()
+        } else {
+            appContent
+        }
+        #else
+        appContent
+        #endif
+    }
+
+    private var appContent: some View {
         ZStack {
             RootView()
             if !onboarded {
