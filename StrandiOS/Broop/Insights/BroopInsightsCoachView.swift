@@ -53,7 +53,10 @@ struct BroopInsightsCoachView: View {
         }
         .task(id: scenePhase) {
             // The model can finish downloading, or Apple Intelligence be switched on, while the app is open.
-            if scenePhase == .active { await coach.refreshAppleAvailability() }
+            if scenePhase == .active {
+                await coach.refreshAppleAvailability()
+                coach.prewarmApple()
+            }
         }
         .confirmationDialog(String(localized: "Clear conversation?"), isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button(String(localized: "Clear"), role: .destructive) { coach.clearConversation() }
@@ -148,7 +151,15 @@ struct BroopInsightsCoachView: View {
                     ForEach(coach.messages) { message in
                         messageView(message).id(message.id)
                     }
-                    if coach.sending { thinking.id("typing") }
+                    if coach.sending {
+                        if coach.usesApple {
+                            // The streamed reply lives in its own observed leaf: a token re-renders the
+                            // bubble, not this transcript.
+                            BroopInsightsCoachStreamingReply(stream: coach.stream).id("typing")
+                        } else {
+                            thinking.id("typing")
+                        }
+                    }
                     if let error = coach.errorText, !error.isEmpty {
                         errorRow(error)
                         if coach.keyRejected { keyRepair }
@@ -161,6 +172,7 @@ struct BroopInsightsCoachView: View {
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            .defaultScrollAnchor(.bottom)
             .onChange(of: coach.messages.count) { _, _ in scrollToEnd(proxy) }
             .onChange(of: coach.sending) { _, _ in scrollToEnd(proxy) }
             .onAppear { scrollToEnd(proxy, animated: false) }
@@ -174,7 +186,9 @@ struct BroopInsightsCoachView: View {
             Text("How can Broop help?")
                 .font(BroopType.demi(27))
                 .foregroundStyle(BroopPalette.textPrimary)
-            Text("Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below.")
+            Text(verbatim: coach.usesApple
+                 ? String(localized: "Coach looks up your scores, trends, tonight's sleep plan and journal as it answers, then explains them in plain language. The numbers come from the app, not the model. Try a suggestion below.")
+                 : String(localized: "Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below."))
                 .font(BroopType.regular(16))
                 .lineSpacing(5)
                 .foregroundStyle(BroopPalette.textBody)
@@ -215,12 +229,19 @@ struct BroopInsightsCoachView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("You said: \(message.text)"))
+        case .assistant where message.isNotice:
+            Text(verbatim: message.text)
+                .font(BroopType.regular(12.5))
+                .foregroundStyle(BroopPalette.textTertiary)
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
         case .assistant:
             VStack(alignment: .leading, spacing: 14) {
                 Markdown(message.text)
                     .markdownTheme(.broopInsightsCoach)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
+                if message.isFromAppleServers { BroopInsightsAppleServersLabel() }
                 HStack(spacing: 22) {
                     Button { UIPasteboard.general.string = message.text } label: {
                         Image(systemName: "doc.on.clipboard")

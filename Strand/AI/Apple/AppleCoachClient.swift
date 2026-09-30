@@ -42,6 +42,22 @@ final class AppleCoachClient {
     private var carriedSummary: String?
     private var condensedNotice = false
 
+    /// What the last turn did, for diagnostics and the verification report: where it ran, which tools the
+    /// model called, and what the number check found.
+    struct TurnReport: Equatable, Sendable {
+        var route: AppleCoachRoute = .none
+        var toolCalls: [String] = []
+        var firstOffending: [String] = []
+        var retried = false
+        var retryOffending: [String] = []
+        var factsOnly = false
+        var failure: AppleCoachFailure?
+        /// The framework's own description of the last error, for diagnostics only (never shown).
+        var errorDetail: String?
+        var condensed = false
+    }
+    private(set) var lastReport = TurnReport()
+
     /// Tool-schema overhead for the character estimate, about 70 tokens per tool.
     static let toolOverheadTokens = 350
 
@@ -98,9 +114,11 @@ final class AppleCoachClient {
         var inputs = start
         var route = AppleCoachRouting.route(inputs)
         var condensed = false
+        lastReport = TurnReport()
         if route == .onDevice, await needsCondense(question: question) {
             await condense(history: history)
             condensed = true
+            lastReport.condensed = true
         }
         // First try, at most one condense-and-retry, at most one hand-over to Apple's servers.
         for _ in 0..<3 {
@@ -112,6 +130,7 @@ final class AppleCoachClient {
             stream.offDevice = route == .privateCloud
             let session = route == .privateCloud ? cloud(source) : onDevice(source)
             let prompt = promptText(question)
+            lastReport.route = route
             do {
                 let text = try await streamReply(session, prompt: prompt, into: stream)
                 if route == .onDevice { onDeviceChars += prompt.count + text.count + log.outputs.joined().count }
@@ -119,10 +138,14 @@ final class AppleCoachClient {
                 return await checked(text, question: question, session: session, route: route, stream: stream, source: source)
             } catch {
                 let failure = Self.failure(error, route: route)
+                lastReport.failure = failure
+                lastReport.errorDetail = String(describing: error)
+                lastReport.toolCalls = log.calls
                 switch AppleCoachRecovery.next(failure, route: route, inputs: inputs, alreadyCondensed: condensed) {
                 case .condenseAndRetry:
                     await condense(history: history)
                     condensed = true
+                    lastReport.condensed = true
                 case .retryOnPrivateCloud(let next):
                     inputs = next
                     route = .privateCloud
@@ -156,15 +179,20 @@ final class AppleCoachClient {
                          stream: CoachStreamState, source: any CoachFactsSource) async -> AppleTurnResult {
         let offDevice = route == .privateCloud
         let instructions = Self.instructions()
-        if CoachNumberValidator.validate(reply: text, sources: log.outputs + [instructions, question]).isValid {
-            return .reply(text, offDevice: offDevice)
-        }
+        lastReport.toolCalls = log.calls
+        let first = CoachNumberValidator.validate(reply: text, sources: log.outputs + [instructions, question])
+        lastReport.firstOffending = first.offending
+        if first.isValid { return .reply(text, offDevice: offDevice) }
         stream.text = ""
+        lastReport.retried = true
         let stricter = "Answer my last question again. Use only numbers that appear in the tool output, written the same way. Leave out every other number."
-        if let retry = try? await streamReply(session, prompt: stricter, into: stream),
-           CoachNumberValidator.validate(reply: retry, sources: log.outputs + [instructions, question]).isValid {
-            return .reply(retry, offDevice: offDevice)
+        if let retry = try? await streamReply(session, prompt: stricter, into: stream) {
+            let second = CoachNumberValidator.validate(reply: retry, sources: log.outputs + [instructions, question])
+            lastReport.retryOffending = second.offending
+            lastReport.toolCalls = log.calls
+            if second.isValid { return .reply(retry, offDevice: offDevice) }
         }
+        lastReport.factsOnly = true
         var facts: [String] = []
         for output in log.outputs where !facts.contains(output) { facts.append(output) }
         if facts.isEmpty { facts = [await source.todaySnapshot()] }

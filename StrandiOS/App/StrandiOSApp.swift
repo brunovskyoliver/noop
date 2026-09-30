@@ -661,6 +661,7 @@ enum DemoScreens {
         case "broopenergy": return AnyView(BroopScreenView(screen: .energy))
         case "broopenergyinfo": return AnyView(ScrollView { BroopEnergyInfo().padding(16) }.background(BroopBackground()))
         case "broopcoach": return AnyView(BroopCoachDemoHost())
+        case "broopcoachchat": return AnyView(BroopInsightsCoachDemoHost())
         case "addwizard": return AnyView(AddWizardDemoHost())
         // Oura onboarding: the Add-device wizard deep-linked straight to the Oura factory-reset-and-adopt
         // prep step (the Beta banner + get/lose card + the red irreversible-consent gate), screenshot-able

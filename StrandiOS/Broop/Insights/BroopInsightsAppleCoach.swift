@@ -76,6 +76,45 @@ struct BroopInsightsCoachUnavailable: View {
     }
 }
 
+/// The reply being streamed. Observes only `CoachStreamState`, so each token re-renders this bubble alone.
+/// Plain text while streaming (Markdown is laid out once, when the reply lands in the transcript).
+struct BroopInsightsCoachStreamingReply: View {
+    @ObservedObject var stream: CoachStreamState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if stream.text.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().tint(BroopPalette.textSecondary)
+                    Text("Coach is thinking…").font(BroopType.regular(15)).foregroundStyle(BroopPalette.textSecondary)
+                }
+                .accessibilityLabel(Text("Coach is thinking"))
+            } else {
+                Text(verbatim: stream.text)
+                    .font(BroopType.regular(17))
+                    .foregroundStyle(BroopPalette.textBody)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if stream.offDevice { BroopInsightsAppleServersLabel() }
+        }
+    }
+}
+
+/// "via Apple servers": on every reply produced on Apple's Private Cloud Compute.
+struct BroopInsightsAppleServersLabel: View {
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "icloud").font(.system(size: 11, weight: .semibold))
+            BroopCaps(String(localized: "via Apple servers"), size: 9.5, color: BroopPalette.textSecondary)
+        }
+        .foregroundStyle(BroopPalette.textSecondary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Answered on Apple's servers"))
+    }
+}
+
 /// Coach settings: which backend answers, the Apple servers fallback, and the cloud provider's own settings.
 struct BroopInsightsCoachSettingsSheet: View {
     @EnvironmentObject private var coach: AICoachEngine
