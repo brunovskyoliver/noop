@@ -327,41 +327,34 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
     }
 
     private func card(_ o: HRVStatus.Outcome) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            BroopHealthCardTitle(title: String(localized: "HRV readiness"), trailing: String(localized: "7-day trend"), chevron: showsLink)
-            switch o {
-            case .calibrating(let n):
-                Text("Learning your usual range: \(n) of \(HRVStatus.minBaselineNights) nights.")
-                    .font(BroopType.regular(14)).foregroundStyle(BroopPalette.textSecondary)
-            case .noRecentData:
-                Text("No HRV from the last few nights. Wear the strap to sleep to update this.")
-                    .font(BroopType.regular(14)).foregroundStyle(BroopPalette.textSecondary)
-            case .status(let r):
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(verbatim: "\(Int(r.mean7Ms.rounded()))")
-                        .font(BroopType.number(34)).foregroundStyle(BroopPalette.textPrimary).broopNumeral(34)
-                    Text(verbatim: "ms").font(BroopType.medium(15)).foregroundStyle(BroopPalette.textPrimary)
-                    Spacer()
-                    Text(verbatim: title(r.band)).font(BroopType.demi(16)).foregroundStyle(color(r.band))
-                }
-                rangeBar(r)
-                Text(String(localized: "Usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms · mean ln RMSSD"))
-                    .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
-                Text(verbatim: detail(r.band)).font(BroopType.regular(14)).foregroundStyle(BroopPalette.textBody)
-                    .fixedSize(horizontal: false, vertical: true)
-                if r.mayReflectFlaggedDays {
-                    Text("This week may reflect feeling unwell.")
-                        .font(BroopType.regular(13)).foregroundStyle(BroopHealthPalette.amber)
-                }
-                if r.tentative {
-                    Text("Based on \(r.shortNights) of the last 7 nights.")
-                        .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
+        BroopCard {
+            VStack(alignment: .leading, spacing: BroopMetrics.innerRadius) {
+                BroopHealthCardTitle(title: String(localized: "HRV readiness"), trailing: String(localized: "7-day trend"), chevron: showsLink)
+                if case .status(let r) = o {
+                    HStack(alignment: .firstTextBaseline, spacing: BroopMetrics.gap) {
+                        Text(verbatim: "\(Int(r.mean7Ms.rounded()))")
+                            .font(BroopType.number(BroopMetrics.section)).foregroundStyle(BroopPalette.textPrimary).broopNumeral(BroopMetrics.section)
+                        Text(verbatim: "ms").font(BroopType.medium(BroopMetrics.page)).foregroundStyle(BroopPalette.textPrimary)
+                        Spacer()
+                        Text(verbatim: title(r.band)).font(BroopType.demi(BroopMetrics.page)).foregroundStyle(color(r.band))
+                    }
+                    rangeBar(r)
+                    Text(String(localized: "Usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms · geometric mean RMSSD"))
+                        .font(BroopType.regular(BroopMetrics.innerRadius)).foregroundStyle(BroopPalette.textSecondary)
+                    Text(verbatim: detail(r.band)).font(BroopType.regular(BroopMetrics.tileRadius)).foregroundStyle(BroopPalette.textBody)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if r.mayReflectFlaggedDays {
+                        Text("This week may reflect feeling unwell.")
+                            .font(BroopType.regular(BroopMetrics.navTitleSize)).foregroundStyle(BroopHealthPalette.amber)
+                    }
+                    if r.tentative {
+                        Text("Based on \(r.shortNights) of the last 7 nights.")
+                            .font(BroopType.regular(BroopMetrics.innerRadius)).foregroundStyle(BroopPalette.textSecondary)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
     }
 
     private func rangeBar(_ r: HRVStatus.Reading) -> some View {
@@ -370,16 +363,16 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
         return GeometryReader { g in
             let w = g.size.width
             ZStack(alignment: .leading) {
-                Capsule().fill(BroopPalette.track).frame(height: 5)
+                Capsule().fill(BroopPalette.track).frame(height: BroopMetrics.badgeRadius)
                 Capsule().fill(BroopPalette.textSecondary.opacity(0.7))
-                    .frame(width: max(2, x(r.usualHighMs, w) - x(r.usualLowMs, w)), height: 5)
+                    .frame(width: max(2, x(r.usualHighMs, w) - x(r.usualLowMs, w)), height: BroopMetrics.badgeRadius)
                     .offset(x: x(r.usualLowMs, w))
-                Circle().fill(color(r.band)).frame(width: 11, height: 11)
-                    .offset(x: min(max(0, x(r.mean7Ms, w) - 5.5), w - 11))
+                Circle().fill(color(r.band)).frame(width: BroopMetrics.innerRadius, height: BroopMetrics.innerRadius)
+                    .offset(x: min(max(0, x(r.mean7Ms, w) - BroopMetrics.innerRadius / 2), w - BroopMetrics.innerRadius))
             }
             .frame(maxHeight: .infinity)
         }
-        .frame(height: 12)
+        .frame(height: BroopMetrics.innerRadius)
         .accessibilityHidden(true)
     }
 

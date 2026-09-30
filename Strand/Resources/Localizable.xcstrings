@@ -251805,61 +251805,61 @@
         }
       }
     },
-    "Usual %lld–%lld ms · mean ln RMSSD" : {
+    "Usual %lld–%lld ms · geometric mean RMSSD" : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Üblich %lld–%lld ms · Mittelwert ln RMSSD"
+            "value" : "Üblich %lld–%lld ms · geometrischer Mittelwert der RMSSD"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Habitual %lld–%lld ms · media de ln RMSSD"
+            "value" : "Habitual %lld–%lld ms · media geométrica de RMSSD"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Habituel %lld–%lld ms · moyenne de ln RMSSD"
+            "value" : "Habituel %lld–%lld ms · moyenne géométrique de RMSSD"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abituale %lld–%lld ms · media di ln RMSSD"
+            "value" : "Abituale %lld–%lld ms · media geometrica di RMSSD"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zwykle %lld–%lld ms · średnia ln RMSSD"
+            "value" : "Typowo %lld–%lld ms · średnia geometryczna RMSSD"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Habitual %lld–%lld ms · média de ln RMSSD"
+            "value" : "Habitual %lld–%lld ms · média geométrica de RMSSD"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Обычно %lld–%lld мс · среднее ln RMSSD"
+            "value" : "Обычно %lld–%lld мс · среднее геометрическое RMSSD"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通常范围 %lld–%lld 毫秒 · ln RMSSD 均值"
+            "value" : "通常 %lld–%lld 毫秒 · RMSSD 几何平均值"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通常範圍 %lld–%lld 毫秒 · ln RMSSD 均值"
+            "value" : "通常 %lld–%lld 毫秒 · RMSSD 幾何平均值"
           }
         }
       }
