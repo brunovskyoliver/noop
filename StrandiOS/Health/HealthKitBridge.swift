@@ -42,6 +42,8 @@ final class HealthKitBridge: ObservableObject {
     private static let minWriteBackInterval: TimeInterval = 20 * 60
     private var lastWriteBackAt: Date?
     private var trailingWriteBack: Task<Void, Never>?
+    /// A call coalesced into a running pass asked to skip the throttle, so the follow-up pass does too.
+    private var writeBackPendingImmediate = false
     /// How many days the last COMPLETED sync covered, so an observer wake can tell whether a sync that
     /// just ran already read its window. Paired with `lastSync` (the time). Reset to 0 by a failed sync,
     /// so a failure never lets a later wake be skipped on the strength of it.
@@ -727,8 +729,11 @@ final class HealthKitBridge: ObservableObject {
     /// the vitals dedup deletes our prior samples for a key before saving the fresh batch. A call that
     /// arrives while another pass owns the bridge is coalesced into one final reconciliation rather than
     /// being dropped until the next app open.
+    /// - Parameter immediate: skip the throttle below. For callers whose data nothing else publishes soon
+    ///   and that may be suspended before a trailing pass would run: a finished background re-score, the
+    ///   Health refresh task, a sync the person started.
     @discardableResult
-    func writeBackAfterNewData() async -> Bool {
+    func writeBackAfterNewData(immediate: Bool = false) async -> Bool {
         // A backfill routinely completes in a process that was never foregrounded (a background offload,
         // or a BLE relaunch) - the case this exists for. `auth` is still `.unknown` there, because the
         // only resume runs on scenePhase == .active, so without this the guard below would silently drop
@@ -738,11 +743,13 @@ final class HealthKitBridge: ObservableObject {
         // No authorization is a successful no-op for a background task. The scheduler is cancelled by
         // its app-owned operation after observing this state, so it does not keep waking unnecessarily.
         guard auth == .authorized else { return true }
-        if let last = lastWriteBackAt, Date().timeIntervalSince(last) < Self.minWriteBackInterval {
+        if !immediate, let last = lastWriteBackAt, Date().timeIntervalSince(last) < Self.minWriteBackInterval {
             if trailingWriteBack == nil {
                 let wait = Self.minWriteBackInterval - Date().timeIntervalSince(last)
                 trailingWriteBack = Task { [weak self] in
                     try? await Task.sleep(nanoseconds: UInt64(max(0, wait) * 1_000_000_000))
+                    // Cancelled when an immediate pass already published this data.
+                    guard !Task.isCancelled else { return }
                     self?.trailingWriteBack = nil
                     await self?.writeBackAfterNewData()
                 }
@@ -751,11 +758,15 @@ final class HealthKitBridge: ObservableObject {
         }
         guard !syncing else {
             writeBackPending = true
+            if immediate { writeBackPendingImmediate = true }
             return true
         }
         syncing = true
         defer { finishHealthPass() }
         guard let store = await repo.storeHandle() else { return false }
+        // This pass publishes everything a waiting trailing pass would have.
+        trailingWriteBack?.cancel()
+        trailingWriteBack = nil
         lastWriteBackAt = Date()
         do {
             try await writeBack(whoopStore: store)
@@ -773,7 +784,9 @@ final class HealthKitBridge: ObservableObject {
         syncing = false
         guard writeBackPending else { return }
         writeBackPending = false
-        Task { await writeBackAfterNewData() }
+        let immediate = writeBackPendingImmediate
+        writeBackPendingImmediate = false
+        Task { await writeBackAfterNewData(immediate: immediate) }
     }
 
     // MARK: - Write back (NOOP → Health)

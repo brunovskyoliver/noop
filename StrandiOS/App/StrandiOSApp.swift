@@ -169,7 +169,7 @@ struct StrandiOSApp: App {
         // use the immediate hook below. BGTaskScheduler chooses the actual wake time.
         HealthWritebackBackgroundScheduler.register { [weak bridge] in
             guard let bridge else { return false }
-            let succeeded = await bridge.writeBackAfterNewData()
+            let succeeded = await bridge.writeBackAfterNewData(immediate: true)
             // A person can revoke every write type in Settings while NOOP is closed. Stop requesting
             // wakes once the cold-launched bridge can no longer resume a prior share grant.
             if bridge.auth != .authorized {
@@ -181,8 +181,8 @@ struct StrandiOSApp: App {
         // scenePhase pass below starts the offload and wrote to Health in parallel with it, so a night
         // synced on open only reached Health at the next launch. Weak so the scene owns the bridge's
         // lifetime; the bridge no-ops unless Health was authorized.
-        model.healthWriteBack = { [weak bridge] in
-            _ = await bridge?.writeBackAfterNewData()
+        model.healthWriteBack = { [weak bridge] immediate in
+            _ = await bridge?.writeBackAfterNewData(immediate: immediate)
         }
     }
 

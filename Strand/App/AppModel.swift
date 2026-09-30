@@ -710,7 +710,9 @@ final class AppModel: ObservableObject {
     ///
     /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
     /// while this type is shared with macOS, and the bridge is a `@StateObject` the app scene owns.
-    var healthWriteBack: (() async -> Void)?
+    /// `immediate` skips the bridge's write-back throttle: for a call that just produced data nobody else
+    /// will publish soon (a finished re-score, a sync the person is waiting on). Offload hooks pass false.
+    var healthWriteBack: ((_ immediate: Bool) async -> Void)?
     #endif
 
     /// Settle a re-score that is owed (#1538) — one an earlier attempt started and was killed partway
@@ -742,15 +744,15 @@ final class AppModel: ObservableObject {
                                          triggerLabel: fromCompletedPass ? "resume-gated" : "resume-forced")
         guard !Task.isCancelled else { return }
         #if os(iOS)
-        await healthWriteBack?()
         // The deferred pass is the one that finally produces today's score, and it runs with no UI
         // attached — so publish the snapshot here too, for the same reason the post-offload path does.
         await WidgetSnapshot.publish(from: self)
         // Apple Health too. The post-offload write-back ran BEFORE this pass (the offload deferred its
         // re-score here), so it published the store as it stood then: last night's sleep and vitals were
         // not scored yet and only reached Health on some later foreground. This is the first moment they
-        // exist. The bridge coalesces a call that lands during an in-flight write-back.
-        await healthWriteBack?()
+        // exist. The bridge coalesces a call that lands during an in-flight write-back. Immediate: a throttled
+        // write would wait past the end of the background task that runs this.
+        await healthWriteBack?(true)
         #endif
     }
 
@@ -784,7 +786,7 @@ final class AppModel: ObservableObject {
             await self.intelligence.analyzeRecent(skipIfUnchanged: true)
             guard !Task.isCancelled else { return false }
             #if os(iOS)
-            await self.healthWriteBack?()
+            await self.healthWriteBack?(true)
             await WidgetSnapshot.publish(from: self)
             #endif
             return !RescoreBackgroundScheduler.isRescoreOwed
@@ -861,8 +863,9 @@ final class AppModel: ObservableObject {
         // #1021: same reasoning as the widget publish above, for Apple Health. The only automatic
         // write-back ran on scenePhase == .active, in the same block that KICKS this offload - so it
         // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
-        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
-        await healthWriteBack?()
+        // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge. Throttled: a connected
+        // strap offloads every few minutes (see `HealthKitBridge.minWriteBackInterval`).
+        await healthWriteBack?(false)
         #endif
     }
 
