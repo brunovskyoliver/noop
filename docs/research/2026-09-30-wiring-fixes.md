@@ -68,3 +68,16 @@ recorded below when verified.
   call `Repository.hrvReadiness(asOf:flaggedDays:)` off-main and show no card without a status.
   The method sheet states the log-domain arithmetic, gates and limits. Values are shown in ms
   by exponentiating the mean ln RMSSD; this is distinct from last night's HRV in Charge.
+
+- B3 wired: the Sleep screen now has Pre-sleep HR (default-off, Settings → Sleep) and Sleep
+  heart-rate dip, each with 14/30-day observed-night trends and a shared method sheet.
+  `Repository.sleepHeartRateHistory` selects primary sleep through the existing Sleep selector,
+  reads raw pre-sleep samples only when enabled, and runs both engines off-main.
+  Pre-sleep uses the 30 minutes before primary onset and prior observed nights; a card requires
+  an observation and a usable comparison. Sleep dip compares complete five-minute epochs in primary
+  sleep with the preceding primary-wake-to-bed interval, excluding every recorded nap. An interval
+  over 24 hours has no contrast. Missing epochs stay nil; each side needs the engine's 30 valid epochs.
+  The sleep window includes in-bed wake. Displayed coverage is observed epoch availability, not a claim
+  about continuous recording. No diagnostic categories or scoring inputs added.
+  Four `SleepHeartRateWindowsTests` pin missing epochs, partial boundaries, nap exclusion and short
+  windows. Trend points are unconnected so gaps are never drawn as continuous observations.

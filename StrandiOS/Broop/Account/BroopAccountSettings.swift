@@ -35,6 +35,7 @@ struct BroopAccountSettingsView: View {
                     BroopAccountLink(value: BroopAccountRoute.notifications, symbol: "bell", title: String(localized: "Notifications"))
                     BroopAccountLink(value: BroopAccountRoute.appearance, symbol: "circle.lefthalf.filled", title: String(localized: "Appearance"),
                                          subtitle: String(localized: "Language, clock, theme and colours"))
+                    BroopAccountLink(value: BroopAccountRoute.sleep, symbol: "bed.double", title: String(localized: "Sleep"))
                     BroopAccountLink(value: BroopAccountRoute.features, symbol: "sparkles", title: String(localized: "Coach & Features"))
                     BroopAccountLink(value: BroopAccountRoute.strap, symbol: "applewatch.side.right", title: String(localized: "Strap & Sync"),
                                          subtitle: String(localized: "Connection, strap log, Live Activities"))

@@ -69,6 +69,9 @@ struct BroopOverviewSleepScreen: View {
                     sectionView(section, snap).padding(.top, BroopMetrics.section)
                 }
 
+                BroopOverviewSleepHeartRateCards(day: snap?.dayKey ?? Repository.logicalDayKey(Date()))
+                    .padding(.top, BroopMetrics.section)
+
                 BroopOverviewTrendCard(metrics: BroopOverviewTrendMetric.restSet, dayKey: snap?.dayKey ?? Repository.logicalDayKey(Date()))
                     .padding(.top, BroopMetrics.section)
 

@@ -31,7 +31,7 @@ enum BroopAccountStyle {
 /// link does nothing inside a page that was pushed with a view-destination link on a path-bound stack.
 enum BroopAccountRoute: Hashable {
     case profile, heartRate, units, notifications, appearance, features, strap, data, scoring, experimental
-    case about, integrations
+    case about, integrations, sleep
 }
 
 struct BroopAccountRouteView: View {
@@ -51,6 +51,7 @@ struct BroopAccountRouteView: View {
         case .experimental: BroopAccountExperimentalPage()
         case .about: BroopAccountAboutPage()
         case .integrations: BroopAccountIntegrationsView()
+        case .sleep: BroopAccountSleepPage()
         }
     }
 }
