@@ -28,12 +28,23 @@ struct ChatMessage: Identifiable, Equatable {
     let id: UUID
     let role: Role
     let text: String
+    /// Who produced an assistant turn, persisted in the stored row's provider column: a cloud provider's
+    /// id, `AICoachEngine.appleOnDeviceProvider`, `.appleServersProvider` (labelled "via Apple servers")
+    /// or `.noticeProvider` (an app note such as "Earlier messages were condensed"). Nil: the engine's
+    /// current provider, as before.
+    var provider: String?
 
-    init(id: UUID = UUID(), role: Role, text: String) {
+    init(id: UUID = UUID(), role: Role, text: String, provider: String? = nil) {
         self.id = id
         self.role = role
         self.text = text
+        self.provider = provider
     }
+
+    /// This reply was generated on Apple's servers (Private Cloud Compute).
+    var isFromAppleServers: Bool { provider == AICoachEngine.appleServersProvider }
+    /// An app note in the transcript, not a model reply.
+    var isNotice: Bool { provider == AICoachEngine.noticeProvider }
 }
 
 // MARK: - Secure key storage (Keychain)
@@ -297,6 +308,24 @@ final class AICoachEngine: ObservableObject {
         appleRoutingInputs = inputs
         let state = AppleCoachRouting.availability(inputs)
         if appleAvailability != state { appleAvailability = state }
+    }
+
+    /// Runs Apple Intelligence turns; its tools read `attachAppleFacts`'s source.
+    let apple = AppleCoachClient()
+    /// The Apple reply being streamed, observed only by the streaming bubble.
+    let stream = CoachStreamState()
+
+    static let appleOnDeviceProvider = "apple"
+    static let appleServersProvider = "apple-pcc"
+    static let noticeProvider = "notice"
+
+    /// Give the Apple Intelligence tools their data (the iOS app's resolvers).
+    func attachAppleFacts(_ source: any CoachFactsSource) { apple.attach(source: source) }
+
+    /// Load the on-device model when the Coach screen appears, so the first answer starts sooner.
+    func prewarmApple() {
+        guard usesApple, let inputs = appleRoutingInputs else { return }
+        apple.prewarm(inputs: inputs)
     }
 
     private let repo: Repository
@@ -784,7 +813,7 @@ final class AICoachEngine: ObservableObject {
             .sorted { $0.orderIndex < $1.orderIndex }
             .map { ChatMessage(id: UUID(uuidString: $0.id) ?? UUID(),
                                 role: ChatMessage.Role(rawValue: $0.role) ?? .user,
-                                text: $0.text) }
+                                text: $0.text, provider: $0.provider) }
         conversationDay = lastDay
     }
 
@@ -799,7 +828,7 @@ final class AICoachEngine: ObservableObject {
             guard let store = await repo.storeHandle() else { return }
             let rows = snapshot.enumerated().map { index, m in
                 CoachMessageRow(id: m.id.uuidString, role: m.role.rawValue, text: m.text,
-                                 provider: providerId, createdAt: Int(Date().timeIntervalSince1970),
+                                 provider: m.provider ?? providerId, createdAt: Int(Date().timeIntervalSince1970),
                                  orderIndex: index)
             }
             try? await store.replaceCoachMessages(rows)
@@ -810,6 +839,7 @@ final class AICoachEngine: ObservableObject {
     /// persisted table. Fire-and-forget on the store side; the in-memory clear is immediate.
     func clearConversation() {
         messages = []
+        apple.reset()
         droppedSummary = nil      // K13: reset the summary cache on clear
         droppedSummaryKey = []
         Task { try? await repo.storeHandle()?.clearCoachMessages() }
@@ -849,6 +879,7 @@ final class AICoachEngine: ObservableObject {
         // screen when the switch goes off, and that path passes no tab. Refusing here makes "the AI is off"
         // true however the screen was reached.
         guard CoachBriefScheduler.coachMasterEnabled else { return }
+        if usesApple { await sendApple(trimmed); return }
         guard let key = resolvedKey else { errorText = AICoachError.noKey.errorDescription; return }
 
         // A transcript from an earlier local day is retired before the new turn is appended (#1542,
@@ -860,11 +891,7 @@ final class AICoachEngine: ObservableObject {
         // fresh strap data.
         //
         // Placed AFTER the guards on purpose: a send that never happens must not wipe a transcript.
-        let today = Self.localEpochDay()
-        if Self.isStaleConversation(lastEpochDay: conversationDay, todayEpochDay: today) {
-            messages = []
-        }
-        conversationDay = today
+        retireStaleConversation()
 
         errorText = nil
         appendMessage(ChatMessage(role: .user, text: trimmed))
@@ -943,6 +970,53 @@ final class AICoachEngine: ObservableObject {
             }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
             keyRejected = false
+        }
+    }
+
+    /// Retire a transcript from an earlier local day before a new turn (see `send`).
+    private func retireStaleConversation() {
+        let today = Self.localEpochDay()
+        if Self.isStaleConversation(lastEpochDay: conversationDay, todayEpochDay: today) {
+            messages = []
+            apple.reset()
+        }
+        conversationDay = today
+    }
+
+    /// An Apple Intelligence turn: same transcript, day boundary and persistence as a cloud turn; the reply
+    /// streams into `stream` (one bubble re-renders per token, not the screen) and lands in `messages` once,
+    /// checked. Off-device replies are labelled; failures are calm messages, never an error dump.
+    private func sendApple(_ question: String) async {
+        retireStaleConversation()
+        errorText = nil
+        keyRejected = false
+        let history = messages
+        let userMessage = ChatMessage(role: .user, text: question)
+        appendMessage(userMessage)
+        sending = true
+        defer {
+            sending = false
+            stream.text = ""
+            persistMessages()
+        }
+        if appleRoutingInputs == nil { await refreshAppleAvailability() }
+        guard let inputs = appleRoutingInputs else { return }
+        let result = await apple.respond(question: question, history: history, inputs: inputs, stream: stream)
+        if apple.consumeCondensedNotice(), let at = messages.firstIndex(where: { $0.id == userMessage.id }) {
+            messages.insert(ChatMessage(role: .assistant, text: String(localized: "Earlier messages were condensed to make room."),
+                                        provider: Self.noticeProvider), at: at)
+        }
+        switch result {
+        case .reply(let text, let offDevice):
+            appendMessage(ChatMessage(role: .assistant, text: text,
+                                      provider: offDevice ? Self.appleServersProvider : Self.appleOnDeviceProvider))
+        case .factsOnly(let facts, let offDevice):
+            let text = String(localized: "Coach's wording didn't pass the number check, so here are the facts it looked up:")
+                + "\n\n" + facts
+            appendMessage(ChatMessage(role: .assistant, text: text,
+                                      provider: offDevice ? Self.appleServersProvider : Self.appleOnDeviceProvider))
+        case .failed(let message):
+            errorText = message
         }
     }
 

@@ -94,6 +94,8 @@ struct StrandiOSApp: App {
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        // The Apple Intelligence Coach's tools read the Broop screens' own resolvers.
+        model.coach.attachAppleFacts(BroopInsightsCoachFacts(repo: model.repo, model: model))
         // 2026-09-21: the detected-workout notification's tap/Edit routes to Workouts with the bout's
         // span; "Not a workout" dismisses durably without navigating (the Workouts row-menu path).
         NotificationPresenter.shared.onWorkoutDetectedReview = { [weak router] start, end, edit in

@@ -16,13 +16,12 @@ enum CoachInstructions {
         var unitSystem: String
         /// 21 or 100.
         var effortMax: Int
-        /// A condensed earlier conversation, carried into a fresh session. App-generated, checked for numbers.
-        var earlierSummary: String?
     }
 
     static func text(_ c: Context) -> String {
         let f = DateFormatter()
         f.calendar = c.calendar
+        f.timeZone = c.calendar.timeZone
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "EEEE d MMMM yyyy"
         var parts = [
@@ -46,9 +45,6 @@ enum CoachInstructions {
             """,
             "Today is \(f.string(from: c.today)). Units: \(c.unitSystem). Effort is shown on a 0 to \(c.effortMax) scale.",
         ]
-        if let summary = c.earlierSummary, !summary.isEmpty {
-            parts.append("Summary of the earlier conversation (for context only; state no numbers from it): \(summary)")
-        }
         if let language = languageLine(c.locale) { parts.append(language) }
         return parts.joined(separator: "\n\n")
     }
