@@ -93,7 +93,8 @@ struct BroopInsightsCoachStreamingReply: View {
                 Text(verbatim: stream.text)
                     .font(BroopType.regular(17))
                     .foregroundStyle(BroopPalette.textBody)
-                    .lineSpacing(5)
+                    // The Markdown theme's 0.42 em at 17 pt, so the text does not jump when the reply lands.
+                    .lineSpacing(7)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -159,8 +160,14 @@ struct BroopInsightsCoachSettingsSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 40)
             }
+            // WHOOP's AI settings chrome: a close glyph on the left and a caps title, one plain row.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                BroopNavHeader(inline: true, onBack: { dismiss() }, leadingSymbol: "xmark",
+                               center: { BroopNavTitle(title: String(localized: "Coach settings")) },
+                               trailing: { EmptyView() })
+            }
             .background(BroopBackground())
-            .broopSheetBar(String(localized: "Coach settings")) { dismiss() }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $showProvider) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showCloudSettings) { CoachSettingsView().environmentObject(coach).environmentObject(repo) }
@@ -319,8 +326,14 @@ struct BroopInsightsCoachInfoSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 40)
             }
+            // WHOOP's AI settings chrome: a close glyph on the left and a caps title, one plain row.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                BroopNavHeader(inline: true, onBack: { dismiss() }, leadingSymbol: "xmark",
+                               center: { BroopNavTitle(title: String(localized: "About Coach")) },
+                               trailing: { EmptyView() })
+            }
             .background(BroopBackground())
-            .broopSheetBar(String(localized: "About Coach")) { dismiss() }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 

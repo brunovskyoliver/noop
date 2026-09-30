@@ -14,6 +14,9 @@ struct BroopInsightsCoachView: View {
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var repo: Repository
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
+    /// Set when Coach is shown in the shell's sheet (Home, notifications); nil when pushed from More.
+    @Environment(\.broopCloseHostSheet) private var closeHostSheet
 
     private static let draftKey = "coach.composerDraft"
     @State private var draft: String = UserDefaults.standard.string(forKey: "coach.composerDraft") ?? ""
@@ -45,14 +48,24 @@ struct BroopInsightsCoachView: View {
             }
         }
         .background(BroopInsightsCoachBackground())
-        .broopNavPage(header: BroopNavHeader(fill: BroopInsightsCoachBackground.topColor) { versionPill } trailing: {
-            menu
-        })
+        // One plain header row, as WHOOP's Coach: no system bar, so no Liquid Glass bubbles around the
+        // pill and the menu, and the sheet's own "Done" is replaced by the close button in this row.
+        .safeAreaInset(edge: .top, spacing: 0) { header }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showProviderSettings) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showSettings) {
             BroopInsightsCoachSettingsSheet().environmentObject(coach).environmentObject(repo)
         }
         .sheet(isPresented: $showInfo) { BroopInsightsCoachInfoSheet().environmentObject(coach) }
+        #if DEBUG
+        // Verification: open a sheet straight away (`--coach-open settings|info`).
+        .task {
+            let args = CommandLine.arguments
+            guard let i = args.firstIndex(of: "--coach-open"), i + 1 < args.count else { return }
+            try? await Task.sleep(for: .seconds(1))
+            if args[i + 1] == "settings" { showSettings = true } else if args[i + 1] == "info" { showInfo = true }
+        }
+        #endif
         .task(id: scenePhase) {
             // The model can finish downloading, or Apple Intelligence be switched on, while the app is open.
             if scenePhase == .active {
@@ -101,19 +114,52 @@ struct BroopInsightsCoachView: View {
         return name.components(separatedBy: " (").first ?? name
     }
 
+    private var header: some View {
+        HStack(spacing: 6) {
+            if closeHostSheet == nil {
+                headerButton("chevron.left", label: String(localized: "Back")) { dismiss() }
+                    .padding(.leading, -8)
+            }
+            versionPill
+            Spacer(minLength: 8)
+            menu
+            if let closeHostSheet {
+                headerButton("xmark", label: String(localized: "Close")) { closeHostSheet() }
+                    .padding(.trailing, -8)
+            }
+        }
+        .padding(.horizontal, BroopMetrics.page)
+        .frame(height: BroopMetrics.navHeight)
+        .background(BroopInsightsCoachBackground.topColor.ignoresSafeArea(edges: .top))
+    }
+
+    /// A header glyph centred in a 44 pt hit area: the same box for back, menu and close, so they line up.
+    private func headerButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { headerGlyph(symbol) }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(verbatim: label))
+    }
+
+    private func headerGlyph(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(BroopPalette.textPrimary)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+    }
+
     private var versionPill: some View {
         HStack(spacing: 8) {
-            BroopBadge(size: 24, gradientRing: true)
+            BroopBadge(size: 26, gradientRing: true)
             Text(verbatim: pillTitle)
-                .font(BroopType.demi(13.5))
+                .font(BroopType.demi(14))
                 .foregroundStyle(BroopPalette.textBody)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 170)
         }
-        .padding(.leading, 4)
-        .padding(.trailing, 12)
-        .frame(height: 34)
+        .padding(.leading, 5)
+        .padding(.trailing, 14)
+        .frame(height: 36)
         .background(Capsule().fill(Color.white.opacity(0.09)))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(verbatim: coach.usesApple ? pillTitle : "\(coach.provider.displayName), \(coach.model)"))
@@ -135,12 +181,9 @@ struct BroopInsightsCoachView: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(BroopPalette.textPrimary)
-                .frame(width: 40, height: 44, alignment: .trailing)
-                .contentShape(Rectangle())
+            headerGlyph("ellipsis")
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(Text("Coach menu"))
     }
 
@@ -338,7 +381,7 @@ struct BroopInsightsCoachView: View {
                 }
                 .padding(.horizontal, 20)
             }
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: 10) {
                 Menu {
                     Button { showClearConfirm = true } label: { Label(String(localized: "New conversation"), systemImage: "square.and.pencil") }
                         .disabled(coach.messages.isEmpty)
@@ -347,7 +390,7 @@ struct BroopInsightsCoachView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 19, weight: .medium))
                         .foregroundStyle(BroopPalette.textPrimary)
-                        .frame(width: 48, height: 48)
+                        .frame(width: Self.composerHeight, height: Self.composerHeight)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.10)))
                 }
                 .accessibilityLabel(Text("More"))
@@ -369,18 +412,23 @@ struct BroopInsightsCoachView: View {
         )
     }
 
+    /// One row height for the "+" button, a single-line field, the mic and send, so every control is
+    /// centred on the first line and stays on the last line as the field grows.
+    private static let composerHeight: CGFloat = 52
+
     private var field: some View {
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return HStack(alignment: .bottom, spacing: 8) {
+        return HStack(alignment: .bottom, spacing: 2) {
             TextField(String(localized: "Ask Broop anything"), text: $draft, axis: .vertical)
                 .font(BroopType.regular(17))
                 .foregroundStyle(BroopPalette.textPrimary)
                 .lineLimit(1...5)
                 .focused($composerFocused)
                 .onSubmit { send(draft) }
-                .padding(.vertical, 13)
+                .padding(.vertical, 14)
+                .frame(minHeight: Self.composerHeight)
                 .accessibilityLabel(Text("Question"))
-            micButton.padding(.bottom, 6)
+            micButton
             if hasText || coach.sending {
                 Button { send(draft) } label: {
                     Group {
@@ -391,14 +439,14 @@ struct BroopInsightsCoachView: View {
                     .foregroundStyle(.black)
                     .frame(width: 34, height: 34)
                     .background(Circle().fill(Color.white))
+                    .frame(width: 42, height: Self.composerHeight)
                 }
                 .disabled(coach.sending || !hasText)
-                .padding(.bottom, 7)
                 .accessibilityLabel(Text("Send"))
             }
         }
         .padding(.leading, 18)
-        .padding(.trailing, 8)
+        .padding(.trailing, 6)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color(broopHex: 0x10151C)))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -415,7 +463,8 @@ struct BroopInsightsCoachView: View {
                 .font(.system(size: 19, weight: .regular))
                 .foregroundStyle(voice.isRecording ? BroopInsightsPalette.hurts
                                  : (voice.canUseVoice ? BroopPalette.textPrimary : BroopPalette.textTertiary))
-                .frame(width: 32, height: 32)
+                .frame(width: 42, height: Self.composerHeight)
+                .contentShape(Rectangle())
         }
         .disabled(!micEnabled)
         .accessibilityLabel(Text(voice.isRecording ? "Stop voice input" : "Voice input"))
@@ -449,6 +498,8 @@ struct BroopInsightsCoachView: View {
     private func send(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, !coach.sending else { return }
+        // Stop dictation first: a running session would write its transcript back into the cleared field.
+        if voice.isRecording { voice.stopTranscribing { _ in } }
         draft = ""
         composerFocused = false
         Task { await coach.send(t) }

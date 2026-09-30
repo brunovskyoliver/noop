@@ -12,6 +12,8 @@ struct BroopInsightsCoachDemoHost: View {
 
     var body: some View {
         BroopInsightsCoachView()
+            // `--coach-sheet`: render as the shell's sheet shows it (close button instead of back).
+            .environment(\.broopCloseHostSheet, CommandLine.arguments.contains("--coach-sheet") ? {} : nil)
             .task {
                 let args = CommandLine.arguments
                 if args.contains("--coach-clear") { coach.clearConversation() }
