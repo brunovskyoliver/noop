@@ -10,6 +10,16 @@ import FoundationModels
 /// `#available`, and an OS older than 26 reports `.osTooOld`.
 enum AppleCoachProbe {
 
+    /// Whether this build carries Apple's Private Cloud Compute entitlement (see project.yml): without it
+    /// the framework refuses every request, so the fallback is reported unavailable instead of failing.
+    static var privateCloudInBuild: Bool {
+        #if COACH_PCC_ENTITLED
+        return true
+        #else
+        return false
+        #endif
+    }
+
     static func inputs(fallbackAllowed: Bool, locale: Locale) async -> AppleCoachRoutingInputs {
         var i = AppleCoachRoutingInputs(onDevice: .osTooOld, onDeviceSupportsLocale: false, privateCloud: .osTooOld,
                                         privateCloudSupportsLocale: false, fallbackAllowed: fallbackAllowed)
@@ -18,7 +28,8 @@ enum AppleCoachProbe {
             let model = SystemLanguageModel.default
             i.onDevice = onDeviceState(model.availability)
             i.onDeviceSupportsLocale = model.supportsLocale(locale)
-            if #available(iOS 27.0, macOS 27.0, *) {
+            if #available(iOS 27.0, macOS 27.0, *), !privateCloudInBuild { i.privateCloud = .unavailable }
+            if #available(iOS 27.0, macOS 27.0, *), privateCloudInBuild {
                 let pcc = PrivateCloudComputeLanguageModel()
                 i.privateCloud = pcc.isAvailable ? .available : .unavailable
                 i.privateCloudSupportsLocale = pcc.isAvailable ? ((try? await pcc.supportsLocale(locale)) ?? false) : false

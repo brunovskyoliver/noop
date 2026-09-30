@@ -139,8 +139,11 @@ struct BroopInsightsCoachSettingsSheet: View {
                     if coach.backend == .appleIntelligence {
                         BroopAccountGroup {
                             BroopAccountToggle(title: String(localized: "Use Apple servers when needed"),
-                                               detail: String(localized: "Only when the on-device model can't answer. That turn's question and the data Coach looked up for it go to Apple's Private Cloud Compute, and the reply is labelled \"via Apple servers\". Needs iOS 27."),
-                                               isOn: $coach.allowAppleServers)
+                                               detail: AppleCoachProbe.privateCloudInBuild
+                                                   ? String(localized: "Only when the on-device model can't answer. That turn's question and the data Coach looked up for it go to Apple's Private Cloud Compute, and the reply is labelled \"via Apple servers\". Needs iOS 27.")
+                                                   : String(localized: "Not in this build: Apple has to grant this app's signing team the Private Cloud Compute entitlement. Coach runs on this iPhone only."),
+                                               isOn: $coach.allowAppleServers,
+                                               enabled: AppleCoachProbe.privateCloudInBuild)
                         }
                     } else {
                         BroopAccountGroup {
@@ -298,9 +301,11 @@ struct BroopInsightsCoachInfoSheet: View {
                     section(String(localized: "Where Coach runs"),
                             String(localized: "With Apple Intelligence chosen, Coach runs on this iPhone. Its model looks up your scores, trends, tonight's sleep plan and journal through the app, on the phone."))
                     section(String(localized: "When a turn uses Apple's servers"),
-                            coach.allowAppleServers
+                            coach.allowAppleServers && AppleCoachProbe.privateCloudInBuild
                             ? String(localized: "If the on-device model can't answer (Apple Intelligence isn't ready, the language isn't supported on the phone, the conversation is too long, or the phone is busy), that turn goes to Apple's Private Cloud Compute. What leaves the phone for that turn: your question and the data Coach looked up for it. Those replies are labelled \"via Apple servers\". You can turn this off in Coach settings. Needs iOS 27.")
-                            : String(localized: "\"Use Apple servers when needed\" is off, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead."))
+                            : (AppleCoachProbe.privateCloudInBuild
+                               ? String(localized: "\"Use Apple servers when needed\" is off, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead.")
+                               : String(localized: "This build doesn't include Apple's servers, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead.")))
                     section(String(localized: "What Coach can do"),
                             String(localized: "Explain your Charge, Rest, Effort, HRV, stress, energy and sleep in plain language, describe your trends, walk through tonight's plan, and write a short daily brief."))
                     section(String(localized: "What it can't do"),

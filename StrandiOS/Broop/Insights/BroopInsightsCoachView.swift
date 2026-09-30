@@ -208,7 +208,7 @@ struct BroopInsightsCoachView: View {
 
     private var privacyText: String {
         if coach.usesApple {
-            return coach.allowAppleServers
+            return coach.allowAppleServers && AppleCoachProbe.privateCloudInBuild
                 ? String(localized: "Runs on this iPhone with Apple Intelligence. If the on-device model can't answer, that turn goes to Apple's servers and the reply says so.")
                 : String(localized: "Runs on this iPhone with Apple Intelligence. Nothing leaves your phone.")
         }
