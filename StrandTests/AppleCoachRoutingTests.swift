@@ -47,6 +47,8 @@ final class AppleCoachRoutingTests: XCTestCase {
         XCTAssertEqual(noPCC(.deviceNotEligible, true), .deviceNotEligible)
         XCTAssertEqual(noPCC(.modelNotReady, true), .modelDownloading)
         XCTAssertEqual(noPCC(.available, false), .languageNotSupported)
+        // The framework reports an unsupported app language as "model not ready".
+        XCTAssertEqual(noPCC(.modelNotReady, false), .languageNotSupported)
         XCTAssertEqual(noPCC(.osTooOld, true), .osTooOld)
         XCTAssertFalse(AppleCoachAvailability.languageNotSupported.canChat)
         XCTAssertTrue(AppleCoachAvailability.appleServersOnly.canChat)

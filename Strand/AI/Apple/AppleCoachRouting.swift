@@ -83,6 +83,9 @@ enum AppleCoachRouting {
     static func availability(_ i: AppleCoachRoutingInputs) -> AppleCoachAvailability {
         if i.onDevice == .available && i.onDeviceSupportsLocale { return .onDeviceReady }
         if privateCloudServes(i) { return .appleServersOnly }
+        // An app language Apple Intelligence does not speak is reported with the model "not ready" (seen on
+        // the iOS 27 simulator with Polish): name the language, not a download that will never finish.
+        if i.onDevice == .modelNotReady && !i.onDeviceSupportsLocale { return .languageNotSupported }
         switch i.onDevice {
         case .osTooOld: return .osTooOld
         case .deviceNotEligible: return .deviceNotEligible
