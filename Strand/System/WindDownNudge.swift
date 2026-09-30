@@ -1,5 +1,6 @@
 import Foundation
 import UserNotifications
+import StrandAnalytics
 
 /// The wind-down nudge (#207) — a gentle, NON-critical evening local notification suggesting it's
 /// time to start winding down so the user can reach their usual wake time well-rested.
@@ -29,9 +30,11 @@ enum WindDownNudge {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
 
-    /// The bed-to-wake window's stored range.
-    static let minWindowMinutes = 5 * 60
-    static let maxWindowMinutes = 11 * 60
+    /// The bed-to-wake window's stored range. The upper bound IS the planner's own (`SleepPlanner.maxWindowMin`,
+    /// 12 h plus rounding): the old 11 h clamp made a long plan and its reminder name different bedtimes. The
+    /// planner is the only writer, so the lower bound only guards a corrupt stored value.
+    static let minWindowMinutes = 0
+    static let maxWindowMinutes = SleepPlanner.maxWindowMin
 
     static var sleepNeedMinutes: Int {
         let v = UserDefaults.standard.object(forKey: K.sleepNeed) as? Int ?? 8 * 60
@@ -104,7 +107,7 @@ enum WindDownNudge {
     /// loses which day the nudge belongs to; this companion carries that information so the scheduler
     /// can pin the trigger to the nudge's day, not the wake's. (#1863)
     ///
-    /// `raw` is always in [-780, 1139] given the clamped inputs (wake ≤ 1439, sleepNeed ≥ 300, lead ≤ 120),
+    /// `raw` is always in [-842, 1439] given the clamped inputs (wake ≤ 1439, window ≤ 722, lead ≤ 120),
     /// so the shift is always 0 or -1 — but the formula is general floor-division for safety.
     static func nudgeDayShift(forWeekday weekday: Int) -> Int {
         let raw = wakeMinutes(forWeekday: weekday) - sleepNeedMinutes - leadMinutes

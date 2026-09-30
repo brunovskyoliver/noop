@@ -74,4 +74,22 @@ final class SleepPlannerTests: XCTestCase {
         XCTAssertEqual(p.tiers.map(\.reachable), [false, true, true])
         XCTAssertEqual(p.tiers.map(\.inBedMin), [603.051724137931, 515.5939655172414, 428.1362068965517])
     }
+
+    /// Every plan's bed-to-wake window fits `maxWindowMin`, the bound the wind-down reminder clamps to, and
+    /// the bound is reached (a smaller one would move the reminder off the planner's bedtime).
+    func testWindowNeverExceedsTheSharedMaximum() {
+        var longest = 0
+        for wake in stride(from: 0, to: 1440, by: 1) {
+            for need in [8.0, 10.5, 12.0] {
+                let p = SleepPlanner.plan(.init(baseNeedHours: need, debtMin: 300, efficiencies: [0.75, 0.75, 0.75],
+                                                wakeMinute: wake))
+                for t in p.tiers {
+                    let window = ((p.wakeMinute - t.bedMinute) % 1440 + 1440) % 1440
+                    XCTAssertLessThanOrEqual(window, SleepPlanner.maxWindowMin)
+                    longest = max(longest, window)
+                }
+            }
+        }
+        XCTAssertEqual(longest, SleepPlanner.maxWindowMin)
+    }
 }

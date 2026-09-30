@@ -69,6 +69,10 @@ public enum SleepPlanner {
     public static let minEfficiencyNights = 3
     public static let defaultLatencyMin = 15.0
     public static let maxInBedMin = 720.0
+    /// The longest bed-to-wake window a plan can hold: the in-bed cap plus the bedtime's rounding to
+    /// `roundToMin` (half a step either way). The wind-down reminder clamps its stored window to this, so a
+    /// long plan and its reminder can never name different bedtimes.
+    public static let maxWindowMin = Int(maxInBedMin) + roundToMin / 2
     public static let maxEarlierThanUsualMin = 90
     public static let roundToMin = 5
 

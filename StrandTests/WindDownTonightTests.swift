@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// Tonight's wind-down reminder follows the wake tonight's sleep plan uses (`WindDownNudge.tonight`):
@@ -123,5 +124,19 @@ final class WindDownTonightTests: XCTestCase {
                                       wakeMinuteForWeekday: usual7)
         XCTAssertEqual(hm(c, t.fireDate), [28, 21, 30])
         XCTAssertEqual(alarm.timeIntervalSince(t.fireDate), 510 * 60)
+    }
+
+    /// The stored window takes the planner's longest plan unclamped (the old 11 h cap moved a long plan's
+    /// reminder off its bedtime), and clamps only past `SleepPlanner.maxWindowMin`.
+    @MainActor func testStoredWindowUsesThePlannersMaximum() {
+        let key = "windDown.sleepNeedMinutes"
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        WindDownNudge.syncPlan(windowMinutes: 700, alarmFire: nil)
+        XCTAssertEqual(WindDownNudge.sleepNeedMinutes, 700)
+        WindDownNudge.syncPlan(windowMinutes: SleepPlanner.maxWindowMin, alarmFire: nil)
+        XCTAssertEqual(WindDownNudge.sleepNeedMinutes, SleepPlanner.maxWindowMin)
+        WindDownNudge.syncPlan(windowMinutes: 900, alarmFire: nil)
+        XCTAssertEqual(WindDownNudge.sleepNeedMinutes, SleepPlanner.maxWindowMin)
     }
 }
