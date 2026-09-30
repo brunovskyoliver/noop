@@ -259349,6 +259349,180 @@
           }
         }
       }
+    },
+    "Here's how you slept" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So hast du geschlafen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Así has dormido"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voici comment vous avez dormi"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ecco come hai dormito"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twój sen tej nocy"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eis como dormiu"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как вы спали"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你昨晚的睡眠情况"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你昨晚的睡眠情況"
+          }
+        }
+      }
+    },
+    "Morning brief when I wake" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morgenbriefing beim Aufwachen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumen matinal al despertar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brief du matin au réveil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riepilogo mattutino al risveglio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poranne podsumowanie po przebudzeniu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resumo matinal ao acordar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Утренняя сводка после пробуждения"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "醒来时的晨间简报"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "醒來時的晨間簡報"
+          }
+        }
+      }
+    },
+    "Once last night is scored, a notification sums up your sleep and today, and the strap buzzes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sobald die letzte Nacht ausgewertet ist, fasst eine Mitteilung deinen Schlaf und den heutigen Tag zusammen, und das Armband vibriert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando se puntúa la noche, una notificación resume tu sueño y el día de hoy, y la pulsera vibra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une fois la nuit évaluée, une notification résume votre sommeil et la journée, et le bracelet vibre."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando la notte viene valutata, una notifica riassume il sonno e la giornata di oggi, e la fascia vibra."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy ostatnia noc zostanie oceniona, powiadomienie podsumuje sen i dzisiejszy dzień, a opaska zawibruje."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando a última noite for avaliada, uma notificação resume o seu sono e o dia de hoje, e a pulseira vibra."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда прошлая ночь будет оценена, уведомление подведёт итог сна и дня, а браслет завибрирует."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚的睡眠评分完成后，通知会总结你的睡眠和今天的状态，腕带会振动。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚的睡眠評分完成後，通知會總結你的睡眠和今天的狀態，腕帶會震動。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

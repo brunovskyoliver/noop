@@ -713,6 +713,9 @@ final class AppModel: ObservableObject {
     /// `immediate` skips the bridge's write-back throttle: for a call that just produced data nobody else
     /// will publish soon (a finished re-score, a sync the person is waiting on). Offload hooks pass false.
     var healthWriteBack: ((_ immediate: Bool) async -> Void)?
+    /// Runs after each pass that can score last night (post-offload, deferred re-score, user sync). Set by
+    /// `StrandiOSApp` for the wake brief (`CoachBriefScheduler.deliverOnWakeIfDue`).
+    var afterScoring: (() async -> Void)?
     #endif
 
     /// Settle a re-score that is owed (#1538) — one an earlier attempt started and was killed partway
@@ -753,6 +756,7 @@ final class AppModel: ObservableObject {
         // exist. The bridge coalesces a call that lands during an in-flight write-back. Immediate: a throttled
         // write would wait past the end of the background task that runs this.
         await healthWriteBack?(true)
+        await afterScoring?()
         #endif
     }
 
@@ -788,6 +792,8 @@ final class AppModel: ObservableObject {
             #if os(iOS)
             await self.healthWriteBack?(true)
             await WidgetSnapshot.publish(from: self)
+            // Not awaited: the sync sheet should not wait on the model writing the brief.
+            Task { await self.afterScoring?() }
             #endif
             return !RescoreBackgroundScheduler.isRescoreOwed
         }
@@ -866,6 +872,7 @@ final class AppModel: ObservableObject {
         // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge. Throttled: a connected
         // strap offloads every few minutes (see `HealthKitBridge.minWriteBackInterval`).
         await healthWriteBack?(false)
+        await afterScoring?()
         #endif
     }
 

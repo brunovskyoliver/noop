@@ -93,6 +93,8 @@ struct BroopInsightsCoachSettingsSheet: View {
     @EnvironmentObject private var model: AppModel
     @State private var eveningReminder = EveningReviewReminder.storedEnabled
     @State private var eveningDenied = false
+    @State private var wakeBrief = UserDefaults.standard.bool(forKey: CoachBriefScheduler.wakeKey)
+    @State private var wakeDenied = false
     @Environment(\.dismiss) private var dismiss
     @State private var showProvider = false
     @State private var showCloudSettings = false
@@ -121,6 +123,10 @@ struct BroopInsightsCoachSettingsSheet: View {
                             BroopAccountToggle(title: String(localized: "Evening reminder"),
                                                detail: eveningDenied ? String(localized: "Notifications are off") : nil,
                                                isOn: eveningReminderBinding)
+                            BroopAccountToggle(title: String(localized: "Morning brief when I wake"),
+                                               detail: wakeDenied ? String(localized: "Notifications are off")
+                                                   : String(localized: "Once last night is scored, a notification sums up your sleep and today, and the strap buzzes."),
+                                               isOn: wakeBriefBinding)
                         }
                     } else {
                         BroopAccountGroup {
@@ -157,6 +163,16 @@ struct BroopInsightsCoachSettingsSheet: View {
                                              skipTonight: false) { granted in
                 eveningReminder = granted
                 eveningDenied = on && !granted
+            }
+        })
+    }
+
+    private var wakeBriefBinding: Binding<Bool> {
+        Binding(get: { wakeBrief }, set: { on in
+            wakeBrief = on
+            CoachBriefScheduler.setWakeEnabled(on) { granted in
+                wakeBrief = granted
+                wakeDenied = on && !granted
             }
         })
     }

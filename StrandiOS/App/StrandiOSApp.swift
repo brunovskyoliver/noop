@@ -184,6 +184,21 @@ struct StrandiOSApp: App {
         model.healthWriteBack = { [weak bridge] immediate in
             _ = await bridge?.writeBackAfterNewData(immediate: immediate)
         }
+        // The wake brief: once a pass scores a night that just ended, write the brief, post it, buzz the strap.
+        // Last night is read through Home's own loader, so it is the same night Home shows.
+        model.afterScoring = { [weak model] in
+            guard let model else { return }
+            await CoachBriefScheduler.deliverOnWakeIfDue(
+                nightEnd: {
+                    let store = BroopStore()
+                    await store.reload(repo: model.repo, profile: model.profile)
+                    guard let snap = store.snapshot, snap.restDayKey == snap.dayKey,
+                          let end = snap.night?.session.endTs else { return nil }
+                    return Date(timeIntervalSince1970: TimeInterval(end))
+                },
+                generateBrief: { await model.coach.generateBrief(onWake: true) },
+                buzz: { model.buzzStrapOnce() })
+        }
     }
 
     /// The Shortcut-import alert's presentation binding, hoisted OUT of the `.alert` chain.

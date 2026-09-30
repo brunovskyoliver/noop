@@ -265,15 +265,70 @@ enum CoachBriefScheduler {
             return false
         }
 
+        record(text, now: now)
+        postNotification(title: String(localized: "Today's coaching brief"),
+                          body: oneLineSummary(from: text))
+        return true
+    }
+
+    /// Mark today's brief delivered: the dedup day, the Coach tap-through text, and the widget.
+    private static func record(_ text: String, now: Date) {
         UserDefaults.standard.set(dayKey(now), forKey: K.lastRun)
         UserDefaults.standard.set(text, forKey: K.storedBrief)
         UserDefaults.standard.set(true, forKey: K.hasUnconsumed)
         #if os(iOS)
         publishToWidget(text)  // K10: mirror into the App Group for the widget
         #endif
-        postNotification(title: String(localized: "Today's coaching brief"),
-                          body: oneLineSummary(from: text))
-        return true
+    }
+
+    // MARK: - On waking (iOS)
+
+    /// The brief sent when last night's sleep is first scored, instead of at a set time: the notification,
+    /// then a strap buzz to say it is waiting. Shares `lastRun` with the timed brief, so a day gets one.
+    /// Default off; its own switch, independent of the timed brief's.
+    static let wakeKey = "coachBrief.onWake"
+    static var wakeEnabled: Bool { coachMasterEnabled && UserDefaults.standard.bool(forKey: wakeKey) }
+    /// A night scored later than this after it ended is an afternoon sync, not a wake-up: no brief.
+    static let wakeWindow: TimeInterval = 3 * 3600
+    // ponytail: fixed floor against a 3 a.m. bathroom trip scored as the night; use the sleep plan's
+    // wake time if early risers need it lower.
+    static let earliestWakeHour = 5
+    private static var wakeRunning = false
+
+    /// Whether a night that ended at `nightEnd` is a wake-up worth announcing at `now`. Pure.
+    nonisolated static func isFreshWake(nightEnd: Date, now: Date, calendar: Calendar = .current) -> Bool {
+        let age = now.timeIntervalSince(nightEnd)
+        return age >= 0 && age <= wakeWindow && calendar.isDate(nightEnd, inSameDayAs: now)
+            && calendar.component(.hour, from: nightEnd) >= earliestWakeHour
+    }
+
+    /// Turn the wake brief on or off. On asks for notification permission once; `completion` gets the result.
+    static func setWakeEnabled(_ on: Bool, completion: @escaping @MainActor (Bool) -> Void) {
+        guard on else {
+            UserDefaults.standard.set(false, forKey: wakeKey)
+            completion(false)
+            return
+        }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            Task { @MainActor in
+                UserDefaults.standard.set(granted, forKey: wakeKey)
+                completion(granted)
+            }
+        }
+    }
+
+    /// Called after every scoring pass. Cheap gates first; `nightEnd` (a full snapshot load) only when due.
+    /// A failed generation leaves the day open, so the next pass tries again.
+    static func deliverOnWakeIfDue(nightEnd: () async -> Date?, generateBrief: () async -> String?, buzz: () -> Void) async {
+        let now = Date()
+        guard wakeEnabled, !wakeRunning, UserDefaults.standard.string(forKey: K.lastRun) != dayKey(now) else { return }
+        wakeRunning = true
+        defer { wakeRunning = false }
+        guard let end = await nightEnd(), isFreshWake(nightEnd: end, now: now),
+              let text = await generateBrief() else { return }
+        record(text, now: now)
+        postNotification(title: String(localized: "Good morning"), body: text)
+        buzz()
     }
 
     /// Pure: the notification body is the brief's first non-empty line, trimmed and length-capped so it

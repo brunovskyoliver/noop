@@ -43,4 +43,18 @@ final class AppleCoachBriefTests: XCTestCase {
         XCTAssertEqual(AppleCoachBrief.load(d), brief)
         d.removePersistentDomain(forName: suite)
     }
+
+    /// The wake brief goes out for a night that just ended this morning, not for an afternoon sync or a
+    /// night-time wake.
+    func testWakeBriefOnlyForAFreshMorningWake() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Bratislava")!
+        func at(_ h: Int, _ m: Int = 0) -> Date { cal.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: h, minute: m))! }
+        XCTAssertTrue(CoachBriefScheduler.isFreshWake(nightEnd: at(7), now: at(7, 20), calendar: cal))
+        XCTAssertTrue(CoachBriefScheduler.isFreshWake(nightEnd: at(7), now: at(10), calendar: cal))
+        XCTAssertFalse(CoachBriefScheduler.isFreshWake(nightEnd: at(7), now: at(10, 1), calendar: cal))  // scored over three hours late
+        XCTAssertFalse(CoachBriefScheduler.isFreshWake(nightEnd: at(3, 30), now: at(3, 45), calendar: cal)) // night-time wake
+        XCTAssertFalse(CoachBriefScheduler.isFreshWake(nightEnd: at(7), now: at(6, 59), calendar: cal))  // clock skew
+        XCTAssertFalse(CoachBriefScheduler.isFreshWake(nightEnd: at(7).addingTimeInterval(-86_400), now: at(7, 10), calendar: cal))
+    }
 }
