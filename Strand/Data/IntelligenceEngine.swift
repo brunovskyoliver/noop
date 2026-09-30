@@ -690,8 +690,10 @@ final class IntelligenceEngine: ObservableObject {
     /// Compute on-device scores for each of the last `maxDays` that actually has raw HR data.
     /// Personal baselines (HRV / resting HR) are folded from the imported history, so even the first
     /// live night can be scored against your norm.
+    /// - Parameter recentPublished: the caller has just completed the short recent-night pass, so the
+    ///   full pass below must not repeat it before starting. Only the backgrounded branch sets it.
     func analyzeRecent(maxDays: Int = 21, force: Bool = true, skipIfUnchanged: Bool = false,
-                       triggerLabel: String? = nil) async {
+                       triggerLabel: String? = nil, recentPublished: Bool = false) async {
         guard !Task.isCancelled else { return }
         guard !computing else {
             if force { pendingForcedRescore = true; RescoreBackgroundScheduler.markRescoreOwed() }
@@ -700,6 +702,7 @@ final class IntelligenceEngine: ObservableObject {
         if !RescoreBackgroundScheduler.hasExecutionGrant {
             // A short recent-night pass gets its own opportunity. Old history debt must not prevent
             // publishing a newly arrived night. Failed attempts are throttled across process restarts.
+            let recentBefore = recentPassCompletions
             if RescoreBackgroundScheduler.isBackgrounded,
                !RescoreBackgroundScheduler.hasExtendedProcessingTime {
                 let last = UserDefaults.standard.double(forKey: "noop.recentAnalysisAttempt")
@@ -713,13 +716,16 @@ final class IntelligenceEngine: ObservableObject {
                 }
             }
             guard !Task.isCancelled else { return }
+            // The background execution grant is about 20 s. Running the same recent nights a second time
+            // spent that budget before the full pass even started, so it was cancelled and deferred more often.
+            let recentDone = recentPassCompletions != recentBefore
             await RescoreBackgroundScheduler.run(owesOnDefer: force, log: { [weak self] in self?.diagnosticSink?($0, nil) }) {
                 await self.analyzeRecent(maxDays: maxDays, force: force, skipIfUnchanged: skipIfUnchanged,
-                                         triggerLabel: triggerLabel)
+                                         triggerLabel: triggerLabel, recentPublished: recentDone)
             }
             return
         }
-        if maxDays > 3 && (results.isEmpty || skipIfUnchanged) {
+        if !recentPublished && maxDays > 3 && (results.isEmpty || skipIfUnchanged) {
             await analyzeRecentPass(maxDays: 3, force: force, skipIfUnchanged: skipIfUnchanged, settleDebt: false,
                                     triggerLabel: triggerLabel)
         }
@@ -3118,6 +3124,7 @@ final class IntelligenceEngine: ObservableObject {
 
         if settleDebt { results = out }
         else {
+            recentPassCompletions += 1
             let recentDays = Set(out.map(\.day))
             results = (out + results.filter { !recentDays.contains($0.day) }).sorted { $0.day > $1.day }
         }
@@ -3166,6 +3173,10 @@ final class IntelligenceEngine: ObservableObject {
     /// `analyzeRecent` scored against. A non-forced tick whose current fingerprint equals this skips the
     /// 21-day rescore; cleared implicitly by any scoring-stream insert (the fingerprint moves), so it self-heals.
     private static let analyzeWatermarkKey = "noop.analyzeWatermark"
+
+    /// Counts completed recent-night (non-settling) passes, so `analyzeRecent` can tell whether the one it
+    /// just ran finished or was cancelled by its execution grant.
+    private var recentPassCompletions = 0
 
     /// CAPTURE-B (#814/#799): build the universal `dayOwner …` self-diagnostic line VERBATIM (the Test
     /// Centre export parser depends on this exact shape). `readId` is the owner this day was read+scored

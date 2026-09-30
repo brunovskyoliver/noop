@@ -807,8 +807,12 @@ final class AppModel: ObservableObject {
     private var trailingBackfillAnalysis: Task<Void, Never>?
 
     private func refreshAfterCompletedBackfill() async {
-        live.append(log: "Backfill: refreshing dashboard cache from completed sync")
-        await repo.refresh(days: 120)
+        // Nobody sees the dashboard cache while backgrounded. A pass that scores the offload refreshes it
+        // itself, and the foreground refresh covers the rest, so this read only costs battery there.
+        if !RescoreBackgroundScheduler.isBackgrounded {
+            live.append(log: "Backfill: refreshing dashboard cache from completed sync")
+            await repo.refresh(days: 120)
+        }
         if let last = lastBackfillAnalysisAt,
            Date().timeIntervalSince(last) < Self.minBackfillAnalysisInterval {
             if trailingBackfillAnalysis == nil {
