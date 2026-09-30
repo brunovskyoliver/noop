@@ -94,7 +94,9 @@ struct BroopInsightsCoachView: View {
             guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
             coach.pendingPrompt = nil
             guard coach.isConfigured else { coach.pendingPromptDay = nil; return }
-            await coach.send(prompt)
+            // Clearing the prompt changed this task's id, so SwiftUI has already cancelled it; the send runs
+            // in its own task or the model sees the cancellation and fails.
+            Task { await coach.send(prompt) }
         }
         // Leaving the screen mid-dictation must release the microphone.
         .onDisappear { voice.cancel() }
