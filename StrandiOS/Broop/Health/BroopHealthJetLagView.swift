@@ -16,13 +16,20 @@ struct BroopHealthJetLagView: View {
         savedTrip.data(using: .utf8).flatMap { try? JSONDecoder().decode(JetLagTrip.self, from: $0) }
     }
 
+    private var matchesSavedTrip: Bool {
+        guard let trip = activeTrip else { return false }
+        return Calendar.current.isDate(travelDate, inSameDayAs: trip.travelDate)
+            && destinationOffset == trip.destinationOffsetMinutes
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: BroopMetrics.page) {
-                BroopSectionTitle(String(localized: "Jet-lag planner"))
                 BroopCard {
                     VStack(alignment: .leading, spacing: BroopMetrics.page) {
                         DatePicker(String(localized: "Travel date"), selection: $travelDate, displayedComponents: .date)
+                        BroopCaps(String(localized: "Destination UTC offset"), size: BroopMetrics.tileRadius,
+                                  color: BroopPalette.textSecondary)
                         Picker(String(localized: "Destination UTC offset"), selection: $destinationOffset) {
                             ForEach(Array(stride(from: -720, through: 840, by: 15)), id: \.self) { minute in
                                 Text(verbatim: Self.offsetLabel(minute)).tag(minute)
@@ -34,13 +41,16 @@ struct BroopHealthJetLagView: View {
                         Button(String(localized: "Save trip")) { save() }
                             .disabled(model.tonightPlan == nil)
                             .frame(minHeight: BroopMetrics.navHeight)
-                        if let sleep = model.tonightPlan {
+                        if matchesSavedTrip, let trip = activeTrip {
+                            row(label: String(localized: "Sleep plan starting window"),
+                                value: clock(Double(trip.bedMinute) / 60) + " – " + clock(Double(trip.wakeMinute) / 60))
+                        } else if let sleep = model.tonightPlan {
                             row(label: String(localized: "Sleep plan starting window"),
                                          value: clock(Double(sleep.target.bedMinute) / 60) + " – " + clock(Double(sleep.wakeMinute) / 60))
                         }
                     }
                 }
-                if let trip = activeTrip {
+                if let trip = activeTrip, matchesSavedTrip {
                     Text(String(localized: "Before travel. All times use the origin clock: \(trip.originTimeZone)."))
                         .font(BroopType.regular(BroopMetrics.page))
                         .foregroundStyle(BroopPalette.textBody)
