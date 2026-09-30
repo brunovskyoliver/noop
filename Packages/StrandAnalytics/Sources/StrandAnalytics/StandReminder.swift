@@ -238,10 +238,17 @@ public enum StandReminder {
         return order.map { out[$0]! }
     }
 
-    /// Replace same-hour records with `fresh` ones and drop records older than `historyDays`.
+    /// Replace same-hour records with `fresh` ones and drop records older than `historyDays`. A fresh
+    /// record that covers fewer minutes than the stored one is a partial view of the hour (the oldest hour
+    /// of a rolling lookback window) and does not replace it.
     public static func merged(_ history: [HourRecord], with fresh: [HourRecord], today: Int) -> [HourRecord] {
         var byKey: [Int: HourRecord] = [:]
-        for r in history + fresh { byKey[r.day * 24 + r.hour] = r }
+        for r in history { byKey[r.day * 24 + r.hour] = r }
+        for r in fresh {
+            let key = r.day * 24 + r.hour
+            if let kept = byKey[key], kept.covered > r.covered { continue }
+            byKey[key] = r
+        }
         return byKey.values.filter { $0.day > today - historyDays }
             .sorted { ($0.day, $0.hour) < ($1.day, $1.hour) }
     }

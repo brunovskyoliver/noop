@@ -37,13 +37,15 @@ enum StandReminderNotifier {
     static func loadConfig(_ d: UserDefaults = .standard) -> StandReminder.Config {
         let def = StandReminder.Config()
         func int(_ k: String, _ v: Int, _ r: ClosedRange<Int>) -> Int { min(max(d.object(forKey: k) as? Int ?? v, r.lowerBound), r.upperBound) }
+        let startHour = int(K.manualStartHour, def.manualWindow.startHour, 0...23)
+        // An end at or before the start is an empty window that would never remind; read it as one hour.
+        let endHour = max(int(K.manualEndHour, def.manualWindow.endHour, 1...24), startHour + 1)
         return StandReminder.Config(
             enabled: d.bool(forKey: K.enabled),
             goalMinutes: int(K.goalMinutes, def.goalMinutes, 1...30),
             remindAtMinute: int(K.remindAtMinute, def.remindAtMinute, 30...55),
             learnWindow: d.object(forKey: K.learnWindow) as? Bool ?? def.learnWindow,
-            manualWindow: StandReminder.Window(startHour: int(K.manualStartHour, def.manualWindow.startHour, 0...23),
-                                               endHour: int(K.manualEndHour, def.manualWindow.endHour, 1...24)),
+            manualWindow: StandReminder.Window(startHour: startHour, endHour: endHour),
             maxPerDay: int(K.maxPerDay, def.maxPerDay, 1...18),
             learnMuting: d.object(forKey: K.learnMuting) as? Bool ?? def.learnMuting)
     }

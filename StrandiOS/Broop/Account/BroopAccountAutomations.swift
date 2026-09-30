@@ -109,6 +109,8 @@ struct BroopAccountAutomationsView: View {
         .broopAccountChrome(String(localized: "Automations"))
         .onAppear { standLearned = StandReminderNotifier.loadState() }
         .onChange(of: standOn) { _, on in StandReminderNotifier.setEnabled(on) }
+        // The end hour's stepper starts one past the start hour; keep the stored value inside it.
+        .onChange(of: standFrom) { _, from in if standTo <= from { standTo = from + 1 } }
         .onChange(of: behavior.illnessWatch) { _, on in
             model.reevaluateIllness()
             if on { IllnessNotifier.requestAuthorization() }

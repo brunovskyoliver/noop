@@ -176,6 +176,15 @@ final class StandReminderTests: XCTestCase {
         XCTAssertEqual(d.nextState.history, [SR.HourRecord(day: day, hour: 9, covered: 60, up: 1, still: 0)])
     }
 
+    func testAPartialViewOfAFinishedHourDoesNotReplaceTheFullRecord() {
+        // A later sync's 3 h lookback starts at 09:57, so it only sees the last three minutes of hour 9.
+        let first = SR.evaluate(nowSec: t(10, 30), tzOffsetSec: tz, minutes: mins(t(9), t(10, 30), up: [t(9, 5)]),
+                                worn: true, config: on, state: SR.State())
+        let later = SR.evaluate(nowSec: t(12, 57), tzOffsetSec: tz, minutes: mins(t(9, 57), t(12, 57)),
+                                worn: true, config: on, state: first.nextState)
+        XCTAssertEqual(later.nextState.history.first, SR.HourRecord(day: day, hour: 9, covered: 60, up: 1, still: 0))
+    }
+
     func testLocalClockHonoursTheOffset() {
         // 23:30 UTC is 01:30 the next day at UTC+2.
         let ts = t(23, 30)
