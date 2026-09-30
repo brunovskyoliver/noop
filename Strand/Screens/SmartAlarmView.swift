@@ -88,23 +88,18 @@ struct SmartAlarmView: View {
                 Text("Tonight").strandOverline()
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     heroTime(label: "Wind down",
-                             time: windDownOn ? timeLabel(WindDownNudge.nudgeMinuteOfDay()) : "—",
+                             time: windDownOn ? timeLabel(Self.minuteOfDay(windDownTonight.fireDate)) : "—",
                              tint: StrandPalette.restColor)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(StrandPalette.textTertiary)
                         .accessibilityHidden(true)
-                    // "Wake" was the wind-down INPUT wearing the name of the thing that wakes you, in the
-                    // largest type on the screen, above both cards. It is the first figure a reader sees
-                    // and it is not their alarm. Named for what it is instead.
-                    heroTime(label: "Usual wake",
-                             time: timeLabel(wakeMinutes),
+                    // The wake tonight's reminder is derived from, named for what it is: the strap alarm
+                    // when it will ring (the plan and the reminder both work back from it), else the usual
+                    // wake time, which wakes nobody. The arrow stays an arithmetic pair either way.
+                    heroTime(label: windDownTonight.fromAlarm ? "Strap alarm" : "Usual wake",
+                             time: timeLabel(Self.minuteOfDay(windDownTonight.wakeDate)),
                              tint: StrandPalette.restBright)
-                    // The alarm is deliberately NOT a third figure on this arrow. The arrow is an
-                    // arithmetic pair (the nudge is derived from the usual wake time) and the alarm is
-                    // not part of that derivation, so chaining it would claim the nudge is timed for the
-                    // alarm. It gets the countdown block below instead, which also keeps the alarm time
-                    // from appearing twice in one hero.
                     Spacer(minLength: 0)
                 }
                 // How long until it actually goes off. "10:00" does not say whether that is nine hours
@@ -394,7 +389,7 @@ struct SmartAlarmView: View {
                             .labelsHidden()
                             .accessibilityLabel("Your usual wake time")
                     }
-                    Text("You'll be reminded around \(timeLabel(WindDownNudge.nudgeMinuteOfDay())).")
+                    Text("Tonight you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate))).")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                     // Answers "so what actually wakes me?" in the one place the question gets asked,
@@ -678,6 +673,14 @@ struct SmartAlarmView: View {
                 WindDownNudge.setWakeMinutes(m)
             }
         )
+    }
+
+    /// Tonight's wind-down reminder, the value the scheduler fires (`AppModel.windDownTonight`).
+    private var windDownTonight: WindDownNudge.Tonight { model.windDownTonight() }
+
+    static func minuteOfDay(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
     private func timeLabel(_ minutes: Int) -> String {

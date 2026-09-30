@@ -7,25 +7,32 @@ import StrandAnalytics
 // each kept its own (a caffeine bedtime setting, the wind-down's fixed 8 h need), and they disagreed.
 extension AppModel {
 
+    /// The armed strap alarm tonight's plan wakes to: on, will actually arm (same gate and resolver as
+    /// the Alarms screen) and ringing within 24 h. Nil otherwise.
+    func tonightAlarmFire(now: Date = Date()) -> Date? {
+        guard behavior.smartAlarmEnabled, strapAlarmWillArm,
+              let fire = AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
+                                                     weekdays: behavior.smartAlarmWeekdays,
+                                                     overrides: WindDownNudge.perDayWakeOverrides, from: now),
+              fire.timeIntervalSince(now) < 24 * 3600 else { return nil }
+        return fire
+    }
+
     /// Tomorrow morning's wake, minutes after midnight: the strap alarm when it is on and will actually
-    /// ring (same gate and resolver as the Alarms screen), else the usual wake time for that weekday.
+    /// ring, else the usual wake time for that weekday. Resolved by `WindDownNudge.tonightWake`, the same
+    /// function tonight's wind-down reminder fires from, so the plan and the reminder share one wake.
     func tonightWakeMinute(now: Date = Date()) -> Int {
         let cal = Calendar.current
-        if behavior.smartAlarmEnabled, strapAlarmWillArm,
-           let fire = AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
-                                                  weekdays: behavior.smartAlarmWeekdays,
-                                                  overrides: WindDownNudge.perDayWakeOverrides, from: now),
-           fire.timeIntervalSince(now) < 24 * 3600 {
-            let c = cal.dateComponents([.hour, .minute], from: fire)
-            return (c.hour ?? 7) * 60 + (c.minute ?? 0)
-        }
-        let start = cal.startOfDay(for: now)
-        for offset in 0...1 {
-            guard let day = cal.date(byAdding: .day, value: offset, to: start) else { continue }
-            let minute = WindDownNudge.wakeMinutes(forWeekday: cal.component(.weekday, from: day))
-            if let fire = cal.date(byAdding: .minute, value: minute, to: day), fire > now { return minute }
-        }
-        return WindDownNudge.wakeMinutes
+        let wake = WindDownNudge.tonightWake(now: now, calendar: cal, alarmFire: tonightAlarmFire(now: now),
+                                             wakeMinuteForWeekday: { WindDownNudge.wakeMinutes(forWeekday: $0) })
+        let c = cal.dateComponents([.hour, .minute], from: wake.date)
+        return (c.hour ?? 7) * 60 + (c.minute ?? 0)
+    }
+
+    /// Tonight's wind-down reminder, from the plan's wake (see `WindDownNudge.Tonight`). The Alarms
+    /// screens print this; the scheduler fires the same value.
+    func windDownTonight(now: Date = Date()) -> WindDownNudge.Tonight {
+        WindDownNudge.tonight(now: now, alarmFire: tonightAlarmFire(now: now))
     }
 
     /// Rebuild `tonightPlan` from the stored nights and push its bed-to-wake window to the wind-down
@@ -48,7 +55,8 @@ extension AppModel {
             StrainTargetContext.shared.sleepDebtMin = inputs.debtMin
             evaluateStrainTarget()
         }
-        WindDownNudge.syncPlannedWindow(((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440)
+        WindDownNudge.syncPlan(windowMinutes: ((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440,
+                               alarmFire: tonightAlarmFire())
     }
 
     /// The first block of each wake-day's main sleep (the Sleep tab's `mainNightGroup` selector), one per

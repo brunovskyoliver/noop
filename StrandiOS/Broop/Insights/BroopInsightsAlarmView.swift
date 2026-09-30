@@ -480,7 +480,7 @@ struct BroopInsightsAlarmView: View {
                         .labelsHidden()
                         .accessibilityLabel(Text("Your usual wake time"))
                 }
-                panelText(String(localized: "The nudge fires \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before this. You'll be reminded around \(Self.hhmm(WindDownNudge.nudgeMinuteOfDay()))."),
+                panelText(String(localized: "The nudge fires \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before this. Tonight you'll be reminded around \(Self.hhmm(SmartAlarmView.minuteOfDay(model.windDownTonight().fireDate)))."),
                           color: BroopPalette.textBody)
                 if let next = nextStrapAlarmLabel {
                     panelText(String(localized: "Your strap alarm is what wakes you, next on \(next)."))

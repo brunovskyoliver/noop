@@ -29,9 +29,13 @@ enum WindDownNudge {
 
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
 
+    /// The bed-to-wake window's stored range.
+    static let minWindowMinutes = 5 * 60
+    static let maxWindowMinutes = 11 * 60
+
     static var sleepNeedMinutes: Int {
         let v = UserDefaults.standard.object(forKey: K.sleepNeed) as? Int ?? 8 * 60
-        return min(max(v, 5 * 60), 11 * 60)
+        return min(max(v, minWindowMinutes), maxWindowMinutes)
     }
 
     static var leadMinutes: Int {
@@ -116,6 +120,105 @@ enum WindDownNudge {
         return ((zeroBased % 7) + 7) % 7 + 1
     }
 
+    // MARK: - Tonight: one wake for the plan and the reminder
+
+    /// Tonight's reminder, resolved from the SAME wake tonight's sleep plan uses (`AppModel.tonightWakeMinute`).
+    ///
+    /// The weekday schedule alone fired from the weekday's usual wake time, while the plan works back from
+    /// the armed strap alarm (one-off overrides included) whenever it will ring. On a night the two differ
+    /// the reminder and the planner named different bedtimes. This value is what the scheduler fires
+    /// tonight and what the Alarms screen prints, so they cannot disagree.
+    struct Tonight: Equatable, Sendable {
+        /// When tonight's reminder fires. May already be in the past (the reminder has gone off).
+        let fireDate: Date
+        /// The wake it precedes: the strap alarm when `fromAlarm`, else the weekday's usual wake time.
+        let wakeDate: Date
+        /// Calendar weekday (1 = Sun … 7 = Sat) of that wake: the key of its repeating weekday trigger.
+        let wakeWeekday: Int
+        /// True when the armed strap alarm sets the wake.
+        let fromAlarm: Bool
+        /// Minutes from the reminder to the wake (window + lead), in wall-clock minutes. The copy that
+        /// explains the reminder prints this number, so the text and the trigger share one value.
+        let offsetMin: Int
+    }
+
+    /// The wake tonight's plan and reminder share: the strap alarm when it will ring within 24 h
+    /// (`alarmFire` is nil when it is off or will not arm), else the first weekday wake after `now`.
+    nonisolated static func tonightWake(now: Date, calendar: Calendar, alarmFire: Date?,
+                                        wakeMinuteForWeekday: (Int) -> Int) -> (date: Date, fromAlarm: Bool) {
+        if let fire = alarmFire, fire > now, fire.timeIntervalSince(now) < 24 * 3600 {
+            return (fire, true)
+        }
+        let start = calendar.startOfDay(for: now)
+        for offset in 0...1 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let minute = wakeMinuteForWeekday(calendar.component(.weekday, from: day))
+            if let fire = wallClock(minute, on: day, calendar: calendar), fire > now { return (fire, false) }
+        }
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: start) ?? now
+        let minute = wakeMinuteForWeekday(calendar.component(.weekday, from: tomorrow))
+        return (wallClock(minute, on: tomorrow, calendar: calendar) ?? tomorrow, false)
+    }
+
+    /// Tonight's reminder: `windowMin` (the plan's bed-to-wake window) plus `leadMin` before the shared
+    /// wake, counted on the WALL CLOCK. The planner's bedtime is a wall-clock minute, so on a DST night the
+    /// reminder still lands `leadMin` before the bedtime the planner prints, not an hour off it.
+    nonisolated static func tonight(now: Date, calendar: Calendar, alarmFire: Date?, windowMin: Int, leadMin: Int,
+                                    wakeMinuteForWeekday: (Int) -> Int) -> Tonight {
+        let wake = tonightWake(now: now, calendar: calendar, alarmFire: alarmFire,
+                               wakeMinuteForWeekday: wakeMinuteForWeekday)
+        let offset = windowMin + leadMin
+        return Tonight(fireDate: nudgeDate(beforeWake: wake.date, offsetMin: offset, calendar: calendar),
+                       wakeDate: wake.date,
+                       wakeWeekday: calendar.component(.weekday, from: wake.date),
+                       fromAlarm: wake.fromAlarm, offsetMin: offset)
+    }
+
+    /// What to hand the notification centre. `repeatingWakeWeekdays` get their usual weekday trigger;
+    /// `oneOffs` are single-fire dates. On a night the alarm moves the wake, that wake weekday's repeating
+    /// trigger is replaced by tonight's one-off plus a one-off at its usual time a week later, so the
+    /// weekly pattern survives even if the app is not opened again before then (the next reschedule
+    /// restores the repeating trigger).
+    struct SchedulePlan: Equatable, Sendable {
+        var repeatingWakeWeekdays: [Int]
+        var oneOffs: [Date]
+    }
+
+    nonisolated static func schedulePlan(now: Date, calendar: Calendar, tonight: Tonight,
+                                         wakeMinuteForWeekday: (Int) -> Int) -> SchedulePlan {
+        let all = Array(1...7)
+        guard tonight.fromAlarm else { return SchedulePlan(repeatingWakeWeekdays: all, oneOffs: []) }
+        // The weekday schedule's own reminder for that wake day, at the weekday's usual wake time.
+        let wakeDay = calendar.startOfDay(for: tonight.wakeDate)
+        guard let usualWake = wallClock(wakeMinuteForWeekday(tonight.wakeWeekday), on: wakeDay, calendar: calendar)
+        else { return SchedulePlan(repeatingWakeWeekdays: all, oneOffs: []) }
+        let usual = nudgeDate(beforeWake: usualWake, offsetMin: tonight.offsetMin, calendar: calendar)
+        guard usual != tonight.fireDate else { return SchedulePlan(repeatingWakeWeekdays: all, oneOffs: []) }
+        var oneOffs: [Date] = []
+        if tonight.fireDate > now { oneOffs.append(tonight.fireDate) }
+        if let nextWeekWake = calendar.date(byAdding: .day, value: 7, to: wakeDay),
+           let nextWake = wallClock(wakeMinuteForWeekday(tonight.wakeWeekday), on: nextWeekWake, calendar: calendar) {
+            oneOffs.append(nudgeDate(beforeWake: nextWake, offsetMin: tonight.offsetMin, calendar: calendar))
+        }
+        return SchedulePlan(repeatingWakeWeekdays: all.filter { $0 != tonight.wakeWeekday }, oneOffs: oneOffs)
+    }
+
+    /// `minute` after local midnight on `day`, as a date (DST-safe: a skipped wall time moves forward).
+    nonisolated static func wallClock(_ minute: Int, on day: Date, calendar: Calendar) -> Date? {
+        let m = ((minute % 1440) + 1440) % 1440
+        return calendar.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: calendar.startOfDay(for: day))
+    }
+
+    /// `offsetMin` wall-clock minutes before `wake`: the wake's minute of day minus the offset, with the day
+    /// shifted back when it wraps past midnight.
+    nonisolated static func nudgeDate(beforeWake wake: Date, offsetMin: Int, calendar: Calendar) -> Date {
+        let c = calendar.dateComponents([.hour, .minute], from: wake)
+        let raw = (c.hour ?? 0) * 60 + (c.minute ?? 0) - offsetMin
+        let shift = raw < 0 ? -(((-raw - 1) / 1440) + 1) : raw / 1440
+        let day = calendar.date(byAdding: .day, value: shift, to: calendar.startOfDay(for: wake)) ?? wake
+        return wallClock(raw, on: day, calendar: calendar) ?? wake
+    }
+
     // MARK: - Public API
 
     /// The result of enabling the nudge — lets the UI react instead of silently persisting an "on" toggle
@@ -139,7 +242,7 @@ enum WindDownNudge {
             UserDefaults.standard.set(false, forKey: K.enabled)
             // Clear the single trigger AND any per-day triggers (PR#554) so disabling leaves nothing behind.
             UNUserNotificationCenter.current()
-                .removePendingNotificationRequests(withIdentifiers: [requestId] + perDayRequestIds)
+                .removePendingNotificationRequests(withIdentifiers: [requestId] + perDayRequestIds + oneOffRequestIds)
             completion?(.off)
             return
         }
@@ -176,14 +279,25 @@ enum WindDownNudge {
         }
     }
 
+    /// The armed strap alarm tonight's plan wakes to (nil when off, not arming, or over 24 h away), as last
+    /// handed over by `AppModel.refreshTonightPlan`. The scheduler fires tonight's reminder from it.
+    private static var tonightAlarmFire: Date?
+
     /// Follow tonight's sleep plan: store the planned bed-to-wake window as the "sleep need" the nudge
-    /// subtracts from the wake time, so the reminder fires `leadMinutes` before the planned bedtime.
-    /// Clamped to the store's 300…660 range; reschedules only when the value changed.
-    static func syncPlannedWindow(_ minutes: Int) {
-        let v = min(max(minutes, 300), 660)
-        guard v != sleepNeedMinutes else { return }
+    /// subtracts from the wake time, so the reminder fires `leadMinutes` before the planned bedtime, and
+    /// take the alarm the plan wakes to. Reschedules only when either changed.
+    static func syncPlan(windowMinutes: Int, alarmFire: Date?) {
+        let v = min(max(windowMinutes, minWindowMinutes), maxWindowMinutes)
+        let changed = v != sleepNeedMinutes || alarmFire != tonightAlarmFire
         UserDefaults.standard.set(v, forKey: K.sleepNeed)
-        if isEnabled { schedule() }
+        tonightAlarmFire = alarmFire
+        if changed, isEnabled { schedule() }
+    }
+
+    /// Tonight's reminder from the stored settings and the alarm last synced (see `Tonight`).
+    static func tonight(now: Date = Date(), alarmFire: Date?) -> Tonight {
+        tonight(now: now, calendar: .current, alarmFire: alarmFire, windowMin: sleepNeedMinutes,
+                leadMin: leadMinutes, wakeMinuteForWeekday: { wakeMinutes(forWeekday: $0) })
     }
 
     /// Update the earliest wake time the nudge is derived from, rescheduling if enabled.
@@ -202,50 +316,52 @@ enum WindDownNudge {
     // MARK: - Scheduling
 
     /// Per-weekday request ids — cleared alongside the single id so toggling overrides on/off never leaves
-    /// a stale trigger behind.
+    /// a stale trigger behind. The one-off ids cover tonight's alarm-driven reminder and its week-later
+    /// stand-in (see `schedulePlan`).
     private static var perDayRequestIds: [String] { (1...7).map { "\(requestId)-wd\($0)" } }
+    private static let oneOffRequestIds = ["\(requestId)-once0", "\(requestId)-once1"]
 
     private static func schedule() {
         let center = UNUserNotificationCenter.current()
-        // Clear BOTH the single trigger and any per-day triggers so switching between the two modes (or
-        // editing an override) never double-fires or leaves an orphaned reminder.
-        center.removePendingNotificationRequests(withIdentifiers: [requestId] + perDayRequestIds)
+        // Clear the single trigger, every per-day trigger and the one-offs, so switching modes (or editing
+        // an override, or the alarm moving) never double-fires or leaves an orphaned reminder.
+        center.removePendingNotificationRequests(withIdentifiers: [requestId] + perDayRequestIds + oneOffRequestIds)
 
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Time to wind down")
         content.body = String(localized: "A calm hour now helps you hit your wake time well-rested.")
         content.sound = .default
 
-        // PR#554 — with per-day overrides set, fan out to seven weekday-pinned triggers each at that day's
-        // own nudge time; with none, keep the single daily trigger (identical to the pre-#554 behaviour).
-        if hasPerDayOverrides {
-            for weekday in 1...7 {
-                let minute = nudgeMinuteOfDay(forWeekday: weekday)
-                // #1863 — an early wake (e.g. 03:30) wraps the nudge minute to the previous evening
-                // (19:00). The minute wrap alone loses which DAY that evening belongs to, so the trigger
-                // was pinned to the wake's own weekday — firing 8+ hours AFTER the wake it precedes.
-                // Derive the day shift and pin the trigger to the nudge's day, not the wake's.
-                let shift = nudgeDayShift(forWeekday: weekday)
-                var comps = DateComponents()
-                comps.weekday = shiftedWeekday(weekday: weekday, by: shift)   // the nudge's day
-                comps.hour = minute / 60
-                comps.minute = minute % 60
-                let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-                // The request id stays keyed to the wake's weekday so toggling/clearing overrides
-                // always matches the ids `perDayRequestIds` enumerates.
-                center.add(UNNotificationRequest(identifier: "\(requestId)-wd\(weekday)",
-                                                 content: content, trigger: trigger))
-            }
-            return
-        }
+        let now = Date()
+        let cal = Calendar.current
+        let plan = schedulePlan(now: now, calendar: cal, tonight: tonight(now: now, alarmFire: tonightAlarmFire),
+                                wakeMinuteForWeekday: { wakeMinutes(forWeekday: $0) })
 
-        let minute = nudgeMinuteOfDay()
-        var comps = DateComponents()
-        comps.hour = minute / 60
-        comps.minute = minute % 60
-        // repeats: true → a daily calendar trigger; survives relaunch (it lives in the notification
-        // center, not the process), so the nudge keeps firing each evening without the app running.
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-        center.add(UNNotificationRequest(identifier: requestId, content: content, trigger: trigger))
+        // Seven weekday-pinned triggers, each at that wake day's own nudge time (PR#554). Without overrides
+        // they are all the same minute, which is the old single daily trigger split per day, so tonight's
+        // weekday can be swapped for a one-off when the strap alarm moves the wake.
+        for weekday in plan.repeatingWakeWeekdays {
+            let minute = nudgeMinuteOfDay(forWeekday: weekday)
+            // #1863 — an early wake (e.g. 03:30) wraps the nudge minute to the previous evening
+            // (19:00). The minute wrap alone loses which DAY that evening belongs to, so the trigger
+            // was pinned to the wake's own weekday — firing 8+ hours AFTER the wake it precedes.
+            // Derive the day shift and pin the trigger to the nudge's day, not the wake's.
+            let shift = nudgeDayShift(forWeekday: weekday)
+            var comps = DateComponents()
+            comps.weekday = shiftedWeekday(weekday: weekday, by: shift)   // the nudge's day
+            comps.hour = minute / 60
+            comps.minute = minute % 60
+            // repeats: true survives relaunch (it lives in the notification center, not the process).
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+            // The request id stays keyed to the wake's weekday so toggling/clearing overrides
+            // always matches the ids `perDayRequestIds` enumerates.
+            center.add(UNNotificationRequest(identifier: "\(requestId)-wd\(weekday)",
+                                             content: content, trigger: trigger))
+        }
+        for (id, date) in zip(oneOffRequestIds, plan.oneOffs) {
+            let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        }
     }
 }
