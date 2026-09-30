@@ -70,7 +70,7 @@ struct BroopHealthStressView: View {
         }
         .sheet(isPresented: $showInfo) {
             ScrollView {
-                Text("Stress is an on-device estimate on a 0–3 scale. Waking heart rate is compared with calm, non-exercise periods from the previous 14 days. Before enough history is available, today's calm periods provide a provisional reference. Movement and workouts are excluded. Sleep uses a separate personal heart-rate and HRV reference when R-R intervals are available. Daytime HRV is not scored because motion can distort wrist measurements. Live values use fresh heart-rate packets; an unusually elevated live pulse is withheld because movement cannot be confirmed. This is not WHOOP's proprietary algorithm or a mental-health assessment.")
+                Text(verbatim: BroopMethodText.stress)
                     .font(BroopType.regular(16)).foregroundStyle(BroopPalette.textBody).padding(BroopMetrics.page)
             }.broopSheetBar(String(localized: "Stress method")) { showInfo = false }
         }

@@ -298,7 +298,7 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
         .sheet(isPresented: $showMethod) {
             NavigationStack {
                 ScrollView {
-                    BroopFootnote(text: String(localized: "Compares the last 7 calendar days' mean ln RMSSD with the preceding 60 days' mean ± 0.5 SD (SWC), shown in milliseconds. Needs 21 baseline nights and 3 recent nights; stale data has no card. Above usual can follow rest or fatigue. This trend does not change Charge and is not a diagnosis."))
+                    BroopFootnote(text: BroopMethodText.hrvReadiness)
                         .padding(BroopMetrics.page)
                 }
                 .broopScreenChrome(String(localized: "HRV readiness"))
@@ -336,12 +336,12 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
                             .font(BroopType.number(BroopMetrics.section)).foregroundStyle(BroopPalette.textPrimary).broopNumeral(BroopMetrics.section)
                         Text(verbatim: "ms").font(BroopType.medium(BroopMetrics.page)).foregroundStyle(BroopPalette.textPrimary)
                         Spacer()
-                        Text(verbatim: title(r.band)).font(BroopType.demi(BroopMetrics.page)).foregroundStyle(color(r.band))
+                        Text(verbatim: Self.title(r.band)).font(BroopType.demi(BroopMetrics.page)).foregroundStyle(color(r.band))
                     }
                     rangeBar(r)
                     Text(String(localized: "Usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms · geometric mean RMSSD"))
                         .font(BroopType.regular(BroopMetrics.innerRadius)).foregroundStyle(BroopPalette.textSecondary)
-                    Text(verbatim: detail(r.band)).font(BroopType.regular(BroopMetrics.tileRadius)).foregroundStyle(BroopPalette.textBody)
+                    Text(verbatim: Self.detail(r.band)).font(BroopType.regular(BroopMetrics.tileRadius)).foregroundStyle(BroopPalette.textBody)
                         .fixedSize(horizontal: false, vertical: true)
                     if r.mayReflectFlaggedDays {
                         Text("This week may reflect feeling unwell.")
@@ -376,16 +376,9 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
         .accessibilityHidden(true)
     }
 
-    private func title(_ b: HRVStatus.Band) -> String {
-        switch b {
-        case .balanced: return String(localized: "Balanced")
-        case .above: return String(localized: "Above usual")
-        case .below: return String(localized: "Below usual")
-        case .low: return String(localized: "Low")
-        }
-    }
+    static func title(_ b: HRVStatus.Band) -> String { BroopMethodText.hrvBandTitle(b) }
 
-    private func detail(_ b: HRVStatus.Band) -> String {
+    static func detail(_ b: HRVStatus.Band) -> String {
         switch b {
         case .balanced: return String(localized: "Your 7-night HRV is within your usual range.")
         case .above: return String(localized: "Higher than usual. This can follow rest, or heavy fatigue.")

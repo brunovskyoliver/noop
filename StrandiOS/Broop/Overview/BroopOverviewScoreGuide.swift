@@ -26,15 +26,15 @@ struct BroopOverviewScoreGuide: View {
 
                         card(.charge, score: .charge, sample: 82,
                              headline: String(localized: "Charge: how recovered are you?"),
-                             body: String(localized: "Led by your heart-rate variability (HRV) measured against your own personal baseline, plus resting heart rate, last night's Rest, breathing rate, and a skin-temperature signal (an early illness or overreach flag). Higher HRV versus your baseline means more Charge. NOOP needs a few nights to learn your baseline first. Until then you'll see “Calibrating”."),
+                             body: BroopMethodText.charge,
                              vsWhoop: String(localized: "Same core idea as WHOOP's Recovery % (HRV-led recovery), but our weighting and baseline maths are our own, and openly documented."))
                         card(.effort, score: .effort, sample: 64,
                              headline: String(localized: "Effort: how hard did your heart work?"),
-                             body: String(localized: "Your cardiovascular load. NOOP turns every second of heart rate into a training-impulse using heart-rate-reserve zones (Karvonen), weights time in harder zones more heavily (Edwards / Banister), and places it on a logarithmic 0-100 scale, so easy days sit low and an all-out day approaches 100, which stays genuinely rare. A long walk with little cardio still counts, through a steps / active-energy floor."),
+                             body: BroopMethodText.effort,
                              vsWhoop: String(localized: "Same cardiovascular-load idea as WHOOP's Day Strain (0-21). We rescaled the top of the ladder from 21 to 100 so all three scores share one scale. The rungs didn't move, so a 100 is as rare as a 21.0 was."))
                         card(.rest, score: .rest, sample: 88,
                              headline: String(localized: "Rest: how restorative was your sleep?"),
-                             body: String(localized: "A blend of how long you slept versus your personal need (the biggest factor), how efficiently (asleep versus in bed), how much was restorative (deep + REM sleep), and how consistent your sleep and wake timing is."),
+                             body: BroopMethodText.rest,
                              vsWhoop: String(localized: "Similar in spirit to WHOOP's Sleep Performance %; our composite is our own."))
 
                         BroopCard {

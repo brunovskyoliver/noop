@@ -58,7 +58,7 @@ private struct BroopEnergyToday {
 }
 
 /// The live stress level as a number (nil when not connected, moving or no reference).
-private func liveStressLevel(_ reading: StressMonitor.LiveReading?) -> Double? {
+func liveStressLevel(_ reading: StressMonitor.LiveReading?) -> Double? {
     if case .level(let l)? = reading { return l }
     return nil
 }
@@ -381,15 +381,15 @@ private struct BroopEnergyDayChart: View {
 struct BroopEnergyInfo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            para("Energy is a 0–100 estimate of your reserves. Restful sleep and calm, still rest charge it; being awake, stress and exercise drain it. It carries over from one day to the next instead of resetting at midnight.")
+            para(BroopMethodText.energyIntro)
             head("Charging")
-            para("During sleep it charges toward 100, faster when it is low. Each 5 minutes counts in full when your sleeping stress is at its typical calm level and not at all when it reaches the high band. Eight calm hours from 40 end near 92. Awake, 10 or more minutes of low stress while still add a small amount.")
+            para(BroopMethodText.energyCharging)
             head("Draining")
-            para("Being awake costs 2 per hour. Stress costs 6 per hour for each point above the calm level of 1, so an hour at level 2 costs 8 in total. Exercise costs 0.1 per point of Edwards heart-rate load, which is about 12 per hour in zone 2. Stress is not scored during exercise, so nothing is counted twice.")
+            para(BroopMethodText.energyDraining)
             head("Gaps and calibration")
-            para("When the strap is off the level holds flat; nothing is guessed. Energy stays in calibration until the Stress Monitor has learned your personal calm and sleeping references, which takes about 4 days.")
+            para(BroopMethodText.energyGaps)
             head("What it is not")
-            para("Garmin's Body Battery comes from Firstbeat, whose model is proprietary and unpublished. This is NOOP's own estimate with its own constants, computed on your phone. It does not change Charge, Rest, Effort, Healthspan or Mind.")
+            para(BroopMethodText.energyNotThis)
         }
         .foregroundStyle(BroopPalette.textBody)
     }
@@ -398,8 +398,8 @@ struct BroopEnergyInfo: View {
         Text(s).font(BroopType.demi(17)).foregroundStyle(BroopPalette.textPrimary)
     }
 
-    private func para(_ s: LocalizedStringKey) -> some View {
-        Text(s).font(BroopType.regular(15)).fixedSize(horizontal: false, vertical: true)
+    private func para(_ s: String) -> some View {
+        Text(verbatim: s).font(BroopType.regular(15)).fixedSize(horizontal: false, vertical: true)
     }
 }
 #endif
