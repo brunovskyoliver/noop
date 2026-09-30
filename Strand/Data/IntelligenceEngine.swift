@@ -703,7 +703,12 @@ final class IntelligenceEngine: ObservableObject {
             // A short recent-night pass gets its own opportunity. Old history debt must not prevent
             // publishing a newly arrived night. Failed attempts are throttled across process restarts.
             let recentBefore = recentPassCompletions
-            if RescoreBackgroundScheduler.isBackgrounded,
+            // The short pass marks a debt of its own when it starts and never settles it. Only a debt that
+            // was already outstanding before it ran says anything about an interrupted earlier pass.
+            let owedBefore = RescoreBackgroundScheduler.isRescoreOwed
+            // The backstop tick (`force: false`) is not a real update and must not score while backgrounded;
+            // the full pass below skips it for the same reason.
+            if force, RescoreBackgroundScheduler.isBackgrounded,
                !RescoreBackgroundScheduler.hasExtendedProcessingTime {
                 let last = UserDefaults.standard.double(forKey: "noop.recentAnalysisAttempt")
                 if Date().timeIntervalSince1970 - last >= 300 {
@@ -719,7 +724,8 @@ final class IntelligenceEngine: ObservableObject {
             // The background execution grant is about 20 s. Running the same recent nights a second time
             // spent that budget before the full pass even started, so it was cancelled and deferred more often.
             let recentDone = recentPassCompletions != recentBefore
-            await RescoreBackgroundScheduler.run(owesOnDefer: force, log: { [weak self] in self?.diagnosticSink?($0, nil) }) {
+            await RescoreBackgroundScheduler.run(owesOnDefer: force, passInProgress: recentDone && !owedBefore,
+                                                 log: { [weak self] in self?.diagnosticSink?($0, nil) }) {
                 await self.analyzeRecent(maxDays: maxDays, force: force, skipIfUnchanged: skipIfUnchanged,
                                          triggerLabel: triggerLabel, recentPublished: recentDone)
             }
