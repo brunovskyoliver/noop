@@ -244,6 +244,8 @@ struct SleepModelInputs {
     /// On-device sleep figures (`Repository.computedSleepFigures`): the stored computed Rest and its v2
     /// parts, so the tiles resolve Rest, hours-vs-needed and consistency exactly as the score did.
     var computedSleep: [String: ComputedSleepFigures] = [:]
+    /// The profile age the sleep need is floored by, the same one the engine scores Rest with.
+    var age: Int? = ProfileStore.storedAge()
 }
 
 // MARK: - Pure derivation pipeline
@@ -374,25 +376,19 @@ extension SleepModel {
         mean(days.compactMap { $0[keyPath: key] }.filter { $0 > 0 })
     }
 
-    /// The personal sleep need (minutes): mean asleep, but never below a 7.5h floor so
-    /// debt/performance read sensibly even for a chronically short sleeper.
-    static func sleepNeedMin(days: [DailyMetric]) -> Double {
-        Swift.max(450, typicalTotalMin(days: days) ?? 450)   // 450 min = 7.5h
-    }
-
     /// The NORMATIVE per-user sleep need (minutes) the DEBT surfaces measure against — the
     /// population-anchored, age-floored, upper-quartile `personalizedNeedHours`, the SAME estimator
     /// Rest/Intelligence score against. Deliberately NOT the descriptive `sleepNeedMin` (mean total
     /// sleep): the mean drifts DOWN toward a chronic under-sleeper's own deficit and quietly erases
     /// their debt, whereas the upper-quartile floored at the ~8 h adult target only adjusts UP for
-    /// genuine long sleepers. Age isn't plumbed to this screen (age: nil → adult target); wiring it
-    /// would only raise it for under-18s. One need across every debt surface, agreeing with the engine.
-    /// (#242; need-unification from #464 by @vishk23. The descriptive `sleepNeedMin` still drives the
-    /// non-debt "hours vs needed" performance tile.)
-    static func debtNeedMin(days: [DailyMetric]) -> Double {
+    /// genuine long sleepers. `age` is the profile's (`ProfileStore.storedAge`), the one the engine passes
+    /// for Rest; it only raises the floor for under-18s. One need across every debt surface, the sleep
+    /// planner and the "hours vs needed" readouts, agreeing with the engine. (#242; need-unification from
+    /// #464 by @vishk23. The descriptive mean-based need, which disagreed with the planner beside it, is gone.)
+    static func debtNeedMin(days: [DailyMetric], age: Int?) -> Double {
         AnalyticsEngine.Rest.personalizedNeedHours(
             nightlyHours: days.compactMap { $0.totalSleepMin.map { $0 / 60.0 } },
-            age: nil) * 60.0
+            age: age) * 60.0
     }
 
     // MARK: Per-tile series (latest, typical mean, sparkline history)
@@ -470,9 +466,9 @@ extension SleepModel {
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the
     /// APPROXIMATE personal-mean need.
     static func hoursVsNeededSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures],
-                                    computed: [String: ComputedSleepFigures] = [:]) -> Metric {
+                                    computed: [String: ComputedSleepFigures] = [:], age: Int?) -> Metric {
         let imported = importedSleep
-        let fallbackNeed = sleepNeedMin(days: days)
+        let fallbackNeed = debtNeedMin(days: days, age: age)
         let v2 = RestScoringPrefs.v2Enabled
         return metric(days: days) { d in
             guard let asleep = d.totalSleepMin, asleep > 0 else { return nil }
@@ -501,8 +497,8 @@ extension SleepModel {
     /// Sleep debt (minutes): imported `sleep_debt_min` remains export-verbatim. Otherwise use
     /// the same recency-weighted ledger as the card, including nap credit and its 14-night window.
     static func sleepDebtSeries(days: [DailyMetric], importedSleep: [String: ImportedSleepFigures],
-                                napSleepMinByDay: [String: Double]) -> Metric {
-        let need = debtNeedMin(days: days)   // #242: normative need, not the self-referential mean
+                                napSleepMinByDay: [String: Double], age: Int?) -> Metric {
+        let need = debtNeedMin(days: days, age: age)   // #242: normative need, not the self-referential mean
         let credited = days.map { d in
             (day: d.day, totalSleepMin: SleepDebt.creditedSleepMin(
                 mainSleepMin: d.totalSleepMin,
@@ -530,14 +526,14 @@ extension SleepModel {
     /// The 14-night recency-weighted estimate from cached daily metrics. It measures against the
     /// normative `debtNeedMin` (the engine's `personalizedNeedHours`) — the SAME need and recurrence
     /// the local "Sleep Debt" tile uses — and credits actual asleep minutes from separate naps. (#242)
-    static func debtLedger(days: [DailyMetric], napSleepMinByDay: [String: Double]) -> SleepDebtLedger {
+    static func debtLedger(days: [DailyMetric], napSleepMinByDay: [String: Double], age: Int?) -> SleepDebtLedger {
         SleepDebt.ledger(
             series: days.map { day in
                 (day: day.day, totalSleepMin: SleepDebt.creditedSleepMin(
                     mainSleepMin: day.totalSleepMin,
                     napSleepMin: napSleepMinByDay[day.day] ?? 0))
             },
-            needHours: debtNeedMin(days: days) / 60.0)
+            needHours: debtNeedMin(days: days, age: age) / 60.0)
     }
 
     // MARK: - Build
@@ -583,15 +579,16 @@ extension SleepModel {
             consistency: consistencySeries(days: inputs.days, sleeps: inputs.allSessions, importedSleep: inputs.importedSleep),
             consistencyIsImported: consistencyIsImported(days: inputs.days, importedSleep: inputs.importedSleep),
             hoursVsNeeded: hoursVsNeededSeries(days: inputs.days, importedSleep: inputs.importedSleep,
-                                               computed: inputs.computedSleep),
+                                               computed: inputs.computedSleep, age: inputs.age),
             restorative: restorativeSeries(days: inputs.days),
             respiratory: respiratorySeries(days: inputs.days),
-            sleepDebt: sleepDebtSeries(days: inputs.days, importedSleep: inputs.importedSleep, napSleepMinByDay: napSleepMinByDay),
+            sleepDebt: sleepDebtSeries(days: inputs.days, importedSleep: inputs.importedSleep, napSleepMinByDay: napSleepMinByDay,
+                                       age: inputs.age),
             typicalTotalMin: typicalTotalMin(days: inputs.days),
             typicalDeepMin: typicalStageMin(days: inputs.days, \.deepMin),
             typicalRemMin: typicalStageMin(days: inputs.days, \.remMin),
             typicalLightMin: typicalStageMin(days: inputs.days, \.lightMin),
             trendPoints: durationTrendPoints(days: inputs.days),
-            sleepDebtLedger: debtLedger(days: inputs.days, napSleepMinByDay: napSleepMinByDay))
+            sleepDebtLedger: debtLedger(days: inputs.days, napSleepMinByDay: napSleepMinByDay, age: inputs.age))
     }
 }

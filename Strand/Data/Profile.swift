@@ -175,6 +175,14 @@ final class ProfileStore: ObservableObject {
     /// unchanged.
     var age: Int { Self.years(from: dateOfBirth, to: Date()) }
 
+    /// The stored age, readable off the main actor by pure builders (`SleepModelInputs`, the sleep planner):
+    /// the persisted date of birth, else the legacy Int age, else nil (never set, the adult default). The
+    /// same value `age` returns, so the planner's need and the engine's Rest need see one age.
+    nonisolated static func storedAge(_ defaults: UserDefaults = .standard, now: Date = Date()) -> Int? {
+        if let dob = defaults.object(forKey: K.dateOfBirth) as? Date { return years(from: dob, to: now) }
+        return defaults.object(forKey: K.legacyAge) as? Int
+    }
+
     /// Whole years elapsed `from`→`to` (floor — a birthday not yet reached this year doesn't count).
     nonisolated static func years(from: Date, to: Date) -> Int {
         Calendar.current.dateComponents([.year], from: from, to: to).year ?? 0

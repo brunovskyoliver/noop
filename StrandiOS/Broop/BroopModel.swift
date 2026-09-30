@@ -283,7 +283,9 @@ final class BroopStore: ObservableObject {
         guard !Task.isCancelled else { return }
         let asleep = sleepDay?.totalSleepMin
         s.asleepMinutes = asleep
-        s.needMinutes = repo.importedSleep[sleepKey]?.needMin ?? SleepModel.sleepNeedMin(days: days)
+        // The same need the planner and the debt ledger use (not the mean asleep, which sat beside the
+        // planner's need as a second "needed").
+        s.needMinutes = repo.importedSleep[sleepKey]?.needMin ?? SleepModel.debtNeedMin(days: days, age: profile.age)
         s.efficiency = sleepDay?.efficiency.map { $0 <= 1 ? $0 * 100 : $0 }
         if let asleep, asleep > 0, let deep = sleepDay?.deepMin, let rem = sleepDay?.remMin {
             s.restorativePct = (deep + rem) / asleep * 100

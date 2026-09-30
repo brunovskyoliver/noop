@@ -23,8 +23,8 @@ final class TonightPlanInputsTests: XCTestCase {
                                efficiency: 0.9, restingHr: nil, avgHrv: nil, stagesJSON: nil)
         }
         let inputs = AppModel.tonightPlanInputs(days: days, mainSleeps: sleeps, napSleepMinByDay: ["2026-09-20": 30],
-                                                today: "2026-09-20", wakeMinute: 420, timeZone: utc)
-        let ledger = SleepModel.debtLedger(days: days, napSleepMinByDay: ["2026-09-20": 30])
+                                                today: "2026-09-20", wakeMinute: 420, timeZone: utc, age: 35)
+        let ledger = SleepModel.debtLedger(days: days, napSleepMinByDay: ["2026-09-20": 30], age: 35)
         XCTAssertEqual(inputs.baseNeedHours, ledger.needMin / 60)
         XCTAssertEqual(inputs.debtMin, ledger.isDebt ? ledger.magnitudeMin : 0)
         XCTAssertEqual(inputs.napMin, 30)
@@ -52,8 +52,46 @@ final class TonightPlanInputsTests: XCTestCase {
         let inputs = AppModel.tonightPlanInputs(days: [], mainSleeps: starts,
                                                 napSleepMinByDay: [Repository.localDayKey(day): 35],
                                                 today: Repository.localDayKey(day), wakeMinute: 420,
-                                                timeZone: .current)
+                                                timeZone: .current, age: nil)
         XCTAssertEqual(inputs.recentBedMinutes, [23 * 60 + 15])
         XCTAssertEqual(inputs.napMin, 35)
+    }
+
+    /// The planner's need is the engine's Rest estimator (`personalizedNeedHours`) with the SAME age the
+    /// engine passes: a 16-year-old's floor is 9 h in both, where the planner used to pass nil (8 h).
+    func testPlannerNeedUsesTheRestEstimatorWithTheProfileAge() {
+        let days = (1...20).map { day($0, sleepMin: 450, eff: 0.9) }        // 7.5 h a night
+        let hours = days.compactMap { $0.totalSleepMin.map { $0 / 60 } }
+        for age in [16, 35] {
+            let inputs = AppModel.tonightPlanInputs(days: days, mainSleeps: [], napSleepMinByDay: [:],
+                                                    today: "2026-09-20", wakeMinute: 420, timeZone: .current, age: age)
+            XCTAssertEqual(inputs.baseNeedHours, AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: hours, age: age))
+        }
+        let teen = AppModel.tonightPlanInputs(days: days, mainSleeps: [], napSleepMinByDay: [:],
+                                              today: "2026-09-20", wakeMinute: 420, timeZone: .current, age: 16)
+        XCTAssertEqual(teen.baseNeedHours, 9)
+    }
+
+    /// The Sleep screen's "hours vs needed" fallback divides by the same need as the planner, not by the
+    /// mean asleep (which made it read 100 % beside a planner asking for more).
+    func testHoursVsNeededFallbackUsesThePlannersNeed() {
+        let days = (1...20).map { day($0, sleepMin: 450, eff: 0.9) }
+        let need = SleepModel.debtNeedMin(days: days, age: 35)
+        let metric = SleepModel.hoursVsNeededSeries(days: days, importedSleep: [:], age: 35)
+        XCTAssertEqual(metric.series.last ?? -1, 450 / need * 100, accuracy: 1e-9)
+    }
+
+    /// `ProfileStore.storedAge` reads the persisted date of birth, then the legacy Int age.
+    func testStoredAgeReadsDateOfBirthThenLegacyAge() {
+        let suite = "noop.test.storedAge"
+        let d = UserDefaults(suiteName: suite)!
+        d.removePersistentDomain(forName: suite)
+        XCTAssertNil(ProfileStore.storedAge(d))
+        d.set(41, forKey: "profile.age")
+        XCTAssertEqual(ProfileStore.storedAge(d), 41)
+        let now = Date()
+        d.set(Calendar.current.date(byAdding: .year, value: -17, to: now)!, forKey: "profile.dateOfBirth")
+        XCTAssertEqual(ProfileStore.storedAge(d, now: now), 17)
+        d.removePersistentDomain(forName: suite)
     }
 }

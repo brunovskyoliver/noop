@@ -68,6 +68,19 @@ struct BroopWiringDemoHost: View {
                                                                  durationHours: (store.snapshot?.night.map { Double($0.session.endTs - $0.session.effectiveStartTs) / 3600 } ?? 0)) {
                     values += "Body-clock reference: \(clock(window.bedHour))–\(clock(window.wakeHour))"
                 }
+                // The planner's base need beside the need the engine scores Rest with (same estimator, same
+                // age; the engine learns from per-session asleep time over the full history).
+                if let wstore = await repo.storeHandle() {
+                    let now = Int(Date().timeIntervalSince1970)
+                    let tz = TimeZone.current.secondsFromGMT()
+                    let mid = IntelligenceEngine.midnightLocal(now, offsetSec: tz)
+                    let (_, nightly) = await IntelligenceEngine.computeHabitualSleep(
+                        store: wstore, importedId: repo.deviceId, computedId: repo.deviceId + "-noop",
+                        windowStart: mid - 4000 * 86_400 - StreamReadCap.lookbackSeconds, windowEnd: now,
+                        finishedBefore: mid, offsetSec: tz)
+                    let engineNeed = AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: nightly, age: model.profile.age) * 60
+                    values += "\nNeed: planner \(Int(plan.baseNeedMin.rounded())) min, Rest engine \(Int(engineNeed.rounded())) min (age \(model.profile.age), \(nightly.count) nights)"
+                }
                 bedtimeValues = values
                 print("WIRING_DEMO_BEDTIMES \(values)")
             }

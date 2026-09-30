@@ -48,7 +48,8 @@ extension AppModel {
         let mainStarts = Self.mainNightStarts(navDays: navDays, habitualMidsleepSec: habitual)
         let inputs = Self.tonightPlanInputs(days: repo.days, mainSleeps: mainStarts,
                                             napSleepMinByDay: naps, today: Repository.dayString(Date()),
-                                            wakeMinute: tonightWakeMinute(), timeZone: .current)
+                                            wakeMinute: tonightWakeMinute(), timeZone: .current,
+                                            age: profile.age)
         let plan = SleepPlanner.plan(inputs)
         tonightPlan = plan
         if StrainTargetContext.shared.sleepDebtMin != inputs.debtMin {
@@ -70,12 +71,13 @@ extension AppModel {
     }
 
     /// The planner inputs from stored data. Base need and debt are the Sleep tab's own
-    /// (`SleepModel.debtLedger`), so the plan and the Sleep Debt card measure against one need.
+    /// (`SleepModel.debtLedger`), so the plan and the Sleep Debt card measure against one need, floored by
+    /// the profile age the engine scores Rest with.
     /// Efficiency and usual bedtime come from the last 14 nights.
     nonisolated static func tonightPlanInputs(days: [DailyMetric], mainSleeps: [CachedSleepSession],
                                               napSleepMinByDay: [String: Double], today: String,
-                                              wakeMinute: Int, timeZone: TimeZone) -> SleepPlanner.Inputs {
-        let ledger = SleepModel.debtLedger(days: days, napSleepMinByDay: napSleepMinByDay)
+                                              wakeMinute: Int, timeZone: TimeZone, age: Int?) -> SleepPlanner.Inputs {
+        let ledger = SleepModel.debtLedger(days: days, napSleepMinByDay: napSleepMinByDay, age: age)
         let recent = days.sorted { $0.day < $1.day }.suffix(14)
         let beds = mainSleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }.suffix(14).map { s -> Int in
             let ts = s.effectiveStartTs
