@@ -448,7 +448,7 @@ struct BroopInsightsAlarmView: View {
             Toggle(isOn: $windDownOn) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Remind me to wind down").font(BroopType.demi(16)).foregroundStyle(BroopPalette.textPrimary)
-                    Text("A calm evening reminder, timed from your wake time and usual sleep need. It's a suggestion, not an alarm.")
+                    Text("A calm evening reminder before tonight's planned bedtime. It's a suggestion, not an alarm.")
                         .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
@@ -480,7 +480,13 @@ struct BroopInsightsAlarmView: View {
                         .labelsHidden()
                         .accessibilityLabel(Text("Your usual wake time"))
                 }
-                panelText(String(localized: "The nudge fires \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before this. Tonight you'll be reminded around \(Self.hhmm(SmartAlarmView.minuteOfDay(model.windDownTonight().fireDate)))."),
+                let tonight = model.windDownTonight()
+                let at = Self.hhmm(SmartAlarmView.minuteOfDay(tonight.fireDate))
+                panelText(String(localized: "The nudge fires \(WindDownNudge.offsetText(tonight.offsetMin)) before this: tonight's planned time in bed plus a \(WindDownNudge.leadMinutes) min lead."),
+                          color: BroopPalette.textBody)
+                panelText(tonight.fromAlarm
+                          ? String(localized: "Tonight your strap alarm sets the wake, so you'll be reminded around \(at).")
+                          : String(localized: "Tonight you'll be reminded around \(at)."),
                           color: BroopPalette.textBody)
                 if let plan = model.tonightPlan, !plan.target.reachable {
                     panelText(TonightPlanCard.unreachableNote, color: BroopPalette.warning)

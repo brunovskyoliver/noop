@@ -154,4 +154,19 @@ final class WindDownTonightTests: XCTestCase {
                                       windowMin: window, leadMin: 30, wakeMinuteForWeekday: usual7)
         XCTAssertEqual(hm(c, t.fireDate), [5, 21, 30])
     }
+
+    /// The copy prints the trigger's own offset. The demo night: a 21:10 reminder before a 07:00 wake is
+    /// 9 h 50 min (window 9 h 20 min plus the 30 min lead); the old copy printed the window's hours and
+    /// the lead's minutes, "9h 30m".
+    func testReminderCopyUsesTheTriggersOffset() {
+        let c = calendar("Europe/Bratislava")
+        let now = date(c, 2026, 10, 5, 12, 0)
+        let t = WindDownNudge.tonight(now: now, calendar: c, alarmFire: nil, windowMin: 560, leadMin: 30,
+                                      wakeMinuteForWeekday: usual7)
+        XCTAssertEqual(hm(c, t.fireDate), [5, 21, 10])
+        XCTAssertEqual(t.wakeDate.timeIntervalSince(t.fireDate), Double(t.offsetMin) * 60)
+        XCTAssertTrue(WindDownNudge.hoursAndMinutes(t.offsetMin) == (9, 50))
+        XCTAssertTrue(WindDownNudge.hoursAndMinutes(45) == (0, 45))
+        XCTAssertTrue(WindDownNudge.hoursAndMinutes(-5) == (0, 0))
+    }
 }

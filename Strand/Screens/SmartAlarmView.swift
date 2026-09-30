@@ -134,7 +134,9 @@ struct SmartAlarmView: View {
                     }
                 }
                 Text(windDownOn
-                     ? "A calm nudge \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before your usual wake time."
+                     ? (windDownTonight.fromAlarm
+                        ? "A calm nudge \(WindDownNudge.offsetText(windDownTonight.offsetMin)) before your strap alarm tonight."
+                        : "A calm nudge \(WindDownNudge.offsetText(windDownTonight.offsetMin)) before your usual wake time.")
                      : "Turn on the wind-down reminder below to land at your usual wake time rested.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -342,7 +344,7 @@ struct SmartAlarmView: View {
                         Text("Remind me to wind down")
                             .font(StrandFont.body)
                             .foregroundStyle(StrandPalette.textPrimary)
-                        Text("A calm evening reminder, timed from your wake time and usual sleep need. It's a suggestion, not an alarm.")
+                        Text("A calm evening reminder before tonight's planned bedtime. It's a suggestion, not an alarm.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -376,7 +378,7 @@ struct SmartAlarmView: View {
                             Text("Your usual wake time")
                                 .font(StrandFont.body)
                                 .foregroundStyle(StrandPalette.textPrimary)
-                            Text("The nudge fires \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before this.")
+                            Text("The nudge fires \(WindDownNudge.offsetText(windDownTonight.offsetMin)) before this: tonight's planned time in bed plus a \(WindDownNudge.leadMinutes) min lead.")
                                 .font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             Text("This time does not wake you. It only decides when the evening reminder fires.")
@@ -389,7 +391,9 @@ struct SmartAlarmView: View {
                             .labelsHidden()
                             .accessibilityLabel("Your usual wake time")
                     }
-                    Text("Tonight you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate))).")
+                    Text(windDownTonight.fromAlarm
+                         ? "Tonight your strap alarm sets the wake, so you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate)))."
+                         : "Tonight you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate))).")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                     if let plan = model.tonightPlan, !plan.target.reachable {

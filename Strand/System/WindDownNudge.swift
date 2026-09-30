@@ -145,6 +145,20 @@ enum WindDownNudge {
         let offsetMin: Int
     }
 
+    /// `minutes` as whole hours and the remaining minutes (590 → 9 h 50 min). The reminder's copy prints the
+    /// trigger's own offset through this, rather than rebuilding it from the window's hours alone, which
+    /// dropped the window's minutes ("9h 30m" beside a reminder 9 h 50 min before the wake).
+    nonisolated static func hoursAndMinutes(_ minutes: Int) -> (hours: Int, minutes: Int) {
+        let m = max(0, minutes)
+        return (m / 60, m % 60)
+    }
+
+    /// The offset as the reminder copy prints it ("9h 50m").
+    nonisolated static func offsetText(_ minutes: Int) -> String {
+        let p = hoursAndMinutes(minutes)
+        return String(localized: "\(p.hours)h \(p.minutes)m")
+    }
+
     /// The wake tonight's plan and reminder share: the strap alarm when it will ring within 24 h
     /// (`alarmFire` is nil when it is off or will not arm), else the first weekday wake after `now`.
     nonisolated static func tonightWake(now: Date, calendar: Calendar, alarmFire: Date?,
