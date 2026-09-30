@@ -139,4 +139,19 @@ final class WindDownTonightTests: XCTestCase {
         WindDownNudge.syncPlan(windowMinutes: 900, alarmFire: nil)
         XCTAssertEqual(WindDownNudge.sleepNeedMinutes, SleepPlanner.maxWindowMin)
     }
+
+    /// An unreachable plan (the median-bedtime guard won): the reminder fires `lead` before the GUARDED
+    /// bedtime the planner prints, not before the earlier bedtime the full need would want.
+    func testUnreachablePlanRemindsBeforeTheGuardedBedtime() {
+        let c = calendar("Europe/Bratislava")
+        let plan = SleepPlanner.plan(.init(baseNeedHours: 9.5, debtMin: 240, wakeMinute: 6 * 60,
+                                           recentBedMinutes: [23 * 60 + 30, 23 * 60 + 40, 23 * 60 + 20]))
+        XCTAssertFalse(plan.target.reachable)
+        XCTAssertEqual(plan.target.bedMinute, 22 * 60)            // usual 23:30 − 90 min
+        let window = ((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440
+        let now = date(c, 2026, 10, 5, 12, 0)
+        let t = WindDownNudge.tonight(now: now, calendar: c, alarmFire: date(c, 2026, 10, 6, 6, 0),
+                                      windowMin: window, leadMin: 30, wakeMinuteForWeekday: usual7)
+        XCTAssertEqual(hm(c, t.fireDate), [5, 21, 30])
+    }
 }

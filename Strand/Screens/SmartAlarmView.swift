@@ -392,6 +392,12 @@ struct SmartAlarmView: View {
                     Text("Tonight you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate))).")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
+                    if let plan = model.tonightPlan, !plan.target.reachable {
+                        Text(verbatim: TonightPlanCard.unreachableNote)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     // Answers "so what actually wakes me?" in the one place the question gets asked,
                     // beside the time that does not. Only shown when there IS a strap alarm to name.
                     if let next = nextStrapAlarmLabel {

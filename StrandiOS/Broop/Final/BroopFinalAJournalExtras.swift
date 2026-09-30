@@ -145,7 +145,7 @@ struct BroopFinalACaffeinePage: View {
                             Text(verbatim: timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes)))
                                 .font(BroopType.number(20)).foregroundStyle(BroopPalette.textPrimary)
                         }
-                        Text("Last regular coffee (95 mg) by about \(timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes))), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.")
+                        (Text("Last regular coffee (95 mg) by about \(timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes))), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
                             .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                         if let mg = mgAtBedtime, mg >= 1 {
@@ -199,6 +199,12 @@ struct BroopFinalACaffeinePage: View {
     }
 
     // MARK: Logic (as CaffeineLogCard)
+
+    /// The planner's own "not reachable tonight" note when its median-bedtime guard set this bedtime.
+    private var unreachableSuffix: Text {
+        guard let plan = model.tonightPlan, !plan.target.reachable else { return Text(verbatim: "") }
+        return Text(verbatim: " " + TonightPlanCard.unreachableNote)
+    }
 
     private var latePastCutoffCount: Int {
         store.intakes.filter { intake in

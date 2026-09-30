@@ -114,7 +114,7 @@ struct CaffeineLogCard: View {
                     .accessibilityLabel("Warn me about caffeine close to bedtime")
             }
             if cutoffEnabled {
-                Text("Last regular coffee (95 mg) by about \(cutoffTimeLabel), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.")
+                (Text("Last regular coffee (95 mg) by about \(cutoffTimeLabel), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -154,6 +154,12 @@ struct CaffeineLogCard: View {
     /// Count of TODAY's logged intakes past their own cutoff for tonight's bedtime (the store keeps 48 h;
     /// yesterday's evening coffee is not about tonight). Uses the shared decay model's `isPastCutoff`, with
     /// each intake's own dose, so the UI and the cutoff math can't drift.
+    /// The planner's own "not reachable tonight" note when its median-bedtime guard set this bedtime.
+    private var unreachableSuffix: Text {
+        guard let plan = model.tonightPlan, !plan.target.reachable else { return Text(verbatim: "") }
+        return Text(verbatim: " " + TonightPlanCard.unreachableNote)
+    }
+
     private var latePastCutoffCount: Int {
         store.intakes.filter { intake in
             Calendar.current.isDateInToday(intake.at)

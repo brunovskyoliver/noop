@@ -615,8 +615,9 @@ struct BroopOverviewEffortTarget {
 }
 
 /// TONIGHT'S SLEEP: tonight's recommended bedtime and wake from `AppModel.tonightPlan` (the plan the
-/// wind-down reminder and caffeine cutoff use) and whether the strap alarm will ring (the gate
-/// `tonightWakeMinute` uses). Owns the `AppModel` observation so its 1 Hz publishes stay in this leaf.
+/// wind-down reminder and caffeine cutoff use) and whether the strap alarm sets that wake
+/// (`tonightAlarmFire`, the gate `tonightWakeMinute` uses). An unreachable plan is labelled as the
+/// planner labels it. Owns the `AppModel` observation so its 1 Hz publishes stay in this leaf.
 struct BroopOverviewTonightCard: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var repo: Repository
@@ -625,7 +626,8 @@ struct BroopOverviewTonightCard: View {
         BroopOverviewTonightContent(
             bedMinute: model.tonightPlan?.target.bedMinute,
             wakeMinute: model.tonightPlan?.wakeMinute,
-            alarmOn: model.behavior.smartAlarmEnabled && model.strapAlarmWillArm
+            reachable: model.tonightPlan?.target.reachable ?? true,
+            alarmOn: model.tonightAlarmFire() != nil
         )
         .equatable()
         .task(id: repo.refreshSeq) { await model.refreshTonightPlan() }
@@ -635,6 +637,7 @@ struct BroopOverviewTonightCard: View {
 struct BroopOverviewTonightContent: View, Equatable {
     let bedMinute: Int?
     let wakeMinute: Int?
+    let reachable: Bool
     let alarmOn: Bool
 
     var body: some View {
@@ -649,8 +652,9 @@ struct BroopOverviewTonightContent: View, Equatable {
                 }
                 HStack(alignment: .top, spacing: 0) {
                     column(symbol: "sunset", value: bedText,
-                           lines: [String(localized: "Recommended"), String(localized: "Bedtime")],
-                           color: BroopPalette.textSecondary)
+                           lines: reachable ? [String(localized: "Recommended"), String(localized: "Bedtime")]
+                                            : [String(localized: "Earliest that fits"), String(localized: "Your usual bedtime")],
+                           color: reachable ? BroopPalette.textSecondary : BroopPalette.warning)
                     Rectangle()
                         .fill(BroopPalette.textTertiary)
                         .frame(width: 56, height: 1)
