@@ -326,7 +326,7 @@ struct BroopInsightsVoiceJournalSheet: View {
         }
         transcript = ""
         voice.meter.isEnabled = true
-        voice.startTranscribing { transcript = $0 }
+        voice.startTranscribing { _ in }
         if voice.isRecording { listeningSince = Date() }
     }
 

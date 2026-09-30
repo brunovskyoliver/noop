@@ -61,8 +61,9 @@ final class CoachVoiceInput: ObservableObject {
     /// Whether a recognition session is currently recording.
     @Published private(set) var isRecording: Bool = false
 
-    /// The latest partial transcript (live, while recording): the whole session so far, across pauses.
-    @Published var partialTranscript: String = ""
+    /// The whole session's transcript so far, across pauses. Not published: the screens take the text when
+    /// dictation stops, so a result arriving mid-sentence re-renders nothing.
+    private(set) var partialTranscript: String = ""
 
     /// The microphone's loudness for a voice-only screen's animation. A separate object, observed only by
     /// the view that draws it: published on this object it re-rendered the whole Coach screen about 40 times

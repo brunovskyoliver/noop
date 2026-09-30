@@ -425,7 +425,8 @@ struct BroopInsightsCoachView: View {
     private var field: some View {
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(alignment: .bottom, spacing: 2) {
-            TextField(String(localized: "Ask Broop anything"), text: $draft, axis: .vertical)
+            TextField(voice.isRecording ? String(localized: "Listening… tap stop when you're done")
+                                        : String(localized: "Ask Broop anything"), text: $draft, axis: .vertical)
                 .font(BroopType.regular(17))
                 .foregroundStyle(BroopPalette.textPrimary)
                 .lineLimit(1...5)
@@ -435,7 +436,7 @@ struct BroopInsightsCoachView: View {
                 .frame(minHeight: Self.composerHeight)
                 .accessibilityLabel(Text("Question"))
             micButton
-            if hasText || coach.sending {
+            if hasText || coach.sending || voice.isRecording {
                 Button { send(draft) } label: {
                     Group {
                         if coach.sending { ProgressView().tint(.black) } else {
@@ -447,7 +448,7 @@ struct BroopInsightsCoachView: View {
                     .background(Circle().fill(Color.white))
                     .frame(width: 42, height: Self.composerHeight)
                 }
-                .disabled(coach.sending || !hasText)
+                .disabled(coach.sending || !(hasText || voice.isRecording))
                 .accessibilityLabel(Text("Send"))
             }
         }
@@ -486,8 +487,7 @@ struct BroopInsightsCoachView: View {
 
     private func toggleVoice() {
         if voice.isRecording {
-            // The field already holds the prefix plus everything said, via the live callback.
-            voice.stopTranscribing { _ in }
+            voice.stopTranscribing { appendDictation($0) }
         } else if voice.authorization == .notDetermined {
             voice.requestAuthorization { state in
                 if state == .authorized { startDictation() }
@@ -497,21 +497,32 @@ struct BroopInsightsCoachView: View {
         }
     }
 
-    /// Dictation continues after whatever is already in the field rather than replacing it.
+    /// Dictation fills the field once, when it stops: nothing is drawn while the person talks.
     private func startDictation() {
-        let prefix = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        voice.startTranscribing { spoken in
-            draft = prefix.isEmpty ? spoken : (spoken.isEmpty ? prefix : prefix + " " + spoken)
-        }
+        voice.startTranscribing { _ in }
+    }
+
+    /// What was said, after whatever is already in the field.
+    private func appendDictation(_ spoken: String) {
+        let said = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty else { return }
+        let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = typed.isEmpty ? said : typed + " " + said
     }
 
     // MARK: Actions
 
     private func send(_ text: String) {
+        // Sending while dictating: stop, add what was said, then send the whole field.
+        if voice.isRecording {
+            voice.stopTranscribing { spoken in
+                appendDictation(spoken)
+                send(draft)
+            }
+            return
+        }
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, !coach.sending else { return }
-        // Stop dictation first: a running session would write its transcript back into the cleared field.
-        if voice.isRecording { voice.stopTranscribing { _ in } }
         draft = ""
         composerFocused = false
         Task { await coach.send(t) }

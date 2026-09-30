@@ -751,7 +751,7 @@ struct CoachView: View {
     /// distinct docked surface above the canvas rather than two floating controls.
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask Coach about your data…", text: $draft, axis: .vertical)
+            TextField(composerPlaceholder, text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textPrimary)
@@ -848,16 +848,20 @@ struct CoachView: View {
 
     /// Speak into existing text: dictation continues after what is already in the draft.
     private func startDictation() {
-        let prefix = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        voiceInput.startTranscribing { spoken in
-            draft = prefix.isEmpty ? spoken : (spoken.isEmpty ? prefix : prefix + " " + spoken)
-        }
+        voiceInput.startTranscribing { _ in }
+    }
+
+    /// What was said goes in once, when dictation stops, after whatever is already in the draft.
+    private func appendDictation(_ spoken: String) {
+        let said = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty else { return }
+        let typed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = typed.isEmpty ? said : typed + " " + said
     }
 
     private func toggleVoice() {
         if voiceInput.isRecording {
-            // The draft already holds the typed prefix plus everything said, via the live callback.
-            voiceInput.stopTranscribing { _ in }
+            voiceInput.stopTranscribing { appendDictation($0) }
         } else {
             // First tap with undetermined permission triggers the system prompt; if granted,
             // start transcribing immediately on the next tap. If already authorized, start now.
@@ -906,13 +910,27 @@ struct CoachView: View {
         coach.connectCustom()
     }
 
+    /// "Listening…" while dictating: the words arrive when dictation stops.
+    private var composerPlaceholder: String {
+        #if os(iOS)
+        if voiceInput.isRecording { return String(localized: "Listening… tap stop when you're done") }
+        #endif
+        return String(localized: "Ask Coach about your data…")
+    }
+
     private func send(_ text: String) {
+        // Sending while dictating: stop, add what was said, then send the whole draft.
+        #if os(iOS)
+        if voiceInput.isRecording {
+            voiceInput.stopTranscribing { spoken in
+                appendDictation(spoken)
+                send(draft)
+            }
+            return
+        }
+        #endif
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !coach.sending else { return }
-        // Stop dictation first: a running session would write its transcript back into the cleared field.
-        #if os(iOS)
-        if voiceInput.isRecording { voiceInput.stopTranscribing { _ in } }
-        #endif
         draft = ""
         composerFocused = false
         Task { await coach.send(trimmed) }
