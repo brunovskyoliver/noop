@@ -26,13 +26,14 @@ struct LiveView: View {
     @AppStorage("selectedWhoopModel") private var selectedModelRaw = WhoopModel.whoop4.rawValue
     private var selectedModel: WhoopModel { WhoopModel(rawValue: selectedModelRaw) ?? .whoop4 }
 
-    /// Maps the picked strap model to the HRV-reading source so the spot caveat is honest (#537): a
-    /// WHOOP 5/MG's R-R is optical PPG (noisier), a WHOOP 4 is electrical R-R. Mirrors the Android
-    /// `LiveScreen` mapping.
     private var hrvSnapshotSource: SpotHrvReading.Source {
-        switch selectedModel {
+        Self.hrvSnapshotSource(for: selectedModel)
+    }
+
+    static func hrvSnapshotSource(for model: WhoopModel) -> SpotHrvReading.Source {
+        switch model {
         case .whoop5mg: return .opticalPPG
-        case .whoop4:   return .chestStrap
+        case .whoop4: return .opticalPPG
         }
     }
 
@@ -76,9 +77,7 @@ struct LiveView: View {
         }
         // Manual HRV snapshot (#127) — a still, seated 60s R-R reading.
         .sheet(isPresented: $showHRVSnapshot) {
-            // Tell the reading where its R-R is coming from so the caveat is honest (#537): a WHOOP 5/MG
-            // derives R-R from the optical pulse signal (noisier) while a WHOOP 4 / chest strap is
-            // electrical R-R. Driven off the picked strap model, mirroring the Android twin.
+            // Both WHOOP generations derive beat timing from optical PPG.
             HRVSnapshotView(onClose: { showHRVSnapshot = false }, source: hrvSnapshotSource)
         }
     }

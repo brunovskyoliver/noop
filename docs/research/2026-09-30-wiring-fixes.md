@@ -37,3 +37,9 @@ Base: `feature/broop-energy-strain-sri`, `d941f3c7`. Working tree was clean. Wor
 
 In progress. Final test counts, builds, screenshots, demo bedtime values and device installation are
 recorded below when verified.
+
+- A5 fixed: both WHOOP generations now select `.opticalPPG` through
+  `LiveView.hrvSnapshotSource(for:)`, used by classic and Broop snapshot presentations.
+  `WhoopHRVSourceTests` failed on 4.0's old `.chestStrap` mapping before the correction.
+  No BLE behavior changed. WHOOP's [4.0 sensor description](https://www.whoop.com/us/en/thelocker/chief-technology-officer-whoop-4-0-accuracy/)
+  identifies its optical LEDs and photodiodes.
