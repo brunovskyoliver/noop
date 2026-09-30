@@ -127,7 +127,7 @@ struct BroopInsightsVoiceJournalSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
             Button { orbTapped() } label: {
-                BroopVoiceOrb(level: voice.level, mode: phase == .reading ? .thinking : (voice.isRecording ? .listening : .idle))
+                BroopVoiceOrbLive(meter: voice.meter, mode: phase == .reading ? .thinking : (voice.isRecording ? .listening : .idle))
                     .frame(width: 230, height: 230)
                     .contentShape(Circle())
             }
@@ -325,6 +325,7 @@ struct BroopInsightsVoiceJournalSheet: View {
             return
         }
         transcript = ""
+        voice.meter.isEnabled = true
         voice.startTranscribing { transcript = $0 }
         if voice.isRecording { listeningSince = Date() }
     }
@@ -399,6 +400,15 @@ struct BroopInsightsVoiceJournalSheet: View {
         if voice.isRecording { voice.stopTranscribing { _ in } }
         dismiss()
     }
+}
+
+/// The circle fed by the live meter: only this view observes the loudness, so the sheet around it does not
+/// re-render with every reading.
+struct BroopVoiceOrbLive: View {
+    @ObservedObject var meter: CoachVoiceMeter
+    let mode: BroopVoiceOrb.Mode
+
+    var body: some View { BroopVoiceOrb(level: meter.level, mode: mode) }
 }
 
 /// The voice-mode circle: still when idle, swelling with the voice while listening, slowly turning while

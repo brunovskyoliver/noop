@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import os
 #if canImport(UIKit)
 import UIKit
 import Speech
@@ -26,12 +27,17 @@ import Speech
 @MainActor
 final class CoachVoiceInput: ObservableObject {
 
+    /// Session start, end and errors (never the words): what is missing when dictation misbehaves on a
+    /// phone and nobody had a debugger attached. Console.app, subsystem = bundle id, category "dictation".
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "noop", category: "dictation")
+    private var resultCount = 0
+
     /// Whether voice input is available on this device + locale at all.
     static var isSupported: Bool {
         #if canImport(UIKit)
         return SFSpeechRecognizer.authorizationStatus() != .restricted
             && SFSpeechRecognizer.self != nil
-            && SFSpeechRecognizer(locale: Locale.current) != nil
+            && speechLocale != nil
         #else
         return false
         #endif
@@ -58,18 +64,30 @@ final class CoachVoiceInput: ObservableObject {
     /// The latest partial transcript (live, while recording): the whole session so far, across pauses.
     @Published var partialTranscript: String = ""
 
-    /// The microphone's loudness while recording, 0 to 1, for a voice-only screen's animation.
-    @Published private(set) var level: Double = 0
+    /// The microphone's loudness for a voice-only screen's animation. A separate object, observed only by
+    /// the view that draws it: published on this object it re-rendered the whole Coach screen about 40 times
+    /// a second while dictating, and the recognizer's results queued behind those renders and never showed.
+    let meter = CoachVoiceMeter()
 
     /// A short human-readable status for the disabled-state tooltip (e.g. "On-device speech not
     /// available for en-GB"). `nil` when voice is fully available.
     @Published var statusMessage: String?
 
+    #if canImport(UIKit)
+    /// The recognizer locale for the person's language and region (see `DictationLocale`).
+    static var speechLocale: Locale? {
+        let current = Locale.current
+        let supported = SFSpeechRecognizer.supportedLocales().map(\.identifier)
+        return DictationLocale.pick(language: current.language.languageCode?.identifier,
+                                    region: current.region?.identifier, supported: supported).map(Locale.init(identifier:))
+    }
+    #endif
+
     /// On-device support for the current locale. If `false`, voice is disabled rather than
     /// falling back to server recognition (which would be raw-audio egress).
     private static var localeSupportsOnDevice: Bool {
         #if canImport(UIKit)
-        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else { return false }
+        guard let locale = speechLocale, let recognizer = SFSpeechRecognizer(locale: locale) else { return false }
         return recognizer.supportsOnDeviceRecognition
         #else
         return false
@@ -179,17 +197,23 @@ final class CoachVoiceInput: ObservableObject {
         request.shouldReportPartialResults = true
         self.recognitionRequest = request
 
-        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
+        guard let locale = Self.speechLocale, let recognizer = SFSpeechRecognizer(locale: locale) else {
             statusMessage = String(localized: "On-device speech not available for \(Locale.current.identifier).")
             return
         }
 
         let token = sessionID
         transcript = DictationTranscript()
+        resultCount = 0
+        Self.log.info("start locale=\(locale.identifier, privacy: .public) onDevice=\(recognizer.supportsOnDeviceRecognition, privacy: .public)")
         let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
                 guard let self, self.sessionID == token else { return }
+                if let error {
+                    Self.log.error("recognition error after \(self.resultCount, privacy: .public) results: \(String(describing: error), privacy: .public)")
+                }
                 if let result {
+                    self.resultCount += 1
                     // After a pause the recognizer starts a new utterance and reports only its words; the
                     // accumulator keeps what came before (see `DictationTranscript`).
                     let text = self.transcript.update(result.bestTranscription.formattedString,
@@ -211,19 +235,22 @@ final class CoachVoiceInput: ObservableObject {
 
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            // Metering only when a screen draws it, and at most every fourth buffer (about 12 a second).
+            let drawn = meter.isEnabled ? meter : nil
+            meter.session = token
+            let counter = BufferCounter()
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
                 request.append(buffer)
+                guard let drawn, counter.next() % 4 == 0 else { return }
                 let level = Self.level(of: buffer)
-                Task { @MainActor in
-                    guard let self, self.sessionID == token else { return }
-                    self.level = level
-                }
+                Task { @MainActor in drawn.set(level, session: token) }
             }
 
             audioEngine.prepare()
             try audioEngine.start()
             isRecording = true
         } catch {
+            Self.log.error("microphone failed to start: \(String(describing: error), privacy: .public)")
             statusMessage = String(localized: "Couldn't start the microphone: \(error.localizedDescription)")
             finishSession(completion: { _ in })
         }
@@ -241,7 +268,8 @@ final class CoachVoiceInput: ObservableObject {
 
     private func finishSession(completion: @escaping (String) -> Void) {
         sessionID += 1
-        level = 0
+        meter.set(0, session: meter.session)
+        meter.session = -1
         if let audioEngine {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
@@ -255,6 +283,7 @@ final class CoachVoiceInput: ObservableObject {
             false, options: .notifyOthersOnDeactivation
         )
         let final = partialTranscript
+        if isRecording { Self.log.info("end after \(self.resultCount, privacy: .public) results, \(final.count, privacy: .public) characters") }
         isRecording = false
         completion(final)
     }
@@ -267,4 +296,25 @@ final class CoachVoiceInput: ObservableObject {
         case denied
         case unavailable
     }
+}
+
+/// Microphone loudness, 0 to 1, for the voice-only journal's circle (see `CoachVoiceInput.meter`). Off until
+/// a screen that draws it turns it on.
+@MainActor
+final class CoachVoiceMeter: ObservableObject {
+    @Published private(set) var level: Double = 0
+    var isEnabled = false
+    /// The recording session the level belongs to; a late reading from an ended session is dropped.
+    var session = -1
+
+    func set(_ value: Double, session: Int) {
+        guard session == self.session, value != level else { return }
+        level = value
+    }
+}
+
+/// Counts tap buffers on the audio thread (the tap runs on one thread at a time).
+private final class BufferCounter: @unchecked Sendable {
+    private var n = 0
+    func next() -> Int { n += 1; return n }
 }
