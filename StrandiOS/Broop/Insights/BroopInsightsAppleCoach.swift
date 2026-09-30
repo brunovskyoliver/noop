@@ -6,7 +6,7 @@ import UIKit
 // view per `AppleCoachAvailability` case, never an error dump) and the Coach settings sheet with the backend
 // choice and the "Use Apple servers when needed" toggle. Fork change.
 
-/// The Coach screen when Apple Intelligence cannot answer: why, and the one thing that helps.
+/// The Coach screen when Apple Intelligence cannot answer: a title and the one thing that helps.
 struct BroopInsightsCoachUnavailable: View {
     @EnvironmentObject private var coach: AICoachEngine
     let state: AppleCoachAvailability
@@ -19,25 +19,15 @@ struct BroopInsightsCoachUnavailable: View {
                     .font(BroopType.demi(25))
                     .foregroundStyle(BroopPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                BroopInsightsBody(text: detail, size: 15.5)
-                if state == .appleIntelligenceOff {
-                    BroopInsightsPrimaryButton(title: String(localized: "Open Settings"), symbol: "gearshape") {
+                switch state {
+                case .appleIntelligenceOff:
+                    BroopInsightsPrimaryButton(title: String(localized: "Open Settings")) {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
-                }
-                if state == .modelDownloading {
-                    HStack(spacing: 10) {
-                        ProgressView().tint(BroopPalette.textSecondary)
-                        Text("Checking again when you come back to the app.")
-                            .font(BroopType.regular(13.5)).foregroundStyle(BroopPalette.textSecondary)
-                    }
-                }
-                if state != .modelDownloading {
-                    BroopInsightsOutlineButton(title: String(localized: "Use a cloud provider instead"), symbol: "key") {
-                        coach.backend = .cloud
-                    }
-                    BroopInsightsBody(text: String(localized: "A cloud provider sends a summary of your data and your question to the company you pick, with your own API key."),
-                                      size: 12.5, color: BroopPalette.textTertiary)
+                case .modelDownloading:
+                    ProgressView().tint(BroopPalette.textSecondary)
+                default:
+                    BroopInsightsOutlineButton(title: String(localized: "Use a cloud provider")) { coach.backend = .cloud }
                 }
             }
             .padding(.horizontal, 20)
@@ -51,27 +41,10 @@ struct BroopInsightsCoachUnavailable: View {
         switch state {
         case .appleIntelligenceOff: return String(localized: "Turn on Apple Intelligence")
         case .deviceNotEligible: return String(localized: "This iPhone can't run Apple Intelligence")
-        case .modelDownloading: return String(localized: "Apple Intelligence is getting ready")
-        case .languageNotSupported: return String(localized: "Coach isn't available in this language yet")
-        case .osTooOld: return String(localized: "Coach needs iOS 26 or later")
+        case .modelDownloading: return String(localized: "Apple Intelligence is downloading")
+        case .languageNotSupported: return String(localized: "Not available in this language yet")
+        case .osTooOld: return String(localized: "Needs iOS 26 or later")
         case .onDeviceReady, .appleServersOnly: return String(localized: "Coach")
-        }
-    }
-
-    private var detail: String {
-        switch state {
-        case .appleIntelligenceOff:
-            return String(localized: "Coach runs on Apple Intelligence. Turn it on in Settings under Apple Intelligence & Siri, then come back here.")
-        case .deviceNotEligible:
-            return String(localized: "Apple Intelligence needs an iPhone 15 Pro or later. The rest of the app works the same without it.")
-        case .modelDownloading:
-            return String(localized: "The model is still downloading to this iPhone. Coach becomes available when it finishes.")
-        case .languageNotSupported:
-            return String(localized: "Apple Intelligence doesn't support the app's language yet. You can switch the app to a supported language in Settings, or use a cloud provider.")
-        case .osTooOld:
-            return String(localized: "Apple Intelligence Coach needs iOS 26. On this version you can use a cloud provider with your own key.")
-        case .onDeviceReady, .appleServersOnly:
-            return ""
         }
     }
 }
@@ -84,11 +57,8 @@ struct BroopInsightsCoachStreamingReply: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if stream.text.isEmpty {
-                HStack(spacing: 10) {
-                    ProgressView().tint(BroopPalette.textSecondary)
-                    Text("Coach is thinking…").font(BroopType.regular(15)).foregroundStyle(BroopPalette.textSecondary)
-                }
-                .accessibilityLabel(Text("Coach is thinking"))
+                ProgressView().tint(BroopPalette.textSecondary)
+                    .accessibilityLabel(Text("Coach is thinking"))
             } else {
                 Text(verbatim: stream.text)
                     .font(BroopType.regular(17))
@@ -143,17 +113,13 @@ struct BroopInsightsCoachSettingsSheet: View {
                     if coach.backend == .appleIntelligence {
                         BroopAccountGroup {
                             BroopAccountToggle(title: String(localized: "Use Apple servers when needed"),
-                                               detail: AppleCoachProbe.privateCloudInBuild
-                                                   ? String(localized: "Only when the on-device model can't answer. That turn's question and the data Coach looked up for it go to Apple's Private Cloud Compute, and the reply is labelled \"via Apple servers\". Needs iOS 27.")
-                                                   : String(localized: "Not in this build: Apple has to grant this app's signing team the Private Cloud Compute entitlement. Coach runs on this iPhone only."),
+                                               detail: AppleCoachProbe.privateCloudInBuild ? nil : String(localized: "Not available in this build"),
                                                isOn: $coach.allowAppleServers,
                                                enabled: AppleCoachProbe.privateCloudInBuild)
                         }
                         BroopAccountGroup {
-                            BroopAccountToggle(title: String(localized: "Evening review reminder"),
-                                               detail: eveningDenied
-                                                   ? String(localized: "Notifications are off for this app. Turn them on in iOS Settings to get the reminder.")
-                                                   : String(localized: "An hour before your wind-down reminder: see how today went and log your journal by voice. From 17:00, Home shows the evening review either way."),
+                            BroopAccountToggle(title: String(localized: "Evening reminder"),
+                                               detail: eveningDenied ? String(localized: "Notifications are off") : nil,
                                                isOn: eveningReminderBinding)
                         }
                     } else {
@@ -163,7 +129,7 @@ struct BroopInsightsCoachSettingsSheet: View {
                         }
                     }
                     BroopAccountGroup {
-                        navRow(String(localized: "About Coach and your data")) { showInfo = true }
+                        navRow(String(localized: "About Coach")) { showInfo = true }
                     }
                 }
                 .padding(.horizontal, BroopMetrics.page)
@@ -197,7 +163,7 @@ struct BroopInsightsCoachSettingsSheet: View {
 
     private func backendRow(_ backend: CoachBackend) -> some View {
         Button { coach.backend = backend } label: {
-            BroopAccountRow(title: backend.displayName, detail: detail(backend)) {
+            BroopAccountRow(title: backend.displayName) {
                 Image(systemName: coach.backend == backend ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundStyle(coach.backend == backend ? BroopPalette.teal : BroopPalette.textTertiary)
@@ -206,15 +172,6 @@ struct BroopInsightsCoachSettingsSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(coach.backend == backend ? .isSelected : [])
-    }
-
-    private func detail(_ backend: CoachBackend) -> String {
-        switch backend {
-        case .appleIntelligence:
-            return String(localized: "No key needed. Runs on this iPhone, with Apple's servers as a fallback if you allow it.")
-        case .cloud:
-            return String(localized: "Sends a summary of your data and your question to the provider you pick (OpenAI, Anthropic, Gemini or your own server).")
-        }
     }
 
     private func navRow(_ title: String, action: @escaping () -> Void) -> some View {
@@ -318,12 +275,6 @@ struct BroopInsightsCoachBriefCard: View {
                         }
                     }
                 }
-                Text(verbatim: brief.factsOnly
-                     ? String(localized: "Coach's wording didn't pass the number check, so this shows the values only.")
-                     : String(localized: "Written by Apple Intelligence. The values come from the app."))
-                    .font(BroopType.regular(11.5))
-                    .foregroundStyle(BroopPalette.textTertiary)
-                    .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -351,22 +302,14 @@ struct BroopInsightsCoachInfoSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    section(String(localized: "Where Coach runs"),
-                            String(localized: "With Apple Intelligence chosen, Coach runs on this iPhone. Its model looks up your scores, trends, tonight's sleep plan and journal through the app, on the phone."))
-                    section(String(localized: "When a turn uses Apple's servers"),
+                    section(String(localized: "Privacy"),
                             coach.allowAppleServers && AppleCoachProbe.privateCloudInBuild
-                            ? String(localized: "If the on-device model can't answer (Apple Intelligence isn't ready, the language isn't supported on the phone, the conversation is too long, or the phone is busy), that turn goes to Apple's Private Cloud Compute. What leaves the phone for that turn: your question and the data Coach looked up for it. Those replies are labelled \"via Apple servers\". You can turn this off in Coach settings. Needs iOS 27.")
-                            : (AppleCoachProbe.privateCloudInBuild
-                               ? String(localized: "\"Use Apple servers when needed\" is off, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead.")
-                               : String(localized: "This build doesn't include Apple's servers, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead.")))
-                    section(String(localized: "What Coach can do"),
-                            String(localized: "Explain your Charge, Rest, Effort, HRV, stress, energy and sleep in plain language, describe your trends, walk through tonight's plan, and write a short daily brief."))
-                    section(String(localized: "What it can't do"),
-                            String(localized: "It doesn't calculate: every number comes from the app and is checked before a reply is shown. It doesn't diagnose, give medication advice or offer mental-health care, and it can be wrong. Your journal notes are read as notes, never as instructions."))
+                            ? String(localized: "Runs on this iPhone. Replies from Apple's servers are labelled.")
+                            : String(localized: "Runs on this iPhone. Nothing leaves it."))
+                    section(String(localized: "Numbers"),
+                            String(localized: "Every number comes from the app, not the model."))
                     section(String(localized: "Not medical advice"),
-                            String(localized: "Coach is wellness coaching from a consumer wearable. For anything about your health, talk to a doctor or another professional. In an emergency, call your local emergency number."))
-                    section(String(localized: "Cloud providers"),
-                            String(localized: "If you choose a cloud provider in Coach settings instead, a summary of your data and your question go to that company with your own API key."))
+                            String(localized: "For your health, talk to a doctor. In an emergency, call your local emergency number."))
                 }
                 .padding(.horizontal, BroopMetrics.page)
                 .padding(.top, 12)

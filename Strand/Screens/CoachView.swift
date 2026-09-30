@@ -913,7 +913,7 @@ struct CoachView: View {
     /// "Listening…" while dictating: the words arrive when dictation stops.
     private var composerPlaceholder: String {
         #if os(iOS)
-        if voiceInput.isRecording { return String(localized: "Listening… tap stop when you're done") }
+        if voiceInput.isRecording { return String(localized: "Listening…") }
         #endif
         return String(localized: "Ask Coach about your data…")
     }

@@ -232,32 +232,22 @@ struct BroopInsightsCoachView: View {
             Text("How can Broop help?")
                 .font(BroopType.demi(27))
                 .foregroundStyle(BroopPalette.textPrimary)
-            Text(verbatim: coach.usesApple
-                 ? String(localized: "Coach looks up your scores, trends, tonight's sleep plan and journal as it answers, then explains them in plain language. The numbers come from the app, not the model. Try a suggestion below.")
-                 : String(localized: "Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below."))
-                .font(BroopType.regular(16))
-                .lineSpacing(5)
-                .foregroundStyle(BroopPalette.textBody)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Image(systemName: "lock.shield").font(.system(size: 12))
-                Text(verbatim: privacyText).font(BroopType.regular(12.5)).fixedSize(horizontal: false, vertical: true)
+            // Only a cloud provider sends data off the phone, so only then is there something to say.
+            if let privacyText {
+                Text(verbatim: privacyText)
+                    .font(BroopType.regular(12.5))
+                    .foregroundStyle(BroopPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle(BroopPalette.textTertiary)
-            .padding(.top, 4)
         }
         .padding(.top, 30)
     }
 
-    private var privacyText: String {
-        if coach.usesApple {
-            return coach.allowAppleServers && AppleCoachProbe.privateCloudInBuild
-                ? String(localized: "Runs on this iPhone with Apple Intelligence. If the on-device model can't answer, that turn goes to Apple's servers and the reply says so.")
-                : String(localized: "Runs on this iPhone with Apple Intelligence. Nothing leaves your phone.")
-        }
+    private var privacyText: String? {
+        if coach.usesApple { return nil }
         return coach.provider == .custom
-            ? String(localized: "Coach talks only to the server URL you set. Point it at a local model (Ollama, LM Studio, llama.cpp) to keep everything on your own machine. Nothing is sent until you ask.")
-            : String(localized: "This is the only feature that leaves \(Platform.deviceNounPhrase). It sends a summary of your metrics to \(coach.provider.displayName) using your own key. Nothing is sent until you ask.")
+            ? String(localized: "Sent only to the server you set.")
+            : String(localized: "Sent to \(coach.provider.displayName) with your key.")
     }
 
     @ViewBuilder private func messageView(_ message: ChatMessage) -> some View {
@@ -425,7 +415,7 @@ struct BroopInsightsCoachView: View {
     private var field: some View {
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return HStack(alignment: .bottom, spacing: 2) {
-            TextField(voice.isRecording ? String(localized: "Listening… tap stop when you're done")
+            TextField(voice.isRecording ? String(localized: "Listening…")
                                         : String(localized: "Ask Broop anything"), text: $draft, axis: .vertical)
                 .font(BroopType.regular(17))
                 .foregroundStyle(BroopPalette.textPrimary)

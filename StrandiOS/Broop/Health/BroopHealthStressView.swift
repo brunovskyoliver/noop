@@ -51,8 +51,7 @@ struct BroopHealthStressView: View {
                         router.openCoach(asking: CoachAskAbout.question(.stress, daysAgo: dayOffset, day: date),
                                      aboutDay: CoachAskAbout.dayKey(daysAgo: dayOffset, day: date), coach: coach)
                     } label: {
-                        BroopHealthRow(symbol: "sparkles", title: String(localized: "Ask Coach about this day"),
-                                       detail: String(localized: "What shaped your stress, and what helps"))
+                        BroopHealthRow(symbol: "sparkles", title: String(localized: "Ask Coach"))
                     }.buttonStyle(BroopPressableStyle())
                 }
                 NavigationLink(value: BroopScreen.breathe) {
