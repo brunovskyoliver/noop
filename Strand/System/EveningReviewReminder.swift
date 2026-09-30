@@ -3,9 +3,10 @@ import UserNotifications
 
 /// The evening-review reminder: a local notification an hour before tonight's wind-down reminder
 /// (`EveningReviewTiming`) inviting the person to look back at today and log their journal by voice. The text
-/// is fixed; the review itself is written when the app opens, since the model does not run in the
-/// background. One one-off request per coming evening, re-armed whenever Home appears, so a changed alarm or
-/// sleep plan moves it. Default off, like every NOOP automation. On-device only; nothing is sent anywhere.
+/// is fixed until a sync shortly before it writes the review in the background (`writeAheadIfDue`), which
+/// then becomes tonight's text. One one-off request per coming evening, re-armed whenever Home appears, so a
+/// changed alarm or sleep plan moves it. Default off, like every NOOP automation. On-device only; nothing is
+/// sent anywhere.
 @MainActor
 enum EveningReviewReminder {
     static let categoryId = "coach-evening"
@@ -61,6 +62,27 @@ enum EveningReviewReminder {
                 }
             }
         }
+    }
+
+    /// How long before tonight's reminder a sync may write the review.
+    static let writeAhead: TimeInterval = 45 * 60
+
+    /// Called after every scoring pass: within `writeAhead` of tonight's reminder, write the review (`write`
+    /// returns the stored one when it already exists) and put its headline and tonight's step in the
+    /// reminder, at the same time. No-op when off, or when tonight's reminder is skipped or already shown.
+    static func writeAheadIfDue(now: Date = Date(), write: () async -> AppleCoachBrief?) async {
+        guard isEnabled else { return }
+        let centre = UNUserNotificationCenter.current()
+        let id = requestIdPrefix + Repository.localDayKey(now)
+        guard let request = await centre.pendingNotificationRequests().first(where: { $0.identifier == id }),
+              let fire = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate(),
+              fire.timeIntervalSince(now) <= writeAhead,
+              let review = await write(), review.day == Repository.dayString(now) else { return }
+        let body = [review.headline, review.tonight].compactMap { $0 }.joined(separator: "\n")
+        guard !body.isEmpty, body != request.content.body,
+              let content = request.content.mutableCopy() as? UNMutableNotificationContent else { return }
+        content.body = body
+        try? await centre.add(UNNotificationRequest(identifier: id, content: content, trigger: request.trigger))
     }
 
     /// Remove every armed reminder (the toggle or the Coach master switch going off).

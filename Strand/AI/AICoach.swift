@@ -357,9 +357,12 @@ final class AICoachEngine: ObservableObject {
 
     /// Write this evening's review when Home appears in the evening: once per evening, again after new data
     /// (a journal answer included), and only with the Coach on, Apple Intelligence chosen and able to answer.
-    func refreshAppleEveningIfNeeded(now: Date = Date()) async {
+    /// `onlyIfMissing`: the background write ahead of the reminder (`EveningReviewReminder.writeAheadIfDue`),
+    /// one model request an evening rather than one per sync.
+    func refreshAppleEveningIfNeeded(now: Date = Date(), onlyIfMissing: Bool = false) async {
         guard usesApple, CoachBriefScheduler.coachMasterEnabled, AppleCoachEveningPolicy.isEvening(now),
               !appleEveningRunning, let source = apple.source else { return }
+        if onlyIfMissing, appleEvening?.day == Repository.dayString(now) { return }
         if appleRoutingInputs == nil { await refreshAppleAvailability() }
         guard let inputs = appleRoutingInputs, appleAvailability?.canChat == true else { return }
         let today = Repository.dayString(now)

@@ -192,8 +192,8 @@ struct StrandiOSApp: App {
         _watch = StateObject(wrappedValue: watch)
         // After a pass scores new data, in the background too, where nothing else would: rebuild tonight's
         // plan (its sleep need moves with last night, and the wind-down reminder is timed from it), push the
-        // watch (the bridge self-throttles), and send the wake brief. The brief reads last night through
-        // Home's own loader, so it is the same night Home shows.
+        // watch (the bridge self-throttles), send the wake brief, and write the evening review ahead of its
+        // reminder. The brief reads last night through Home's own loader, so it is the same night Home shows.
         model.afterScoring = { [weak model, weak watch] in
             guard let model else { return }
             await model.refreshTonightPlan()
@@ -209,6 +209,10 @@ struct StrandiOSApp: App {
                 },
                 generateBrief: { await model.coach.generateBrief() },
                 buzz: { model.buzzStrapOnce() })
+            await EveningReviewReminder.writeAheadIfDue {
+                await model.coach.refreshAppleEveningIfNeeded(onlyIfMissing: true)
+                return model.coach.appleEvening
+            }
         }
     }
 
