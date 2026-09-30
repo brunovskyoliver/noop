@@ -527,7 +527,7 @@ struct AutomationsView: View {
     private var strainTargetCard: some View {
         Section2(icon: "flame", title: String(localized: "Strain target"),
                  blurb: String(localized: "A once-a-day nudge when your Effort reaches the low end of today's optimal strain range, worked out from your recovery."),
-                 active: behavior.strainTargetNudge) {
+                 active: behavior.strainTargetNudge || behavior.strainTargetUpperNudge) {
             ToggleRow(label: String(localized: "Notify when optimal strain is reached"),
                       help: String(localized: "Posts after your strap syncs and NOOP scores the day — not the exact second you cross it. At most once per day."),
                       isOn: $behavior.strainTargetNudge)
@@ -537,6 +537,15 @@ struct AutomationsView: View {
                         // The repo.$days sink only fires on data changes, so if today's target is
                         // already reached, evaluate now rather than waiting for the next refresh
                         // (the reevaluateIllness idiom).
+                        model.evaluateStrainTarget()
+                    }
+                }
+            ToggleRow(label: String(localized: "Notify when above target"),
+                      help: String(localized: "A heads-up when your Effort passes the top of today's target range, so you can ease off. At most once per day."),
+                      isOn: $behavior.strainTargetUpperNudge)
+                .onChangeCompat(of: behavior.strainTargetUpperNudge) { on in
+                    if on {
+                        StrainTargetNotifier.requestAuthorization()
                         model.evaluateStrainTarget()
                     }
                 }

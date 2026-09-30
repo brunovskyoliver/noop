@@ -81,3 +81,14 @@ recorded below when verified.
   about continuous recording. No diagnostic categories or scoring inputs added.
   Four `SleepHeartRateWindowsTests` pin missing epochs, partial boundaries, nap exclusion and short
   windows. Trend points are unconnected so gaps are never drawn as continuous observations.
+
+## C. Loose ends
+
+- C1 fixed: classic macOS `AutomationsView.strainTargetCard` now binds an "Above target" toggle to
+  `BehaviorStore.strainTargetUpperNudge`. It requests notification permission and evaluates the
+  target when enabled, matching the existing lower-target pattern. Section activity reflects either
+  switch. Uses shared Strand design components and localized copy; no BLE commands changed.
+- C3 checked: `338c282e`, already on the base, fixes the coach's mid-workout double count, zero lower
+  strain target, past Energy summaries and SRI wake-label handling. The old report's remaining
+  real-strap questions stay unverified. The legacy Rest formula (Rest v2 off) deliberately retains
+  duration regularity; replacing that formula is a separate scoring change rather than a wiring fix.
