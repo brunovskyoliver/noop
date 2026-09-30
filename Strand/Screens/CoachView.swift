@@ -174,6 +174,12 @@ struct CoachView: View {
             guard coach.isConfigured else { coach.pendingPromptDay = nil; return }
             await coach.send(prompt)
         }
+        // Leaving the screen mid-dictation must release the microphone.
+        .onDisappear {
+            #if os(iOS)
+            voiceInput.cancel()
+            #endif
+        }
         // K15: persist the composer draft so it survives an app relaunch.
         .onChangeCompat(of: draft) { newValue in
             UserDefaults.standard.set(newValue, forKey: Self.draftKey)
@@ -848,7 +854,7 @@ struct CoachView: View {
 
     /// Speak into existing text: dictation continues after what is already in the draft.
     private func startDictation() {
-        voiceInput.startTranscribing { _ in }
+        voiceInput.startTranscribing(partial: { _ in }, ended: { appendDictation($0) })
     }
 
     /// What was said goes in once, when dictation stops, after whatever is already in the draft.

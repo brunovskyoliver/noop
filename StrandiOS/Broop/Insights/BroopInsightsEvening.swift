@@ -60,6 +60,8 @@ struct BroopInsightsVoiceJournalSheet: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .task { await loadChoices() }
+        // Swiping the sheet away skips `close()`; the microphone must not outlive the sheet.
+        .onDisappear { voice.cancel() }
     }
 
     private var failure: String? {
@@ -288,19 +290,24 @@ struct BroopInsightsVoiceJournalSheet: View {
         }
         transcript = ""
         voice.meter.isEnabled = true
-        voice.startTranscribing { _ in }
+        // A session the system ends (a call, Siri, an error) is read like one the person stopped.
+        voice.startTranscribing(partial: { _ in }, ended: { heard($0) })
     }
 
     /// Stop listening and fill in the journal from everything said.
     private func finishListening() {
-        voice.stopTranscribing { final in
-            let said = final.trimmingCharacters(in: .whitespacesAndNewlines)
-            transcript = said.isEmpty ? transcript : said
-            if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                phase = .failed(String(localized: "Didn't catch that."))
-            } else {
-                read()
-            }
+        // The recognizer finishes the last words before the text arrives; show that as reading.
+        phase = .reading
+        voice.stopTranscribing { heard($0) }
+    }
+
+    private func heard(_ final: String) {
+        let said = final.trimmingCharacters(in: .whitespacesAndNewlines)
+        transcript = said.isEmpty ? transcript : said
+        if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            phase = .failed(String(localized: "Didn't catch that."))
+        } else {
+            read()
         }
     }
 

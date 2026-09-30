@@ -96,6 +96,8 @@ struct BroopInsightsCoachView: View {
             guard coach.isConfigured else { coach.pendingPromptDay = nil; return }
             await coach.send(prompt)
         }
+        // Leaving the screen mid-dictation must release the microphone.
+        .onDisappear { voice.cancel() }
         .onChange(of: draft) { _, v in UserDefaults.standard.set(v, forKey: Self.draftKey) }
         .onChange(of: coach.sending) { _, sending in
             if !sending && !coach.messages.isEmpty { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
@@ -489,7 +491,7 @@ struct BroopInsightsCoachView: View {
 
     /// Dictation fills the field once, when it stops: nothing is drawn while the person talks.
     private func startDictation() {
-        voice.startTranscribing { _ in }
+        voice.startTranscribing(partial: { _ in }, ended: { appendDictation($0) })
     }
 
     /// What was said, after whatever is already in the field.
