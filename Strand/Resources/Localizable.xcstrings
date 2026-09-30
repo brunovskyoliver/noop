@@ -314,13 +314,13 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tendenza a 7 giorni"
+            "value" : "Tendenza di 7 giorni"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trend 7-dniowy"
+            "value" : "Trend z 7 dni"
           }
         },
         "pt-PT" : {
@@ -332,7 +332,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Тренд за 7 дней"
+            "value" : "Тенденция за 7 дней"
           }
         },
         "zh-Hans" : {
@@ -347,7 +347,8 @@
             "value" : "7 天趨勢"
           }
         }
-      }
+      },
+      "extractionState" : "manual"
     },
     "Added to Today" : {
       "localizations" : {
@@ -190651,46 +190652,53 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ventana de tendencias"
+            "value" : "Período de tendencia"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fenêtre de tendance"
+            "value" : "Période de tendance"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Janela de tendências"
+            "value" : "Período da tendência"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Okno trendu"
+            "value" : "Okres trendu"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Окно тренда"
+            "value" : "Окно тенденции"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "趋势窗口"
+            "value" : "趋势时段"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "趨勢視窗"
+            "value" : "趨勢時段"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finestra della tendenza"
           }
         }
-      }
+      },
+      "extractionState" : "manual"
     },
     "Trends" : {
       "localizations" : {
@@ -249846,6 +249854,2248 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天暫停"
+          }
+        }
+      }
+    },
+    "%@ bpm versus your prior nights. One night cannot explain why." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bpm gegenüber früheren Nächten. Eine Nacht erklärt keine Ursache."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lpm respecto a tus noches anteriores. Una noche no explica la causa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bpm par rapport aux nuits précédentes. Une nuit ne permet pas d'en expliquer la cause."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bpm rispetto alle notti precedenti. Una notte non può spiegarne la causa."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ud./min względem poprzednich nocy. Jedna noc nie wyjaśnia przyczyny."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bpm em relação às noites anteriores. Uma noite não explica a causa."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ уд/мин относительно предыдущих ночей. Одна ночь не объясняет причину."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与此前夜晚相比 %@ 次／分。单晚数据无法解释原因。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與此前夜晚相比 %@ 次／分。單晚資料無法解釋原因。"
+          }
+        }
+      }
+    },
+    "%@%% sleep reduction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%% Abnahme im Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%% de reducción al dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@%% de baisse pendant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riduzione del %@%% nel sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spadek podczas snu o %@%%"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redução de %@%% durante o sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снижение во сне на %@%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠期间下降 %@%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠期間下降 %@%%"
+          }
+        }
+      }
+    },
+    "%lld bpm before sleep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bpm vor dem Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld lpm antes de dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bpm avant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bpm prima del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ud./min przed snem"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld bpm antes de dormir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld уд/мин перед сном"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前 %lld 次／分"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前 %lld 次／分"
+          }
+        }
+      }
+    },
+    "A heads-up when your Effort passes the top of today's target range, so you can ease off. At most once per day." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Hinweis, wenn dein Effort die Obergrenze des heutigen Zielbereichs überschreitet, damit du kürzertreten kannst. Höchstens einmal pro Tag."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un aviso cuando tu Effort supera el límite superior del objetivo de hoy, para que puedas bajar el ritmo. Como máximo una vez al día."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un avis lorsque votre Effort dépasse la limite haute de la cible du jour, pour vous permettre de ralentir. Au plus une fois par jour."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un avviso quando il tuo Effort supera il limite superiore dell'obiettivo di oggi, per poter rallentare. Al massimo una volta al giorno."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Powiadomienie, gdy Effort przekroczy górną granicę dzisiejszego celu, aby można było zwolnić. Najwyżej raz dziennie."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um aviso quando o teu Effort ultrapassa o limite superior do objetivo de hoje, para poderes abrandar. No máximo uma vez por dia."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уведомление, когда Effort превышает верхнюю границу сегодняшней цели, чтобы можно было снизить нагрузку. Не чаще раза в день."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当 Effort 超过今天目标范围的上限时提醒你，以便减轻活动强度。每天最多一次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當 Effort 超過今天目標範圍的上限時提醒你，以便減輕活動強度。每天最多一次。"
+          }
+        }
+      }
+    },
+    "Avoid bright morning light from" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morgens helles Licht meiden ab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evitar luz intensa por la mañana desde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Éviter la lumière vive le matin à partir de"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evita la luce intensa al mattino dalle"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unikaj jasnego światła rano od"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evitar luz intensa de manhã a partir das"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Избегайте яркого утреннего света с"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早晨从此时开始避开强光"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早晨從此時開始避開強光"
+          }
+        }
+      }
+    },
+    "Before travel. All times use the origin clock: %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor der Reise. Alle Zeiten gelten für die Ausgangszeitzone: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antes del viaje. Todas las horas usan el reloj de origen: %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avant le voyage. Toutes les heures utilisent le fuseau de départ : %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prima del viaggio. Tutti gli orari usano il fuso di partenza: %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przed podróżą. Wszystkie godziny są podane w strefie wyjazdu: %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antes da viagem. Todas as horas usam o fuso de origem: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "До поездки. Всё время указано в исходном часовом поясе: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出发前。所有时间均使用出发地时区：%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出發前。所有時間均使用出發地時區：%@。"
+          }
+        }
+      }
+    },
+    "Clear trip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reise löschen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Borrar viaje"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer le voyage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancella viaggio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń podróż"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apagar viagem"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить поездку"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除旅行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除旅行"
+          }
+        }
+      }
+    },
+    "Compare the 30 minutes before sleep with your prior nights. Descriptive only; no score or advice changes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergleicht die 30 Minuten vor dem Schlaf mit früheren Nächten. Rein beschreibend; keine Änderung an Scores oder Empfehlungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compara los 30 minutos antes de dormir con tus noches anteriores. Solo descriptivo; no cambia puntuaciones ni consejos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare les 30 minutes avant le sommeil aux nuits précédentes. Descriptif uniquement ; aucun score ni conseil ne change."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confronta i 30 minuti prima del sonno con le notti precedenti. Solo descrittivo; non modifica punteggi o consigli."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Porównuje 30 minut przed snem z poprzednimi nocami. Tylko opisowo; nie zmienia ocen ani porad."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compara os 30 minutos antes de dormir com as noites anteriores. Apenas descritivo; não altera pontuações nem conselhos."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сравнивает 30 минут перед сном с предыдущими ночами. Только описание; оценки и советы не меняются."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将睡前 30 分钟与此前夜晚比较。仅作描述，不改变评分或建议。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將睡前 30 分鐘與此前夜晚比較。僅作描述，不改變評分或建議。"
+          }
+        }
+      }
+    },
+    "Compares the last 7 calendar days' mean ln RMSSD with the preceding 60 days' mean ± 0.5 SD (SWC), shown in milliseconds. Needs 21 baseline nights and 3 recent nights; stale data has no card. Above usual can follow rest or fatigue. This trend does not change Charge and is not a diagnosis." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vergleicht den Mittelwert von ln RMSSD der letzten 7 Kalendertage mit dem Mittelwert der vorherigen 60 Tage ± 0,5 Standardabweichungen (SWC), dargestellt in Millisekunden. Benötigt 21 Basisnächte und 3 aktuelle Nächte; bei veralteten Daten erscheint keine Karte. Werte über dem Üblichen können auf Ruhe oder Ermüdung folgen. Dieser Trend verändert Charge nicht und ist keine Diagnose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compara la media de ln RMSSD de los últimos 7 días naturales con la media de los 60 días anteriores ± 0,5 desviaciones estándar (SWC), mostrada en milisegundos. Necesita 21 noches de referencia y 3 recientes; no muestra tarjeta con datos obsoletos. Un valor superior al habitual puede seguir al descanso o la fatiga. Esta tendencia no cambia Charge y no es un diagnóstico."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compare la moyenne de ln RMSSD des 7 derniers jours calendaires à celle des 60 jours précédents ± 0,5 écart-type (SWC), affichée en millisecondes. Nécessite 21 nuits de référence et 3 récentes ; aucune carte si les données sont périmées. Une valeur supérieure à l'habitude peut suivre le repos ou la fatigue. Cette tendance ne modifie pas Charge et n'est pas un diagnostic."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confronta la media di ln RMSSD degli ultimi 7 giorni di calendario con la media dei 60 giorni precedenti ± 0,5 deviazioni standard (SWC), mostrata in millisecondi. Richiede 21 notti di riferimento e 3 recenti; nessuna scheda con dati obsoleti. Valori sopra il solito possono seguire riposo o affaticamento. Questa tendenza non modifica Charge e non è una diagnosi."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Porównuje średnią ln RMSSD z ostatnich 7 dni kalendarzowych ze średnią z poprzednich 60 dni ± 0,5 odchylenia standardowego (SWC), wyświetlaną w milisekundach. Wymaga 21 nocy bazowych i 3 ostatnich; nieaktualne dane nie dają karty. Wynik powyżej normy może wystąpić po odpoczynku lub zmęczeniu. Ten trend nie zmienia Charge i nie jest diagnozą."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compara a média de ln RMSSD dos últimos 7 dias de calendário com a média dos 60 dias anteriores ± 0,5 desvios-padrão (SWC), apresentada em milissegundos. Precisa de 21 noites de referência e 3 recentes; dados desatualizados não mostram cartão. Um valor acima do habitual pode seguir-se ao descanso ou à fadiga. Esta tendência não altera Charge e não é um diagnóstico."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сравнивает среднее ln RMSSD за последние 7 календарных дней со средним за предшествующие 60 дней ± 0,5 стандартного отклонения (SWC), показывая значения в миллисекундах. Нужны 21 базовая ночь и 3 недавние; при устаревших данных карточки нет. Значение выше обычного может следовать за отдыхом или усталостью. Эта тенденция не меняет Charge и не является диагнозом."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将最近 7 个日历日的 ln RMSSD 均值与此前 60 天的均值 ± 0.5 个标准差（SWC）比较，结果以毫秒显示。需要 21 晚基线和最近 3 晚数据；数据过时则不显示卡片。高于通常范围可能出现在休息或疲劳后。此趋势不改变 Charge，也不是诊断。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將最近 7 個日曆日的 ln RMSSD 均值與此前 60 天的均值 ± 0.5 個標準差（SWC）比較，結果以毫秒顯示。需要 21 晚基準和最近 3 晚資料；資料過時則不顯示卡片。高於通常範圍可能出現在休息或疲勞後。此趨勢不改變 Charge，也不是診斷。"
+          }
+        }
+      }
+    },
+    "Destination UTC offset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UTC-Abweichung am Ziel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desfase UTC del destino"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Décalage UTC à destination"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scarto UTC della destinazione"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesunięcie UTC w miejscu docelowym"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desvio UTC do destino"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смещение UTC в пункте назначения"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目的地 UTC 偏移量"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目的地 UTC 偏移量"
+          }
+        }
+      }
+    },
+    "HRV readiness" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV-Bereitschaft"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disposición según VFC"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponibilité selon la VFC"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prontezza HRV"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gotowość według HRV"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prontidão segundo a VFC"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готовность по ВСР"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率变异性准备状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率變異性準備狀態"
+          }
+        }
+      }
+    },
+    "How HRV readiness works" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So funktioniert die HRV-Bereitschaft"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo funciona la disposición según VFC"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment fonctionne la disponibilité selon la VFC"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come funziona la prontezza HRV"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak działa gotowość według HRV"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como funciona a prontidão segundo a VFC"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как определяется готовность по ВСР"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率变异性准备状态的计算方式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率變異性準備狀態的計算方式"
+          }
+        }
+      }
+    },
+    "How it works" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So funktioniert es"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo funciona"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment cela fonctionne"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come funziona"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak to działa"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como funciona"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как это работает"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运作方式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "運作方式"
+          }
+        }
+      }
+    },
+    "How sleep heart-rate readings work" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So funktionieren Schlaf-Herzfrequenzwerte"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo funcionan las lecturas cardíacas del sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment fonctionnent les mesures cardiaques du sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come funzionano le letture cardiache del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak działają odczyty tętna podczas snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como funcionam as leituras cardíacas do sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как рассчитываются показатели пульса во сне"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率读数的计算方式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率讀數的計算方式"
+          }
+        }
+      }
+    },
+    "Jet-lag planner" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetlag-Planer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planificador de desfase horario"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planificateur de décalage horaire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pianificatore del jet lag"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planer zmiany strefy czasowej"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planeador de jet lag"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Планировщик смены часового пояса"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时差规划"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時差規劃"
+          }
+        }
+      }
+    },
+    "Keep evening dim from" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abends gedämpftes Licht ab"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atenuar la luz por la tarde desde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réduire la lumière le soir à partir de"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riduci la luce serale dalle"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przyciemnij światło wieczorem od"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reduzir a luz à noite a partir das"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приглушайте вечерний свет с"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "晚间从此时开始调暗光线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "晚間從此時開始調暗光線"
+          }
+        }
+      }
+    },
+    "Moves your saved sleep-plan window by up to one hour per day before travel. Seek morning light for earlier shifts, evening light for later shifts, and keep the opposite window dim. Dates and times use the origin clock. This guide cannot predict individual adaptation, flight sleep or date-line travel. It changes no alarm or reminder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschiebt dein gespeichertes Schlaffenster vor der Reise um höchstens eine Stunde pro Tag. Suche für frühere Zeiten morgens Licht, für spätere abends, und halte das gegenüberliegende Fenster dunkel. Datum und Uhrzeit gelten in der Ausgangszeitzone. Dieser Leitfaden kann individuelle Anpassung, Schlaf im Flugzeug oder Reisen über die Datumsgrenze nicht vorhersagen. Er verändert weder Alarm noch Erinnerung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desplaza el horario de sueño guardado hasta una hora al día antes del viaje. Busca luz por la mañana para adelantarlo y por la tarde para retrasarlo, y mantén tenue la luz en el período opuesto. Las fechas y horas usan el reloj de origen. Esta guía no predice la adaptación individual, el sueño en el vuelo ni los viajes que cruzan la línea de cambio de fecha. No cambia alarmas ni recordatorios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Décale votre créneau de sommeil enregistré d'une heure maximum par jour avant le voyage. Cherchez la lumière le matin pour avancer les horaires, le soir pour les retarder, et tamisez la période opposée. Les dates et heures utilisent le fuseau de départ. Ce guide ne prédit pas l'adaptation individuelle, le sommeil en vol ni les voyages franchissant la ligne de changement de date. Il ne modifie aucune alarme ni aucun rappel."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposta la finestra di sonno salvata fino a un'ora al giorno prima del viaggio. Cerca luce al mattino per anticipare gli orari, alla sera per posticiparli, e riducila nel periodo opposto. Date e orari usano il fuso di partenza. Questa guida non prevede l'adattamento individuale, il sonno in volo o i viaggi oltre la linea del cambio di data. Non modifica sveglie o promemoria."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesuwa zapisane godziny snu o najwyżej godzinę dziennie przed podróżą. Szukaj światła rano, by przesunąć sen wcześniej, lub wieczorem, by przesunąć go później, a w przeciwnym okresie je przyciemnij. Daty i godziny używają strefy wyjazdu. Poradnik nie przewiduje indywidualnej adaptacji, snu w samolocie ani podróży przez linię zmiany daty. Nie zmienia alarmów ani przypomnień."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desloca o horário de sono guardado até uma hora por dia antes da viagem. Procura luz de manhã para antecipar o horário e à noite para o atrasar, mantendo pouca luz no período oposto. As datas e horas usam o fuso de origem. Este guia não prevê a adaptação individual, o sono durante o voo nem viagens que atravessem a linha de mudança de data. Não altera alarmes nem lembretes."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сдвигает сохранённое окно сна не более чем на час в день до поездки. Для более раннего сна ищите свет утром, для более позднего вечером; в противоположное время приглушайте свет. Даты и время указаны в исходном часовом поясе. Этот план не предсказывает индивидуальную адаптацию, сон в самолёте или поездки через линию перемены дат. Будильники и напоминания не меняются."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在旅行前，每天将已保存的睡眠时段调整最多一小时。提前作息时接触晨光，推迟作息时接触晚间光线，并在相反时段调暗光线。日期和时间均使用出发地时区。此指南无法预测个人适应速度、飞行中的睡眠或跨越国际日期变更线的情况，也不会改变闹钟或提醒。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在旅行前，每天將已儲存的睡眠時段調整最多一小時。提前作息時接觸晨光，延後作息時接觸晚間光線，並在相反時段調暗光線。日期和時間均使用出發地時區。此指南無法預測個人適應速度、飛行中的睡眠或跨越國際換日線的情況，也不會改變鬧鐘或提醒。"
+          }
+        }
+      }
+    },
+    "No meaningful time shift for this trip." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diese Reise ist keine nennenswerte Zeitverschiebung nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este viaje no requiere un cambio horario significativo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce voyage ne nécessite pas de décalage notable."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo viaggio non richiede uno spostamento orario significativo."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta podróż nie wymaga istotnej zmiany godzin."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta viagem não exige uma mudança de horário significativa."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой поездки существенный сдвиг времени не нужен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此行无需明显调整作息时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此行無需明顯調整作息時間。"
+          }
+        }
+      }
+    },
+    "Notify when above target" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei Überschreiten des Ziels benachrichtigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisar al superar el objetivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifier au-delà de la cible"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avvisa quando superi l'obiettivo"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Powiadom po przekroczeniu celu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notificar ao ultrapassar o objetivo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уведомлять при превышении цели"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超过目标时通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超過目標時通知"
+          }
+        }
+      }
+    },
+    "Observed epochs: wake %lld%% · sleep %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beobachtete Epochen: wach %lld%% · Schlaf %lld%%"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Épocas observadas: vigilia %lld%% · sueño %lld%%"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Périodes observées : éveil %lld%% · sommeil %lld%%"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Epoche osservate: veglia %lld%% · sonno %lld%%"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaobserwowane epoki: czuwanie %lld%% · sen %lld%%"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Épocas observadas: vigília %lld%% · sono %lld%%"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Наблюдаемые эпохи: бодрствование %lld%% · сон %lld%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已观测时段：清醒 %lld%% · 睡眠 %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已觀測時段：清醒 %lld%% · 睡眠 %lld%%"
+          }
+        }
+      }
+    },
+    "Pre-sleep HR compares the 30 minutes before sleep with prior nights; it needs 10 samples and a personal baseline. Enable it in Settings → Sleep. Sleep dip compares full five-minute epochs in primary sleep (including in-bed wake) with the preceding waking interval, excluding naps. Each side needs 30 observed epochs; missing epochs stay missing. Coverage means observed epochs. These trends do not change scores, diagnose illness or explain causes. No card appears without usable data." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Herzfrequenz vor dem Schlaf vergleicht die 30 Minuten vor dem Einschlafen mit früheren Nächten; benötigt 10 Messwerte und eine persönliche Basis. Unter Einstellungen → Schlaf aktivieren. Der Schlafabfall vergleicht volle Fünf-Minuten-Epochen im Hauptschlaf (einschließlich Wachzeit im Bett) mit dem vorherigen Wachintervall, ohne Nickerchen. Beide Seiten benötigen 30 beobachtete Epochen; fehlende bleiben fehlend. Abdeckung bedeutet beobachtete Epochen. Diese Trends ändern keine Scores, diagnostizieren keine Krankheiten und erklären keine Ursachen. Ohne nutzbare Daten erscheint keine Karte."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La FC antes de dormir compara los 30 minutos previos al sueño con noches anteriores; necesita 10 muestras y una referencia personal. Actívala en Ajustes → Sueño. El descenso durante el sueño compara épocas completas de cinco minutos del sueño principal (incluida la vigilia en cama) con el intervalo de vigilia anterior, excluyendo siestas. Cada lado necesita 30 épocas observadas; las ausentes siguen ausentes. La cobertura indica épocas observadas. Estas tendencias no cambian puntuaciones, diagnostican enfermedades ni explican causas. No aparece ninguna tarjeta sin datos utilizables."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La FC avant le sommeil compare les 30 minutes précédant le sommeil aux nuits antérieures ; il faut 10 mesures et une référence personnelle. Activez-la dans Réglages → Sommeil. La baisse pendant le sommeil compare des périodes complètes de cinq minutes du sommeil principal (éveil au lit inclus) à l'intervalle éveillé précédent, sans les siestes. Chaque côté nécessite 30 périodes observées ; les périodes manquantes restent manquantes. La couverture désigne les périodes observées. Ces tendances ne modifient pas les scores, ne diagnostiquent pas de maladie et n'expliquent pas les causes. Aucune carte sans données exploitables."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La FC prima del sonno confronta i 30 minuti precedenti il sonno con le notti passate; richiede 10 campioni e una base personale. Attivala in Impostazioni → Sonno. Il calo nel sonno confronta epoche complete di cinque minuti del sonno principale (inclusa la veglia a letto) con l'intervallo di veglia precedente, escludendo i sonnellini. Ogni lato richiede 30 epoche osservate; quelle mancanti restano mancanti. La copertura indica epoche osservate. Queste tendenze non cambiano punteggi, diagnosticano malattie o spiegano cause. Nessuna scheda senza dati utilizzabili."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tętno przed snem porównuje 30 minut przed snem z poprzednimi nocami; wymaga 10 próbek i osobistej bazy. Włącz w Ustawienia → Sen. Spadek podczas snu porównuje pełne pięciominutowe epoki głównego snu (w tym czuwanie w łóżku) z poprzedzającym okresem czuwania, pomijając drzemki. Każda strona wymaga 30 zaobserwowanych epok; brakujące pozostają brakujące. Pokrycie oznacza zaobserwowane epoki. Trendy nie zmieniają ocen, nie diagnozują chorób ani nie wyjaśniają przyczyn. Bez użytecznych danych nie ma karty."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A FC antes de dormir compara os 30 minutos anteriores ao sono com noites passadas; precisa de 10 amostras e uma referência pessoal. Ativa em Definições → Sono. A descida durante o sono compara épocas completas de cinco minutos do sono principal (incluindo vigília na cama) com o intervalo de vigília anterior, excluindo sestas. Cada lado precisa de 30 épocas observadas; as épocas em falta continuam em falta. A cobertura significa épocas observadas. Estas tendências não alteram pontuações, diagnosticam doenças nem explicam causas. Não aparece cartão sem dados utilizáveis."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пульс перед сном сравнивает 30 минут до сна с предыдущими ночами; нужны 10 измерений и личная база. Включите в Настройки → Сон. Снижение во сне сравнивает полные пятиминутные эпохи основного сна (включая бодрствование в постели) с предшествующим периодом бодрствования, исключая дневной сон. С каждой стороны нужны 30 наблюдаемых эпох; пропуски остаются пропусками. Покрытие означает наблюдаемые эпохи. Эти тенденции не меняют оценки, не диагностируют болезни и не объясняют причины. Без пригодных данных карточки нет."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率将睡前 30 分钟与此前夜晚比较；需要 10 个样本及个人基线。可在设置 → 睡眠中启用。睡眠心率下降将主要睡眠（包括卧床清醒）的完整五分钟时段与此前清醒时段比较，并排除小睡。两侧均需 30 个已观测时段；缺失时段保持缺失。覆盖率表示已观测时段。这些趋势不改变评分、不诊断疾病，也不解释原因。没有可用数据就不显示卡片。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率將睡前 30 分鐘與此前夜晚比較；需要 10 個樣本及個人基準。可在設定 → 睡眠中啟用。睡眠心率下降將主要睡眠（包括臥床清醒）的完整五分鐘時段與此前清醒時段比較，並排除小睡。兩側均需 30 個已觀測時段；缺失時段維持缺失。覆蓋率表示已觀測時段。這些趨勢不改變評分、不診斷疾病，也不解釋原因。沒有可用資料就不顯示卡片。"
+          }
+        }
+      }
+    },
+    "Pre-sleep heart rate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenz vor dem Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frecuencia cardíaca antes de dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fréquence cardiaque avant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequenza cardiaca prima del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tętno przed snem"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequência cardíaca antes de dormir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пульс перед сном"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率"
+          }
+        }
+      }
+    },
+    "Pre-sleep heart-rate trend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenztrend vor dem Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendencia cardíaca antes de dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendance cardiaque avant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendenza cardiaca prima del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trend tętna przed snem"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendência cardíaca antes de dormir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тенденция пульса перед сном"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率趋势"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡前心率趨勢"
+          }
+        }
+      }
+    },
+    "Save trip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reise speichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar viaje"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer le voyage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva viaggio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz podróż"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar viagem"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить поездку"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存旅行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存旅行"
+          }
+        }
+      }
+    },
+    "Seek bright light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Helles Licht suchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar luz intensa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S'exposer à une lumière vive"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cerca luce intensa"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szukaj jasnego światła"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Procurar luz intensa"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ищите яркий свет"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接触明亮光线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接觸明亮光線"
+          }
+        }
+      }
+    },
+    "Sleep / wake" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafen / Aufwachen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dormir / despertar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sommeil / réveil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonno / risveglio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sen / pobudka"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dormir / acordar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сон / пробуждение"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠／起床"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠／起床"
+          }
+        }
+      }
+    },
+    "Sleep heart rate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenz im Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frecuencia cardíaca durante el sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fréquence cardiaque pendant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequenza cardiaca nel sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tętno podczas snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequência cardíaca durante o sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пульс во сне"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率"
+          }
+        }
+      }
+    },
+    "Sleep heart-rate dip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenzabfall im Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descenso de la frecuencia cardíaca al dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baisse de la fréquence cardiaque pendant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calo della frequenza cardiaca nel sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spadek tętna podczas snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descida da frequência cardíaca durante o sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снижение пульса во сне"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率下降"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率下降"
+          }
+        }
+      }
+    },
+    "Sleep heart-rate dip trend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trend des Herzfrequenzabfalls im Schlaf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendencia del descenso cardíaco al dormir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendance de la baisse cardiaque pendant le sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendenza del calo cardiaco nel sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trend spadku tętna podczas snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tendência da descida cardíaca durante o sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тенденция снижения пульса во сне"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率下降趋势"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠心率下降趨勢"
+          }
+        }
+      }
+    },
+    "Sleep plan starting window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgangsfenster des Schlafplans"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horario inicial del plan de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créneau initial du plan de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finestra iniziale del piano di sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Początkowe godziny planu snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horário inicial do plano de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исходное окно плана сна"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠计划的起始时段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠計畫的起始時段"
+          }
+        }
+      }
+    },
+    "This simple planner supports time differences up to 12 hours. No plan is available for the saved trip." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser einfache Planer unterstützt Zeitunterschiede bis 12 Stunden. Für die gespeicherte Reise ist kein Plan verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este planificador sencillo admite diferencias de hasta 12 horas. No hay un plan disponible para el viaje guardado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce planificateur simple accepte les écarts jusqu'à 12 heures. Aucun plan n'est disponible pour le voyage enregistré."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo semplice pianificatore supporta differenze fino a 12 ore. Non è disponibile un piano per il viaggio salvato."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ten prosty planer obsługuje różnice do 12 godzin. Dla zapisanej podróży nie ma dostępnego planu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este planeador simples suporta diferenças até 12 horas. Não há um plano disponível para a viagem guardada."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот простой планировщик поддерживает разницу до 12 часов. Для сохранённой поездки план недоступен."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此简易规划支持最多 12 小时的时差。已保存的旅行无法生成计划。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此簡易規劃支援最多 12 小時的時差。已儲存的旅行無法產生計畫。"
+          }
+        }
+      }
+    },
+    "Travel date" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reisedatum"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fecha del viaje"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date du voyage"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data del viaggio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data podróży"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data da viagem"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата поездки"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旅行日期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旅行日期"
+          }
+        }
+      }
+    },
+    "Use the destination's UTC offset on your travel date, including daylight saving time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwende die UTC-Abweichung am Ziel für dein Reisedatum, einschließlich Sommerzeit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el desfase UTC del destino en la fecha del viaje, incluido el horario de verano."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez le décalage UTC de la destination à la date du voyage, heure d'été comprise."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa lo scarto UTC della destinazione alla data del viaggio, inclusa l'ora legale."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Użyj przesunięcia UTC w miejscu docelowym w dniu podróży, uwzględniając czas letni."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa o desvio UTC do destino na data da viagem, incluindo a hora de verão."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используйте смещение UTC пункта назначения на дату поездки с учётом летнего времени."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用旅行当天目的地的 UTC 偏移量，包括夏令时。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請使用旅行當天目的地的 UTC 偏移量，包括夏令時間。"
+          }
+        }
+      }
+    },
+    "Usual %lld–%lld ms · mean ln RMSSD" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Üblich %lld–%lld ms · Mittelwert ln RMSSD"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habitual %lld–%lld ms · media de ln RMSSD"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habituel %lld–%lld ms · moyenne de ln RMSSD"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abituale %lld–%lld ms · media di ln RMSSD"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwykle %lld–%lld ms · średnia ln RMSSD"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habitual %lld–%lld ms · média de ln RMSSD"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обычно %lld–%lld мс · среднее ln RMSSD"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通常范围 %lld–%lld 毫秒 · ln RMSSD 均值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通常範圍 %lld–%lld 毫秒 · ln RMSSD 均值"
+          }
+        }
+      }
+    },
+    "Wake %lld bpm · sleep %lld bpm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wach %lld bpm · Schlaf %lld bpm"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vigilia %lld lpm · sueño %lld lpm"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Éveil %lld bpm · sommeil %lld bpm"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veglia %lld bpm · sonno %lld bpm"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czuwanie %lld ud./min · sen %lld ud./min"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vigília %lld bpm · sono %lld bpm"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Бодрствование %lld уд/мин · сон %lld уд/мин"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清醒 %lld 次／分 · 睡眠 %lld 次／分"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清醒 %lld 次／分 · 睡眠 %lld 次／分"
+          }
+        }
+      }
+    },
+    "Your mean heart rate was higher during the primary sleep window than during the preceding waking interval." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine mittlere Herzfrequenz war im Hauptschlaffenster höher als im vorherigen Wachintervall."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu frecuencia cardíaca media fue mayor durante el sueño principal que durante el intervalo de vigilia anterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre fréquence cardiaque moyenne était plus élevée pendant le sommeil principal que durant l'intervalle éveillé précédent."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La frequenza cardiaca media era superiore durante il sonno principale rispetto al precedente intervallo di veglia."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Średnie tętno podczas głównego snu było wyższe niż w poprzedzającym okresie czuwania."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A frequência cardíaca média foi mais alta durante o sono principal do que no intervalo de vigília anterior."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Средний пульс в основном окне сна был выше, чем в предшествующий период бодрствования."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主要睡眠时段的平均心率高于此前清醒时段。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主要睡眠時段的平均心率高於此前清醒時段。"
+          }
+        }
+      }
+    },
+    "Your mean heart rate was lower during the primary sleep window than during the preceding waking interval." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine mittlere Herzfrequenz war im Hauptschlaffenster niedriger als im vorherigen Wachintervall."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu frecuencia cardíaca media fue menor durante el sueño principal que durante el intervalo de vigilia anterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre fréquence cardiaque moyenne était plus basse pendant le sommeil principal que durant l'intervalle éveillé précédent."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La frequenza cardiaca media era inferiore durante il sonno principale rispetto al precedente intervallo di veglia."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Średnie tętno podczas głównego snu było niższe niż w poprzedzającym okresie czuwania."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A frequência cardíaca média foi mais baixa durante o sono principal do que no intervalo de vigília anterior."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Средний пульс в основном окне сна был ниже, чем в предшествующий период бодрствования."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主要睡眠时段的平均心率低于此前清醒时段。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主要睡眠時段的平均心率低於此前清醒時段。"
+          }
+        }
+      }
+    },
+    "Your personal comparison is still building." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein persönlicher Vergleich baut sich noch auf."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu comparación personal aún se está formando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre comparaison personnelle est encore en cours de construction."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il confronto personale è ancora in costruzione."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje osobiste porównanie jest nadal budowane."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tua comparação pessoal ainda está a ser construída."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Личная база для сравнения ещё формируется."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "个人比较基线仍在建立中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人比較基準仍在建立中。"
           }
         }
       }

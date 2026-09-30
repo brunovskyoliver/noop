@@ -92,3 +92,15 @@ recorded below when verified.
   strain target, past Energy summaries and SRI wake-label handling. The old report's remaining
   real-strap questions stay unverified. The legacy Rest formula (Rest v2 off) deliberately retains
   duration regularity; replacing that formula is a separate scoring change rather than a wiring fix.
+
+- C2 partially completed, older backlog skipped for size under the small-item rule: translated this
+  batch's 40 catalog keys (360 values) in all supported non-English locales: de, es, fr, it, pl,
+  pt-PT, ru, zh-Hans, zh-Hant. This includes the upper-target toggle and method sheets. Preserved
+  catalog ordering/formatting and printf argument signatures. The batch adds no un-extracted
+  literals, focus-locale gaps, extra-locale gaps or English-only translation echoes.
+  The previous branches still have about 230 missing catalog values per language, plus many
+  un-extracted Broop strings. Translating roughly 2,000 locale values and reviewing physiology
+  wording across nine languages is a dedicated localization batch, not a small wiring change.
+  Options: (1, recommended) a separate translation pass scoped to those branches with native-speaker
+  review of the longer method sheets; (2) translate one feature at a time. No translation baseline
+  allowances were changed, and untouched watch/design catalogs were left alone.

@@ -94,7 +94,7 @@ struct BroopHealthJetLagView: View {
         .sheet(isPresented: $showInfo) {
             NavigationStack {
                 ScrollView {
-                    BroopFootnote(text: String(localized: "This is a light and sleep-timing guide, not a measured prediction of jet lag. It moves the shared sleep-plan window by at most one hour per day before travel. Earlier shifts seek morning light and dim the evening; later shifts seek evening light and dim the morning. The saved plan keeps its original sleep window and origin clock. It does not adjust for flight sleep, individual adaptation or date-line travel, and it changes no alarm or reminder."))
+                    BroopFootnote(text: String(localized: "Moves your saved sleep-plan window by up to one hour per day before travel. Seek morning light for earlier shifts, evening light for later shifts, and keep the opposite window dim. Dates and times use the origin clock. This guide cannot predict individual adaptation, flight sleep or date-line travel. It changes no alarm or reminder."))
                         .padding(BroopMetrics.page)
                 }
                 .broopScreenChrome(String(localized: "How it works"))

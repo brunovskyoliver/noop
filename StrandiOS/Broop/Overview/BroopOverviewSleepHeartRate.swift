@@ -67,7 +67,7 @@ struct BroopOverviewSleepHeartRateCards: View {
         .sheet(isPresented: $showMethod) {
             NavigationStack {
                 ScrollView {
-                    BroopFootnote(text: String(localized: "Pre-sleep HR is the mean of valid samples in the 30 minutes before primary sleep, compared with prior observed nights. It needs at least 10 samples and a usable personal baseline. Turn it on in Settings → Sleep. Sleep dip compares full five-minute HR epochs in primary sleep with the preceding waking interval, excluding recorded naps. Each side needs 30 observed epochs. Missing epochs stay missing; percentages describe epoch availability, not continuous sensor coverage. The sleep window includes in-bed wake. These are descriptive trends, not another resting HR, a diagnosis or a causal explanation. Missing or stale data produces no card."))
+                    BroopFootnote(text: String(localized: "Pre-sleep HR compares the 30 minutes before sleep with prior nights; it needs 10 samples and a personal baseline. Enable it in Settings → Sleep. Sleep dip compares full five-minute epochs in primary sleep (including in-bed wake) with the preceding waking interval, excluding naps. Each side needs 30 observed epochs; missing epochs stay missing. Coverage means observed epochs. These trends do not change scores, diagnose illness or explain causes. No card appears without usable data."))
                         .padding(BroopMetrics.page)
                 }
                 .broopScreenChrome(String(localized: "Sleep heart rate"))

@@ -298,7 +298,7 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
         .sheet(isPresented: $showMethod) {
             NavigationStack {
                 ScrollView {
-                    BroopFootnote(text: String(localized: "The 7-day mean of ln RMSSD is compared with a smallest-worthwhile-change band: the prior 60 calendar days' mean ± 0.5 standard deviations. Values are shown back in milliseconds. The baseline excludes the current week. At least 21 baseline nights and 3 recent nights are required; stale data has no reading. Above usual can follow rest or heavy fatigue. This trend describes your nightly HRV, not a separate Charge score or a diagnosis. The older Test Centre experiment uses valid-night windows and remains a debug comparison only."))
+                    BroopFootnote(text: String(localized: "Compares the last 7 calendar days' mean ln RMSSD with the preceding 60 days' mean ± 0.5 SD (SWC), shown in milliseconds. Needs 21 baseline nights and 3 recent nights; stale data has no card. Above usual can follow rest or fatigue. This trend does not change Charge and is not a diagnosis."))
                         .padding(BroopMetrics.page)
                 }
                 .broopScreenChrome(String(localized: "HRV readiness"))
