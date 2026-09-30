@@ -226,6 +226,11 @@ enum CoachBriefScheduler {
         Task { await catchUpIfDue(generateBrief: generateBrief) }
     }
 
+    /// Arm the next slot without the catch-up: for app launch, where the data may not be loaded yet.
+    static func armIfEnabled(generateBrief: @escaping () async -> String?) {
+        if isEnabled { scheduleNext(generateBrief: generateBrief) }
+    }
+
     /// The explicit "Generate now" button: always generates and stores, ignoring the once-per-day dedup,
     /// so a tap produces a fresh brief there and then. Does NOT post a notification (the user is already
     /// looking at Coach) and does NOT touch `lastRun`, so today's scheduled slot still fires normally.

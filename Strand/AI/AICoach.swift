@@ -333,6 +333,8 @@ final class AICoachEngine: ObservableObject {
         guard let inputs = appleRoutingInputs, appleAvailability?.canChat == true else { return }
         let today = Repository.dayString(Date())
         let key = [today, await source.briefValue(.charge) ?? "-", await source.briefValue(.rest) ?? "-"].joined(separator: "|")
+        // Nothing loaded yet (a background launch, the store still opening): no brief from empty data.
+        guard key != today + "|-|-" else { return }
         guard AppleCoachBriefPolicy.shouldGenerate(stored: appleBrief, today: today, dataKey: key) else { return }
         appleBriefRunning = true
         defer { appleBriefRunning = false }
@@ -1239,20 +1241,19 @@ final class AICoachEngine: ObservableObject {
     /// open and must never append to (or duplicate into) `messages`. Non-streaming (a background/BGTask
     /// context has no UI to stream into). Returns nil when not configured/consented, on any network
     /// failure, or when the reply is empty — the caller treats nil as "brief unavailable"; never throws.
-    /// `onWake`: the wake brief (`CoachBriefScheduler.deliverOnWakeIfDue`), which runs in the background.
-    /// It asks the Apple model anyway (one request a morning, which the background rate limit usually
-    /// allows) and, when that is refused, sends today's values without prose rather than no brief.
-    func generateBrief(onWake: Bool = false) async -> String? {
+    /// With Apple Intelligence it asks the model even in the background (one request a morning, which the
+    /// background rate limit usually allows) and, when that is refused, returns today's values without
+    /// prose rather than no brief.
+    func generateBrief() async -> String? {
         // Same master-switch gate as `send`, because this entry has NO UI at all: it is what the scheduler
         // calls, and a caller that skipped the scheduler's own gate would otherwise reach a provider with
         // the AI switched off.
         guard CoachBriefScheduler.coachMasterEnabled else { return nil }
         if usesApple {
-            // The same brief as the Home card. Written in the foreground, or for the wake brief (background
-            // generation is rate-limited); any other background wake reuses today's stored brief or reports none.
-            if Platform.isAppActive || onWake { await refreshAppleBriefIfNeeded() }
+            // The same brief as the Home card, so the notification and the card agree.
+            await refreshAppleBriefIfNeeded()
             if let text = await appleBriefText() { return text }
-            guard onWake else { return nil }
+            guard await apple.source?.briefValue(.rest) != nil else { return nil }
             let today = Repository.dayString(Date())
             return await appleBriefText(AppleCoachBriefPolicy.factsOnly(
                 day: today, dataKey: "", metrics: [.rest, .sleepDuration, .charge, .sleepDebt], offDevice: false,

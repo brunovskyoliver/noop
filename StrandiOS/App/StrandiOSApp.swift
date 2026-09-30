@@ -20,7 +20,7 @@ struct StrandiOSApp: App {
     @StateObject private var health: HealthKitBridge
     /// The phone→watch link. Built + activated here so the watch app actually receives snapshots on a
     /// real device; without an owner that pushes it, the watch only ever shows placeholder data.
-    @StateObject private var watch = WatchSessionBridge()
+    @StateObject private var watch: WatchSessionBridge
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
     @StateObject private var router: NavRouter
@@ -101,6 +101,10 @@ struct StrandiOSApp: App {
         _model = StateObject(wrappedValue: model)
         // The Apple Intelligence Coach's tools read the Broop screens' own resolvers.
         model.coach.attachAppleFacts(BroopInsightsCoachFacts(repo: model.repo, model: model))
+        // The timed morning brief's BGTask, registered before launch finishes (and permitted in project.yml)
+        // or iOS never delivers it; armed here too, so it no longer waits for Coach to be opened.
+        CoachBriefScheduler.register { [weak model] in await model?.coach.generateBrief() }
+        CoachBriefScheduler.armIfEnabled { [weak model] in await model?.coach.generateBrief() }
         // 2026-09-21: the detected-workout notification's tap/Edit routes to Workouts with the bout's
         // span; "Not a workout" dismisses durably without navigating (the Workouts row-menu path).
         NotificationPresenter.shared.onWorkoutDetectedReview = { [weak router] start, end, edit in
@@ -184,10 +188,17 @@ struct StrandiOSApp: App {
         model.healthWriteBack = { [weak bridge] immediate in
             _ = await bridge?.writeBackAfterNewData(immediate: immediate)
         }
-        // The wake brief: once a pass scores a night that just ended, write the brief, post it, buzz the strap.
-        // Last night is read through Home's own loader, so it is the same night Home shows.
-        model.afterScoring = { [weak model] in
+        let watch = WatchSessionBridge()
+        _watch = StateObject(wrappedValue: watch)
+        // After a pass scores new data, in the background too, where nothing else would: rebuild tonight's
+        // plan (its sleep need moves with last night, and the wind-down reminder is timed from it), push the
+        // watch (the bridge self-throttles), and send the wake brief. The brief reads last night through
+        // Home's own loader, so it is the same night Home shows.
+        model.afterScoring = { [weak model, weak watch] in
             guard let model else { return }
+            await model.refreshTonightPlan()
+            watch?.activate()  // idempotent; a background launch may not have built the scene that activates it
+            await watch?.pushLatest(from: model)
             await CoachBriefScheduler.deliverOnWakeIfDue(
                 nightEnd: {
                     let store = BroopStore()
@@ -196,7 +207,7 @@ struct StrandiOSApp: App {
                           let end = snap.night?.session.endTs else { return nil }
                     return Date(timeIntervalSince1970: TimeInterval(end))
                 },
-                generateBrief: { await model.coach.generateBrief(onWake: true) },
+                generateBrief: { await model.coach.generateBrief() },
                 buzz: { model.buzzStrapOnce() })
         }
     }

@@ -292,6 +292,8 @@ targets:
           # #1538: finishes a re-score that a backgrounded offload started and could not complete. The
           # only BGProcessingTask of the three; the other two are refresh tasks.
           - $(PRODUCT_BUNDLE_IDENTIFIER).rescore
+          # The timed morning brief (`CoachBriefScheduler`); a refresh task.
+          - $(PRODUCT_BUNDLE_IDENTIFIER).coachbrief
           - $(PRODUCT_BUNDLE_IDENTIFIER).catchup.*
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map, and keeps recording while the screen is off. The route stays on your device. Nothing leaves it."
