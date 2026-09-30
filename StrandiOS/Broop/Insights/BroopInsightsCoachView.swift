@@ -13,6 +13,7 @@ import UIKit
 struct BroopInsightsCoachView: View {
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var repo: Repository
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let draftKey = "coach.composerDraft"
     @State private var draft: String = UserDefaults.standard.string(forKey: "coach.composerDraft") ?? ""
@@ -26,7 +27,17 @@ struct BroopInsightsCoachView: View {
 
     var body: some View {
         Group {
-            if coach.isConfigured {
+            if coach.usesApple {
+                // Apple Intelligence: the model's state, never a failed send.
+                switch coach.appleAvailability {
+                case .none:
+                    ProgressView().tint(BroopPalette.textSecondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .some(let state) where state.canChat:
+                    chat
+                case .some(let state):
+                    BroopInsightsCoachUnavailable(state: state)
+                }
+            } else if coach.isConfigured {
                 chat
             } else {
                 BroopInsightsCoachSetup()
@@ -34,11 +45,15 @@ struct BroopInsightsCoachView: View {
         }
         .background(BroopInsightsCoachBackground())
         .broopNavPage(header: BroopNavHeader(fill: BroopInsightsCoachBackground.topColor) { versionPill } trailing: {
-            if coach.isConfigured { menu }
+            menu
         })
         .sheet(isPresented: $showProviderSettings) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showSettings) {
-            CoachSettingsView().environmentObject(coach).environmentObject(repo)
+            BroopInsightsCoachSettingsSheet().environmentObject(coach).environmentObject(repo)
+        }
+        .task(id: scenePhase) {
+            // The model can finish downloading, or Apple Intelligence be switched on, while the app is open.
+            if scenePhase == .active { await coach.refreshAppleAvailability() }
         }
         .confirmationDialog(String(localized: "Clear conversation?"), isPresented: $showClearConfirm, titleVisibility: .visible) {
             Button(String(localized: "Clear"), role: .destructive) { coach.clearConversation() }
@@ -74,6 +89,7 @@ struct BroopInsightsCoachView: View {
 
     /// The model when one is set, else the provider's short name ("Custom", not "Custom (OpenAI-compatible)").
     private var pillTitle: String {
+        if coach.usesApple { return String(localized: "Apple Intelligence") }
         guard coach.isConfigured else { return String(localized: "Coach") }
         if !coach.model.isEmpty { return coach.model }
         let name = coach.provider.displayName
@@ -95,18 +111,22 @@ struct BroopInsightsCoachView: View {
         .frame(height: 34)
         .background(Capsule().fill(Color.white.opacity(0.09)))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("\(coach.provider.displayName), \(coach.model)"))
+        .accessibilityLabel(Text(verbatim: coach.usesApple ? pillTitle : "\(coach.provider.displayName), \(coach.model)"))
     }
 
     private var menu: some View {
         Menu {
             Button { showSettings = true } label: { Label(String(localized: "Coach settings"), systemImage: "slider.horizontal.3") }
-            Button { showProviderSettings = true } label: { Label(String(localized: "Provider settings"), systemImage: "gearshape") }
-                .disabled(coach.sending)
+            if !coach.usesApple && coach.isConfigured {
+                Button { showProviderSettings = true } label: { Label(String(localized: "Provider settings"), systemImage: "gearshape") }
+                    .disabled(coach.sending)
+            }
             Button { showClearConfirm = true } label: { Label(String(localized: "Clear conversation"), systemImage: "trash") }
                 .disabled(coach.messages.isEmpty)
-            Button(role: .destructive) { coach.disconnect() } label: {
-                Label(String(localized: "Disconnect"), systemImage: "xmark.circle")
+            if !coach.usesApple && coach.isConfigured {
+                Button(role: .destructive) { coach.disconnect() } label: {
+                    Label(String(localized: "Disconnect"), systemImage: "xmark.circle")
+                }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -170,7 +190,12 @@ struct BroopInsightsCoachView: View {
     }
 
     private var privacyText: String {
-        coach.provider == .custom
+        if coach.usesApple {
+            return coach.allowAppleServers
+                ? String(localized: "Runs on this iPhone with Apple Intelligence. If the on-device model can't answer, that turn goes to Apple's servers and the reply says so.")
+                : String(localized: "Runs on this iPhone with Apple Intelligence. Nothing leaves your phone.")
+        }
+        return coach.provider == .custom
             ? String(localized: "Coach talks only to the server URL you set. Point it at a local model (Ollama, LM Studio, llama.cpp) to keep everything on your own machine. Nothing is sent until you ask.")
             : String(localized: "This is the only feature that leaves \(Platform.deviceNounPhrase). It sends a summary of your metrics to \(coach.provider.displayName) using your own key. Nothing is sent until you ask.")
     }

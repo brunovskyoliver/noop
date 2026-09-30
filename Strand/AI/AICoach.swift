@@ -253,6 +253,52 @@ final class AICoachEngine: ObservableObject {
         didSet { UserDefaults.standard.set(multimodalChartEnabled, forKey: Self.multimodalChartKey) }
     }
 
+    /// Which model answers: Apple Intelligence (on-device first, Apple's servers as a fallback) or the
+    /// bring-your-own-key cloud provider above. Apple Intelligence is the default where the app offers it
+    /// (iOS); elsewhere the cloud provider is the only backend. Fork change.
+    @Published var backend: CoachBackend {
+        didSet {
+            guard backend != oldValue else { return }
+            UserDefaults.standard.set(backend.rawValue, forKey: Self.backendKey)
+            errorText = nil
+            keyRejected = false
+        }
+    }
+    /// "Use Apple servers when needed": lets an Apple Intelligence turn the on-device model cannot serve
+    /// go to Apple's Private Cloud Compute (iOS 27+). On by default; every such reply is labelled.
+    @Published var allowAppleServers: Bool {
+        didSet {
+            UserDefaults.standard.set(allowAppleServers, forKey: Self.appleServersKey)
+            Task { await refreshAppleAvailability() }
+        }
+    }
+    /// What the Coach screen shows for the Apple Intelligence backend; nil until first read.
+    @Published private(set) var appleAvailability: AppleCoachAvailability?
+    /// The routing inputs `appleAvailability` came from, kept for per-turn routing.
+    private(set) var appleRoutingInputs: AppleCoachRoutingInputs?
+
+    /// Whether this build offers the Apple Intelligence backend. iOS only: the tools read the Broop
+    /// screens' resolvers, which the macOS app does not carry.
+    static var appleBackendOffered: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    /// True when replies come from Apple Intelligence rather than a cloud provider.
+    var usesApple: Bool { Self.appleBackendOffered && backend == .appleIntelligence }
+
+    /// Re-read Apple Intelligence's availability (on appear, on returning to the foreground, on a setting
+    /// change): the model can finish downloading or be switched on while the app is open.
+    func refreshAppleAvailability() async {
+        let inputs = await AppleCoachProbe.inputs(fallbackAllowed: allowAppleServers, locale: AppLanguage.activeLocale)
+        appleRoutingInputs = inputs
+        let state = AppleCoachRouting.availability(inputs)
+        if appleAvailability != state { appleAvailability = state }
+    }
+
     private let repo: Repository
     private let session: URLSession
 
@@ -262,6 +308,8 @@ final class AICoachEngine: ObservableObject {
     private static let customConnectedKey = "ai.customConnected"
     private static let onDeviceSignalsKey = "ai.includeOnDeviceSignals"
     private static let multimodalChartKey = "ai.multimodalChartEnabled"
+    static let backendKey = "coach.backend"
+    static let appleServersKey = "coach.appleServersFallback"
     /// UserDefaults key holding the user's EDITED system prompt. Absent (or blank) means "use the
     /// built-in default". Small text key, never a secret, so plain UserDefaults is fine. Read FRESH
     /// per request (see `systemPrompt`) so an edit takes effect on the very next message.
@@ -350,7 +398,7 @@ final class AICoachEngine: ObservableObject {
     /// Uses the standard ~4 chars/token heuristic. This is an estimate only — actual token counts
     /// vary by tokenizer. Returns nil when the engine isn't configured (no context to estimate).
     func estimatedTokens(forDraft draft: String) -> Int? {
-        guard isConfigured else { return nil }
+        guard !usesApple, cloudConfigured else { return nil }
         // Estimate the context size: system prompt + data context (rough — we don't build the
         // full context here to avoid a DB read on every keystroke). Use the last known context
         // size or a reasonable default.
@@ -400,6 +448,9 @@ final class AICoachEngine: ObservableObject {
         self.customConnected = UserDefaults.standard.bool(forKey: Self.customConnectedKey)
         self.includeOnDeviceSignals = UserDefaults.standard.bool(forKey: Self.onDeviceSignalsKey)
         self.multimodalChartEnabled = UserDefaults.standard.bool(forKey: Self.multimodalChartKey)
+        self.backend = UserDefaults.standard.string(forKey: Self.backendKey).flatMap(CoachBackend.init(rawValue:))
+            ?? .appleIntelligence
+        self.allowAppleServers = UserDefaults.standard.object(forKey: Self.appleServersKey) as? Bool ?? true
     }
 
     // MARK: Key management
@@ -409,8 +460,12 @@ final class AICoachEngine: ObservableObject {
 
     /// True once the coach can actually send: a stored key for the cloud providers, or, for the
     /// Custom (local) provider, a committed base URL (a key is optional there, as local servers
-    /// usually need none). Gates the setup card vs. the live chat.
-    var isConfigured: Bool { provider == .custom ? customConnected : hasKey }
+    /// usually need none). Gates the setup card vs. the live chat. The Apple Intelligence backend needs
+    /// no setup; its screen shows `appleAvailability` instead.
+    var isConfigured: Bool { usesApple || cloudConfigured }
+
+    /// A cloud provider is set up (key, or a connected custom server).
+    var cloudConfigured: Bool { provider == .custom ? customConnected : hasKey }
 
     var hasProviderKey: Bool { !(resolvedKey ?? "").isEmpty }
 
@@ -895,7 +950,7 @@ final class AICoachEngine: ObservableObject {
     /// prescription + one recovery tip, without the user typing. Requires a key + data consent.
     /// K1: streams the brief the same way `send` does.
     func startBriefIfNeeded() async {
-        guard isConfigured, dataConsent, messages.isEmpty, !sending else { return }
+        guard !usesApple, cloudConfigured, dataConsent, messages.isEmpty, !sending else { return }
         guard let key = resolvedKey else { return }
         errorText = nil
         sending = true
@@ -980,7 +1035,7 @@ final class AICoachEngine: ObservableObject {
         // calls, and a caller that skipped the scheduler's own gate would otherwise reach a provider with
         // the AI switched off.
         guard CoachBriefScheduler.coachMasterEnabled else { return nil }
-        guard isConfigured, dataConsent, let key = resolvedKey else { return nil }
+        guard !usesApple, cloudConfigured, dataConsent, let key = resolvedKey else { return nil }
         let context = await buildFullContext()
         let wire: [(role: ChatMessage.Role, content: String)] =
             [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]

@@ -365,3 +365,19 @@ func performStreamingRequest(
         throw AICoachError.server(http.statusCode, providerErrorMessage(from: Data(body.utf8)))
     }
 }
+
+/// The Coach's backend: Apple Intelligence (no key; on-device first, Apple's Private Cloud Compute as a
+/// labelled fallback) or a bring-your-own-key cloud provider (`AIProvider`). Fork change.
+enum CoachBackend: String, CaseIterable, Identifiable, Sendable {
+    case appleIntelligence = "apple"
+    case cloud
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .appleIntelligence: return String(localized: "Apple Intelligence")
+        case .cloud: return String(localized: "Cloud provider (your API key)")
+        }
+    }
+}
