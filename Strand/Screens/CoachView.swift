@@ -699,11 +699,13 @@ struct CoachView: View {
     }
 
     /// K7: Follow-up suggestion chips shown after each assistant reply, so the user can dig
-    /// deeper without typing. Uses the static `AICoachEngine.followUpSuggestions` list.
+    /// deeper without typing. Written by Apple Intelligence when it answered, else the static
+    /// `AICoachEngine.followUpSuggestions` list (see `AICoachEngine.followUps(after:)`).
     private var followUpChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        let followUps = coach.messages.last.map { coach.followUps(after: $0) } ?? (chips: AICoachEngine.followUpSuggestions, pending: false)
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(AICoachEngine.followUpSuggestions, id: \.self) { prompt in
+                ForEach(followUps.chips, id: \.self) { prompt in
                     Button {
                         send(prompt)
                     } label: {
@@ -716,12 +718,14 @@ struct CoachView: View {
                             .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
                     }
                     .buttonStyle(LiquidPressStyle())
-                    .disabled(coach.sending)
+                    .disabled(coach.sending || followUps.pending)
                     .accessibilityLabel("Follow-up prompt: \(prompt)")
                 }
             }
             .padding(.vertical, 1)
+            .opacity(followUps.pending ? 0 : 1)
         }
+        .accessibilityHidden(followUps.pending)
     }
 
     /// K12: A subtle token estimate shown below the composer when the draft is non-empty.

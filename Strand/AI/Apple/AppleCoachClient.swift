@@ -116,6 +116,24 @@ final class AppleCoachClient {
         return nil
     }
 
+    /// Follow-up chips for the reply just shown (see `CoachFollowUps`). On-device only: chips are not worth a
+    /// request to Apple's servers. Nil when the on-device model can't serve them or the output is rejected;
+    /// the caller shows the fixed chips then.
+    func followUps(question: String, reply: String, inputs: AppleCoachRoutingInputs) async -> [String]? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale {
+            var instructions = CoachFollowUps.instructions
+            if let language = CoachInstructions.languageLine(AppLanguage.activeLocale) { instructions += "\n\n" + language }
+            let session = LanguageModelSession(model: .default, instructions: instructions)
+            let draft = try? await session.respond(to: CoachFollowUps.prompt(question: question, reply: reply),
+                                                   generating: CoachFollowUpDraft.self,
+                                                   options: GenerationOptions(temperature: 0.6, maximumResponseTokens: 120)).content
+            return draft.flatMap { CoachFollowUps.clean($0.questions, asked: question) }
+        }
+        #endif
+        return nil
+    }
+
     #if canImport(FoundationModels)
 
     /// Guided generation with no tools: the facts go in the prompt (the brief always needs them), the model

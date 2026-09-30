@@ -42,6 +42,10 @@ struct BroopInsightsCoachDemoHost: View {
                     await coach.send(question)
                     let r = coach.apple.lastReport
                     let reply = coach.messages.last(where: { $0.role == .assistant && !$0.isNotice })
+                    let started = Date()
+                    while coach.followUpChips?.chips == nil, coach.followUpChips != nil, Date().timeIntervalSince(started) < 15 {
+                        try? await Task.sleep(for: .milliseconds(100))
+                    }
                     let row: [String: Any] = [
                         "question": question,
                         "reply": coach.errorText == nil ? (reply?.text ?? "") : "",
@@ -56,6 +60,8 @@ struct BroopInsightsCoachDemoHost: View {
                         "failure": r.failure.map { "\($0)" } ?? "",
                         "condensed": r.condensed,
                         "errorDetail": r.errorDetail ?? "",
+                        "followUps": coach.followUpChips?.chips ?? [],
+                        "followUpSeconds": (Date().timeIntervalSince(started) * 10).rounded() / 10,
                     ]
                     if let data = try? JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]),
                        let line = String(data: data, encoding: .utf8) {

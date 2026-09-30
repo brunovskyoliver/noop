@@ -354,6 +354,43 @@ final class AICoachEngine: ObservableObject {
         return brief.plainText { values[$0.rawValue] }
     }
 
+    /// Model-written follow-up chips for one assistant reply; `chips` is nil while they are being written.
+    struct FollowUpChips: Equatable {
+        let messageID: UUID
+        var chips: [String]?
+    }
+    /// The Apple follow-ups for the latest reply (see `CoachFollowUps`); nil when none were asked for.
+    @Published private(set) var followUpChips: FollowUpChips?
+    private var followUpTask: Task<Void, Never>?
+
+    /// The chips to offer after `message`, and whether they are still being written (the screen keeps the
+    /// row's space then, so it doesn't jump). The fixed `followUpSuggestions` when the model wrote none.
+    func followUps(after message: ChatMessage) -> (chips: [String], pending: Bool) {
+        guard let f = followUpChips, f.messageID == message.id else { return (Self.followUpSuggestions, false) }
+        return (f.chips ?? Self.followUpSuggestions, f.chips == nil)
+    }
+
+    /// Ask the on-device model for follow-ups to `reply`. A newer turn or a cleared chat cancels it.
+    private func writeFollowUps(for reply: ChatMessage, question: String, inputs: AppleCoachRoutingInputs) {
+        followUpTask?.cancel()
+        followUpChips = FollowUpChips(messageID: reply.id, chips: nil)
+        followUpTask = Task { [weak self] in
+            guard let self else { return }
+            let chips = await self.apple.followUps(question: question, reply: reply.text, inputs: inputs)
+            guard !Task.isCancelled, self.followUpChips?.messageID == reply.id else { return }
+            #if DEBUG
+            print("COACH_FOLLOWUPS \(chips ?? [])")
+            #endif
+            self.followUpChips = FollowUpChips(messageID: reply.id, chips: chips ?? Self.followUpSuggestions)
+        }
+    }
+
+    private func cancelFollowUps() {
+        followUpTask?.cancel()
+        followUpTask = nil
+        followUpChips = nil
+    }
+
     /// Give the Apple Intelligence tools their data (the iOS app's resolvers).
     func attachAppleFacts(_ source: any CoachFactsSource) { apple.attach(source: source) }
 
@@ -875,6 +912,7 @@ final class AICoachEngine: ObservableObject {
     func clearConversation() {
         messages = []
         apple.reset()
+        cancelFollowUps()
         droppedSummary = nil      // K13: reset the summary cache on clear
         droppedSummaryKey = []
         Task { try? await repo.storeHandle()?.clearCoachMessages() }
@@ -1025,6 +1063,7 @@ final class AICoachEngine: ObservableObject {
         retireStaleConversation()
         errorText = nil
         keyRejected = false
+        cancelFollowUps()
         let history = messages
         let userMessage = ChatMessage(role: .user, text: question)
         appendMessage(userMessage)
@@ -1048,8 +1087,10 @@ final class AICoachEngine: ObservableObject {
         }
         switch result {
         case .reply(let text, let offDevice):
-            appendMessage(ChatMessage(role: .assistant, text: text,
-                                      provider: offDevice ? Self.appleServersProvider : Self.appleOnDeviceProvider))
+            let reply = ChatMessage(role: .assistant, text: text,
+                                    provider: offDevice ? Self.appleServersProvider : Self.appleOnDeviceProvider)
+            appendMessage(reply)
+            writeFollowUps(for: reply, question: question, inputs: inputs)
         case .factsOnly(let facts, let offDevice):
             let text = String(localized: "Coach's wording didn't pass the number check, so here are the facts it looked up:")
                 + "\n\n" + facts

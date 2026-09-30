@@ -89,6 +89,17 @@ streaming UI, `31ceb8fa` brief, `26fb64de` info sheet, `225eaab6`/`45f6d3d7` PCC
 number to the wrong label (calling the need "short", treating last night as a weekly average). Two
 instruction rules fixed the cases seen, but a 3B model can still mislabel. This needs checking on the phone.
 
+### Follow-up chips
+
+After an Apple Intelligence reply, the chips under the chat are written by the on-device model in a
+separate session (`CoachFollowUps`, `AppleCoachClient.followUps`), so the chat's context is not spent on
+them. They never go to Apple's servers. The cleaner drops chips with a digit (a chip is sent as the next
+question, so a number in it would be invented), chips in the coach's voice ("your HRV"), repeats of the
+question just asked, and over-long ones. Fewer than two left means the fixed four chips. The chip row keeps
+its space while they are written (about 1.3 s on the simulator), so the screen does not jump. Six sample
+turns are in `~/agent-runs/2026-09-30-bedtime-coach/coach-followups.jsonl`; one of them fell back to the
+fixed chips.
+
 ### Private Cloud Compute and the entitlement
 
 PCC needs `com.apple.developer.private-cloud-compute`. With the entitlement simulated, a real turn ran on
@@ -151,6 +162,7 @@ the calm message; condense triggered on turn 5 of a 5-turn run with the DEBUG bu
 - Your iOS version: iOS 26.x takes the `GenerationError` path; 27 the new error types.
 - Latency: time to first token and full reply on the device (the simulator used the Mac's model).
 - Real data: tool text with your own numbers, the number check's retry rate, and label mix-ups.
+- Follow-up chips: how quickly they appear and whether they stay relevant to your own data.
 - The brief card on Home over a real day (written once, again after new data).
 - An alarm night: tonight's reminder moving with the alarm, and the stand-in trigger a week later.
 - The app was installed (`com.oliverbrunovsky.noop`) but not launched on the phone.

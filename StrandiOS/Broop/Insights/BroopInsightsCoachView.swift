@@ -354,18 +354,21 @@ struct BroopInsightsCoachView: View {
 
     // MARK: Composer
 
-    private var chips: [String] {
+    /// After a reply: the follow-ups (written by Apple Intelligence when it can, else the fixed set; hidden
+    /// while being written, keeping their space). Otherwise today's opening suggestions.
+    private var chips: (prompts: [String], pending: Bool) {
         if let last = coach.messages.last, !coach.sending, last.role == .assistant {
-            return AICoachEngine.followUpSuggestions
+            let f = coach.followUps(after: last)
+            return (f.chips, f.pending)
         }
-        return coach.suggestions
+        return (coach.suggestions, false)
     }
 
     private var bottomBar: some View {
         VStack(spacing: 12) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(chips, id: \.self) { prompt in
+                    ForEach(chips.prompts, id: \.self) { prompt in
                         Button { send(prompt) } label: {
                             Text(prompt)
                                 .font(BroopType.medium(15))
@@ -375,12 +378,15 @@ struct BroopInsightsCoachView: View {
                                 .background(Capsule().fill(Color.white))
                         }
                         .buttonStyle(BroopPressableStyle())
-                        .disabled(coach.sending)
+                        .disabled(coach.sending || chips.pending)
                         .accessibilityLabel(Text("Suggested prompt: \(prompt)"))
                     }
                 }
                 .padding(.horizontal, 20)
+                .opacity(chips.pending ? 0 : 1)
+                .animation(.easeOut(duration: 0.25), value: chips.prompts)
             }
+            .accessibilityHidden(chips.pending)
             HStack(alignment: .bottom, spacing: 10) {
                 Menu {
                     Button { showClearConfirm = true } label: { Label(String(localized: "New conversation"), systemImage: "square.and.pencil") }
