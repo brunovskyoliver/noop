@@ -67,6 +67,7 @@ struct BroopOverviewChargeScreen: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
+    @EnvironmentObject private var coach: AICoachEngine
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @State private var showBreakdown = false
 
@@ -90,7 +91,7 @@ struct BroopOverviewChargeScreen: View {
 
             BroopOverviewCoachCard(text: coachText(snap),
                                    link: coachEnabled ? String(localized: "Explore your Charge insights") : nil,
-                                   action: coachEnabled ? { router.openCoach() } : nil)
+                                   action: coachEnabled ? { BroopAskCoach.ask(.charge, store: store, router: router, coach: coach) } : nil)
                 .padding(.top, 20)
 
             if let readiness = snap?.readiness, readiness.level != .insufficient, !readiness.signals.isEmpty {
@@ -239,6 +240,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
 struct BroopOverviewEffortScreen: View {
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
+    @EnvironmentObject private var coach: AICoachEngine
     @ObservedObject private var strainContext = StrainTargetContext.shared
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = ""
@@ -260,7 +262,7 @@ struct BroopOverviewEffortScreen: View {
 
             BroopOverviewCoachCard(text: coachText(snap, target: target),
                                    link: coachEnabled ? String(localized: "Explore your Effort insights") : nil,
-                                   action: coachEnabled ? { router.openCoach() } : nil)
+                                   action: coachEnabled ? { BroopAskCoach.ask(.effort, store: store, router: router, coach: coach) } : nil)
                 .padding(.top, 20)
 
             activities(snap).padding(.top, BroopMetrics.section)
@@ -401,6 +403,17 @@ struct BroopOverviewZonesCard: View {
                 }
             }
         }
+    }
+}
+
+/// "Ask Coach about this" on the screens driven by the shared store: the question for `topic` on the day
+/// the store shows, sent as Coach opens.
+@MainActor
+enum BroopAskCoach {
+    static func ask(_ topic: CoachAskAbout.Topic, store: BroopStore, router: NavRouter, coach: AICoachEngine) {
+        let day = store.selectedLogicalDay
+        router.openCoach(asking: CoachAskAbout.question(topic, daysAgo: store.dayOffset, day: day),
+                         aboutDay: CoachAskAbout.dayKey(daysAgo: store.dayOffset, day: day), coach: coach)
     }
 }
 #endif

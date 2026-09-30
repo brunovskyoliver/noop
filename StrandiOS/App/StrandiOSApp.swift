@@ -667,6 +667,7 @@ enum DemoScreens {
         case "broopenergyinfo": return AnyView(ScrollView { BroopEnergyInfo().padding(16) }.background(BroopBackground()))
         case "broopcoach": return AnyView(BroopCoachDemoHost())
         case "broopcoachchat": return AnyView(BroopInsightsCoachDemoHost())
+        case "broopstress": return AnyView(NavigationStack { BroopScreenView(screen: .stress) })
         case "broopjournal": return AnyView(NavigationStack { BroopScreenView(screen: .journal) })
         case "broopvoicejournal": return AnyView(BroopInsightsVoiceJournalSheet())
         case "broopcoachbrief": return AnyView(ScrollView { BroopInsightsCoachBriefCard {}.padding(BroopMetrics.page) }

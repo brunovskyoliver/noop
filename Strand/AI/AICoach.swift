@@ -206,6 +206,8 @@ final class AICoachEngine: ObservableObject {
     /// which already has all of that, consumes it exactly once and clears it. Nil is the normal state, and
     /// setting it performs NO network work by itself.
     @Published var pendingPrompt: String?
+    /// The past day (yyyy-MM-dd) `pendingPrompt` is about, when a screen asked; consumed by the next send.
+    var pendingPromptDay: String?
     @Published var provider: AIProvider {
         didSet {
             guard provider != oldValue else { return }
@@ -1002,7 +1004,9 @@ final class AICoachEngine: ObservableObject {
         // screen when the switch goes off, and that path passes no tab. Refusing here makes "the AI is off"
         // true however the screen was reached.
         guard CoachBriefScheduler.coachMasterEnabled else { return }
-        if usesApple { await sendApple(trimmed); return }
+        let aboutDay = pendingPromptDay
+        pendingPromptDay = nil
+        if usesApple { await sendApple(trimmed, aboutDay: aboutDay); return }
         guard let key = resolvedKey else { errorText = AICoachError.noKey.errorDescription; return }
 
         // A transcript from an earlier local day is retired before the new turn is appended (#1542,
@@ -1109,7 +1113,7 @@ final class AICoachEngine: ObservableObject {
     /// An Apple Intelligence turn: same transcript, day boundary and persistence as a cloud turn; the reply
     /// streams into `stream` (one bubble re-renders per token, not the screen) and lands in `messages` once,
     /// checked. Off-device replies are labelled; failures are calm messages, never an error dump.
-    private func sendApple(_ question: String) async {
+    private func sendApple(_ question: String, aboutDay: String? = nil) async {
         retireStaleConversation()
         errorText = nil
         keyRejected = false
@@ -1130,7 +1134,7 @@ final class AICoachEngine: ObservableObject {
         // function sends it to Apple's servers when they are available and allowed.
         if CommandLine.arguments.contains("--coach-force-private-cloud") { inputs.exceedsOnDeviceContext = true }
         #endif
-        let result = await apple.respond(question: question, history: history, inputs: inputs, stream: stream)
+        let result = await apple.respond(question: question, aboutDay: aboutDay, history: history, inputs: inputs, stream: stream)
         if apple.consumeCondensedNotice(), let at = messages.firstIndex(where: { $0.id == userMessage.id }) {
             messages.insert(ChatMessage(role: .assistant, text: String(localized: "Earlier messages were condensed to make room."),
                                         provider: Self.noticeProvider), at: at)

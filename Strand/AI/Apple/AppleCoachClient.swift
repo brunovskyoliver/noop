@@ -55,6 +55,8 @@ final class AppleCoachClient {
         /// The framework's own description of the last error, for diagnostics only (never shown).
         var errorDetail: String?
         var condensed = false
+        /// What the tools returned, for the verification harness.
+        var toolOutputs: [String] = []
     }
     private(set) var lastReport = TurnReport()
 
@@ -95,14 +97,30 @@ final class AppleCoachClient {
                                             effortMax: scale == .whoop ? 21 : 100))
     }
 
-    func respond(question: String, history: [ChatMessage], inputs: AppleCoachRoutingInputs,
+    /// `aboutDay` (yyyy-MM-dd): the past day a screen's "Ask Coach about this" asked about. The app knows it,
+    /// so that day's facts go into the prompt rather than leaving the model to find the day from the wording:
+    /// asked to call the day tool, it passed dates the tool could not read, or answered with today's numbers.
+    /// The facts are part of the prompt, so the number check accepts them.
+    func respond(question: String, aboutDay: String? = nil, history: [ChatMessage], inputs: AppleCoachRoutingInputs,
                  stream: CoachStreamState) async -> AppleTurnResult {
         #if canImport(FoundationModels)
         if #available(iOS 26.0, macOS 26.0, *) {
-            return await respondWithModel(question: question, history: history, inputs: inputs, stream: stream)
+            var asked = question
+            var dayFacts: String?
+            if let day = aboutDay, let source {
+                let facts = await source.daySnapshot(date: day)
+                dayFacts = facts
+                asked += Self.dayNote(day, facts: facts)
+            }
+            return await respondWithModel(question: asked, dayFacts: dayFacts, history: history, inputs: inputs, stream: stream)
         }
         #endif
         return .failed(AppleCoachRecovery.message(.modelUnavailable))
+    }
+
+    /// The app's note carrying the day a question is about and that day's facts (see `respond`).
+    nonisolated static func dayNote(_ day: String, facts: String) -> String {
+        "\n\nApp note: this question is about \(day), not today. That day's data from the app:\n\(facts)\nAnswer from this data. Do not use today's numbers for that day. For a usual level, call metricTrend."
     }
 
     /// Write today's brief (see `AppleCoachBrief`). Nil when neither model can serve it; the caller keeps
@@ -290,7 +308,7 @@ final class AppleCoachClient {
     }
 
     @available(iOS 26.0, macOS 26.0, *)
-    private func respondWithModel(question: String, history: [ChatMessage], inputs start: AppleCoachRoutingInputs,
+    private func respondWithModel(question: String, dayFacts: String? = nil, history: [ChatMessage], inputs start: AppleCoachRoutingInputs,
                                   stream: CoachStreamState) async -> AppleTurnResult {
         guard let source else { return .failed(AppleCoachRecovery.message(.other)) }
         var inputs = start
@@ -318,12 +336,13 @@ final class AppleCoachClient {
                 let text = try await streamReply(session, prompt: prompt, into: stream)
                 if route == .onDevice { onDeviceChars += prompt.count + text.count + log.outputs.joined().count }
                 carriedSummary = nil
-                return await checked(text, question: question, session: session, route: route, stream: stream, source: source)
+                return await checked(text, question: question, dayFacts: dayFacts, session: session, route: route,
+                                     stream: stream, source: source)
             } catch {
                 let failure = Self.failure(error, route: route)
                 lastReport.failure = failure
                 lastReport.errorDetail = String(describing: error)
-                lastReport.toolCalls = log.calls
+                lastReport.toolCalls = log.calls; lastReport.toolOutputs = log.outputs
                 switch AppleCoachRecovery.next(failure, route: route, inputs: inputs, alreadyCondensed: condensed,
                                                alreadyRetried: retriedSame) {
                 case .retrySame:
@@ -361,25 +380,28 @@ final class AppleCoachClient {
 
     /// Validate the reply's numbers; retry once with a stricter instruction; then fall back to the facts.
     @available(iOS 26.0, macOS 26.0, *)
-    private func checked(_ text: String, question: String, session: LanguageModelSession, route: AppleCoachRoute,
+    private func checked(_ text: String, question: String, dayFacts: String? = nil, session: LanguageModelSession, route: AppleCoachRoute,
                          stream: CoachStreamState, source: any CoachFactsSource) async -> AppleTurnResult {
         let offDevice = route == .privateCloud
         let instructions = Self.instructions()
-        lastReport.toolCalls = log.calls
+        lastReport.toolCalls = log.calls; lastReport.toolOutputs = log.outputs
         let first = CoachNumberValidator.validate(reply: text, sources: log.outputs + [instructions, question])
         lastReport.firstOffending = first.offending
         if first.isValid { return .reply(text, offDevice: offDevice) }
         stream.text = ""
         lastReport.retried = true
-        let stricter = "Call the tools again for the current numbers, then answer my last question again in full sentences, as a coach would. Use only numbers that appear in that tool output, written the same way, and leave out every other number."
+        let stricter = dayFacts == nil
+            ? "Call the tools again for the current numbers, then answer my last question again in full sentences, as a coach would. Use only numbers that appear in that tool output, written the same way, and leave out every other number."
+            : "Answer my last question again in full sentences, as a coach would, about the day it names. Use only numbers from that day's data in my message, written the same way, and leave out every other number."
         if let retry = try? await streamReply(session, prompt: stricter, into: stream) {
             let second = CoachNumberValidator.validate(reply: retry, sources: log.outputs + [instructions, question])
             lastReport.retryOffending = second.offending
-            lastReport.toolCalls = log.calls
+            lastReport.toolCalls = log.calls; lastReport.toolOutputs = log.outputs
             if second.isValid { return .reply(retry, offDevice: offDevice) }
         }
         lastReport.factsOnly = true
-        var facts: [String] = []
+        // A question about a past day shows that day's facts first, so the fallback answers the day asked.
+        var facts: [String] = dayFacts.map { [$0] } ?? []
         for output in log.outputs where !facts.contains(output) { facts.append(output) }
         if facts.isEmpty { facts = [await source.todaySnapshot()] }
         return .factsOnly(facts.joined(separator: "\n\n"), offDevice: offDevice)

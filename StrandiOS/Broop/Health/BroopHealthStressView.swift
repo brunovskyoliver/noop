@@ -7,6 +7,9 @@ import StrandDesign
 /// Reads the same day analysis as Home, Health and the persisted Mind summaries.
 struct BroopHealthStressView: View {
     @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var router: NavRouter
+    @EnvironmentObject private var coach: AICoachEngine
+    @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @State private var dayOffset = 0
     @State private var day: StressMonitor.DayResult?
     @State private var loaded = false
@@ -42,6 +45,15 @@ struct BroopHealthStressView: View {
                 } else {
                     Text(loaded ? "No heart-rate history for this day." : "Reading stress history…")
                         .font(BroopType.medium(15)).foregroundStyle(BroopPalette.textSecondary)
+                }
+                if coachEnabled {
+                    Button {
+                        router.openCoach(asking: CoachAskAbout.question(.stress, daysAgo: dayOffset, day: date),
+                                     aboutDay: CoachAskAbout.dayKey(daysAgo: dayOffset, day: date), coach: coach)
+                    } label: {
+                        BroopHealthRow(symbol: "sparkles", title: String(localized: "Ask Coach about this day"),
+                                       detail: String(localized: "What shaped your stress, and what helps"))
+                    }.buttonStyle(BroopPressableStyle())
                 }
                 NavigationLink(value: BroopScreen.breathe) {
                     BroopHealthRow(symbol: "wind", title: String(localized: "Guided breathing"), detail: String(localized: "Increase relaxation or alertness"))

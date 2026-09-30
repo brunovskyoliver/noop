@@ -31,6 +31,11 @@ enum CoachMetric: String, CaseIterable, Sendable {
 protocol CoachFactsSource: AnyObject, Sendable {
     /// Today's scores and states, one fact per line.
     func todaySnapshot() async -> String
+    /// One day's Charge, Rest, sleep, Effort, steps and stress, as that day's screens show them. `date` is
+    /// yyyy-MM-dd; today returns `todaySnapshot`. Not a model tool: the app puts it in the prompt when a
+    /// screen asks about a past day (see `AppleCoachClient.respond`). As a tool, the small model also called
+    /// it for "last night" with yesterday's date and answered with the wrong night.
+    func daySnapshot(date: String) async -> String
     /// A 7/30/90-day summary of one metric.
     func metricTrend(_ metric: CoachMetric, days: Int) async -> String
     /// Tonight's sleep plan, and an active jet-lag trip.
@@ -69,6 +74,24 @@ struct CoachTrendSummary: Equatable, Sendable {
 }
 
 enum CoachFactFormat {
+
+    /// How far back a screen can ask about a day (the history screens reach years back).
+    static let maxDaysAgo = 3650
+
+    /// Days from `today` (a logical day) back to `date` (yyyy-MM-dd, local), nil when unparseable, in the
+    /// future or beyond `maxDaysAgo`.
+    static func daysAgo(_ date: String, today: Date, calendar: Calendar = .current) -> Int? {
+        let f = DateFormatter()
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: date.trimmingCharacters(in: .whitespaces)),
+              let n = calendar.dateComponents([.day], from: calendar.startOfDay(for: d),
+                                              to: calendar.startOfDay(for: today)).day,
+              (0...maxDaysAgo).contains(n) else { return nil }
+        return n
+    }
 
     /// Allowed trend windows; anything else snaps to the nearest.
     static let trendWindows = [7, 30, 90]

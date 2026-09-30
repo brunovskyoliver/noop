@@ -146,6 +146,25 @@ Seven samples on the iOS 27 simulator:
 | matcha at 5pm, Netflix on iPad in bed, no drinks | late caffeine yes, screen in bed yes |
 | dinner at ten, felt off, maybe a cold | ate close to bedtime yes |
 
+### Ask Coach about this
+
+The Coach link on the Charge, Effort and Sleep screens used to open Coach empty. It now sends a question
+about the metric on the day on screen (`CoachAskAbout`), and the Stress screen gets the same link. Today's
+questions go through the normal tools. For a past day, the app resolves that day with the same store the
+screens use (`CoachFactsSource.daySnapshot`) and puts it in the prompt, marked as that day's data; the chat
+bubble shows only the question. The number check accepts those facts, and the values-only fallback shows
+that day's facts first.
+
+Tried first and dropped: a sixth tool, `daySnapshot`, for the model to call. The model passed dates it
+could not parse, sent another tool's arguments to it, and answered "last night" with yesterday's date. It
+also answered past-day questions with today's numbers. With the facts in the prompt, all four past-day
+questions used that day's numbers, including in one long conversation. Today's snapshot now also carries
+the Stress Monitor's awake low/medium/high split, which the Stress screen leads with.
+
+Still seen: label mix-ups the number check cannot catch, because the numbers are real. Examples: a day's
+Rest called a 30-day average, a balanced HRV readiness called low, and Charge compared with the Effort target.
+Log: `~/agent-runs/2026-09-30-bedtime-coach/ask-coach-screens.log`.
+
 ### Private Cloud Compute and the entitlement
 
 PCC needs `com.apple.developer.private-cloud-compute`. With the entitlement simulated, a real turn ran on
@@ -208,6 +227,7 @@ the calm message; condense triggered on turn 5 of a 5-turn run with the DEBUG bu
 - Your iOS version: iOS 26.x takes the `GenerationError` path; 27 the new error types.
 - Latency: time to first token and full reply on the device (the simulator used the Mac's model).
 - Real data: tool text with your own numbers, the number check's retry rate, and label mix-ups.
+- Ask Coach about this: the links on Charge, Effort, Sleep and Stress, today and a past day.
 - Evening review: the card after 17:00, the reminder's timing, and journal-by-voice with real dictation.
 - Follow-up chips: how quickly they appear and whether they stay relevant to your own data.
 - The brief card on Home over a real day (written once, again after new data).

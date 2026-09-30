@@ -70,6 +70,15 @@ final class NavRouter: ObservableObject {
     func openDevices() { requestedDestination = .devices }
     /// #1862: open Coach, optionally with a question the launcher already collected.
     func openCoach() { requestedDestination = .coach }
+
+    /// Open Coach and send `question` (a screen's "Ask Coach about this"). Coach sends the pending prompt
+    /// as it appears, and clears it first so a rebuild cannot resend it.
+    /// `aboutDay` (yyyy-MM-dd) names the past day the question is about, nil for today.
+    func openCoach(asking question: String, aboutDay: String?, coach: AICoachEngine) {
+        coach.pendingPromptDay = aboutDay
+        coach.pendingPrompt = question
+        openCoach()
+    }
     /// Open the v5 Insights hub (the n-of-1 "what moves your Charge" surface).
     func openInsightsHub() { requestedDestination = .insightsHub }
     /// Open the Lab Book (private health-records logbook).

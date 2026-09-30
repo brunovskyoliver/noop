@@ -28,23 +28,7 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
         var lines: [String] = []
         let today = Repository.dayString(Date())
         lines.append(String(localized: "Date: \(today)."))
-        switch snap?.chargeDisplay {
-        case .scored(let pct)?: lines.append(String(localized: "Charge: \(Int(pct.rounded()))% (today's own score)."))
-        case .carried(let pct, let caption)?: lines.append(String(localized: "Charge: \(Int(pct.rounded()))%, carried from \(caption); today has no score yet."))
-        case .calibrating(let nights)?: lines.append(String(localized: "Charge: calibrating (\(nights) of 4 nights)."))
-        default: lines.append(String(localized: "Charge: no data."))
-        }
-        if let rest = snap?.rest {
-            let from = snap?.restCarryCaption.map { " (" + $0 + ")" } ?? ""
-            lines.append(String(localized: "Rest: \(Int(rest.rounded()))%\(from)."))
-        } else {
-            lines.append(String(localized: "Rest: no data."))
-        }
-        if let snap, let asleep = snap.asleepMinutes {
-            var line = String(localized: "Last night asleep: \(CoachFactFormat.duration(minutes: asleep))")
-            if let need = snap.needMinutes { line += String(localized: " of \(CoachFactFormat.duration(minutes: need)) needed") }
-            lines.append(line + ".")
-        }
+        lines += scoreLines(snap, today: true)
         if let snap, let effort = snap.effort {
             var line = String(localized: "Effort so far: \(BroopScore.effort.format(effort)) on a 0 to \(Int(snap.effortMax)) scale")
             if let target = BroopOverviewEffortTarget(snap: snap) {
@@ -62,6 +46,8 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
         if let stress = await repo.stressToday(), let level = stress.latest?.level {
             lines.append(String(localized: "Stress, latest: \(StressTrace.formatLevel(level)) of 3 (\(StressBand(score: level).title.capitalized(with: AppLanguage.activeLocale)))."))
         }
+        // The Stress Monitor's day key: today's calendar date, as its screen reads it.
+        lines += await stressLines(dayKey: Repository.localDayKey(Calendar.current.startOfDay(for: Date())))
         let unwell = [.raised, .alreadyUnwell].contains(model.illnessSignal?.level)
         switch await repo.hrvReadiness(asOf: today, flaggedDays: unwell ? [today] : []) {
         case .status(let r)?:
@@ -84,6 +70,71 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
             break
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Charge, Rest and the night's sleep for one day, worded the same for today and a past day.
+    private func scoreLines(_ snap: BroopSnapshot?, today: Bool) -> [String] {
+        var lines: [String] = []
+        switch snap?.chargeDisplay {
+        case .scored(let pct)?:
+            lines.append(today ? String(localized: "Charge: \(Int(pct.rounded()))% (today's own score).")
+                               : String(localized: "Charge: \(Int(pct.rounded()))% (that day's own score)."))
+        case .carried(let pct, let caption)?:
+            lines.append(today ? String(localized: "Charge: \(Int(pct.rounded()))%, carried from \(caption); today has no score yet.")
+                               : String(localized: "Charge: \(Int(pct.rounded()))%, carried from \(caption); that day has no score of its own."))
+        case .calibrating(let nights)?: lines.append(String(localized: "Charge: calibrating (\(nights) of 4 nights)."))
+        default: lines.append(String(localized: "Charge: no data."))
+        }
+        if let rest = snap?.rest {
+            let from = snap?.restCarryCaption.map { " (" + $0 + ")" } ?? ""
+            lines.append(String(localized: "Rest: \(Int(rest.rounded()))%\(from)."))
+        } else {
+            lines.append(String(localized: "Rest: no data."))
+        }
+        if let snap, let asleep = snap.asleepMinutes {
+            // Two sentences, not "X of Y": the model read the joined form as a shortfall or as sleep debt.
+            var line = today ? String(localized: "Time asleep last night: \(CoachFactFormat.duration(minutes: asleep)).")
+                             : String(localized: "Time asleep the night before: \(CoachFactFormat.duration(minutes: asleep)).")
+            if let need = snap.needMinutes { line += String(localized: " Sleep needed that night: \(CoachFactFormat.duration(minutes: need)).") }
+            lines.append(line)
+        }
+        return lines
+    }
+
+    // MARK: One day
+
+    func daySnapshot(date: String) async -> String {
+        guard let offset = CoachFactFormat.daysAgo(date, today: Repository.logicalDay(Date())) else {
+            return String(localized: "No data for \(date).")
+        }
+        if offset == 0 { return await todaySnapshot() }
+        // The same store and day offset the Charge, Effort and Sleep screens resolve a past day with.
+        let store = BroopStore()
+        store.dayOffset = offset
+        await store.reload(repo: repo, profile: model.profile)
+        let snap = store.snapshot
+        var lines = [String(localized: "Date: \(date).")]
+        lines += scoreLines(snap, today: false)
+        if let snap, let effort = snap.effort {
+            lines.append(String(localized: "Effort: \(BroopScore.effort.format(effort)) on a 0 to \(Int(snap.effortMax)) scale."))
+        }
+        if let steps = snap?.steps { lines.append(String(localized: "Steps: \(Int(steps.rounded())).")) }
+        if let n = snap?.workouts.count, n > 0 { lines.append(String(localized: "Workouts logged: \(n).")) }
+        lines += await stressLines(dayKey: date)
+        return lines.joined(separator: "\n")
+    }
+
+    /// The Stress Monitor's own day analysis, worded as its screen shows it.
+    private func stressLines(dayKey: String) async -> [String] {
+        guard let stress = await repo.stressDayAnalysis(dayKey: dayKey) else { return [] }
+        let s = stress.summary
+        func hm(_ m: Int) -> String { "\(m / 60)h \(m % 60)m" }
+        var lines: [String] = []
+        if s.hasWaking {
+            lines.append(String(localized: "Stress while awake: low \(hm(s.lowMin)), medium \(hm(s.medMin)), high \(hm(s.highMin))."))
+        }
+        if let pct = s.sleepStressPct { lines.append(String(localized: "Sleep stress: \(String(format: "%.0f", pct))% of measured sleep in the high band.")) }
+        return lines
     }
 
     // MARK: Trends

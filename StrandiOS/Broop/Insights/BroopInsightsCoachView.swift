@@ -93,7 +93,7 @@ struct BroopInsightsCoachView: View {
         .task(id: coach.pendingPrompt) {
             guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
             coach.pendingPrompt = nil
-            guard coach.isConfigured else { return }
+            guard coach.isConfigured else { coach.pendingPromptDay = nil; return }
             await coach.send(prompt)
         }
         .onChange(of: draft) { _, v in UserDefaults.standard.set(v, forKey: Self.draftKey) }

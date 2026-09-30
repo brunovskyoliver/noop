@@ -38,7 +38,12 @@ struct BroopInsightsCoachDemoHost: View {
                 guard let i = args.firstIndex(of: "--coach-questions"), i + 1 < args.count else { return }
                 await coach.refreshAppleAvailability()
                 try? await Task.sleep(for: .seconds(2))
-                for question in args[i + 1].components(separatedBy: "|") where !question.isEmpty {
+                for entry in args[i + 1].components(separatedBy: "|") where !entry.isEmpty {
+                    // "2026-09-28>question" hands the day over the way a screen's "Ask Coach about this" does.
+                    let parts = entry.components(separatedBy: ">")
+                    let question = parts.count == 2 ? parts[1] : entry
+                    if args.contains("--coach-new-each") { coach.clearConversation() }
+                    coach.pendingPromptDay = parts.count == 2 ? parts[0] : nil
                     await coach.send(question)
                     let r = coach.apple.lastReport
                     let reply = coach.messages.last(where: { $0.role == .assistant && !$0.isNotice })
@@ -60,6 +65,7 @@ struct BroopInsightsCoachDemoHost: View {
                         "failure": r.failure.map { "\($0)" } ?? "",
                         "condensed": r.condensed,
                         "errorDetail": r.errorDetail ?? "",
+                        "toolOutputs": r.toolOutputs,
                         "followUps": coach.followUpChips?.chips ?? [],
                         "followUpSeconds": (Date().timeIntervalSince(started) * 10).rounded() / 10,
                     ]

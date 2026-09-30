@@ -14,6 +14,7 @@ struct BroopOverviewSleepScreen: View {
     @EnvironmentObject private var router: NavRouter
     @EnvironmentObject private var store: BroopStore
     @EnvironmentObject private var intelligence: IntelligenceEngine
+    @EnvironmentObject private var coach: AICoachEngine
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(SleepLayoutPrefs.orderKey) private var orderRaw = ""
     @AppStorage(SleepLayoutPrefs.hiddenKey) private var hiddenRaw = ""
@@ -60,7 +61,7 @@ struct BroopOverviewSleepScreen: View {
 
                 BroopOverviewCoachCard(text: coachText(snap),
                                        link: coachEnabled ? String(localized: "Learn more with Coach") : nil,
-                                       action: coachEnabled ? { router.openCoach() } : nil)
+                                       action: coachEnabled ? { BroopAskCoach.ask(.rest, store: store, router: router, coach: coach) } : nil)
                     .padding(.top, 20)
 
                 lastNight(snap).padding(.top, BroopMetrics.section)

@@ -171,7 +171,7 @@ struct CoachView: View {
         .task(id: coach.pendingPrompt) {
             guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
             coach.pendingPrompt = nil
-            guard coach.isConfigured else { return }
+            guard coach.isConfigured else { coach.pendingPromptDay = nil; return }
             await coach.send(prompt)
         }
         // K15: persist the composer draft so it survives an app relaunch.
