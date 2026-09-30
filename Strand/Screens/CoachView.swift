@@ -846,30 +846,27 @@ struct CoachView: View {
         !coach.sending && (canUseVoice || voiceInput.authorization == .notDetermined)
     }
 
+    /// Speak into existing text: dictation continues after what is already in the draft.
+    private func startDictation() {
+        let prefix = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        voiceInput.startTranscribing { spoken in
+            draft = prefix.isEmpty ? spoken : (spoken.isEmpty ? prefix : prefix + " " + spoken)
+        }
+    }
+
     private func toggleVoice() {
         if voiceInput.isRecording {
-            voiceInput.stopTranscribing { finalText in
-                let trimmed = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    // Append to the draft (not replace) so a user can speak into existing text.
-                    draft = draft.isEmpty ? trimmed : "\(draft) \(trimmed)"
-                }
-            }
+            // The draft already holds the typed prefix plus everything said, via the live callback.
+            voiceInput.stopTranscribing { _ in }
         } else {
             // First tap with undetermined permission triggers the system prompt; if granted,
             // start transcribing immediately on the next tap. If already authorized, start now.
             if voiceInput.authorization == .notDetermined {
                 voiceInput.requestAuthorization { state in
-                    if state == .authorized {
-                        voiceInput.startTranscribing { partial in
-                            draft = partial
-                        }
-                    }
+                    if state == .authorized { startDictation() }
                 }
             } else {
-                voiceInput.startTranscribing { partial in
-                    draft = partial
-                }
+                startDictation()
             }
         }
     }

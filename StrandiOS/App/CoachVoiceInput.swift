@@ -55,8 +55,11 @@ final class CoachVoiceInput: ObservableObject {
     /// Whether a recognition session is currently recording.
     @Published private(set) var isRecording: Bool = false
 
-    /// The latest partial transcript (live, while recording).
+    /// The latest partial transcript (live, while recording): the whole session so far, across pauses.
     @Published var partialTranscript: String = ""
+
+    /// The microphone's loudness while recording, 0 to 1, for a voice-only screen's animation.
+    @Published private(set) var level: Double = 0
 
     /// A short human-readable status for the disabled-state tooltip (e.g. "On-device speech not
     /// available for en-GB"). `nil` when voice is fully available.
@@ -146,6 +149,7 @@ final class CoachVoiceInput: ObservableObject {
     /// Bumped when a session ends. A recognition result is delivered through a main-actor hop, so one can
     /// arrive after the session stopped (the message already sent); results from an ended session are dropped.
     private var sessionID = 0
+    private var transcript = DictationTranscript()
 
     private func mapSpeech(_ status: SFSpeechRecognizerAuthorizationStatus) -> AuthorizationState {
         switch status {
@@ -180,12 +184,16 @@ final class CoachVoiceInput: ObservableObject {
             return
         }
 
-        let session = sessionID
+        let token = sessionID
+        transcript = DictationTranscript()
         let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard let self, self.sessionID == session else { return }
+                guard let self, self.sessionID == token else { return }
                 if let result {
-                    let text = result.bestTranscription.formattedString
+                    // After a pause the recognizer starts a new utterance and reports only its words; the
+                    // accumulator keeps what came before (see `DictationTranscript`).
+                    let text = self.transcript.update(result.bestTranscription.formattedString,
+                                                      utteranceEnded: result.speechRecognitionMetadata != nil)
                     self.partialTranscript = text
                     partial(text)
                 }
@@ -203,8 +211,13 @@ final class CoachVoiceInput: ObservableObject {
 
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
-            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
                 request.append(buffer)
+                let level = Self.level(of: buffer)
+                Task { @MainActor in
+                    guard let self, self.sessionID == token else { return }
+                    self.level = level
+                }
             }
 
             audioEngine.prepare()
@@ -216,8 +229,19 @@ final class CoachVoiceInput: ObservableObject {
         }
     }
 
+    /// RMS loudness of one buffer mapped to 0 to 1 (about -50 dB to -10 dB).
+    nonisolated private static func level(of buffer: AVAudioPCMBuffer) -> Double {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        let n = Int(buffer.frameLength)
+        var sum: Float = 0
+        for i in 0..<n { sum += data[i] * data[i] }
+        let db = 20 * log10(max(sqrt(sum / Float(n)), 1e-7))
+        return Double(min(max((db + 50) / 40, 0), 1))
+    }
+
     private func finishSession(completion: @escaping (String) -> Void) {
         sessionID += 1
+        level = 0
         if let audioEngine {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)

@@ -486,16 +486,22 @@ struct BroopInsightsCoachView: View {
 
     private func toggleVoice() {
         if voice.isRecording {
-            voice.stopTranscribing { final in
-                let t = final.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !t.isEmpty { draft = draft.isEmpty ? t : "\(draft) \(t)" }
-            }
+            // The field already holds the prefix plus everything said, via the live callback.
+            voice.stopTranscribing { _ in }
         } else if voice.authorization == .notDetermined {
             voice.requestAuthorization { state in
-                if state == .authorized { voice.startTranscribing { draft = $0 } }
+                if state == .authorized { startDictation() }
             }
         } else {
-            voice.startTranscribing { draft = $0 }
+            startDictation()
+        }
+    }
+
+    /// Dictation continues after whatever is already in the field rather than replacing it.
+    private func startDictation() {
+        let prefix = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        voice.startTranscribing { spoken in
+            draft = prefix.isEmpty ? spoken : (spoken.isEmpty ? prefix : prefix + " " + spoken)
         }
     }
 
