@@ -66,6 +66,13 @@ struct TonightPlanCard: View {
         }
     }
 
+    /// What every reader of an unreachable plan says (the planner's median-bedtime guard won): the bedtime
+    /// shown is the guarded one, and the rest of the need moves to later nights. One string, so the Body
+    /// Clock, the reminder and the caffeine cutoff state the planner's own verdict.
+    static var unreachableNote: String {
+        String(localized: "Tonight's full sleep need isn't reachable: this is the earliest bedtime that fits your usual one.")
+    }
+
     /// A minute-of-day as the device's short clock format ("22:40" / "10:40 PM").
     static func clock(_ minuteOfDay: Int) -> String {
         var c = DateComponents(); c.hour = minuteOfDay / 60; c.minute = minuteOfDay % 60

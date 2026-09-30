@@ -17,7 +17,9 @@ struct BroopFinalABodyClockSection: View {
 
     var body: some View {
         if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
-            BroopFinalABodyClockCard(estimate: phase, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour)
+            BroopFinalABodyClockCard(estimate: phase, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour,
+                                     tonightPlan: appModel.tonightPlan)
+                .task { if appModel.tonightPlan == nil { await appModel.refreshTonightPlan() } }
         }
     }
 }
@@ -26,6 +28,8 @@ struct BroopFinalABodyClockCard: View {
     let estimate: CircadianEngine.PhaseEstimate
     let actualBedHour: Double
     let actualWakeHour: Double
+    /// Tonight's published plan: shown as its own row, since the dial is last night's comparison.
+    var tonightPlan: SleepPlanner.Plan? = nil
 
     private var durationHours: Double {
         let d = (actualWakeHour - actualBedHour).truncatingRemainder(dividingBy: 24)
@@ -44,7 +48,7 @@ struct BroopFinalABodyClockCard: View {
         if let ideal {
             VStack(alignment: .leading, spacing: 14) {
                 BroopOverviewSectionTitle(title: String(localized: "Body Clock"),
-                                          subtitle: Text("Last night against your clock").foregroundColor(BroopPalette.textSecondary)) {
+                                          subtitle: Text("Last night vs your body clock").foregroundColor(BroopPalette.textSecondary)) {
                     if let chronotype = CircadianEngine.chronotype(estimate) {
                         BroopFinalAChip(text: BodyClockDialCard.chronotypeLabel(chronotype), tint: BroopPalette.textBody)
                     }
@@ -59,7 +63,7 @@ struct BroopFinalABodyClockCard: View {
                                 .accessibilityLabel(Text("Body clock dial"))
                             VStack(alignment: .leading, spacing: 14) {
                                 window(label: String(localized: "Last night"), from: actualBedHour, to: actualWakeHour, dashed: false)
-                                window(label: String(localized: "Your clock"), from: ideal.bedHour, to: ideal.wakeHour, dashed: true)
+                                window(label: String(localized: "Your clock, last night"), from: ideal.bedHour, to: ideal.wakeHour, dashed: true)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -72,10 +76,36 @@ struct BroopFinalABodyClockCard: View {
                             .font(BroopType.demi(17))
                             .foregroundStyle(BroopPalette.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                        BroopHairline()
+                        tonightRow
                     }
                 }
             }
         }
+    }
+
+    /// Tonight's bedtime from the planner, formatted as the Sleep planner card formats it.
+    private var tonightRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                BroopCaps(String(localized: "Tonight's plan"), size: 9.5, color: BroopPalette.textSecondary)
+                Spacer()
+                if let plan = tonightPlan {
+                    Text(verbatim: "\(BroopOverviewFormat.clock(plan.target.bedMinute)) – \(BroopOverviewFormat.clock(plan.wakeMinute))")
+                        .font(BroopType.number(17))
+                        .foregroundStyle(plan.target.reachable ? BroopPalette.textPrimary : BroopPalette.warning)
+                } else {
+                    Text("Working out tonight's bedtime…")
+                        .font(BroopType.medium(13))
+                        .foregroundStyle(BroopPalette.textSecondary)
+                }
+            }
+            Text(verbatim: BodyClockDialCard.retrospectiveNote(tonightPlan))
+                .font(BroopType.regular(12.5))
+                .foregroundStyle(BroopPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func window(label: String, from: Double, to: Double, dashed: Bool) -> some View {

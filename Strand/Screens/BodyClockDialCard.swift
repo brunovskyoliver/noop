@@ -21,6 +21,9 @@ struct BodyClockDialCard: View {
     /// The night's own bed/wake clock hours (0..<24, fractional), from the scored session.
     let actualBedHour: Double
     let actualWakeHour: Double
+    /// Tonight's published plan (`AppModel.tonightPlan`). The dial itself is retrospective, so tonight's
+    /// bedtime is a separate row read from the planner, never derived from the clock window.
+    var tonightPlan: SleepPlanner.Plan? = nil
 
     // One hue for both arcs, told apart by dash and weight rather than by a second colour. Two blues
     // competed with the background image; a single legible one plus a dashed, lighter reference does not.
@@ -66,6 +69,8 @@ struct BodyClockDialCard: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                     }
+                    Divider().overlay(StrandPalette.hairline)
+                    tonightRow
                 }
             }
             .accessibilityElement(children: .contain)
@@ -76,7 +81,7 @@ struct BodyClockDialCard: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Body clock").strandOverline()
-                Text("Last night against your clock")
+                Text("Last night vs your body clock")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
@@ -278,10 +283,45 @@ struct BodyClockDialCard: View {
         HStack(spacing: 14) {
             legendItem(colour: hue, dashed: false, label: String(localized: "Last night"))
             legendItem(colour: hue.opacity(0.55), dashed: true,
-                       label: String(localized: "Your clock"))
+                       label: String(localized: "Your clock, last night"))
             Spacer()
         }
         .accessibilityHidden(true)   // the caption below already states the comparison in words
+    }
+
+    /// Tonight's bedtime, from the planner, beside the retrospective dial. Same value and formatting as the
+    /// Sleep planner card (`TonightPlanCard.clock`), so the two can never name different bedtimes.
+    @ViewBuilder private var tonightRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Tonight's plan")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Spacer()
+                if let plan = tonightPlan {
+                    Text(verbatim: "\(TonightPlanCard.clock(plan.target.bedMinute)) – \(TonightPlanCard.clock(plan.wakeMinute))")
+                        .font(StrandFont.bodyNumber)
+                        .foregroundStyle(plan.target.reachable ? StrandPalette.textPrimary : StrandPalette.statusWarning)
+                } else {
+                    Text("Working out tonight's bedtime…")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+            Text(verbatim: Self.retrospectiveNote(tonightPlan))
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The footnote under the tonight row: what the dial measures, and where tonight's bedtime comes from.
+    /// Shared with the Broop dial so both say the same thing.
+    static func retrospectiveNote(_ plan: SleepPlanner.Plan?) -> String {
+        let base = String(localized: "The dial compares last night's timing with your body clock at last night's length. Tonight's bedtime comes from the sleep planner.")
+        guard let plan, !plan.target.reachable else { return base }
+        return base + " " + TonightPlanCard.unreachableNote
     }
 
     private func legendItem(colour: Color, dashed: Bool, label: String) -> some View {

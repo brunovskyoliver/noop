@@ -18,7 +18,9 @@ struct BodyClockDialSection: View {
     /// night against, and an empty ring would read as a broken chart rather than as "not enough data".
     var body: some View {
         if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
-            BodyClockDialCard(estimate: phase, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour)
+            BodyClockDialCard(estimate: phase, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour,
+                              tonightPlan: appModel.tonightPlan)
+                .task { if appModel.tonightPlan == nil { await appModel.refreshTonightPlan() } }
         }
     }
 }
