@@ -5,7 +5,7 @@ import XCTest
 /// strap from being re-offloaded every event floor (#77/#120/#216). Pure value logic, no CoreBluetooth seam.
 final class BackfillPolicyTests: XCTestCase {
     private let fe = BackfillPolicy.eventFloorSeconds      // 90
-    private let fp = BackfillPolicy.periodicFloorSeconds   // 900
+    private let fp = BackfillPolicy.periodicFloorSeconds   // 300
 
     func testFirstSyncAlwaysRuns() {
         XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .periodic, now: 1000, lastBackfillAt: nil))
@@ -112,15 +112,15 @@ final class BackfillPolicyTests: XCTestCase {
     }
 
     func testNotificationHonorsAdaptiveCadenceAndEmptyBackoff() {
-        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1899, lastBackfillAt: 1000))
-        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 1900, lastBackfillAt: 1000))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1299, lastBackfillAt: 1000))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 1300, lastBackfillAt: 1000))
         XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 4599, lastBackfillAt: 1000,
                                                 notificationFloor: 3600))
         XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 4600, lastBackfillAt: 1000,
                                                notificationFloor: 3600))
-        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 2799, lastBackfillAt: 1000,
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .notification, now: 1599, lastBackfillAt: 1000,
                                                 emptyStreak: 3))
-        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 2800, lastBackfillAt: 1000,
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .notification, now: 1600, lastBackfillAt: 1000,
                                                emptyStreak: 3))
     }
 

@@ -81,7 +81,7 @@ final class Whoop5BatteryBackfillThrottleTests: XCTestCase {
 
     // The stretch is the same value the low-battery lever uses (parity with #477).
     func testStretchMatchesLowBatteryFloor() {
-        XCTAssertEqual(BLEManager.backfillIntervalSeconds, 900)       // 15 min
+        XCTAssertEqual(BLEManager.backfillIntervalSeconds, 300)       // 5 min
         XCTAssertEqual(BLEManager.lowBatteryBackfillIntervalSeconds, 2700) // 45 min
     }
 

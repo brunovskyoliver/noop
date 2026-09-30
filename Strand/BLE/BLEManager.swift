@@ -622,8 +622,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// User-elected hourly background-sync cadence (Settings → Power saving → "Low refresh"). Default off.
     private var lowRefreshMode = false
     // The timer fires this often, but BackfillPolicy.periodicFloorSeconds is the real floor (a recent
-    // event-triggered sync defers the next periodic tick). 900s = 15 min, matching WHOOP.
-    static let backfillIntervalSeconds = 900
+    // event-triggered sync defers the next periodic tick). 300s = 5 min; see periodicFloorSeconds.
+    static let backfillIntervalSeconds = 300
     /// Scheduling flexibility for the long-running periodic offload timer. The offload remains no
     /// earlier than its battery-adaptive deadline; this only lets Darwin coalesce the wake with nearby
     /// system work instead of waking the CPU at an unnecessarily exact instant.

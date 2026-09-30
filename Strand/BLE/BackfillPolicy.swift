@@ -19,11 +19,13 @@ enum BackfillTrigger {
 /// Pure rate-limiter for historical-offload kicks. No BLE/store deps. Floors match WHOOP
 /// (observed: ~15-min periodic + expedited event syncs).
 enum BackfillPolicy {
-    static let periodicFloorSeconds: TimeInterval = 900   // 15 min
+    // 5 min rather than WHOOP's 15, so a morning score is at most one short offload behind. Each pass
+    // moves a smaller batch; the empty backoff below still quiets a caught-up or off-wrist strap.
+    static let periodicFloorSeconds: TimeInterval = 300   // 5 min
     static let interruptedRetrySeconds: TimeInterval = 15
     static let eventFloorSeconds: TimeInterval = 90       // absorbs reconnect-flaps / event bursts
     static let emptyBackoffThreshold = 3                  // empties before the floor starts stretching
-    static let maxEmptyBackoff: Double = 4                // cap → ~6-min event / 1-hr periodic floor
+    static let maxEmptyBackoff: Double = 4                // cap → ~6-min event / 20-min periodic floor
 
     /// `interrupted` is persisted when an offload starts and cleared on normal session exit.
     /// It permits a bounded retry after a lost transport or process restart. `notificationFloor`
