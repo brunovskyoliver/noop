@@ -43,3 +43,18 @@ recorded below when verified.
   `WhoopHRVSourceTests` failed on 4.0's old `.chestStrap` mapping before the correction.
   No BLE behavior changed. WHOOP's [4.0 sensor description](https://www.whoop.com/us/en/thelocker/chief-technology-officer-whoop-4-0-accuracy/)
   identifies its optical LEDs and photodiodes.
+
+## B. Engine wiring
+
+- B1 wired with `BroopHealthJetLagView`, reachable from the Sleep screen and both Body Clock cards.
+  `Repository.jetLagPlan(trip:)` is the single resolver, off-main through `CancellableAnalysis`.
+  `JetLagTrip` saves travel date, origin zone, destination UTC offset and the starting bed/wake window
+  from `AppModel.tonightPlan` in `broop.jetLag.activeTrip.v1`. No migration or alarm change.
+  Day dates precede travel, and all windows are explicitly on the origin clock. The origin offset is
+  resolved for the travel date (DST); the user chooses the destination offset for that date.
+  Date-line differences beyond 12 hours have no plan. The info sheet explains the engine's fixed
+  one-hour steps and limits. Four `JetLagTripTests` plus the optical-source test pass on macOS.
+  This reuses the already-shared SleepPlanner despite A4's deferred circadian policy.
+- B4 skipped: `HealthKitBridge.readTypes` and `collect` import weight and active/basal calories burned,
+  but no `dietaryEnergyConsumed` or daily calorie intake. Burned energy cannot replace intake in
+  `AdaptiveExpenditureEngine`. No food logging or Health permission added.

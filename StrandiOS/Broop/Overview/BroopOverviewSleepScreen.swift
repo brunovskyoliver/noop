@@ -72,6 +72,12 @@ struct BroopOverviewSleepScreen: View {
                 BroopOverviewTrendCard(metrics: BroopOverviewTrendMetric.restSet, dayKey: snap?.dayKey ?? Repository.logicalDayKey(Date()))
                     .padding(.top, BroopMetrics.section)
 
+                NavigationLink(value: BroopScreen.jetLag) {
+                    BroopNavTile(symbol: "airplane", title: String(localized: "Jet-lag planner"))
+                }
+                .buttonStyle(BroopPressableStyle())
+                .padding(.top, BroopMetrics.section)
+
                 Button { showCustomize = true } label: {
                     BroopNavTile(symbol: "slider.horizontal.3", title: String(localized: "Customize Sleep"),
                                  detail: String(localized: "Order and hide cards"))

@@ -63,6 +63,10 @@ struct BroopFinalABodyClockCard: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        NavigationLink(value: BroopScreen.jetLag) {
+                            BroopNavTile(symbol: "airplane", title: String(localized: "Jet-lag planner"))
+                        }
+                        .buttonStyle(BroopPressableStyle())
                         BroopHairline()
                         Text(verbatim: BodyClockDialCard.alignmentText(offsetHours: offsetHours))
                             .font(BroopType.demi(17))

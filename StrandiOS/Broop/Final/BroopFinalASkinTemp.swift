@@ -166,6 +166,10 @@ struct BroopFinalABodyClockEstimateCard: View {
                 .padding(.top, 2)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text("Estimated body-clock low around \(BroopFinalABodyClockCard.clock(estimate.tempMinHour))"))
+                NavigationLink(value: BroopScreen.jetLag) {
+                    BroopNavTile(symbol: "airplane", title: String(localized: "Jet-lag planner"))
+                }
+                .buttonStyle(BroopPressableStyle())
                 if let plan, plan.direction != .none, let first = plan.days.first {
                     BroopHairline()
                     VStack(alignment: .leading, spacing: 6) {
