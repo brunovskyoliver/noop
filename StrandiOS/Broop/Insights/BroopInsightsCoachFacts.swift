@@ -242,12 +242,15 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
 
     /// Home's snapshot for today, through Home's own loader. Cached per refresh so one turn's several tool
     /// calls do not reload it.
-    private var cached: (seq: Int, snap: BroopSnapshot?)?
+    private var cached: (key: String, snap: BroopSnapshot?)?
     private func snapshot() async -> BroopSnapshot? {
-        if let c = cached, c.seq == repo.refreshSeq { return c.snap }
+        // Keyed on the loaded data as well as the refresh counter: a read made before the day rows arrived
+        // must not be served after they did.
+        let key = "\(repo.refreshSeq)|\(repo.days.count)|\(repo.days.last?.day ?? "")|\(repo.today?.recovery ?? -1)"
+        if let c = cached, c.key == key { return c.snap }
         let store = BroopStore()
         await store.reload(repo: repo, profile: model.profile)
-        cached = (repo.refreshSeq, store.snapshot)
+        cached = (key, store.snapshot)
         return store.snapshot
     }
 

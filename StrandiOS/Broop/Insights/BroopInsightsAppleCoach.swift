@@ -206,6 +206,7 @@ struct BroopInsightsCoachSettingsSheet: View {
 /// on Home that observes the Coach engine.
 struct BroopInsightsCoachBriefCard: View {
     @EnvironmentObject private var coach: AICoachEngine
+    @EnvironmentObject private var repo: Repository
     @Environment(\.scenePhase) private var scenePhase
     let onOpenCoach: () -> Void
     @State private var values: [String: String] = [:]
@@ -215,7 +216,8 @@ struct BroopInsightsCoachBriefCard: View {
             if coach.usesApple, let brief = coach.appleBrief, brief.day == Repository.dayString(Date()) {
                 Button(action: onOpenCoach) { card(brief) }
                     .buttonStyle(BroopPressableStyle())
-                    .task(id: brief) { values = await load(brief) }
+                    // Reloaded on new data too: values read before the store finished loading would stay empty.
+                    .task(id: "\(brief.day)|\(brief.dataKey)|\(repo.refreshSeq)") { values = await load(brief) }
             }
         }
         .task(id: scenePhase) {

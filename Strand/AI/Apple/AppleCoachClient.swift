@@ -128,7 +128,7 @@ final class AppleCoachClient {
         var route = AppleCoachRouting.route(inputs)
         let facts = await source.todaySnapshot() + "\n" + (await source.sleepPlan())
         let instructions = Self.instructions()
-        let prompt = "Write today's brief from these facts. Pick the two or three metrics that matter most today. Do not write any numbers.\n\nFACTS:\n" + facts
+        let prompt = "Write today's brief from these facts. Pick the two or three metrics that matter most today, starting with the one furthest below its usual level or target. For each, write one concrete thing to do today (training, recovery or bedtime). Do not write any numbers.\n\nFACTS:\n" + facts
         for _ in 0..<2 {
             guard route != .none else { return nil }
             let session: LanguageModelSession
@@ -157,7 +157,15 @@ final class AppleCoachClient {
                                        points: draft.points.map { .init(metric: $0.metric.metric.rawValue, sentence: $0.sentence) },
                                        offDevice: offDevice, factsOnly: false)
             } catch {
+                #if DEBUG
+                print("COACH_BRIEF_ERROR \(error)")
+                #endif
                 let failure = Self.failure(error, route: route)
+                // A guardrail or refusal on today's own facts still leaves the values worth showing.
+                if failure == .guardrail || failure == .refusal {
+                    return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: [.charge, .rest, .sleepDebt],
+                                                           offDevice: route == .privateCloud)
+                }
                 guard case .retryOnPrivateCloud(let next) = AppleCoachRecovery.next(failure, route: route, inputs: inputs,
                                                                                    alreadyCondensed: true) else { return nil }
                 inputs = next

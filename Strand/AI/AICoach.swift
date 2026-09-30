@@ -334,7 +334,11 @@ final class AICoachEngine: ObservableObject {
         guard AppleCoachBriefPolicy.shouldGenerate(stored: appleBrief, today: today, dataKey: key) else { return }
         appleBriefRunning = true
         defer { appleBriefRunning = false }
-        if let brief = await apple.brief(inputs: inputs, day: today, dataKey: key) {
+        let brief = await apple.brief(inputs: inputs, day: today, dataKey: key)
+        #if DEBUG
+        print("COACH_BRIEF key=\(key) brief=\(brief.map { "\($0.headline) | \($0.points.map(\.metric)) factsOnly=\($0.factsOnly)" } ?? "nil")")
+        #endif
+        if let brief {
             brief.save()
             appleBrief = brief
         }
