@@ -28,6 +28,8 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// plain tap, .edit on the Edit action); `onWorkoutDetectedDismiss` runs the durable
     /// "not a workout" dismissal without navigating. The span arrives as (startTs, endTs) userInfo —
     /// the handlers re-resolve the row by overlap, so a re-detected drift can't strand the action.
+    /// The evening-review reminder's tap: opens today's journal with journal-by-voice ready.
+    var onEveningReviewTapped: (() -> Void)?
     var onWorkoutDetectedReview: ((_ startTs: Int, _ endTs: Int, _ edit: Bool) -> Void)?
     var onWorkoutDetectedDismiss: ((_ startTs: Int, _ endTs: Int) -> Void)?
 
@@ -51,6 +53,8 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         let category = response.notification.request.content.categoryIdentifier
         if category == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        } else if category == EveningReviewReminder.categoryId {
+            onEveningReviewTapped?()
         } else if category == StandReminderNotifier.categoryId {
             if response.actionIdentifier == StandReminderNotifier.actionPauseId {
                 Task { @MainActor in StandReminderNotifier.pauseToday() }

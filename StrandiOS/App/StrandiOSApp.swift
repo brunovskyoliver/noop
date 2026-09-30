@@ -92,6 +92,11 @@ struct StrandiOSApp: App {
         let router = NavRouter()
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
+        NotificationPresenter.shared.onEveningReviewTapped = { [weak router] in
+            // Tonight's habits belong to tomorrow's journal day (see `AppleCoachEveningPolicy.journalDay`).
+            router?.pendingVoiceJournal = true
+            router?.openJournal(day: -1)
+        }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
         // The Apple Intelligence Coach's tools read the Broop screens' own resolvers.
@@ -662,6 +667,8 @@ enum DemoScreens {
         case "broopenergyinfo": return AnyView(ScrollView { BroopEnergyInfo().padding(16) }.background(BroopBackground()))
         case "broopcoach": return AnyView(BroopCoachDemoHost())
         case "broopcoachchat": return AnyView(BroopInsightsCoachDemoHost())
+        case "broopjournal": return AnyView(NavigationStack { BroopScreenView(screen: .journal) })
+        case "broopvoicejournal": return AnyView(BroopInsightsVoiceJournalSheet())
         case "broopcoachbrief": return AnyView(ScrollView { BroopInsightsCoachBriefCard {}.padding(BroopMetrics.page) }
                                                 .background(BroopBackground()))
         case "addwizard": return AnyView(AddWizardDemoHost())

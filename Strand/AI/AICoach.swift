@@ -334,7 +334,10 @@ final class AICoachEngine: ObservableObject {
         guard AppleCoachBriefPolicy.shouldGenerate(stored: appleBrief, today: today, dataKey: key) else { return }
         appleBriefRunning = true
         defer { appleBriefRunning = false }
-        let brief = await apple.brief(inputs: inputs, day: today, dataKey: key)
+        // Not cancelled with the view that asked: a data reload restarting the card's task would otherwise
+        // throw away a brief halfway written.
+        let apple = self.apple
+        let brief = await Task { await apple.brief(inputs: inputs, day: today, dataKey: key) }.value
         #if DEBUG
         print("COACH_BRIEF key=\(key) brief=\(brief.map { "\($0.headline) | \($0.points.map(\.metric)) factsOnly=\($0.factsOnly)" } ?? "nil")")
         #endif
@@ -342,6 +345,53 @@ final class AICoachEngine: ObservableObject {
             brief.save()
             appleBrief = brief
         }
+    }
+
+    /// This evening's review (the Home card from 17:00), nil before the first.
+    @Published private(set) var appleEvening = AppleCoachBrief.load(key: AppleCoachEveningPolicy.storageKey)
+    private var appleEveningRunning = false
+
+    /// Write this evening's review when Home appears in the evening: once per evening, again after new data
+    /// (a journal answer included), and only with the Coach on, Apple Intelligence chosen and able to answer.
+    func refreshAppleEveningIfNeeded(now: Date = Date()) async {
+        guard usesApple, CoachBriefScheduler.coachMasterEnabled, AppleCoachEveningPolicy.isEvening(now),
+              !appleEveningRunning, let source = apple.source else { return }
+        if appleRoutingInputs == nil { await refreshAppleAvailability() }
+        guard let inputs = appleRoutingInputs, appleAvailability?.canChat == true else { return }
+        let today = Repository.dayString(now)
+        let journalDay = Repository.localDayKey(AppleCoachEveningPolicy.journalDay(for: now))
+        let logged = (await repo.nativeJournalAnswers(day: journalDay)).count + (await repo.nativeJournalNumeric(day: journalDay)).count
+        var values: [String] = []
+        for m in [CoachMetric.effort, .stress, .steps] { values.append(await source.briefValue(m) ?? "-") }
+        // Nothing loaded yet (the store is still opening): wait for the data rather than review an empty day.
+        guard values.contains(where: { $0 != "-" }) else { return }
+        let key = ([today] + values + ["j\(logged)"]).joined(separator: "|")
+        guard AppleCoachBriefPolicy.shouldGenerate(stored: appleEvening, today: today, dataKey: key) else { return }
+        appleEveningRunning = true
+        defer { appleEveningRunning = false }
+        let apple = self.apple
+        let review = await Task { await apple.evening(inputs: inputs, day: today, dataKey: key) }.value
+        #if DEBUG
+        print("COACH_EVENING key=\(key) review=\(review.map { "\($0.headline) | \($0.points.map(\.metric)) | \($0.tonight ?? "") factsOnly=\($0.factsOnly)" } ?? "nil")")
+        #endif
+        if let review {
+            review.save(key: AppleCoachEveningPolicy.storageKey)
+            appleEvening = review
+        }
+    }
+
+    /// Whether journal-by-voice can run: the Coach is on and the on-device model is ready for this language.
+    /// Independent of the Coach's backend choice, since it never leaves the phone.
+    var canUseJournalByVoice: Bool {
+        guard CoachBriefScheduler.coachMasterEnabled, Self.appleBackendOffered, let inputs = appleRoutingInputs else { return false }
+        return inputs.onDevice == .available && inputs.onDeviceSupportsLocale
+    }
+
+    /// Journal proposals from what the person said (see `CoachJournalParse`); nil when the model can't answer.
+    func journalProposals(transcript: String, choices: [CoachJournalParse.Choice]) async -> [CoachJournalProposal]? {
+        if appleRoutingInputs == nil { await refreshAppleAvailability() }
+        guard canUseJournalByVoice, let inputs = appleRoutingInputs else { return nil }
+        return await apple.journal(transcript: transcript, choices: choices, inputs: inputs)
     }
 
     /// Today's Apple brief as text, with the metric values from the resolvers (for the notification/widget).

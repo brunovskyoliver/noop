@@ -134,21 +134,48 @@ final class AppleCoachClient {
         return nil
     }
 
+    /// This evening's review (see `AppleCoachEveningPolicy`). Nil when neither model can serve it.
+    func evening(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            return await eveningWithModel(inputs: inputs, day: day, dataKey: dataKey)
+        }
+        #endif
+        return nil
+    }
+
+    /// Journal proposals from what the person said; nil when the on-device model can't answer.
+    func journal(transcript: String, choices: [CoachJournalParse.Choice], inputs: AppleCoachRoutingInputs) async -> [CoachJournalProposal]? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale, !choices.isEmpty {
+            return await journalWithModel(transcript: transcript, choices: choices)
+        }
+        #endif
+        return nil
+    }
+
     #if canImport(FoundationModels)
 
-    /// Guided generation with no tools: the facts go in the prompt (the brief always needs them), the model
-    /// picks metrics and writes sentences without numbers, and the number check runs on its prose. One
-    /// retry, then the values-only brief.
+    /// How a guided generation ended (see `guided`).
+    private enum GuidedOutcome<Draft> {
+        case draft(Draft, offDevice: Bool)
+        /// The prose failed the number check twice, or a guardrail stopped it: show the values alone.
+        case factsOnly(offDevice: Bool)
+        case unavailable
+    }
+
+    /// Guided generation with no tools: the facts go in the prompt, the model writes a draft without
+    /// numbers, and the number check runs on its prose. One retry, then values only. Errors hand over to
+    /// Apple's servers once when `AppleCoachRecovery` allows it.
     @available(iOS 26.0, macOS 26.0, *)
-    private func briefWithModel(inputs start: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
-        guard let source else { return nil }
+    private func guided<Draft: Generable>(inputs start: AppleCoachRoutingInputs, facts: String, prompt: String,
+                                          generating: Draft.Type, prose: (Draft) -> String) async -> GuidedOutcome<Draft> {
         var inputs = start
         var route = AppleCoachRouting.route(inputs)
-        let facts = await source.todaySnapshot() + "\n" + (await source.sleepPlan())
         let instructions = Self.instructions()
-        let prompt = "Write today's brief from these facts. Pick the two or three metrics that matter most today, starting with the one furthest below its usual level or target. For each, write one concrete thing to do today (training, recovery or bedtime). Do not write any numbers.\n\nFACTS:\n" + facts
+        let fullPrompt = prompt + "\n\nFACTS:\n" + facts
         for _ in 0..<2 {
-            guard route != .none else { return nil }
+            guard route != .none else { return .unavailable }
             let session: LanguageModelSession
             if route == .privateCloud, #available(iOS 27.0, macOS 27.0, *) {
                 session = LanguageModelSession(model: PrivateCloudComputeLanguageModel(), instructions: instructions)
@@ -156,41 +183,110 @@ final class AppleCoachClient {
                 session = LanguageModelSession(model: .default, instructions: instructions)
             }
             let offDevice = route == .privateCloud
-            func valid(_ d: CoachBriefDraft) -> Bool {
-                let prose = ([d.headline] + d.points.map(\.sentence)).joined(separator: " ")
-                return CoachNumberValidator.validate(reply: prose, sources: [facts, instructions]).isValid
+            func valid(_ d: Draft) -> Bool {
+                CoachNumberValidator.validate(reply: prose(d), sources: [facts, instructions]).isValid
             }
             do {
-                var draft = try await session.respond(to: prompt, generating: CoachBriefDraft.self,
+                var draft = try await session.respond(to: fullPrompt, generating: Draft.self,
                                                       options: AppleCoachSessionFactory.factualOptions).content
                 if !valid(draft) {
-                    draft = try await session.respond(to: "Write it again with no numbers at all.", generating: CoachBriefDraft.self,
+                    draft = try await session.respond(to: "Write it again with no numbers at all.", generating: Draft.self,
                                                       options: AppleCoachSessionFactory.factualOptions).content
                 }
-                guard valid(draft) else {
-                    return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: [.charge, .rest, .sleepDebt],
-                                                           offDevice: offDevice)
-                }
-                return AppleCoachBrief(day: day, dataKey: dataKey, headline: draft.headline,
-                                       points: draft.points.map { .init(metric: $0.metric.metric.rawValue, sentence: $0.sentence) },
-                                       offDevice: offDevice, factsOnly: false)
+                return valid(draft) ? .draft(draft, offDevice: offDevice) : .factsOnly(offDevice: offDevice)
             } catch {
                 #if DEBUG
-                print("COACH_BRIEF_ERROR \(error)")
+                print("COACH_GUIDED_ERROR \(error)")
                 #endif
                 let failure = Self.failure(error, route: route)
-                // A guardrail or refusal on today's own facts still leaves the values worth showing.
-                if failure == .guardrail || failure == .refusal {
-                    return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: [.charge, .rest, .sleepDebt],
-                                                           offDevice: route == .privateCloud)
-                }
+                // A guardrail or refusal on the person's own facts still leaves the values worth showing.
+                if failure == .guardrail || failure == .refusal { return .factsOnly(offDevice: offDevice) }
                 guard case .retryOnPrivateCloud(let next) = AppleCoachRecovery.next(failure, route: route, inputs: inputs,
-                                                                                   alreadyCondensed: true) else { return nil }
+                                                                                   alreadyCondensed: true) else { return .unavailable }
                 inputs = next
                 route = .privateCloud
             }
         }
-        return nil
+        return .unavailable
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func briefWithModel(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
+        guard let source else { return nil }
+        let facts = await source.todaySnapshot() + "\n" + (await source.sleepPlan())
+        let prompt = "Write today's brief from these facts. Pick the two or three metrics that matter most today, starting with the one furthest below its usual level or target. For each, write one concrete thing to do today (training, recovery or bedtime). Do not write any numbers."
+        switch await guided(inputs: inputs, facts: facts, prompt: prompt, generating: CoachBriefDraft.self,
+                            prose: { ([$0.headline] + $0.points.map(\.sentence)).joined(separator: " ") }) {
+        case .draft(let d, let offDevice):
+            return AppleCoachBrief(day: day, dataKey: dataKey, headline: d.headline,
+                                   points: d.points.map { .init(metric: $0.metric.metric.rawValue, sentence: $0.sentence) },
+                                   offDevice: offDevice, factsOnly: false)
+        case .factsOnly(let offDevice):
+            return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: [.charge, .rest, .sleepDebt],
+                                                   offDevice: offDevice)
+        case .unavailable:
+            return nil
+        }
+    }
+
+    @available(iOS 26.0, macOS 26.0, *)
+    private func eveningWithModel(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
+        guard let source else { return nil }
+        let facts = [await source.todaySnapshot(), await source.sleepPlan(),
+                     await source.recentNotes(days: 1, includeCheckIns: false)].joined(separator: "\n")
+        switch await guided(inputs: inputs, facts: facts, prompt: AppleCoachEveningPolicy.prompt, generating: CoachEveningDraft.self,
+                            prose: { ([$0.headline, $0.tonight] + $0.points.map(\.sentence)).joined(separator: " ") }) {
+        case .draft(let d, let offDevice):
+            return AppleCoachBrief(day: day, dataKey: dataKey, headline: d.headline,
+                                   points: d.points.map { .init(metric: $0.metric.metric.rawValue, sentence: $0.sentence) },
+                                   offDevice: offDevice, factsOnly: false, tonight: d.tonight)
+        case .factsOnly(let offDevice):
+            return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: AppleCoachEveningPolicy.factsOnlyMetrics,
+                                                   offDevice: offDevice, headline: String(localized: "Today at a glance"))
+        case .unavailable:
+            return nil
+        }
+    }
+
+    /// Journal by voice (see `CoachJournalParse`). On-device only: it is the person's own words about their
+    /// day. Throws nothing; nil when the model can't answer.
+    @available(iOS 26.0, macOS 26.0, *)
+    private func journalWithModel(transcript: String, choices: [CoachJournalParse.Choice]) async -> [CoachJournalProposal]? {
+        guard let schema = try? CoachJournalParse.schema(choices: choices) else { return nil }
+        var instructions = CoachJournalParse.instructions
+        if let language = CoachInstructions.languageLine(AppLanguage.activeLocale) { instructions += "\n\n" + language }
+        // Sorting the person's own words into their journal is a transformation task: the default guardrails
+        // refused ordinary days ("no alcohol today", "went to bed early") as sensitive.
+        let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+        let session = LanguageModelSession(model: model, instructions: instructions)
+        do {
+            let content = try await session.respond(to: CoachJournalParse.prompt(transcript: transcript, choices: choices),
+                                                    schema: schema,
+                                                    options: GenerationOptions(temperature: 0, maximumResponseTokens: 600)).content
+            return CoachJournalParse.proposals(CoachJournalParse.rawEntries(content), choices: choices, transcript: transcript)
+        } catch {
+            #if DEBUG
+            print("COACH_JOURNAL_ERROR \(Self.failure(error, route: .onDevice)) \(error)")
+            #endif
+            let failure = Self.failure(error, route: .onDevice)
+            guard failure == .guardrail || failure == .refusal else { return nil }
+            // The permissive guardrails apply to plain-text answers only: ask again for lines, checked the same way.
+            let plain = LanguageModelSession(model: model, instructions: instructions)
+            let prompt = CoachJournalParse.prompt(transcript: transcript, choices: choices) + "\n\n" + CoachJournalParse.plainTextFormat
+            let text: String
+            do {
+                text = try await plain.respond(to: prompt, options: GenerationOptions(temperature: 0, maximumResponseTokens: 600)).content
+            } catch {
+                #if DEBUG
+                print("COACH_JOURNAL_PLAIN_ERROR \(error)")
+                #endif
+                return nil
+            }
+            #if DEBUG
+            print("COACH_JOURNAL_PLAIN \(text.replacingOccurrences(of: "\n", with: " / "))")
+            #endif
+            return CoachJournalParse.proposals(CoachJournalParse.parseLines(text), choices: choices, transcript: transcript)
+        }
     }
 
     @available(iOS 26.0, macOS 26.0, *)

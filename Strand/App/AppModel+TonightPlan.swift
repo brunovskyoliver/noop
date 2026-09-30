@@ -35,6 +35,17 @@ extension AppModel {
         WindDownNudge.tonight(now: now, alarmFire: tonightAlarmFire(now: now))
     }
 
+    /// The wind-down reminder's fire date for each of the next `days` evenings, tonight first (the evening
+    /// review reminder is armed an hour before each). Later evenings resolve from noon that day, so each
+    /// names that night's wake: the weekday wake, or the strap alarm when it will ring that morning.
+    func windDownFiresAhead(days: Int, now: Date = Date(), calendar: Calendar = .current) -> [Date] {
+        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+        return (0..<max(days, 0)).compactMap { k in
+            if k == 0 { return windDownTonight(now: now).fireDate }
+            return calendar.date(byAdding: .day, value: k, to: noon).map { windDownTonight(now: $0).fireDate }
+        }
+    }
+
     /// Rebuild `tonightPlan` from the stored nights and push its bed-to-wake window to the wind-down
     /// reminder. Cheap (a month of sessions); called when the data refreshes.
     func refreshTonightPlan() async {

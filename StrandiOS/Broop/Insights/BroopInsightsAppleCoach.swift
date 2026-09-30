@@ -120,6 +120,9 @@ struct BroopInsightsAppleServersLabel: View {
 struct BroopInsightsCoachSettingsSheet: View {
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var model: AppModel
+    @State private var eveningReminder = EveningReviewReminder.storedEnabled
+    @State private var eveningDenied = false
     @Environment(\.dismiss) private var dismiss
     @State private var showProvider = false
     @State private var showCloudSettings = false
@@ -145,6 +148,13 @@ struct BroopInsightsCoachSettingsSheet: View {
                                                    : String(localized: "Not in this build: Apple has to grant this app's signing team the Private Cloud Compute entitlement. Coach runs on this iPhone only."),
                                                isOn: $coach.allowAppleServers,
                                                enabled: AppleCoachProbe.privateCloudInBuild)
+                        }
+                        BroopAccountGroup {
+                            BroopAccountToggle(title: String(localized: "Evening review reminder"),
+                                               detail: eveningDenied
+                                                   ? String(localized: "Notifications are off for this app. Turn them on in iOS Settings to get the reminder.")
+                                                   : String(localized: "An hour before your wind-down reminder: see how today went and log your journal by voice. From 17:00, Home shows the evening review either way."),
+                                               isOn: eveningReminderBinding)
                         }
                     } else {
                         BroopAccountGroup {
@@ -172,6 +182,17 @@ struct BroopInsightsCoachSettingsSheet: View {
         .sheet(isPresented: $showProvider) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showCloudSettings) { CoachSettingsView().environmentObject(coach).environmentObject(repo) }
         .sheet(isPresented: $showInfo) { BroopInsightsCoachInfoSheet().environmentObject(coach) }
+    }
+
+    private var eveningReminderBinding: Binding<Bool> {
+        Binding(get: { eveningReminder }, set: { on in
+            eveningReminder = on
+            EveningReviewReminder.setEnabled(on, windDownFires: model.windDownFiresAhead(days: EveningReviewReminder.eveningsAhead),
+                                             skipTonight: false) { granted in
+                eveningReminder = granted
+                eveningDenied = on && !granted
+            }
+        })
     }
 
     private func backendRow(_ backend: CoachBackend) -> some View {
@@ -217,22 +238,47 @@ struct BroopInsightsCoachSettingsSheet: View {
 struct BroopInsightsCoachBriefCard: View {
     @EnvironmentObject private var coach: AICoachEngine
     @EnvironmentObject private var repo: Repository
+    @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
     let onOpenCoach: () -> Void
     @State private var values: [String: String] = [:]
 
     var body: some View {
         Group {
-            if coach.usesApple, let brief = coach.appleBrief, brief.day == Repository.dayString(Date()) {
+            if coach.usesApple, let evening = eveningReview {
+                BroopInsightsCoachEveningCard(review: evening, onOpenCoach: onOpenCoach)
+            } else if coach.usesApple, let brief = coach.appleBrief, brief.day == Repository.dayString(Date()) {
                 Button(action: onOpenCoach) { card(brief) }
                     .buttonStyle(BroopPressableStyle())
                     // Reloaded on new data too: values read before the store finished loading would stay empty.
                     .task(id: "\(brief.day)|\(brief.dataKey)|\(repo.refreshSeq)") { values = await load(brief) }
             }
         }
-        .task(id: scenePhase) {
-            if scenePhase == .active { await coach.refreshAppleBriefIfNeeded() }
+        .task(id: "\(scenePhase)|\(repo.refreshSeq)") {
+            guard scenePhase == .active else { return }
+            await coach.refreshAppleBriefIfNeeded()
+            await coach.refreshAppleEveningIfNeeded()
+            await armEveningReminder()
         }
+    }
+
+    /// From 17:00, today's evening review replaces the morning brief.
+    private var eveningReview: AppleCoachBrief? {
+        guard AppleCoachEveningPolicy.isEvening(Date()), let review = coach.appleEvening,
+              review.day == Repository.dayString(Date()) else { return nil }
+        return review
+    }
+
+    /// Re-arm the evening-review reminders from the current wind-down times, skipping tonight's once tonight's
+    /// journal day (tomorrow's key) has answers.
+    private func armEveningReminder() async {
+        guard EveningReviewReminder.isEnabled else { return }
+        let day = Repository.localDayKey(AppleCoachEveningPolicy.journalDay(for: Date()))
+        let answers = await repo.nativeJournalAnswers(day: day)
+        let amounts = await repo.nativeJournalNumeric(day: day)
+        let logged = !answers.isEmpty || !amounts.isEmpty
+        EveningReviewReminder.schedule(windDownFires: model.windDownFiresAhead(days: EveningReviewReminder.eveningsAhead),
+                                       skipTonight: logged)
     }
 
     private func card(_ brief: AppleCoachBrief) -> some View {

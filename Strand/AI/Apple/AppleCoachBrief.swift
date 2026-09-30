@@ -21,15 +21,18 @@ struct AppleCoachBrief: Codable, Equatable, Sendable {
     let offDevice: Bool
     /// The model's prose failed the number check twice: show the values alone.
     let factsOnly: Bool
+    /// The evening review's one thing to do before bed (see `AppleCoachEveningPolicy`); nil on a morning brief.
+    var tonight: String? = nil
 
     static let storageKey = "coach.appleBrief.v1"
 
-    static func load(_ defaults: UserDefaults = .standard) -> AppleCoachBrief? {
-        defaults.data(forKey: storageKey).flatMap { try? JSONDecoder().decode(AppleCoachBrief.self, from: $0) }
+    /// `key`: `storageKey` for the morning brief, `AppleCoachEveningPolicy.storageKey` for the evening review.
+    static func load(_ defaults: UserDefaults = .standard, key: String = storageKey) -> AppleCoachBrief? {
+        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(AppleCoachBrief.self, from: $0) }
     }
 
-    func save(_ defaults: UserDefaults = .standard) {
-        if let data = try? JSONEncoder().encode(self) { defaults.set(data, forKey: Self.storageKey) }
+    func save(_ defaults: UserDefaults = .standard, key: String = storageKey) {
+        if let data = try? JSONEncoder().encode(self) { defaults.set(data, forKey: key) }
     }
 
     /// The brief as plain text for the morning-brief notification and widget, values from `value`.
@@ -53,8 +56,9 @@ enum AppleCoachBriefPolicy {
     }
 
     /// The facts-only brief: no prose, every metric the facts cover.
-    static func factsOnly(day: String, dataKey: String, metrics: [CoachMetric], offDevice: Bool) -> AppleCoachBrief {
-        AppleCoachBrief(day: day, dataKey: dataKey, headline: String(localized: "Today's numbers"),
+    static func factsOnly(day: String, dataKey: String, metrics: [CoachMetric], offDevice: Bool,
+                          headline: String = String(localized: "Today's numbers")) -> AppleCoachBrief {
+        AppleCoachBrief(day: day, dataKey: dataKey, headline: headline,
                         points: metrics.map { .init(metric: $0.rawValue, sentence: "") }, offDevice: offDevice, factsOnly: true)
     }
 }

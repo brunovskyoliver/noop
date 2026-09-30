@@ -51,6 +51,8 @@ struct BroopInsightsJournalView: View {
     @State private var dayOffset = 0
     @State private var currentDayKey = Repository.localDayKey(Date())
     @State private var showCustomize = false
+    @State private var showVoiceJournal = false
+    @EnvironmentObject private var coach: AICoachEngine
     /// Numeric answer being edited (drives the entry alert).
     @State private var editingNumeric: JournalCatalogItem?
     @State private var numericDraft = ""
@@ -103,7 +105,19 @@ struct BroopInsightsJournalView: View {
         }
         .background(BroopInsightsJournalBackground())
         .broopInsightsChrome(String(localized: "Journal"), fill: BroopInsightsJournalBackground.topColor) {
-            BroopNavIcon(symbol: "pencil", label: String(localized: "Customize journal")) { showCustomize = true }
+            HStack(spacing: 0) {
+                if coach.canUseJournalByVoice {
+                    BroopNavIcon(symbol: "mic", label: String(localized: "Log your day by voice")) { showVoiceJournal = true }
+                }
+                BroopNavIcon(symbol: "pencil", label: String(localized: "Customize journal")) { showCustomize = true }
+            }
+        }
+        .sheet(isPresented: $showVoiceJournal) {
+            BroopInsightsVoiceJournalSheet(day: Calendar.current.date(byAdding: .day, value: -dayOffset, to: Date()) ?? Date()) {
+                Task { await model.load(repo: repo, offset: dayOffset) }
+            }
+            .environmentObject(coach)
+            .environmentObject(repo)
         }
         .sheet(isPresented: $showCustomize) {
             BroopInsightsJournalCustomizeSheet(catalog: catalog, importedQuestions: model.importedQuestions)
@@ -129,6 +143,14 @@ struct BroopInsightsJournalView: View {
             if let day = router.pendingJournalDayOffset {
                 dayOffset = min(max(day, -1), 6)
                 router.pendingJournalDayOffset = nil
+            }
+        }
+        .task {
+            // The evening-review reminder's tap: journal by voice for today, once the model is known ready.
+            await coach.refreshAppleAvailability()
+            if router.pendingVoiceJournal {
+                router.pendingVoiceJournal = false
+                if coach.canUseJournalByVoice { showVoiceJournal = true }
             }
         }
         .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDayKey() } }
