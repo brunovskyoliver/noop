@@ -21,6 +21,9 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
     // MARK: Today
 
     func todaySnapshot() async -> String {
+        // The plan first: it sets the sleep debt the strain target band reads, so the band stated here is
+        // the one Home shows once the plan exists, not the band from before it.
+        if model.tonightPlan == nil { await model.refreshTonightPlan() }
         let snap = await snapshot()
         var lines: [String] = []
         let today = Repository.dayString(Date())
@@ -57,7 +60,7 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
             lines.append(String(localized: "Energy: calibrating or no data."))
         }
         if let stress = await repo.stressToday(), let level = stress.latest?.level {
-            lines.append(String(localized: "Stress, latest: \(StressTrace.formatLevel(level)) of 3 (\(StressBand(score: level).title))."))
+            lines.append(String(localized: "Stress, latest: \(StressTrace.formatLevel(level)) of 3 (\(StressBand(score: level).title.capitalized(with: AppLanguage.activeLocale)))."))
         }
         let unwell = [.raised, .alreadyUnwell].contains(model.illnessSignal?.level)
         switch await repo.hrvReadiness(asOf: today, flaggedDays: unwell ? [today] : []) {
@@ -68,7 +71,6 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
         default:
             break
         }
-        if model.tonightPlan == nil { await model.refreshTonightPlan() }
         if let debt = StrainTargetContext.shared.sleepDebtMin {
             lines.append(debt > 0 ? String(localized: "Sleep debt: \(CoachFactFormat.duration(minutes: debt)).")
                                   : String(localized: "Sleep debt: none."))

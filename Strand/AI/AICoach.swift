@@ -1031,7 +1031,12 @@ final class AICoachEngine: ObservableObject {
             persistMessages()
         }
         if appleRoutingInputs == nil { await refreshAppleAvailability() }
-        guard let inputs = appleRoutingInputs else { return }
+        guard var inputs = appleRoutingInputs else { return }
+        #if DEBUG
+        // Verification only: treat the turn as too long for the on-device model, so the real routing
+        // function sends it to Apple's servers when they are available and allowed.
+        if CommandLine.arguments.contains("--coach-force-private-cloud") { inputs.exceedsOnDeviceContext = true }
+        #endif
         let result = await apple.respond(question: question, history: history, inputs: inputs, stream: stream)
         if apple.consumeCondensedNotice(), let at = messages.firstIndex(where: { $0.id == userMessage.id }) {
             messages.insert(ChatMessage(role: .assistant, text: String(localized: "Earlier messages were condensed to make room."),

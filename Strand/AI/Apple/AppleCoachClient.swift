@@ -174,14 +174,15 @@ final class AppleCoachClient {
         var inputs = start
         var route = AppleCoachRouting.route(inputs)
         var condensed = false
+        var retriedSame = false
         lastReport = TurnReport()
         if route == .onDevice, await needsCondense(question: question) {
             await condense(history: history)
             condensed = true
             lastReport.condensed = true
         }
-        // First try, at most one condense-and-retry, at most one hand-over to Apple's servers.
-        for _ in 0..<3 {
+        // First try, at most one condense-and-retry or tool-call retry, at most one hand-over to Apple's servers.
+        for _ in 0..<4 {
             guard route != .none else {
                 return .failed(AppleCoachRecovery.message(inputs.onDevice == .available ? .unsupportedLanguage : .modelUnavailable))
             }
@@ -201,7 +202,10 @@ final class AppleCoachClient {
                 lastReport.failure = failure
                 lastReport.errorDetail = String(describing: error)
                 lastReport.toolCalls = log.calls
-                switch AppleCoachRecovery.next(failure, route: route, inputs: inputs, alreadyCondensed: condensed) {
+                switch AppleCoachRecovery.next(failure, route: route, inputs: inputs, alreadyCondensed: condensed,
+                                               alreadyRetried: retriedSame) {
+                case .retrySame:
+                    retriedSame = true
                 case .condenseAndRetry:
                     await condense(history: history)
                     condensed = true
@@ -245,7 +249,7 @@ final class AppleCoachClient {
         if first.isValid { return .reply(text, offDevice: offDevice) }
         stream.text = ""
         lastReport.retried = true
-        let stricter = "Answer my last question again. Use only numbers that appear in the tool output, written the same way. Leave out every other number."
+        let stricter = "Call the tools again for the current numbers, then answer my last question again in full sentences, as a coach would. Use only numbers that appear in that tool output, written the same way, and leave out every other number."
         if let retry = try? await streamReply(session, prompt: stricter, into: stream) {
             let second = CoachNumberValidator.validate(reply: retry, sources: log.outputs + [instructions, question])
             lastReport.retryOffending = second.offending
@@ -290,8 +294,14 @@ final class AppleCoachClient {
         if #available(iOS 26.4, macOS 26.4, *), let counted = try? await model.tokenCount(for: session.transcript) {
             used = counted
         }
+        var size = model.contextSize
+        #if DEBUG
+        // Verification only: `--coach-context <tokens>` shrinks the budget so a short chat condenses.
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--coach-context"), i + 1 < args.count, let n = Int(args[i + 1]) { size = n }
+        #endif
         return CoachTokenBudget.needsCondense(sessionTokens: used, promptTokens: CoachTokenBudget.estimate(question),
-                                              contextSize: model.contextSize)
+                                              contextSize: size)
     }
 
     /// Summarise the conversation with the on-device model in a separate session, drop the old session, and
@@ -313,7 +323,8 @@ final class AppleCoachClient {
     /// Map either OS's error types onto `AppleCoachFailure`.
     @available(iOS 26.0, macOS 26.0, *)
     nonisolated static func failure(_ error: Error, route: AppleCoachRoute) -> AppleCoachFailure {
-        if let e = error as? LanguageModelSession.ToolCallError { return failure(e.underlyingError, route: route) }
+        // The app's tools never throw, so a tool-call error is the model's arguments failing to decode.
+        if error is LanguageModelSession.ToolCallError { return .badToolCall }
         if #available(iOS 27.0, macOS 27.0, *) {
             if let e = error as? LanguageModelError {
                 switch e {

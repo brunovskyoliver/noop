@@ -18,6 +18,8 @@ enum AppleCoachFailure: Equatable, Sendable {
     case quota
     /// Private Cloud Compute: the service is down or refused the app.
     case serviceUnavailable
+    /// The model called a tool with arguments that did not decode (the app's tools never throw).
+    case badToolCall
     case other
 }
 
@@ -28,6 +30,8 @@ enum AppleCoachRecovery {
     enum Step: Equatable, Sendable {
         /// Summarise the conversation into a fresh on-device session and ask again.
         case condenseAndRetry
+        /// Ask the same model once more (a malformed tool call is usually a one-off).
+        case retrySame
         /// Ask Apple's servers instead, with this routing change.
         case retryOnPrivateCloud(AppleCoachRoutingInputs)
         /// Stop and show this message.
@@ -35,7 +39,8 @@ enum AppleCoachRecovery {
     }
 
     static func next(_ failure: AppleCoachFailure, route: AppleCoachRoute, inputs: AppleCoachRoutingInputs,
-                     alreadyCondensed: Bool) -> Step {
+                     alreadyCondensed: Bool, alreadyRetried: Bool = false) -> Step {
+        if failure == .badToolCall { return alreadyRetried ? .show(message(.other)) : .retrySame }
         guard route == .onDevice else { return .show(message(failure)) }
         var fallback = inputs
         switch failure {
@@ -76,7 +81,7 @@ enum AppleCoachRecovery {
             return String(localized: "You've reached the current limit for Apple's servers. Coach can use them again later.")
         case .serviceUnavailable:
             return String(localized: "Apple's servers aren't available right now. Try again later.")
-        case .other:
+        case .badToolCall, .other:
             return String(localized: "Coach couldn't answer that. Try again.")
         }
     }

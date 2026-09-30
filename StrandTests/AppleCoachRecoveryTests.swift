@@ -51,6 +51,17 @@ final class AppleCoachRecoveryTests: XCTestCase {
         }
     }
 
+    /// A malformed tool call is retried once on the same model, then a calm message.
+    func testBadToolCallRetriesOnceThenStops() {
+        XCTAssertEqual(AppleCoachRecovery.next(.badToolCall, route: .onDevice, inputs: inputs(), alreadyCondensed: false),
+                       .retrySame)
+        XCTAssertEqual(AppleCoachRecovery.next(.badToolCall, route: .privateCloud, inputs: inputs(), alreadyCondensed: false),
+                       .retrySame)
+        XCTAssertEqual(AppleCoachRecovery.next(.badToolCall, route: .onDevice, inputs: inputs(), alreadyCondensed: false,
+                                               alreadyRetried: true),
+                       .show(AppleCoachRecovery.message(.other)))
+    }
+
     func testCondensedSummaryKeepsNoNumbers() {
         XCTAssertEqual(AppleCoachClient.withoutNumbers("We talked about sleep. Your HRV was 48 ms. Then caffeine timing."),
                        "We talked about sleep. Then caffeine timing.")

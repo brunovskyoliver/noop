@@ -19,6 +19,14 @@ struct BroopInsightsCoachDemoHost: View {
                 if args.contains("--coach-ping"), #available(iOS 26.0, *) {
                     let m = SystemLanguageModel.default
                     print("COACH_PING availability=\(m.availability) context=\(m.contextSize) en=\(m.supportsLocale(Locale(identifier: "en_US")))")
+                    let probe = await AppleCoachProbe.inputs(fallbackAllowed: true, locale: AppLanguage.activeLocale)
+                    print("COACH_PING routing=\(probe)")
+                    if #available(iOS 27.0, *) {
+                        let pcc = PrivateCloudComputeLanguageModel()
+                        print("COACH_PING pcc=\(pcc.availability) quota=\(pcc.quotaUsage)")
+                        do { print("COACH_PING pccReply=" + (try await LanguageModelSession(model: pcc).respond(to: "Say hello.").content)) }
+                        catch { print("COACH_PING pcc error=\(error)") }
+                    }
                     do { print("COACH_PING bare=" + (try await LanguageModelSession().respond(to: "Say hello.").content)) }
                     catch { print("COACH_PING bare error=\(error)") }
                     do { print("COACH_PING instr=" + (try await LanguageModelSession(instructions: "Answer in one sentence.").respond(to: "Say hello.").content)) }
@@ -34,7 +42,7 @@ struct BroopInsightsCoachDemoHost: View {
                     let reply = coach.messages.last(where: { $0.role == .assistant && !$0.isNotice })
                     let row: [String: Any] = [
                         "question": question,
-                        "reply": reply?.text ?? "",
+                        "reply": coach.errorText == nil ? (reply?.text ?? "") : "",
                         "provider": reply?.provider ?? "",
                         "error": coach.errorText ?? "",
                         "route": "\(r.route)",

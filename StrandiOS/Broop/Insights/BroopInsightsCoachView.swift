@@ -421,6 +421,10 @@ struct BroopInsightsCoachView: View {
         .accessibilityLabel(Text(voice.isRecording ? "Stop voice input" : "Voice input"))
         .accessibilityHint(Text(voice.statusMessage ?? String(localized: "Transcribes your question on-device")))
         .task {
+            #if DEBUG
+            // Seeded verification runs: no permission alert over the screenshots.
+            if CommandLine.arguments.contains("--demo-seed") { return }
+            #endif
             if voice.authorization == .notDetermined { voice.requestAuthorization { _ in } }
         }
     }
