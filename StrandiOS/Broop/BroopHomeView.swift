@@ -50,6 +50,9 @@ struct BroopHomeView: View {
                 }
                 myDayTitle.padding(.top, 34)
                 outlookRow.padding(.top, 14)
+                if coachEnabled && store.dayOffset == 0 {
+                    BroopInsightsCoachBriefCard { router.openCoach() }.padding(.top, 12)
+                }
                 activities(snap).padding(.top, 12)
                 if store.dayOffset == 0 {
                     NavigationLink(value: BroopScreen.alarms) { BroopOverviewTonightCard() }

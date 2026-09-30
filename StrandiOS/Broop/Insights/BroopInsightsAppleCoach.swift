@@ -193,3 +193,86 @@ struct BroopInsightsCoachSettingsSheet: View {
     }
 }
 #endif
+
+#if os(iOS)
+/// Home's Coach brief: the model's headline and a sentence per metric, each beside the metric's value from
+/// the app's resolvers (`CoachFactsSource.briefValue`), so the numbers on the card never come from the model.
+/// Written when the app comes to the foreground, at most once a day and again after new data. The only view
+/// on Home that observes the Coach engine.
+struct BroopInsightsCoachBriefCard: View {
+    @EnvironmentObject private var coach: AICoachEngine
+    @Environment(\.scenePhase) private var scenePhase
+    let onOpenCoach: () -> Void
+    @State private var values: [String: String] = [:]
+
+    var body: some View {
+        Group {
+            if coach.usesApple, let brief = coach.appleBrief, brief.day == Repository.dayString(Date()) {
+                Button(action: onOpenCoach) { card(brief) }
+                    .buttonStyle(BroopPressableStyle())
+                    .task(id: brief) { values = await load(brief) }
+            }
+        }
+        .task(id: scenePhase) {
+            if scenePhase == .active { await coach.refreshAppleBriefIfNeeded() }
+        }
+    }
+
+    private func card(_ brief: AppleCoachBrief) -> some View {
+        BroopCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    BroopBadge(size: 22, gradientRing: true)
+                    BroopCaps(String(localized: "Coach brief"), size: 11)
+                    Spacer()
+                    if brief.offDevice { BroopInsightsAppleServersLabel() }
+                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .light))
+                        .foregroundStyle(BroopPalette.textSecondary)
+                }
+                Text(verbatim: brief.headline)
+                    .font(BroopType.demi(17))
+                    .foregroundStyle(BroopPalette.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(brief.points, id: \.metric) { point in
+                    if let metric = CoachMetric(rawValue: point.metric) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                BroopCaps(metric.label, size: 9.5, color: BroopPalette.textSecondary)
+                                Text(verbatim: values[point.metric] ?? "--")
+                                    .font(BroopType.number(19))
+                                    .foregroundStyle(BroopPalette.textPrimary)
+                            }
+                            .frame(width: 92, alignment: .leading)
+                            if !point.sentence.isEmpty {
+                                Text(verbatim: point.sentence)
+                                    .font(BroopType.regular(13.5))
+                                    .foregroundStyle(BroopPalette.textBody)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+                Text(verbatim: brief.factsOnly
+                     ? String(localized: "Coach's wording didn't pass the number check, so this shows the values only.")
+                     : String(localized: "Written by Apple Intelligence. The values come from the app."))
+                    .font(BroopType.regular(11.5))
+                    .foregroundStyle(BroopPalette.textTertiary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func load(_ brief: AppleCoachBrief) async -> [String: String] {
+        guard let source = coach.apple.source else { return [:] }
+        var out: [String: String] = [:]
+        for p in brief.points {
+            if let m = CoachMetric(rawValue: p.metric), let v = await source.briefValue(m) { out[p.metric] = v }
+        }
+        return out
+    }
+}
+#endif

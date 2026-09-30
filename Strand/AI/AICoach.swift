@@ -319,6 +319,37 @@ final class AICoachEngine: ObservableObject {
     static let appleServersProvider = "apple-pcc"
     static let noticeProvider = "notice"
 
+    /// Today's Apple Intelligence brief (the Home card and the morning-brief notification), nil before the first.
+    @Published private(set) var appleBrief = AppleCoachBrief.load()
+    private var appleBriefRunning = false
+
+    /// Write today's brief when the app comes to the foreground: once per day, again only after new data
+    /// (`AppleCoachBriefPolicy`), and only with the Coach on, Apple Intelligence chosen and able to answer.
+    func refreshAppleBriefIfNeeded() async {
+        guard usesApple, CoachBriefScheduler.coachMasterEnabled, !appleBriefRunning, let source = apple.source else { return }
+        if appleRoutingInputs == nil { await refreshAppleAvailability() }
+        guard let inputs = appleRoutingInputs, appleAvailability?.canChat == true else { return }
+        let today = Repository.dayString(Date())
+        let key = [today, await source.briefValue(.charge) ?? "-", await source.briefValue(.rest) ?? "-"].joined(separator: "|")
+        guard AppleCoachBriefPolicy.shouldGenerate(stored: appleBrief, today: today, dataKey: key) else { return }
+        appleBriefRunning = true
+        defer { appleBriefRunning = false }
+        if let brief = await apple.brief(inputs: inputs, day: today, dataKey: key) {
+            brief.save()
+            appleBrief = brief
+        }
+    }
+
+    /// Today's Apple brief as text, with the metric values from the resolvers (for the notification/widget).
+    private func appleBriefText() async -> String? {
+        guard let brief = appleBrief, brief.day == Repository.dayString(Date()), let source = apple.source else { return nil }
+        var values: [String: String] = [:]
+        for p in brief.points {
+            if let m = CoachMetric(rawValue: p.metric), let v = await source.briefValue(m) { values[p.metric] = v }
+        }
+        return brief.plainText { values[$0.rawValue] }
+    }
+
     /// Give the Apple Intelligence tools their data (the iOS app's resolvers).
     func attachAppleFacts(_ source: any CoachFactsSource) { apple.attach(source: source) }
 
@@ -1109,7 +1140,13 @@ final class AICoachEngine: ObservableObject {
         // calls, and a caller that skipped the scheduler's own gate would otherwise reach a provider with
         // the AI switched off.
         guard CoachBriefScheduler.coachMasterEnabled else { return nil }
-        guard !usesApple, cloudConfigured, dataConsent, let key = resolvedKey else { return nil }
+        if usesApple {
+            // The same brief as the Home card. Written only in the foreground (background generation is
+            // rate-limited); a background wake reuses today's stored brief or reports none.
+            if Platform.isAppActive { await refreshAppleBriefIfNeeded() }
+            return await appleBriefText()
+        }
+        guard cloudConfigured, dataConsent, let key = resolvedKey else { return nil }
         let context = await buildFullContext()
         let wire: [(role: ChatMessage.Role, content: String)] =
             [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]

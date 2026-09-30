@@ -105,7 +105,67 @@ final class AppleCoachClient {
         return .failed(AppleCoachRecovery.message(.modelUnavailable))
     }
 
+    /// Write today's brief (see `AppleCoachBrief`). Nil when neither model can serve it; the caller keeps
+    /// the stored brief then.
+    func brief(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, macOS 26.0, *) {
+            return await briefWithModel(inputs: inputs, day: day, dataKey: dataKey)
+        }
+        #endif
+        return nil
+    }
+
     #if canImport(FoundationModels)
+
+    /// Guided generation with no tools: the facts go in the prompt (the brief always needs them), the model
+    /// picks metrics and writes sentences without numbers, and the number check runs on its prose. One
+    /// retry, then the values-only brief.
+    @available(iOS 26.0, macOS 26.0, *)
+    private func briefWithModel(inputs start: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
+        guard let source else { return nil }
+        var inputs = start
+        var route = AppleCoachRouting.route(inputs)
+        let facts = await source.todaySnapshot() + "\n" + (await source.sleepPlan())
+        let instructions = Self.instructions()
+        let prompt = "Write today's brief from these facts. Pick the two or three metrics that matter most today. Do not write any numbers.\n\nFACTS:\n" + facts
+        for _ in 0..<2 {
+            guard route != .none else { return nil }
+            let session: LanguageModelSession
+            if route == .privateCloud, #available(iOS 27.0, macOS 27.0, *) {
+                session = LanguageModelSession(model: PrivateCloudComputeLanguageModel(), instructions: instructions)
+            } else {
+                session = LanguageModelSession(model: .default, instructions: instructions)
+            }
+            let offDevice = route == .privateCloud
+            func valid(_ d: CoachBriefDraft) -> Bool {
+                let prose = ([d.headline] + d.points.map(\.sentence)).joined(separator: " ")
+                return CoachNumberValidator.validate(reply: prose, sources: [facts, instructions]).isValid
+            }
+            do {
+                var draft = try await session.respond(to: prompt, generating: CoachBriefDraft.self,
+                                                      options: AppleCoachSessionFactory.factualOptions).content
+                if !valid(draft) {
+                    draft = try await session.respond(to: "Write it again with no numbers at all.", generating: CoachBriefDraft.self,
+                                                      options: AppleCoachSessionFactory.factualOptions).content
+                }
+                guard valid(draft) else {
+                    return AppleCoachBriefPolicy.factsOnly(day: day, dataKey: dataKey, metrics: [.charge, .rest, .sleepDebt],
+                                                           offDevice: offDevice)
+                }
+                return AppleCoachBrief(day: day, dataKey: dataKey, headline: draft.headline,
+                                       points: draft.points.map { .init(metric: $0.metric.metric.rawValue, sentence: $0.sentence) },
+                                       offDevice: offDevice, factsOnly: false)
+            } catch {
+                let failure = Self.failure(error, route: route)
+                guard case .retryOnPrivateCloud(let next) = AppleCoachRecovery.next(failure, route: route, inputs: inputs,
+                                                                                   alreadyCondensed: true) else { return nil }
+                inputs = next
+                route = .privateCloud
+            }
+        }
+        return nil
+    }
 
     @available(iOS 26.0, macOS 26.0, *)
     private func respondWithModel(question: String, history: [ChatMessage], inputs start: AppleCoachRoutingInputs,

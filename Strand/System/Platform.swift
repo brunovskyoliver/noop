@@ -57,6 +57,15 @@ enum Platform {
     /// reads natively when interpolated into translated copy (key "this %@"); the noun itself is a
     /// product name and stays as-is.
     static var deviceNounPhrase: String { String(localized: "this \(deviceNoun)") }
+
+    /// Whether the app is in the foreground (always true on macOS, where there is no background launch).
+    @MainActor static var isAppActive: Bool {
+        #if os(iOS)
+        return UIApplication.shared.applicationState == .active
+        #else
+        return true
+        #endif
+    }
 }
 
 // MARK: - Opening URLs
