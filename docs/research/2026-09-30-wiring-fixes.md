@@ -58,3 +58,13 @@ recorded below when verified.
 - B4 skipped: `HealthKitBridge.readTypes` and `collect` import weight and active/basal calories burned,
   but no `dietaryEnergyConsumed` or daily calorie intake. Burned energy cannot replace intake in
   `AdaptiveExpenditureEngine`. No food logging or Health permission added.
+
+- B2 wired as one merged readout using the better-founded `HRVStatus`, now labelled "HRV readiness"
+  on Broop Health/Monitor, HRV Trend and Charge. It already implements the Plews/Altini SWC band in
+  ln RMSSD, using calendar windows, a baseline excluding the recent week, density and stale-data
+  gates, and neutral "above usual" wording. The older `HRVReadiness.evaluate` squeezes missing
+  nights together, includes the short week in its baseline and labels high HRV "primed".
+  It remains only an explicitly experimental Test Centre comparison. Production Broop views all
+  call `Repository.hrvReadiness(asOf:flaggedDays:)` off-main and show no card without a status.
+  The method sheet states the log-domain arithmetic, gates and limits. Values are shown in ms
+  by exponentiating the mean ln RMSSD; this is distinct from last night's HRV in Charge.

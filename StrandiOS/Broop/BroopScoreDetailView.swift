@@ -97,6 +97,9 @@ struct BroopOverviewChargeScreen: View {
                 signals(readiness).padding(.top, BroopMetrics.section)
             }
 
+            BroopHealthHRVStatusCard(asOf: snap?.dayKey)
+                .padding(.top, BroopMetrics.section)
+
             VStack(spacing: 10) {
                 Button { showBreakdown = true } label: {
                     BroopNavTile(symbol: "chart.bar.doc.horizontal", title: String(localized: "What shaped your Charge"))

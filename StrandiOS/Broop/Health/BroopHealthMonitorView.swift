@@ -262,12 +262,13 @@ private struct BroopHealthCatchUp: View {
 struct BroopHealthHRVStatusCard: View {
     @EnvironmentObject private var model: AppModel
     var showsLink = false
+    var asOf: String? = nil
 
     var body: some View {
         // AppModel republishes about once a second; only the illness flag matters here, and the card below
         // is equatable on it, so a tick re-runs this line and nothing else.
         let unwell = model.illnessSignal.map { $0.level == .raised || $0.level == .alreadyUnwell } == true
-        BroopHealthHRVStatusContent(unwell: unwell, showsLink: showsLink).equatable()
+        BroopHealthHRVStatusContent(unwell: unwell, showsLink: showsLink, asOf: asOf).equatable()
     }
 }
 
@@ -275,37 +276,59 @@ struct BroopHealthHRVStatusCard: View {
 private struct BroopHealthHRVStatusContent: View, Equatable {
     let unwell: Bool
     let showsLink: Bool
+    let asOf: String?
     @EnvironmentObject private var repo: Repository
     @State private var outcome: HRVStatus.Outcome?
+    @State private var showMethod = false
 
-    static func == (a: Self, b: Self) -> Bool { a.unwell == b.unwell && a.showsLink == b.showsLink }
+    static func == (a: Self, b: Self) -> Bool { a.unwell == b.unwell && a.showsLink == b.showsLink && a.asOf == b.asOf }
 
     var body: some View {
         Group {
             if let outcome { linked(outcome) }
         }
-        .task(id: "\(repo.refreshSeq)|\(unwell)") {
-            let nights = repo.days.map { HRVStatus.Night(day: $0.day, rmssd: $0.avgHrv) }
+        .task(id: "\(repo.refreshSeq)|\(unwell)|\(asOf ?? Repository.dayString(Date()))") {
+            outcome = nil
             let today = Repository.dayString(Date())
             let flagged: Set<String> = unwell ? [today] : []
-            outcome = await CancellableAnalysis.run { HRVStatus.evaluate(nights: nights, asOf: today, flaggedDays: flagged) }
+            let result = await repo.hrvReadiness(asOf: asOf ?? today, flaggedDays: flagged)
+            guard !Task.isCancelled else { return }
+            outcome = result
+        }
+        .sheet(isPresented: $showMethod) {
+            NavigationStack {
+                ScrollView {
+                    BroopFootnote(text: String(localized: "The 7-day mean of ln RMSSD is compared with a smallest-worthwhile-change band: the prior 60 calendar days' mean ± 0.5 standard deviations. Values are shown back in milliseconds. The baseline excludes the current week. At least 21 baseline nights and 3 recent nights are required; stale data has no reading. Above usual can follow rest or heavy fatigue. This trend describes your nightly HRV, not a separate Charge score or a diagnosis. The older Test Centre experiment uses valid-night windows and remains a debug comparison only."))
+                        .padding(BroopMetrics.page)
+                }
+                .broopScreenChrome(String(localized: "HRV readiness"))
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button(String(localized: "Done")) { showMethod = false } } }
+            }
+            .preferredColorScheme(.dark)
         }
     }
 
     @ViewBuilder
     private func linked(_ outcome: HRVStatus.Outcome) -> some View {
-        let content = card(outcome)
-        if showsLink {
-            NavigationLink(value: BroopScreen.metric(key: "hrv", source: "my-whoop")) { content }
-                .buttonStyle(BroopPressableStyle())
-        } else {
-            content
+        if case .status = outcome {
+            VStack(alignment: .leading, spacing: BroopMetrics.gap) {
+                if showsLink {
+                    NavigationLink(value: BroopScreen.metric(key: "hrv", source: "my-whoop")) { card(outcome) }
+                        .buttonStyle(BroopPressableStyle())
+                } else {
+                    card(outcome)
+                }
+                Button(String(localized: "How HRV readiness works")) { showMethod = true }
+                    .font(BroopType.medium(BroopMetrics.tileRadius))
+                    .foregroundStyle(BroopPalette.textSecondary)
+                    .frame(minHeight: BroopMetrics.navHeight)
+            }
         }
     }
 
     private func card(_ o: HRVStatus.Outcome) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            BroopHealthCardTitle(title: String(localized: "HRV Status"), trailing: String(localized: "7 nights"), chevron: showsLink)
+            BroopHealthCardTitle(title: String(localized: "HRV readiness"), trailing: String(localized: "7-day trend"), chevron: showsLink)
             switch o {
             case .calibrating(let n):
                 Text("Learning your usual range: \(n) of \(HRVStatus.minBaselineNights) nights.")
@@ -322,7 +345,7 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
                     Text(verbatim: title(r.band)).font(BroopType.demi(16)).foregroundStyle(color(r.band))
                 }
                 rangeBar(r)
-                Text("Usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms · 7-night average")
+                Text(String(localized: "Usual \(Int(r.usualLowMs.rounded()))–\(Int(r.usualHighMs.rounded())) ms · mean ln RMSSD"))
                     .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
                 Text(verbatim: detail(r.band)).font(BroopType.regular(14)).foregroundStyle(BroopPalette.textBody)
                     .fixedSize(horizontal: false, vertical: true)

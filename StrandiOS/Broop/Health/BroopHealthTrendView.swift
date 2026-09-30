@@ -203,6 +203,9 @@ struct BroopHealthTrendView: View {
                     if !ExploreRange.allCases.allSatisfy(isUnlocked) {
                         BroopHealthFootnote(text: String(localized: "Longer ranges unlock as more history builds.")).padding(.top, 10)
                     }
+                    if metric.key == "hrv" {
+                        BroopHealthHRVStatusCard(asOf: end).padding(.top, BroopMetrics.section)
+                    }
                     statistics(eff: eff, win: win, prev: prev).padding(.top, BroopMetrics.section)
                     readings(raw).padding(.top, BroopMetrics.section)
                     correlationCard(eff: eff).padding(.top, BroopMetrics.section)
