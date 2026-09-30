@@ -21,6 +21,7 @@ struct BroopInsightsCoachView: View {
     @State private var showClearConfirm = false
     @State private var showProviderSettings = false
     @State private var showSettings = false
+    @State private var showInfo = false
     @State private var savedNote: String?
     @FocusState private var composerFocused: Bool
     @StateObject private var voice = CoachVoiceInput()
@@ -51,6 +52,7 @@ struct BroopInsightsCoachView: View {
         .sheet(isPresented: $showSettings) {
             BroopInsightsCoachSettingsSheet().environmentObject(coach).environmentObject(repo)
         }
+        .sheet(isPresented: $showInfo) { BroopInsightsCoachInfoSheet().environmentObject(coach) }
         .task(id: scenePhase) {
             // The model can finish downloading, or Apple Intelligence be switched on, while the app is open.
             if scenePhase == .active {
@@ -120,6 +122,7 @@ struct BroopInsightsCoachView: View {
     private var menu: some View {
         Menu {
             Button { showSettings = true } label: { Label(String(localized: "Coach settings"), systemImage: "slider.horizontal.3") }
+            Button { showInfo = true } label: { Label(String(localized: "About Coach"), systemImage: "info.circle") }
             if !coach.usesApple && coach.isConfigured {
                 Button { showProviderSettings = true } label: { Label(String(localized: "Provider settings"), systemImage: "gearshape") }
                     .disabled(coach.sending)

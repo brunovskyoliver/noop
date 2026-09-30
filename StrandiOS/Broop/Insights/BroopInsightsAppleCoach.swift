@@ -122,6 +122,7 @@ struct BroopInsightsCoachSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showProvider = false
     @State private var showCloudSettings = false
+    @State private var showInfo = false
 
     var body: some View {
         NavigationStack {
@@ -147,6 +148,9 @@ struct BroopInsightsCoachSettingsSheet: View {
                             navRow(String(localized: "Data sharing and brief")) { showCloudSettings = true }
                         }
                     }
+                    BroopAccountGroup {
+                        navRow(String(localized: "About Coach and your data")) { showInfo = true }
+                    }
                 }
                 .padding(.horizontal, BroopMetrics.page)
                 .padding(.top, 12)
@@ -157,6 +161,7 @@ struct BroopInsightsCoachSettingsSheet: View {
         }
         .sheet(isPresented: $showProvider) { CoachProviderSettingsView(coach: coach) }
         .sheet(isPresented: $showCloudSettings) { CoachSettingsView().environmentObject(coach).environmentObject(repo) }
+        .sheet(isPresented: $showInfo) { BroopInsightsCoachInfoSheet().environmentObject(coach) }
     }
 
     private func backendRow(_ backend: CoachBackend) -> some View {
@@ -273,6 +278,50 @@ struct BroopInsightsCoachBriefCard: View {
             if let m = CoachMetric(rawValue: p.metric), let v = await source.briefValue(m) { out[p.metric] = v }
         }
         return out
+    }
+}
+#endif
+
+#if os(iOS)
+/// About Coach: where it runs, what leaves the phone and when, what it can and can't do, and that it is not
+/// medical advice. Reached from Coach settings and the Coach menu.
+struct BroopInsightsCoachInfoSheet: View {
+    @EnvironmentObject private var coach: AICoachEngine
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    section(String(localized: "Where Coach runs"),
+                            String(localized: "With Apple Intelligence chosen, Coach runs on this iPhone. Its model looks up your scores, trends, tonight's sleep plan and journal through the app, on the phone."))
+                    section(String(localized: "When a turn uses Apple's servers"),
+                            coach.allowAppleServers
+                            ? String(localized: "If the on-device model can't answer (Apple Intelligence isn't ready, the language isn't supported on the phone, the conversation is too long, or the phone is busy), that turn goes to Apple's Private Cloud Compute. What leaves the phone for that turn: your question and the data Coach looked up for it. Those replies are labelled \"via Apple servers\". You can turn this off in Coach settings. Needs iOS 27.")
+                            : String(localized: "\"Use Apple servers when needed\" is off, so nothing leaves your phone. If the on-device model can't answer, Coach says so instead."))
+                    section(String(localized: "What Coach can do"),
+                            String(localized: "Explain your Charge, Rest, Effort, HRV, stress, energy and sleep in plain language, describe your trends, walk through tonight's plan, and write a short daily brief."))
+                    section(String(localized: "What it can't do"),
+                            String(localized: "It doesn't calculate: every number comes from the app and is checked before a reply is shown. It doesn't diagnose, give medication advice or offer mental-health care, and it can be wrong. Your journal notes are read as notes, never as instructions."))
+                    section(String(localized: "Not medical advice"),
+                            String(localized: "Coach is wellness coaching from a consumer wearable. For anything about your health, talk to a doctor or another professional. In an emergency, call your local emergency number."))
+                    section(String(localized: "Cloud providers"),
+                            String(localized: "If you choose a cloud provider in Coach settings instead, a summary of your data and your question go to that company with your own API key."))
+                }
+                .padding(.horizontal, BroopMetrics.page)
+                .padding(.top, 12)
+                .padding(.bottom, 40)
+            }
+            .background(BroopBackground())
+            .broopSheetBar(String(localized: "About Coach")) { dismiss() }
+        }
+    }
+
+    private func section(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            BroopCaps(title, size: 11)
+            BroopInsightsBody(text: body, size: 15)
+        }
     }
 }
 #endif
