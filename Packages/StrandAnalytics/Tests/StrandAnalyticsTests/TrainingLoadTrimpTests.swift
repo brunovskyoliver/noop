@@ -48,4 +48,20 @@ final class TrainingLoadTrimpTests: XCTestCase {
         let r = ReadinessEngine.evaluate(days: days)
         XCTAssertNil(r.acwr)                                     // 5 < 14 observed days: no ratio
     }
+
+    func testDoubledTrimpDoublesWeeklyLoadAndCtlAtlTsb() {
+        let pattern = [120.0, 180, 240, 60, 300, 90, 210]
+        let easy = (0..<56).map { day($0, strain: StrainScorer.trimpToStrain(pattern[$0 % 7])) }
+        let hard = (0..<56).map { day($0, strain: StrainScorer.trimpToStrain(2 * pattern[$0 % 7])) }
+        let easyWeek = ReadinessEngine.calendarLoads(easy, through: easy.last!.day).acute
+        let hardWeek = ReadinessEngine.calendarLoads(hard, through: hard.last!.day).acute
+        XCTAssertEqual(hardWeek.reduce(0, +) / easyWeek.reduce(0, +), 2, accuracy: 0.003)
+        let a = TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(easy))
+        let b = TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(hard))
+        XCTAssertEqual(b.ctl! / a.ctl!, 2, accuracy: 0.003)
+        XCTAssertEqual(b.atl! / a.atl!, 2, accuracy: 0.003)
+        XCTAssertEqual(b.tsb!, 2 * a.tsb!, accuracy: 0.3)
+        XCTAssertEqual(ReadinessEngine.evaluate(days: easy).monotony!,
+                       ReadinessEngine.evaluate(days: hard).monotony!, accuracy: 0.01)
+    }
 }
