@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// Pins the pure caffeine half-life decay math + the honesty rules of the active estimate (#526). All
@@ -201,5 +202,13 @@ final class CaffeineDecayTests: XCTestCase {
     func testBigDoseNeedsALongerLead() {
         XCTAssertFalse(CaffeineDecay.isPastCutoff(intakeMinutes: 10 * 60, bedtimeMinutes: 23 * 60, doseMg: 95))
         XCTAssertTrue(CaffeineDecay.isPastCutoff(intakeMinutes: 10 * 60, bedtimeMinutes: 23 * 60, doseMg: 400))
+    }
+
+    /// No stand-in bedtime while tonight's plan loads: the cutoff has no bedtime until the plan exists, and
+    /// then it is the plan's own (guarded) bedtime.
+    func testCutoffBedtimeIsThePlansOrNone() {
+        XCTAssertNil(CaffeineLogCard.planBedtimeMinutes(nil))
+        let plan = SleepPlanner.plan(.init(baseNeedHours: 8, wakeMinute: 7 * 60))
+        XCTAssertEqual(CaffeineLogCard.planBedtimeMinutes(plan), plan.target.bedMinute)
     }
 }

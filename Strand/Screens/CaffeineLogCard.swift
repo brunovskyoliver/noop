@@ -1,5 +1,6 @@
 import SwiftUI
 import StrandDesign
+import StrandAnalytics
 
 /// Caffeine window (#526) — log a caffeine intake (time + OPTIONAL mg) and see a plain on-device
 /// "still active" hint. OPT-IN, manual-first: nothing shows until the user logs an intake, and the
@@ -32,8 +33,13 @@ struct CaffeineLogCard: View {
     @AppStorage(Self.cutoffEnabledKey) private var cutoffEnabled = false
     static let cutoffEnabledKey = "noop.caffeine.cutoffNudge"
 
-    /// Tonight's planned bedtime (minutes after midnight); 23:00 only until the first plan is built.
-    private var bedtimeMinutes: Int { model.tonightPlan?.target.bedMinute ?? 23 * 60 }
+    /// Tonight's planned bedtime (minutes after midnight), nil while the first plan is being built.
+    private var bedtimeMinutes: Int? { Self.planBedtimeMinutes(model.tonightPlan) }
+
+    /// The cutoff's bedtime: the plan's, or none while it loads. There is no stand-in bedtime, so the card
+    /// shows a loading line instead of a cutoff worked back from a time nobody planned. Shared with the
+    /// Broop caffeine page.
+    static func planBedtimeMinutes(_ plan: SleepPlanner.Plan?) -> Int? { plan?.target.bedMinute }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
@@ -113,8 +119,8 @@ struct CaffeineLogCard: View {
                     .labelsHidden().toggleStyle(.switch).tint(StrandPalette.accent)
                     .accessibilityLabel("Warn me about caffeine close to bedtime")
             }
-            if cutoffEnabled {
-                (Text("Last regular coffee (95 mg) by about \(cutoffTimeLabel), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
+            if cutoffEnabled, let bedtimeMinutes {
+                (Text("Last regular coffee (95 mg) by about \(cutoffTimeLabel(bedtimeMinutes)), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -125,6 +131,10 @@ struct CaffeineLogCard: View {
                                                                               : StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            } else if cutoffEnabled {
+                Text("Working out tonight's bedtime…")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
         }
     }
@@ -151,17 +161,18 @@ struct CaffeineLogCard: View {
         }
     }
 
-    /// Count of TODAY's logged intakes past their own cutoff for tonight's bedtime (the store keeps 48 h;
-    /// yesterday's evening coffee is not about tonight). Uses the shared decay model's `isPastCutoff`, with
-    /// each intake's own dose, so the UI and the cutoff math can't drift.
     /// The planner's own "not reachable tonight" note when its median-bedtime guard set this bedtime.
     private var unreachableSuffix: Text {
         guard let plan = model.tonightPlan, !plan.target.reachable else { return Text(verbatim: "") }
         return Text(verbatim: " " + TonightPlanCard.unreachableNote)
     }
 
+    /// Count of TODAY's logged intakes past their own cutoff for tonight's bedtime (the store keeps 48 h;
+    /// yesterday's evening coffee is not about tonight). Uses the shared decay model's `isPastCutoff`, with
+    /// each intake's own dose, so the UI and the cutoff math can't drift. Zero until the plan exists.
     private var latePastCutoffCount: Int {
-        store.intakes.filter { intake in
+        guard let bedtimeMinutes else { return 0 }
+        return store.intakes.filter { intake in
             Calendar.current.isDateInToday(intake.at)
                 && CaffeineDecay.isPastCutoff(intakeMinutes: minutesSinceMidnight(intake.at),
                                               bedtimeMinutes: bedtimeMinutes, doseMg: intake.mg)
@@ -171,7 +182,7 @@ struct CaffeineLogCard: View {
     /// Estimated mg still active at tonight's bedtime from intakes with a known dose; nil when none has one.
     private var mgAtBedtime: Double? {
         let known = store.intakes.filter { $0.mg != nil }
-        guard !known.isEmpty else { return nil }
+        guard !known.isEmpty, let bedtimeMinutes else { return nil }
         let cal = Calendar.current
         var bed = cal.date(byAdding: .minute, value: bedtimeMinutes, to: cal.startOfDay(for: tick)) ?? tick
         if bedtimeMinutes < 12 * 60 { bed = cal.date(byAdding: .day, value: 1, to: bed) ?? bed }   // after midnight
@@ -187,7 +198,7 @@ struct CaffeineLogCard: View {
     }
 
     /// The cutoff time-of-day label, derived from bedtime minus the dose-decay lead (shared model).
-    private var cutoffTimeLabel: String {
+    private func cutoffTimeLabel(_ bedtimeMinutes: Int) -> String {
         timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes))
     }
 

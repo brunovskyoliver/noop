@@ -20,8 +20,8 @@ struct BroopFinalACaffeinePage: View {
     private let ticker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     private let quickHoursAgo = [0, 1, 2, 3]
 
-    /// Tonight's planned bedtime in minutes after midnight; 23:00 only until the first plan exists.
-    private var bedtimeMinutes: Int { model.tonightPlan?.target.bedMinute ?? 23 * 60 }
+    /// Tonight's planned bedtime in minutes after midnight; nil (a loading line) until the first plan exists.
+    private var bedtimeMinutes: Int? { CaffeineLogCard.planBedtimeMinutes(model.tonightPlan) }
 
     var body: some View {
         ScrollView {
@@ -139,20 +139,25 @@ struct BroopFinalACaffeinePage: View {
                                    isOn: $cutoffEnabled)
                 if cutoffEnabled {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline) {
-                            BroopCaps(String(localized: "Last regular coffee by"), size: 10, color: BroopPalette.textSecondary)
-                            Spacer()
-                            Text(verbatim: timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes)))
-                                .font(BroopType.number(20)).foregroundStyle(BroopPalette.textPrimary)
-                        }
-                        (Text("Last regular coffee (95 mg) by about \(timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes))), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
-                            .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if let mg = mgAtBedtime, mg >= 1 {
-                            Text("About \(Int(mg.rounded())) mg from what you logged will still be active at bedtime.")
-                                .font(BroopType.regular(13))
-                                .foregroundStyle(mg > CaffeineDecay.bedtimeResidualMg ? BroopPalette.warning : BroopPalette.textSecondary)
+                        if let bedtimeMinutes {
+                            HStack(alignment: .firstTextBaseline) {
+                                BroopCaps(String(localized: "Last regular coffee by"), size: 10, color: BroopPalette.textSecondary)
+                                Spacer()
+                                Text(verbatim: timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes)))
+                                    .font(BroopType.number(20)).foregroundStyle(BroopPalette.textPrimary)
+                            }
+                            (Text("Last regular coffee (95 mg) by about \(timeLabel(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: bedtimeMinutes))), for bed at \(timeLabel(bedtimeMinutes)) from tonight's sleep plan. A bigger dose needs an earlier cutoff.") + unreachableSuffix)
+                                .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
+                            if let mg = mgAtBedtime, mg >= 1 {
+                                Text("About \(Int(mg.rounded())) mg from what you logged will still be active at bedtime.")
+                                    .font(BroopType.regular(13))
+                                    .foregroundStyle(mg > CaffeineDecay.bedtimeResidualMg ? BroopPalette.warning : BroopPalette.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            Text("Working out tonight's bedtime…")
+                                .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -207,7 +212,8 @@ struct BroopFinalACaffeinePage: View {
     }
 
     private var latePastCutoffCount: Int {
-        store.intakes.filter { intake in
+        guard let bedtimeMinutes else { return 0 }
+        return store.intakes.filter { intake in
             Calendar.current.isDateInToday(intake.at)
                 && CaffeineDecay.isPastCutoff(intakeMinutes: minutesSinceMidnight(intake.at),
                                               bedtimeMinutes: bedtimeMinutes, doseMg: intake.mg)
@@ -216,7 +222,7 @@ struct BroopFinalACaffeinePage: View {
 
     private var mgAtBedtime: Double? {
         let known = store.intakes.filter { $0.mg != nil }
-        guard !known.isEmpty else { return nil }
+        guard !known.isEmpty, let bedtimeMinutes else { return nil }
         let cal = Calendar.current
         var bed = cal.date(byAdding: .minute, value: bedtimeMinutes, to: cal.startOfDay(for: tick)) ?? tick
         if bedtimeMinutes < 12 * 60 { bed = cal.date(byAdding: .day, value: 1, to: bed) ?? bed }
