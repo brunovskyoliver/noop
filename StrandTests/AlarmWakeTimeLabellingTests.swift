@@ -131,7 +131,9 @@ final class AlarmWakeTimeLabellingTests: XCTestCase {
         let src = try Self.alarmViewSource()
         XCTAssertFalse(src.contains("heroTime(label: \"Wake\","),
                        "the hero's wake figure is the wind-down input, so it cannot be labelled \"Wake\"")
-        XCTAssertTrue(src.contains("heroTime(label: \"Usual wake\","),
+        // Named for what tonight's reminder is derived from: the strap alarm when it sets tonight's wake
+        // (the plan and the reminder share that wake), else the usual wake time.
+        XCTAssertTrue(src.contains("heroTime(label: windDownTonight.fromAlarm ? \"Strap alarm\" : \"Usual wake\","),
                       "name it for what it is")
     }
 
