@@ -8,6 +8,10 @@ import WhoopStore
 
 /// Journal by voice for one journal day. From the evening review that is tomorrow's (see
 /// `AppleCoachEveningPolicy.journalDay`); from the Journal screen, the day it shows.
+///
+/// Voice only, like a voice-mode assistant: listening starts as the sheet opens, a circle follows the voice,
+/// and no transcript is shown; DONE stops and fills in the journal. A text field appears only when voice
+/// can't be used on this iPhone (no permission, or no on-device speech for the language).
 struct BroopInsightsVoiceJournalSheet: View {
     var day: Date = AppleCoachEveningPolicy.journalDay(for: Date())
     var onSaved: () -> Void = {}
@@ -32,7 +36,11 @@ struct BroopInsightsVoiceJournalSheet: View {
     @State private var proposals: [CoachJournalProposal] = []
     @State private var choices: [CoachJournalParse.Choice] = []
     @State private var saving = false
+    @State private var listeningSince: Date?
     @FocusState private var fieldFocused: Bool
+
+    /// Voice can be used, or can be once the person grants permission.
+    private var voiceAvailable: Bool { voice.canUseVoice || voice.authorization == .notDetermined }
 
     var body: some View {
         NavigationStack {
@@ -42,11 +50,15 @@ struct BroopInsightsVoiceJournalSheet: View {
                     case .input, .failed:
                         inputStep
                     case .reading:
-                        HStack(spacing: 12) {
-                            ProgressView().tint(BroopPalette.textSecondary)
-                            BroopInsightsBody(text: String(localized: "Matching what you said to your journal…"))
+                        if voiceAvailable {
+                            voiceStage
+                        } else {
+                            HStack(spacing: 12) {
+                                ProgressView().tint(BroopPalette.textSecondary)
+                                BroopInsightsBody(text: String(localized: "Filling in your journal…"))
+                            }
+                            .padding(.top, 30)
                         }
-                        .padding(.top, 30)
                     case .review:
                         reviewStep
                     }
@@ -72,27 +84,23 @@ struct BroopInsightsVoiceJournalSheet: View {
 
     private var inputStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            BroopInsightsHeadline(text: String(localized: "How was your day?"))
-            BroopInsightsBody(text: String(localized: "Say what you ate, drank and did, like \"two coffees, the last one after lunch, a beer with dinner, phone in bed\". Coach matches it to your journal questions on this iPhone, and you check the answers before anything is saved."))
-            BroopInsightsBody(text: String(localized: "Saves to your journal for \(day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(AppLanguage.activeLocale))), the morning these habits affect."),
-                              size: 13, color: BroopPalette.textSecondary)
-            TextField(String(localized: "Tap the microphone or type here"), text: $transcript, axis: .vertical)
-                .font(BroopType.regular(17))
-                .foregroundStyle(BroopPalette.textPrimary)
-                .lineLimit(4...10)
-                .focused($fieldFocused)
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.07)))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(voice.isRecording ? BroopInsightsPalette.coachPurple : Color.white.opacity(0.10), lineWidth: 1.3))
-            HStack {
-                Spacer()
-                micButton
-                Spacer()
-            }
-            .padding(.top, 4)
-            if let status = voice.statusMessage {
-                BroopInsightsBody(text: status, size: 13, color: BroopPalette.textSecondary)
+            if voiceAvailable {
+                voiceStage
+            } else {
+                BroopInsightsHeadline(text: String(localized: "How was your day?"))
+                BroopInsightsBody(text: String(localized: "Type what you ate, drank and did. Coach fills in your journal on this iPhone, and you check the answers before anything is saved."))
+                savesToLine
+                TextField(String(localized: "Two coffees, a beer with dinner, phone in bed…"), text: $transcript, axis: .vertical)
+                    .font(BroopType.regular(17))
+                    .foregroundStyle(BroopPalette.textPrimary)
+                    .lineLimit(4...10)
+                    .focused($fieldFocused)
+                    .padding(16)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.07)))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.10), lineWidth: 1.3))
+                if let status = voice.statusMessage {
+                    BroopInsightsBody(text: status, size: 13, color: BroopPalette.textSecondary)
+                }
             }
             if case .failed(let message) = phase {
                 BroopInsightsNote(symbol: "exclamationmark.bubble", title: nil, text: message)
@@ -100,18 +108,60 @@ struct BroopInsightsVoiceJournalSheet: View {
         }
     }
 
-    private var micButton: some View {
-        Button { toggleVoice() } label: {
-            Image(systemName: voice.isRecording ? "stop.fill" : "mic.fill")
-                .font(.system(size: 26, weight: .medium))
-                .foregroundStyle(voice.isRecording ? Color.white : Color.black)
-                .frame(width: 76, height: 76)
-                .background(Circle().fill(voice.isRecording ? BroopInsightsPalette.hurts : Color.white))
-                .contentShape(Circle())
+    private var savesToLine: some View {
+        BroopInsightsBody(text: String(localized: "Saves to your journal for \(day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(AppLanguage.activeLocale))), the morning these habits affect."),
+                          size: 13, color: BroopPalette.textSecondary)
+    }
+
+    /// The voice-only stage: prompt, the circle (tap to start or finish), and what is happening now.
+    private var voiceStage: some View {
+        VStack(spacing: 0) {
+            Text(verbatim: String(localized: "How was your day?"))
+                .font(BroopType.demi(26))
+                .foregroundStyle(BroopPalette.textPrimary)
+                .padding(.top, 8)
+            Text(verbatim: String(localized: "Say what you ate, drank and did. Coach fills in your journal on this iPhone, and you check it before anything is saved."))
+                .font(BroopType.regular(15))
+                .foregroundStyle(BroopPalette.textBody)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+            Button { orbTapped() } label: {
+                BroopVoiceOrb(level: voice.level, mode: phase == .reading ? .thinking : (voice.isRecording ? .listening : .idle))
+                    .frame(width: 230, height: 230)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            // Not `.disabled`: that would dim the circle while it shows Coach working.
+            .allowsHitTesting(phase != .reading)
+            .sensoryFeedback(.start, trigger: voice.isRecording)
+            .accessibilityLabel(Text(voice.isRecording ? "Finish and fill in my journal" : "Start talking"))
+            .padding(.top, 34)
+            stageStatus
+                .padding(.top, 26)
+            savesToLine
+                .multilineTextAlignment(.center)
+                .padding(.top, 28)
         }
-        .buttonStyle(BroopPressableStyle())
-        .disabled(!(voice.canUseVoice || voice.authorization == .notDetermined))
-        .accessibilityLabel(Text(voice.isRecording ? "Stop voice input" : "Voice input"))
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder private var stageStatus: some View {
+        if phase == .reading {
+            BroopCaps(String(localized: "Filling in your journal"), size: 12, color: BroopPalette.textSecondary)
+        } else if voice.isRecording, let since = listeningSince {
+            TimelineView(.periodic(from: since, by: 1)) { ctx in
+                let s = max(0, Int(ctx.date.timeIntervalSince(since)))
+                HStack(spacing: 10) {
+                    BroopCaps(String(localized: "Listening"), size: 12, color: BroopPalette.textPrimary)
+                    Text(verbatim: String(format: "%d:%02d", s / 60, s % 60))
+                        .font(BroopType.number(15))
+                        .foregroundStyle(BroopPalette.textSecondary)
+                }
+            }
+        } else {
+            BroopCaps(String(localized: "Tap to talk"), size: 12, color: BroopPalette.textSecondary)
+        }
     }
 
     private var reviewStep: some View {
@@ -130,11 +180,6 @@ struct BroopInsightsVoiceJournalSheet: View {
                 .padding(.horizontal, 16)
                 .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius, style: .continuous).fill(BroopPalette.card))
             }
-            Text(verbatim: "\u{201C}" + transcript.trimmingCharacters(in: .whitespacesAndNewlines) + "\u{201D}")
-                .font(BroopType.regular(13.5))
-                .foregroundStyle(BroopPalette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
         }
     }
 
@@ -216,9 +261,13 @@ struct BroopInsightsVoiceJournalSheet: View {
         VStack(spacing: 10) {
             switch phase {
             case .input, .failed:
-                BroopInsightsPrimaryButton(title: String(localized: "Fill in my journal"), symbol: "sparkles") { read() }
-                    .disabled(transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .opacity(transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                if !voiceAvailable {
+                    BroopInsightsPrimaryButton(title: String(localized: "Fill in my journal"), symbol: "sparkles") { read() }
+                        .disabled(transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .opacity(transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                } else if voice.isRecording {
+                    BroopInsightsPrimaryButton(title: String(localized: "Done")) { finishListening() }
+                }
             case .reading:
                 EmptyView()
             case .review:
@@ -226,7 +275,7 @@ struct BroopInsightsVoiceJournalSheet: View {
                     BroopInsightsPrimaryButton(title: String(localized: "Save to journal")) { save() }
                         .disabled(saving || !proposals.contains(where: Self.isComplete))
                 }
-                BroopInsightsOutlineButton(title: String(localized: "Start over")) { phase = .input }
+                BroopInsightsOutlineButton(title: String(localized: "Start over")) { startOver() }
             }
         }
         .padding(.horizontal, 20)
@@ -248,37 +297,57 @@ struct BroopInsightsVoiceJournalSheet: View {
             CoachJournalParse.Choice(canonical: $0.canonical, display: $0.display, unit: $0.kind.unitLabel, isNumeric: $0.kind.isNumeric)
         }
         #if DEBUG
-        // Verification only: `--voice-journal-text "…"` reads that text as if dictated.
+        // Verification only: `--voice-journal-text "…"` reads that text as if dictated; seeded runs don't
+        // open the microphone.
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--voice-journal-text"), i + 1 < args.count {
             transcript = args[i + 1]
             read()
+            return
         }
+        if args.contains("--demo-seed") { return }
         #endif
+        // Voice mode: listening starts as the sheet opens.
+        if voiceAvailable, phase == .input { startListening() }
     }
 
-    private func toggleVoice() {
-        if voice.isRecording {
-            voice.stopTranscribing { final in
-                let t = final.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !t.isEmpty { transcript = t }
-            }
-        } else if voice.authorization == .notDetermined {
+    private func orbTapped() {
+        if voice.isRecording { finishListening() } else { startListening() }
+    }
+
+    /// Start listening, asking for permission the first time. The transcript is kept, never shown.
+    private func startListening() {
+        if case .failed = phase { phase = .input }
+        if voice.authorization == .notDetermined {
             voice.requestAuthorization { state in
-                if state == .authorized { startDictation() }
+                if state == .authorized { startListening() }
             }
-        } else {
-            startDictation()
+            return
+        }
+        transcript = ""
+        voice.startTranscribing { transcript = $0 }
+        if voice.isRecording { listeningSince = Date() }
+    }
+
+    /// Stop listening and fill in the journal from everything said.
+    private func finishListening() {
+        voice.stopTranscribing { final in
+            listeningSince = nil
+            let said = final.trimmingCharacters(in: .whitespacesAndNewlines)
+            transcript = said.isEmpty ? transcript : said
+            if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                phase = .failed(String(localized: "I didn't catch anything. Tap the circle and try again."))
+            } else {
+                read()
+            }
         }
     }
 
-    /// Dictation continues after what is already in the field.
-    private func startDictation() {
-        fieldFocused = false
-        let prefix = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        voice.startTranscribing { partial in
-            transcript = prefix.isEmpty ? partial : prefix + " " + partial
-        }
+    private func startOver() {
+        transcript = ""
+        proposals = []
+        phase = .input
+        if voiceAvailable { startListening() }
     }
 
     private func read() {
@@ -329,6 +398,45 @@ struct BroopInsightsVoiceJournalSheet: View {
     private func close() {
         if voice.isRecording { voice.stopTranscribing { _ in } }
         dismiss()
+    }
+}
+
+/// The voice-mode circle: still when idle, swelling with the voice while listening, slowly turning while
+/// Coach fills in the journal. Coach's purple-to-cyan gradient.
+struct BroopVoiceOrb: View {
+    enum Mode: Equatable { case idle, listening, thinking }
+    let level: Double
+    let mode: Mode
+
+    var body: some View {
+        TimelineView(.animation(paused: mode == .idle)) { ctx in
+            let t = ctx.date.timeIntervalSinceReferenceDate
+            let voice = mode == .listening ? level : 0
+            ZStack {
+                ForEach(0..<3, id: \.self) { i in
+                    let ring = Double(i)
+                    Circle()
+                        .stroke(gradient(angle: t * 20 + ring * 40), lineWidth: 1.5)
+                        .opacity(mode == .idle ? 0.16 : 0.42 - ring * 0.12)
+                        .scaleEffect(0.78 + ring * 0.1 + voice * (0.12 + ring * 0.05)
+                                     + (mode == .idle ? 0 : 0.015 * sin(t * 2.2 + ring)))
+                }
+                Circle()
+                    .fill(gradient(angle: mode == .thinking ? t * 90 : t * 12))
+                    .scaleEffect(0.62 + voice * 0.16 + (mode == .thinking ? 0.02 * sin(t * 3) : 0))
+                    .shadow(color: BroopInsightsPalette.coachPurple.opacity(mode == .idle ? 0.2 : 0.35 + voice * 0.3),
+                            radius: 24 + voice * 20)
+                Image(systemName: mode == .listening ? "stop.fill" : (mode == .thinking ? "sparkles" : "mic.fill"))
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Color.white)
+            }
+            .animation(.easeOut(duration: 0.12), value: level)
+        }
+    }
+
+    private func gradient(angle: Double) -> AngularGradient {
+        AngularGradient(colors: [BroopInsightsPalette.coachPurple, BroopInsightsPalette.coachCyan, BroopInsightsPalette.coachPurple],
+                        center: .center, angle: .degrees(angle))
     }
 }
 
