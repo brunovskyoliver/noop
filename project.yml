@@ -329,6 +329,9 @@ targets:
         com.apple.developer.healthkit.background-delivery: true
         com.apple.security.application-groups:
           - $(APP_GROUP_ID)
+        # Fork change: the Apple Intelligence Coach's opt-out fallback to Apple's Private Cloud Compute
+        # (iOS 27+). Off-device processing is a deliberate fork decision; see AppleCoachRouting.route.
+        com.apple.developer.private-cloud-compute: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).noop
