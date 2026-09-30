@@ -908,6 +908,10 @@ struct CoachView: View {
     private func send(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !coach.sending else { return }
+        // Stop dictation first: a running session would write its transcript back into the cleared field.
+        #if os(iOS)
+        if voiceInput.isRecording { voiceInput.stopTranscribing { _ in } }
+        #endif
         draft = ""
         composerFocused = false
         Task { await coach.send(trimmed) }

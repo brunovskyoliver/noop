@@ -143,6 +143,9 @@ final class CoachVoiceInput: ObservableObject {
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    /// Bumped when a session ends. A recognition result is delivered through a main-actor hop, so one can
+    /// arrive after the session stopped (the message already sent); results from an ended session are dropped.
+    private var sessionID = 0
 
     private func mapSpeech(_ status: SFSpeechRecognizerAuthorizationStatus) -> AuthorizationState {
         switch status {
@@ -177,9 +180,10 @@ final class CoachVoiceInput: ObservableObject {
             return
         }
 
+        let session = sessionID
         let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.sessionID == session else { return }
                 if let result {
                     let text = result.bestTranscription.formattedString
                     self.partialTranscript = text
@@ -213,6 +217,7 @@ final class CoachVoiceInput: ObservableObject {
     }
 
     private func finishSession(completion: @escaping (String) -> Void) {
+        sessionID += 1
         if let audioEngine {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
