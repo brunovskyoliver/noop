@@ -28,12 +28,8 @@ settings:
     SWIFT_EMIT_LOC_STRINGS: YES
     SWIFT_STRICT_CONCURRENCY: minimal
     CODE_SIGN_STYLE: Automatic
-    # Single source of truth for the App Group id shared by the iOS app + its widget / Live Activity
-    # extension. Referenced as $(APP_GROUP_ID) by both targets' entitlements and Info.plist, and read
-    # at runtime via the AppGroupIdentifier Info.plist key (WidgetSnapshot.suiteName) so the value is
-    # never hard-coded in Swift. Built from $(BUNDLE_ID_PREFIX) (see Config/BundleId.xcconfig) — set
-    # BUNDLE_ID_PREFIX in a gitignored Config/BundleIdSecrets.xcconfig to build under your own Apple ID.
-    APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).noop.staging
+    # APP_GROUP_ID is defined in Config/BundleId.xcconfig (not here) so BundleIdSecrets.xcconfig can
+    # override it: a project-level setting here would shadow the xcconfig.
     # Build for both Apple Silicon and Intel so the release runs on every Mac.
     ARCHS: "$(ARCHS_STANDARD)"
   configs:

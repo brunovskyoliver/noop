@@ -1,6 +1,8 @@
 # Personal iOS refresh job
 
-This private macOS LaunchAgent keeps a free-Apple-ID NOOP installation signed without leaving the Xcode GUI open.
+This private macOS LaunchAgent keeps a development-signed NOOP installation signed without leaving the Xcode GUI open. A free Personal Team's profiles last seven days; a paid team's last a year, so the agent then stays idle until shortly before the yearly expiry.
+
+Switching teams changes the app's application identifier, and iOS rejects that as an upgrade (`MismatchedApplicationIdentifierEntitlement`): the old app has to be deleted, which deletes its data. Copy the app's data container off the phone first (`xcrun devicectl device copy from --domain-type appDataContainer`), install the new build, copy it back before the first launch, and re-run `install.sh` with the new Team ID. Keychain items do not carry over. If the default App Group id is still registered to the old team, set `APP_GROUP_ID` in `Config/BundleIdSecrets.xcconfig`.
 
 The agent wakes at login and once an hour. It normally reads the four NOOP provisioning profiles and exits in under a second. When the earliest profile has less than 48 hours remaining, it checks whether the paired iPhone is reachable over USB or the local network. Only then does it archive the old NOOP profiles, run the command-line Xcode build with automatic signing, and install the new app bundle. If the build or signing fails, the archived profiles are moved back so the Mac can still build with them until they expire; when Xcode has no Apple account signed in, the notification says so. A failed installation remains pending and is retried within an hour when the phone is reachable. It never launches `Xcode.app` and does not launch NOOP after a background refresh.
 
