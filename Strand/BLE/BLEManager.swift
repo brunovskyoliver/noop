@@ -830,6 +830,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// trips, BLEManager surfaces the existing re-pair guide (`state.reconnectGuide`) instead of looping
     /// silently. Reset on a clean session / intentional disconnect / a successful connect.
     private var postBondLoop = PostBondTimeoutLoopDetector()
+    private var bondLoopRecovery = BondLoopRecovery()
+    /// App-owned scheduling and reminders follow explicit connection and power-saving choices.
+    var onBackgroundSyncPolicyChanged: (() -> Void)?
     /// Wall time the encrypted bond was established this connection, to measure how soon a drop follows
     /// the bond (the #617 bond-loop tell). nil until bonded; cleared on disconnect.
     private var bondedAt: Date?
@@ -1190,15 +1193,16 @@ public final class BLEManager: NSObject, ObservableObject {
     /// wakes the app when the strap advertises again, including while SUSPENDED — the whole point. Same call
     /// `connectFromSystem`'s targeted path already makes: no new outbound command, nothing written to the
     /// strap, so the BLE safety contract is unaffected. Twin of `OuraLiveSource.issueStandingConnect`.
-    private func issueStandingConnect(whilePausedForBondLoop: Bool = false) {
-        guard whoopConnectAllowed("standing-connect") else { return }
-        guard !intentionalDisconnect else { return }
+    @discardableResult
+    private func issueStandingConnect(whilePausedForBondLoop: Bool = false) -> Bool {
+        guard whoopConnectAllowed("standing-connect") else { return false }
+        guard !intentionalDisconnect else { return false }
         // #1539: the bond-loop pause suppresses this by default, but the paused paths deliberately opt in —
         // a parked, timeout-free connect is what lets that pause end without the user.
-        guard whilePausedForBondLoop || !autoReconnectPausedForBondLoop else { return }
+        guard whilePausedForBondLoop || !autoReconnectPausedForBondLoop else { return false }
         guard central.state == .poweredOn else {
             log("Standing reconnect deferred — Bluetooth not powered on (state=\(central.state.rawValue))")
-            return
+            return false
         }
         // Resolve the target: the held peripheral if it's the pinned strap, else retrieve the pinned UUID.
         let target: CBPeripheral? = {
@@ -1213,18 +1217,19 @@ public final class BLEManager: NSObject, ObservableObject {
             // the escape, exactly as on Android. Outside the pause the fallback is unchanged.
             guard !whilePausedForBondLoop else {
                 log("Bond-loop pause: no cached strap to park a standing connect against — staying passive (#1539)")
-                return
+                return false
             }
             // No cached peripheral to hand CoreBluetooth — fall back to the scanning connect path.
             log("No cached strap for a standing connect — scanning instead")
             connectFromSystem()
-            return
+            return false
         }
         preparePeripheral(p)
         standingConnectAt = Date()
         log("Leaving a STANDING connect outstanding for \(p.identifier) — CoreBluetooth will reconnect "
             + "whenever the strap is reachable, including while the app is suspended (#1413)")
         central.connect(p, options: nil)
+        return true
     }
 
     /// Multi-WHOOP stale-pin recovery (#52). The identifier of the last peripheral that reached a GENUINE
@@ -1611,6 +1616,7 @@ public final class BLEManager: NSObject, ObservableObject {
         if autoReconnectPausedForBondLoop {
             bondGiveUp.reset()
             autoReconnectPausedForBondLoop = false
+            bondLoopRecovery.reset()
             bondLoopPausedAt = nil
         }
         // #1635: the suppression path pauses NOTHING, so the reset above never fires for it. An explicit
@@ -1645,6 +1651,7 @@ public final class BLEManager: NSObject, ObservableObject {
 
     private func connectCore(model: WhoopModel) {
         intentionalDisconnect = false
+        defer { onBackgroundSyncPolicyChanged?() }
         // Connection test mode: stamp when this connect attempt began so didConnect can report the connect
         // latency. A plain Date() assignment, no behaviour change; only read behind the .connection gate.
         connectAttemptStartedAt = Date()
@@ -1746,6 +1753,7 @@ public final class BLEManager: NSObject, ObservableObject {
 
     public func disconnect() {
         intentionalDisconnect = true
+        defer { onBackgroundSyncPolicyChanged?() }
         cancelScanFallback()
         // A user-initiated teardown is a clean slate: clear any #80 marginal-radio fallback so the next
         // (manual) reconnect attempts the full R10/R11 stream again rather than inheriting old suspicion.
@@ -1753,6 +1761,7 @@ public final class BLEManager: NSObject, ObservableObject {
         postBondLoop.reset()   // #617: a clean teardown clears the bond-loop streak so a manual reconnect starts fresh
         bondGiveUp.reset()     // #747/#750: a clean teardown clears the bond-refusal give-up + un-pauses auto-reconnect
         autoReconnectPausedForBondLoop = false
+        bondLoopRecovery.reset()
         bondLoopPausedAt = nil
         state.reconnectGuide = nil   // #711: a user-initiated teardown resolves the re-pair guide (no longer looping)
         readoptingTo = nil   // #52: a clean teardown abandons any in-flight pin handoff
@@ -1773,6 +1782,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// restoration references that point at this strap so NOOP lets go for good — until the user deliberately
     /// reconnects (which clears `intentionalDisconnect` again via connect()).
     public func forgetDevice(_ peripheralId: String?) {
+        defer { onBackgroundSyncPolicyChanged?() }
         let target = peripheralId.flatMap { UUID(uuidString: $0) }
         let isCurrent = target == nil || peripheral?.identifier == target
         // Captured BEFORE the teardown below nils `peripheral`, since a nil argument means "the current
@@ -1810,6 +1820,7 @@ public final class BLEManager: NSObject, ObservableObject {
         HelloSuppressionStore.setSuppressed(releasedUUID, false)
         bondGiveUp.reset()
         autoReconnectPausedForBondLoop = false
+        bondLoopRecovery.reset()
         bondLoopPausedAt = nil
         central.stopScan()
         log("Device removed — released the strap: stopped auto-reconnect, dropped the link, cleared targeting. Put it in pairing mode (blue LEDs) to re-pair if you want it back. (#78)")
@@ -1847,7 +1858,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Minimum time since the pause tripped (or since the last probe) before another salvage probe may
     /// fire. 10 minutes: long enough that a still-held strap sees a handful of bounded attempts per day,
     /// short enough that a strap the user freed reconnects on the next natural app open.
-    static let bondLoopSalvageFloorSeconds: TimeInterval = 10 * 60
+    static let bondLoopSalvageFloorSeconds = BondLoopRecovery.retryFloor
 
     /// Pure gate for the one-shot bond-loop salvage probe: probe ONLY while the pause is latched, with no
     /// live link, no user teardown in force, and at least `bondLoopSalvageFloorSeconds` since the pause
@@ -1880,9 +1891,9 @@ public final class BLEManager: NSObject, ObservableObject {
                                                              connected: Bool,
                                                              intentionalDisconnect: Bool,
                                                              secondsSincePauseTripped: TimeInterval?) -> Bool {
-        guard pausedForBondLoop, !connected, !intentionalDisconnect else { return false }
-        guard let s = secondsSincePauseTripped else { return true }
-        return s >= bondLoopSalvageFloorSeconds
+        BondLoopRecovery.shouldAttempt(paused: pausedForBondLoop, connected: connected,
+                                       intentionalDisconnect: intentionalDisconnect,
+                                       secondsSincePause: secondsSincePauseTripped)
     }
 
     /// #78 hole-1: classify a "the strap refused the encrypted bond" error by its ATT CODE first,
@@ -1927,15 +1938,18 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `bondLoopPausedAt` so a strap that is reachable and still refusing gets one attempt per window
     /// rather than a connect/refuse spin.
     func standingConnectWhilePausedIfDue(now: Date = Date(), justTripped: Bool = false) {
-        let since = justTripped ? nil : bondLoopPausedAt.map { now.timeIntervalSince($0) }
-        guard BLEManager.shouldStandingConnectWhilePaused(
-            pausedForBondLoop: autoReconnectPausedForBondLoop,
+        let since = bondLoopPausedAt.map { now.timeIntervalSince($0) }
+        // The trip can precede LiveState's disconnect reset. Retain the first request until
+        // the paused disconnect branch can park it, and consume it only after submission.
+        let parked = bondLoopRecovery.parkIfDue(
+            paused: autoReconnectPausedForBondLoop,
             connected: state.connected,
             intentionalDisconnect: intentionalDisconnect,
-            secondsSincePauseTripped: since) else { return }
+            secondsSincePause: since, justTripped: justTripped,
+            park: { [self] in issueStandingConnect(whilePausedForBondLoop: true) })
+        guard parked else { return }
         bondLoopPausedAt = now
         log("Bond-loop pause: parking a standing connect so the strap is claimed the moment it is reachable (#1539) - the give-up stays latched")
-        issueStandingConnect(whilePausedForBondLoop: true)
     }
 
     /// Observe the app-foreground notification and run the salvage probe. Installed once per manager from
@@ -2056,6 +2070,7 @@ public final class BLEManager: NSObject, ObservableObject {
     public func setWhoopIsActiveDevice(_ active: Bool) {
         guard whoopIsActiveDevice != active else { return }
         whoopIsActiveDevice = active
+        onBackgroundSyncPolicyChanged?()
         log(active
             ? "WHOOP is the active device again — scanning and reconnecting are allowed"
             : "WHOOP is no longer the active device — not scanning or connecting until it is again (#1881)")
@@ -3309,6 +3324,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Applies on the next re-arm; a live sync in flight is never interrupted.
     public func setLowBatteryOffloadThrottle(_ thresholdPct: Int) {
         lowBatteryOffloadPct = thresholdPct
+        onBackgroundSyncPolicyChanged?()
     }
 
     /// Settings sub-option of Power saving: the user-elected hourly background cadence. Applies on the
@@ -3316,6 +3332,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// interrupted (the cadence is re-read at each re-arm). Twin of Android `setLowRefreshMode`.
     public func setLowRefreshMode(_ enabled: Bool) {
         lowRefreshMode = enabled
+        onBackgroundSyncPolicyChanged?()
     }
 
     /// #477 (Settings): pause the background continuous-HRV stream when the strap is low. Keyed on the
@@ -4861,6 +4878,27 @@ public final class BLEManager: NSObject, ObservableObject {
         requestSync(.manual)
     }
 
+    /// Background maintenance follows the active strap and respects an explicit Disconnect.
+    var expectsBackgroundSync: Bool {
+        !intentionalDisconnect && whoopIsActiveDevice
+            && (peripheral != nil || preferredPeripheralUUID != nil || Self.lastConnectedPeripheralUUID != nil)
+    }
+
+    var backgroundSyncInterval: TimeInterval { TimeInterval(nextBackfillInterval()) }
+
+    /// A refresh wake can retry a paused connection after its cooldown, even when no BLE event arrived.
+    /// Connected links use the same adaptive policy as incoming characteristic notifications.
+    func maintainBackgroundSync() {
+        guard expectsBackgroundSync else { return }
+        if state.connected {
+            requestSync(.notification)
+        } else if autoReconnectPausedForBondLoop {
+            standingConnectWhilePausedIfDue()
+        } else {
+            issueStandingConnect()
+        }
+    }
+
     /// When the iOS "Sync Strap" shortcut asked for a sync while no strap link was ready. The connect
     /// handshake's own on-connect kick consumes it (`connectSyncTrigger`), so a request made while NOOP was
     /// still launching and reconnecting in the background runs as soon as the link can serve, at the
@@ -6304,13 +6342,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // #747: the bond keeps being refused, so auto-reconnect is paused: we stop hammering a strap that
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect. We do NOT schedule a rescan here.
-            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error)); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error)); active reconnect paused after repeated bond failures or short post-bond timeouts; passive recovery remains enabled")
             // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
             // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
             standingConnectWhilePausedIfDue()
             if TestCentre.active(.connection) {
                 state.append(log: "connect down (uptime ends)", domain: .connection)
-                state.append(log: "reconnect paused=bondLoop (strap refusing bond)", domain: .connection)
+                state.append(log: "reconnect paused=bondLoop (bond failures or short post-bond timeouts)", domain: .connection)
             }
         } else if !intentionalDisconnect {
             log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error))")
@@ -6825,6 +6863,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 bondRefusalStreak = 0         // #78: a genuine bond resets the refusal streak
                 bondGiveUp.reset()            // #747/#750: a genuine bond clears the give-up + re-arms auto-reconnect
                 autoReconnectPausedForBondLoop = false
+                bondLoopRecovery.reset()
                 bondLoopPausedAt = nil
                 noteGenuineBond(of: peripheral)   // #52: this strap bonds fine; clears any pin-refusal streak
                 emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked)")

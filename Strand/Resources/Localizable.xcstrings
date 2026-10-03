@@ -1,6 +1,242 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Strap sync needs attention" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Synchronisierung benötigt Aufmerksamkeit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sincronización de la pulsera necesita atención"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La synchronisation du bracelet nécessite votre attention"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sincronização da pulseira precisa de atenção"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sincronizzazione del cinturino richiede attenzione"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronizacja opaski wymaga uwagi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Синхронизация браслета требует внимания"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手环同步需要处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手環同步需要處理"
+          }
+        }
+      }
+    },
+    "Broop hasn't synced your strap recently. Open Broop to reconnect and catch up. Leave it in the app switcher for background sync." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop hat dein Armband seit einiger Zeit nicht synchronisiert. Öffne Broop, um die Verbindung wiederherzustellen und die Daten nachzuladen. Lass die App für die Hintergrundsynchronisierung im App-Umschalter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop lleva un tiempo sin sincronizar tu pulsera. Abre Broop para reconectar y recuperar los datos pendientes. Déjala en el selector de apps para sincronizar en segundo plano."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop n’a pas synchronisé votre bracelet récemment. Ouvrez Broop pour rétablir la connexion et récupérer les données en attente. Gardez l’app dans le sélecteur d’apps pour la synchronisation en arrière-plan."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Broop não sincroniza a tua pulseira há algum tempo. Abre o Broop para voltar a ligar e recuperar os dados em falta. Mantém a app no seletor de apps para sincronizar em segundo plano."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop non sincronizza il cinturino da un po’. Apri Broop per riconnetterlo e recuperare i dati mancanti. Lascia l’app nel selettore delle app per la sincronizzazione in background."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop od pewnego czasu nie synchronizuje opaski. Otwórz Broop, aby ponownie połączyć opaskę i pobrać zaległe dane. Pozostaw aplikację w przełączniku aplikacji, aby synchronizować w tle."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop давно не синхронизировал браслет. Откройте Broop, чтобы восстановить соединение и загрузить недостающие данные. Оставьте приложение в переключателе приложений для синхронизации в фоне."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop 最近未同步你的手环。请打开 Broop 重新连接并补齐数据。将应用保留在应用切换器中，以便在后台同步。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Broop 最近未同步你的手環。請開啟 Broop 重新連接並補齊資料。將 App 保留在 App 切換器中，以便在背景同步。"
+          }
+        }
+      }
+    },
+    "Sync stopped reminder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerung bei gestoppter Synchronisierung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aviso de sincronización detenida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rappel de synchronisation interrompue"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lembrete de sincronização interrompida"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promemoria sincronizzazione interrotta"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przypomnienie o zatrzymanej synchronizacji"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Напоминание об остановке синхронизации"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步停止提醒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步停止提醒"
+          }
+        }
+      }
+    },
+    "Asks you to reopen Broop after 30 minutes without a completed sync, or longer with power saving. It can arrive even if you swipe Broop away. Locking the phone is fine; swiping the app away stops background Bluetooth recovery." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnert dich nach 30 Minuten ohne abgeschlossene Synchronisierung daran, Broop zu öffnen. Im Energiesparmodus dauert es länger. Die Erinnerung kann auch erscheinen, wenn du Broop wegwischst. Das Sperren des Telefons ist kein Problem; das Wegwischen verhindert die Bluetooth-Wiederverbindung im Hintergrund."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Te pide que abras Broop tras 30 minutos sin completar una sincronización, o más tiempo con el ahorro de energía. Puede llegar aunque cierres Broop deslizando. Puedes bloquear el teléfono; cerrar la app deslizando impide la reconexión Bluetooth en segundo plano."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous invite à rouvrir Broop après 30 minutes sans synchronisation terminée, ou plus longtemps en mode économie d’énergie. Il peut arriver même si vous fermez Broop par balayage. Verrouiller le téléphone ne pose pas de problème ; fermer l’app par balayage empêche la reconnexion Bluetooth en arrière-plan."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pede-te que voltes a abrir o Broop após 30 minutos sem uma sincronização concluída, ou mais tempo com a poupança de energia. Pode chegar mesmo que feches o Broop deslizando. Podes bloquear o telefone; fechar a app deslizando impede a reconexão Bluetooth em segundo plano."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ti invita a riaprire Broop dopo 30 minuti senza una sincronizzazione completata, o più a lungo con il risparmio energetico. Può arrivare anche se chiudi Broop scorrendo. Puoi bloccare il telefono; chiudere l’app scorrendo impedisce la riconnessione Bluetooth in background."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przypomina o otwarciu Broop po 30 minutach bez ukończonej synchronizacji lub później w trybie oszczędzania energii. Może się pojawić nawet po zamknięciu Broop gestem. Możesz zablokować telefon; zamknięcie aplikacji gestem uniemożliwia ponowne połączenie Bluetooth w tle."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предлагает открыть Broop через 30 минут без завершённой синхронизации или позже при энергосбережении. Может прийти даже после закрытия Broop смахиванием. Телефон можно блокировать; закрытие приложения смахиванием препятствует восстановлению Bluetooth-соединения в фоне."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 30 分钟内未完成同步，会提醒你重新打开 Broop；省电模式下会等待更久。即使你划掉 Broop，也能收到提醒。锁定手机不影响后台同步；划掉应用会阻止后台蓝牙重连。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 30 分鐘內未完成同步，會提醒你重新開啟 Broop；省電模式下會等待更久。即使你滑掉 Broop，也能收到提醒。鎖定手機不影響背景同步；滑掉 App 會阻止背景藍牙重新連接。"
+          }
+        }
+      }
+    },
     "Ring battery %lld percent" : {
       "localizations" : {
         "de" : {

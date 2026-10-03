@@ -15,6 +15,7 @@ struct BroopAccountNotificationsPage: View {
     @EnvironmentObject private var behavior: BehaviorStore
     @AppStorage("notif.masterEnabled") private var wristAlertsMaster = false
     @AppStorage(WorkoutDetectedNotifier.enabledDefaultsKey) private var workoutDetectedNotifyEnabled = false
+    @AppStorage(SyncStallPolicy.enabledKey) private var syncStallReminderEnabled = true
 
     var body: some View {
         BroopAccountPage(spacing: 30) {
@@ -27,6 +28,9 @@ struct BroopAccountNotificationsPage: View {
             }
             BroopAccountSection(title: String(localized: "Phone notifications")) {
                 BroopAccountGroup {
+                    BroopAccountToggle(title: String(localized: "Sync stopped reminder"),
+                                       detail: String(localized: "Asks you to reopen Broop after 30 minutes without a completed sync, or longer with power saving. It can arrive even if you swipe Broop away. Locking the phone is fine; swiping the app away stops background Bluetooth recovery."),
+                                       isOn: $syncStallReminderEnabled)
                     BroopAccountToggle(title: String(localized: "Detected workouts"),
                                        detail: String(localized: "NOOP already saves sessions it detects on its own. With this on, it lets you know about ten minutes after one ends — one notification per sync at most. Open it to edit or relabel, or mark it not a workout. On \(Platform.deviceNounPhrase) only."),
                                        isOn: $workoutDetectedNotifyEnabled)
@@ -60,6 +64,10 @@ struct BroopAccountNotificationsPage: View {
             }
         }
         .broopAccountChrome(String(localized: "Notifications"))
+        .onChange(of: syncStallReminderEnabled) { _, on in
+            if on { SyncStallReminder.shared.requestAuthorizationIfNeeded() }
+            SyncStallReminder.shared.refresh()
+        }
         .onChange(of: workoutDetectedNotifyEnabled) { _, on in if on { WorkoutDetectedNotifier.requestAuthorization() } }
         .onChange(of: behavior.batteryAlerts) { _, on in if on { BatteryNotifier.requestAuthorization() } }
         .onChange(of: behavior.strainTargetNudge) { _, on in

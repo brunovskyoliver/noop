@@ -99,6 +99,30 @@ struct StrandiOSApp: App {
         }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        StrapSyncBackgroundScheduler.register(
+            expected: { [weak model] in model?.ble.expectsBackgroundSync == true },
+            log: { [weak model] in model?.live.append(log: AppModel.stamped($0)) },
+            operation: { [weak model] in
+                guard let model else { return false }
+                let before = model.live.lastSyncedAt
+                return await StrapSyncBackgroundScheduler.perform(
+                    prepare: { model.ble.maintainBackgroundSync() },
+                    completed: { model.live.lastSyncedAt != before })
+            })
+        StrapSyncBackgroundScheduler.schedule(
+            expected: model.ble.expectsBackgroundSync,
+            log: { model.live.append(log: AppModel.stamped($0)) })
+        SyncStallReminder.shared.attach(
+            to: model.live,
+            expectsSync: { [weak model] in model?.ble.expectsBackgroundSync == true },
+            syncInterval: { [weak model] in model?.ble.backgroundSyncInterval ?? 300 })
+        model.ble.onBackgroundSyncPolicyChanged = { [weak model] in
+            guard let model else { return }
+            SyncStallReminder.shared.refresh()
+            StrapSyncBackgroundScheduler.schedule(
+                expected: model.ble.expectsBackgroundSync,
+                log: { model.live.append(log: AppModel.stamped($0)) })
+        }
         // The Apple Intelligence Coach's tools read the Broop screens' own resolvers.
         model.coach.attachAppleFacts(BroopInsightsCoachFacts(repo: model.repo, model: model))
         // The timed morning brief's BGTask, registered before launch finishes (and permitted in project.yml)
@@ -391,6 +415,7 @@ struct StrandiOSApp: App {
         // safe no-op until the user opts in.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                SyncStallReminder.shared.requestAuthorizationIfNeeded()
                 model.drainPendingIntents(router: router)
                 // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
                 // the background comes back now, whether or not the strap is sending anything.
@@ -435,6 +460,10 @@ struct StrandiOSApp: App {
                     await watch.pushLatest(from: model)
                 }
             } else if phase == .background {
+                SyncStallReminder.shared.refresh()
+                StrapSyncBackgroundScheduler.schedule(
+                    expected: model.ble.expectsBackgroundSync,
+                    log: { model.live.append(log: AppModel.stamped($0)) })
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
