@@ -4812,9 +4812,10 @@ public final class BLEManager: NSObject, ObservableObject {
     /// The single gated entry point for every historical-offload kick. Applies the connection/state
     /// gate AND the BackfillPolicy rate-limiter for the trigger. On a go: records the attempt time
     /// (persisted) and starts the offload.
-    func requestSync(_ trigger: BackfillTrigger) {
+    @discardableResult
+    func requestSync(_ trigger: BackfillTrigger) -> Bool {
         guard BLEManager.shouldRunPeriodicBackfill(
-            connected: state.connected, bonded: state.bonded, backfilling: backfilling) else { return }
+            connected: state.connected, bonded: state.bonded, backfilling: backfilling) else { return false }
         let now = Date().timeIntervalSince1970
         let last = UserDefaults.standard.object(forKey: BLEManager.backfillLastAtKey) as? Double
         let interrupted = UserDefaults.standard.string(forKey: Self.backfillInterruptedKey) == deviceId
@@ -4831,15 +4832,17 @@ public final class BLEManager: NSObject, ObservableObject {
                                        clockUntrusted: clockUntrusted,
                                        interrupted: interrupted,
                                        notificationFloor: TimeInterval(nextBackfillInterval())) else {
-            if case .notification = trigger { return }
+            if case .notification = trigger { return false }
             log("Backfill: \(trigger) skipped (rate-limited; last \(last.map { Int(now - $0) } ?? -1)s ago)")
-            return
+            return false
         }
         if beginBackfill() {
             log("Backfill: trigger=\(trigger) resumedInterruptedAttempt=\(interrupted)")
             UserDefaults.standard.set(now, forKey: BLEManager.backfillLastAtKey)
             UserDefaults.standard.set(deviceId, forKey: Self.backfillInterruptedKey)
+            return true
         }
+        return false
     }
 
     /// CoreBluetooth can wake a suspended process for a notification; a Dispatch timer cannot.
@@ -4888,15 +4891,32 @@ public final class BLEManager: NSObject, ObservableObject {
 
     /// A refresh wake can retry a paused connection after its cooldown, even when no BLE event arrived.
     /// Connected links use the same adaptive policy as incoming characteristic notifications.
-    func maintainBackgroundSync() {
-        guard expectsBackgroundSync else { return }
+    func maintainBackgroundSync() -> StrapSyncBackgroundScheduler.Preparation {
+        guard expectsBackgroundSync else { return .unavailable }
         if state.connected {
-            requestSync(.notification)
+            let started = requestSync(.notification)
+            return Self.backgroundSyncPreparation(
+                connected: state.connected, bonded: state.bonded, backfilling: backfilling,
+                syncStarted: started, hasSyncError: state.lastSyncError != nil,
+                historyPending: state.historyPendingSync, lastCompletedAt: state.lastSyncedAt,
+                now: Date().timeIntervalSince1970, interval: backgroundSyncInterval)
         } else if autoReconnectPausedForBondLoop {
             standingConnectWhilePausedIfDue()
         } else {
             issueStandingConnect()
         }
+        return .waitingForSync
+    }
+
+    /// Only a healthy link with a recent completed offload can finish a wake without waiting.
+    nonisolated static func backgroundSyncPreparation(
+        connected: Bool, bonded: Bool, backfilling: Bool, syncStarted: Bool, hasSyncError: Bool,
+        historyPending: Bool, lastCompletedAt: TimeInterval?, now: TimeInterval, interval: TimeInterval
+    ) -> StrapSyncBackgroundScheduler.Preparation {
+        guard connected, bonded, !backfilling, !syncStarted, !hasSyncError, !historyPending,
+              let lastCompletedAt else { return .waitingForSync }
+        let age = now - lastCompletedAt
+        return age >= 0 && age < interval ? .nothingDue : .waitingForSync
     }
 
     /// When the iOS "Sync Strap" shortcut asked for a sync while no strap link was ready. The connect

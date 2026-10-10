@@ -14,6 +14,8 @@ enum RescoreBackgroundScheduler {
 
     @TaskLocal static var hasExtendedProcessingTime = false
     @TaskLocal static var hasExecutionGrant = false
+    /// Scheduling tests can exercise the suspended-app path on macOS without changing global state.
+    @TaskLocal static var backgroundStateOverride: Bool? = nil
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.noopapp.noop",
                                        category: "RescoreBackground")
@@ -147,6 +149,7 @@ enum RescoreBackgroundScheduler {
     /// `.active` transition drains. The transient `.inactive` cases — app switcher, notification centre,
     /// an incoming call — therefore self-correct within seconds, and the case that matters is never missed.
     static var isBackgrounded: Bool {
+        if let override = backgroundStateOverride { return override }
         #if os(iOS)
         return UIApplication.shared.applicationState != .active
         #else

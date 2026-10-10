@@ -184,6 +184,10 @@ public struct DeviceRegistryStore: Sendable {
             // namespace. Forgetting a provider must remove those associations too.
             try db.execute(sql: "DELETE FROM scoreInputProvenance WHERE sourceId = ?",
                            arguments: [deviceId])
+            // Wiping a source also removes its revisions. Advance a source-free cache epoch so a
+            // replacement dataset cannot reuse an old in-memory scan with coincidentally equal counters.
+            try db.execute(sql: "INSERT INTO cursors(name, value) VALUES (?, 1) ON CONFLICT(name) DO UPDATE SET value = COALESCE(value, 0) + 1",
+                           arguments: [WhoopStore.analysisInvalidationEpochKey])
         }
     }
 

@@ -112,6 +112,9 @@ final class Collector {
     private var stdHR: [HRSample] = []
     private var stdRR: [RRInterval] = []
     private var stdContact: [WhoopEvent] = []
+    private var stdReadings = 0
+    private var stdBatchStartedAt: TimeInterval?
+    private var stdFlushScheduled = false
     /// Last contact state buffered, so only transitions are recorded. See `shouldRecordContact`.
     private var lastStdContact: StandardHRContact?
     private var batchStartedAt: TimeInterval
@@ -128,7 +131,7 @@ final class Collector {
          log: ((String) -> Void)? = nil,
          onBanked: ((BankedCounts) -> Void)? = nil,
          now: @escaping () -> Int = { Int(Date().timeIntervalSince1970) },
-         monotonic: @escaping () -> TimeInterval = { Date().timeIntervalSinceReferenceDate }) {
+         monotonic: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.store = store; self.deviceId = deviceId; self.policy = policy
         self.enableRawCapture = enableRawCapture
         self.log = log
@@ -294,6 +297,7 @@ final class Collector {
     /// these carry a wall-clock `ts` directly. Auto-flushes ~every 30 readings (~30s).
     func ingestStandardHR(hr: Int, rr: [Int], contact: StandardHRContact? = nil,
                           family: DeviceFamily? = nil, at ts: Int) {
+        let rowsBefore = stdHR.count + stdRR.count + stdContact.count
         let acceptedHR = (30...220).contains(hr) ? 1 : 0
         let acceptedRR = rr.filter { (250...3000).contains($0) }
         if acceptedHR == 1 { stdHR.append(HRSample(ts: ts, bpm: hr)) }
@@ -317,8 +321,19 @@ final class Collector {
             detailed: hostReceivedDetail()) {
             log?(line)
         }
-        if stdHR.count + stdRR.count + stdContact.count >= 30 {
-            Task { @MainActor in await self.flushStandardHR(reason: .cadence) }
+        let rows = stdHR.count + stdRR.count + stdContact.count
+        let time = monotonic()
+        if rows > rowsBefore {
+            stdReadings += 1
+            if stdBatchStartedAt == nil { stdBatchStartedAt = time }
+        }
+        if !stdFlushScheduled, StandardHRBatchPolicy.shouldFlush(
+            readings: stdReadings, rows: rows, elapsedSeconds: time - (stdBatchStartedAt ?? time)) {
+            stdFlushScheduled = true
+            Task { @MainActor in
+                self.stdFlushScheduled = false
+                await self.flushStandardHR(reason: .cadence)
+            }
         }
     }
 
@@ -331,9 +346,12 @@ final class Collector {
         }
         guard !stdHR.isEmpty || !stdRR.isEmpty || !stdContact.isEmpty else { return }
         let hr = stdHR, rr = stdRR, contact = stdContact
+        let readings = stdReadings, startedAt = stdBatchStartedAt
         stdHR.removeAll(keepingCapacity: true)
         stdRR.removeAll(keepingCapacity: true)
         stdContact.removeAll(keepingCapacity: true)
+        stdReadings = 0
+        stdBatchStartedAt = nil
         log?(LivePersistTrace.standardHRFlushAttemptLine(
             reason: reason, offeredHRRows: hr.count, offeredRRRows: rr.count))
         // #1118: census this batch BEFORE it is stored, exactly as the historical path does, so a strap
@@ -362,6 +380,8 @@ final class Collector {
             stdHR.insert(contentsOf: hr, at: 0)
             stdRR.insert(contentsOf: rr, at: 0)
             stdContact.insert(contentsOf: contact, at: 0)
+            stdReadings += readings
+            if let startedAt { stdBatchStartedAt = min(stdBatchStartedAt ?? startedAt, startedAt) }
             stdInsertFailures += 1
             log?(LivePersistTrace.standardHRRebufferedForRetryLine(
                 reason: reason, attemptedHRRows: hr.count, attemptedRRRows: rr.count,

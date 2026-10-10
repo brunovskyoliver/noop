@@ -54,6 +54,7 @@ struct StrandiOSApp: App {
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
 
     init() {
+        LocalPowerMetrics.shared.start()
         // #1008: pin the pre-change Overnight-only default for existing installs before
         // anything reads it. Idempotent; a no-op on fresh installs and after the first launch.
         PuffinExperiment.migrateContinuousHrvOvernightDefault()
@@ -103,7 +104,7 @@ struct StrandiOSApp: App {
             expected: { [weak model] in model?.ble.expectsBackgroundSync == true },
             log: { [weak model] in model?.live.append(log: AppModel.stamped($0)) },
             operation: { [weak model] in
-                guard let model else { return false }
+                guard let model else { return .incomplete }
                 let before = model.live.lastSyncedAt
                 return await StrapSyncBackgroundScheduler.perform(
                     prepare: { model.ble.maintainBackgroundSync() },

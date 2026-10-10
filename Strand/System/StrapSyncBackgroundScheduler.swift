@@ -9,23 +9,44 @@ import BackgroundTasks
 enum StrapSyncBackgroundScheduler {
     static let identifier = (Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".strapsync"
 
-    static func perform(prepare: () -> Void, completed: () -> Bool,
-                        wait: () async throws -> Void = { try await Task.sleep(nanoseconds: 1_000_000_000) },
-                        attempts: Int = 25) async -> Bool {
-        guard !Task.isCancelled else { return false }
-        prepare()
-        for _ in 0..<attempts {
-            guard !Task.isCancelled else { return false }
-            if completed() { return true }
-            do { try await wait() } catch { return false }
+    enum Preparation: Equatable { case nothingDue, waitingForSync, unavailable }
+
+    enum Outcome: Equatable {
+        case alreadyFresh, offloadCompleted, incomplete
+
+        var succeeded: Bool { self != .incomplete }
+        var logLine: String {
+            switch self {
+            case .alreadyFresh: return "Background strap sync: already fresh; no offload needed"
+            case .offloadCompleted: return "Background strap sync: offload completed"
+            case .incomplete: return "Background strap sync: no completed offload during refresh wake"
+            }
         }
-        return !Task.isCancelled && completed()
+    }
+
+    static func perform(prepare: () -> Preparation, completed: () -> Bool,
+                        wait: () async throws -> Void = { try await Task.sleep(nanoseconds: 1_000_000_000) },
+                        attempts: Int = 25) async -> Outcome {
+        guard !Task.isCancelled else { return .incomplete }
+        let preparation = prepare()
+        guard !Task.isCancelled else { return .incomplete }
+        switch preparation {
+        case .nothingDue: return .alreadyFresh
+        case .unavailable: return .incomplete
+        case .waitingForSync: break
+        }
+        for _ in 0..<attempts {
+            guard !Task.isCancelled else { return .incomplete }
+            if completed() { return .offloadCompleted }
+            do { try await wait() } catch { return .incomplete }
+        }
+        return !Task.isCancelled && completed() ? .offloadCompleted : .incomplete
     }
 
     #if os(iOS)
     static func register(expected: @escaping @MainActor () -> Bool,
                          log: @escaping @MainActor (String) -> Void,
-                         operation: @escaping @MainActor () async -> Bool) {
+                         operation: @escaping @MainActor () async -> Outcome) {
         let registered = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { task in
             let completion = Completion(task)
             let worker = Task { @MainActor in
@@ -35,9 +56,9 @@ enum StrapSyncBackgroundScheduler {
                 }
                 schedule(expected: true, log: log)
                 log("Background strap sync: refresh wake granted")
-                let success = await operation()
-                log("Background strap sync: \(success ? "offload completed" : "no completed offload during refresh wake; Bluetooth recovery remains pending")")
-                completion.finish(success && !Task.isCancelled)
+                let outcome = await operation()
+                log(outcome.logLine)
+                completion.finish(outcome.succeeded && !Task.isCancelled)
             }
             task.expirationHandler = {
                 worker.cancel()

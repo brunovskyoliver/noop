@@ -71,7 +71,7 @@ final class IntelligenceEngine: ObservableObject {
     /// storm is made of — writing ~4 KB on each of them to store what is already there is the cost this
     /// avoids. Not an assumption about what the store does with an identical value: it simply is not asked.
     private var stepsMotionCachePersisted = ""
-    /// Per-day steps-calibration motion folds, `[day: (key, motion)]`, keyed by `StepsMotionCache.cacheKey`.
+    /// Per-day steps-calibration motion folds, `[day: (key, motion)]`, keyed by source and raw revisions.
     /// In-memory and per-process exactly like `dayScanCache`; see `StepsMotionCache` for why this one needs
     /// no config signature. Pruned to the calibration window each pass so it cannot grow without bound.
     private var stepsMotionCache: [String: (key: String, motion: Double)] = [:]
@@ -100,6 +100,14 @@ final class IntelligenceEngine: ObservableObject {
         guard cachedKey.hasSuffix("|" + sleepKey) else { return "storedSleep" }
         guard cachedKey.hasSuffix(suffix) else { return "revision" }
         let cachedBase = String(cachedKey.dropFirst(prefix.count).dropLast(suffix.count))
+        if baseKey.hasPrefix("window-v1|") {
+            let old = cachedBase.split(separator: "|", omittingEmptySubsequences: false)
+            let fresh = baseKey.split(separator: "|", omittingEmptySubsequences: false)
+            let fields = ["format", "owner", "family", "skinAnchor", "rrAlias5", "hrvWindowDetail"]
+            guard old.count == fresh.count, fresh.count == fields.count else { return "cacheKey" }
+            return zip(old, fresh).enumerated().first { $0.element.0 != $0.element.1 }
+                .map { fields[$0.offset] } ?? "none"
+        }
         return AnalyzeRecentDayCache.missReason(cachedKey: cachedBase, freshKey: baseKey)
     }
 
@@ -703,12 +711,9 @@ final class IntelligenceEngine: ObservableObject {
             // A short recent-night pass gets its own opportunity. Old history debt must not prevent
             // publishing a newly arrived night. Failed attempts are throttled across process restarts.
             let recentBefore = recentPassCompletions
-            // The short pass marks a debt of its own when it starts and never settles it. Only a debt that
-            // was already outstanding before it ran says anything about an interrupted earlier pass.
-            let owedBefore = RescoreBackgroundScheduler.isRescoreOwed
             // The backstop tick (`force: false`) is not a real update and must not score while backgrounded;
             // the full pass below skips it for the same reason.
-            if force, RescoreBackgroundScheduler.isBackgrounded,
+            if maxDays > 3, force, RescoreBackgroundScheduler.isBackgrounded,
                !RescoreBackgroundScheduler.hasExtendedProcessingTime {
                 let last = UserDefaults.standard.double(forKey: "noop.recentAnalysisAttempt")
                 if Date().timeIntervalSince1970 - last >= 300 {
@@ -719,12 +724,21 @@ final class IntelligenceEngine: ObservableObject {
                                                      triggerLabel: triggerLabel)
                     }
                 }
+                guard !Task.isCancelled else { return }
+                // The short wake publishes recent nights. Starting the 21-night maintenance pass
+                // immediately afterward only repeats preparation under another twenty-second budget.
+                if RescoreBackgroundScheduler.isBackgrounded {
+                    RescoreBackgroundScheduler.markRescoreOwed()
+                    RescoreBackgroundScheduler.schedule(log: { [weak self] in self?.diagnosticSink?($0, nil) })
+                    diagnosticSink?("re-score: older history queued for processing after the recent-night opportunity", nil)
+                    return
+                }
             }
             guard !Task.isCancelled else { return }
             // The background execution grant is about 20 s. Running the same recent nights a second time
             // spent that budget before the full pass even started, so it was cancelled and deferred more often.
             let recentDone = recentPassCompletions != recentBefore
-            await RescoreBackgroundScheduler.run(owesOnDefer: force, passInProgress: recentDone && !owedBefore,
+            await RescoreBackgroundScheduler.run(owesOnDefer: force, passInProgress: recentDone,
                                                  log: { [weak self] in self?.diagnosticSink?($0, nil) }) {
                 await self.analyzeRecent(maxDays: maxDays, force: force, skipIfUnchanged: skipIfUnchanged,
                                          triggerLabel: triggerLabel, recentPublished: recentDone)
@@ -771,24 +785,10 @@ final class IntelligenceEngine: ObservableObject {
               let respCfg = Baselines.metricCfg["resp"],
               let skinCfg = Baselines.metricCfg["skin_temp"] else { return }
 
-        // #836 (idle-tick gate): re-scoring a 21-day window re-reads ~21×54 h of raw data and re-runs
-        // analyzeDay over it. After a big Apple Health import (a reporter's: 2.1 M rows, ~190 k HR/day) that
-        // is multi-second, memory-heavy work, and the 15-minute steady-state tick (AppModel) repeats it
-        // every tick even when NOTHING new landed — the ongoing lag/crash in #836. A cheap whole-history HR
-        // fingerprint (HR count+maxTs plus indexed row frontiers, no rows materialized) lets a NON-forced
-        // caller short-circuit when the raw streams are unchanged since the last successful run. All-or-nothing: it
-        // never produces a PARTIAL pass, so the window-wide reconciliation (stale-day eviction, detected-
-        // workout delete) is untouched and no computed history is dropped. Every real update path (sync
-        // backfill, import, sleep/workout edit, baseline recalibrate, timestamp heal) calls with the default
-        // `force: true` and always rescores, so a skipped tick can never hide new data.
-        // #1392: fingerprint raw scoring streams ACROSS ALL DEVICES, not the engine's construction-time
-        // `deviceId` (a `let` pinned to "my-whoop", never re-pointed when the active strap changes). On an
-        // Oura / Apple Watch / re-added-WHOOP install the per-device read returned 0, so this gate never
-        // fired and a night finishing after launch stayed unscored until relaunch. Scoring below still reads
-        // the registry's ACTIVE device (`owner`); only this change-detector needed to be cross-device.
-        let rawFingerprint = try? await store.analysisFingerprint()
-        let revisionFingerprint = try? await store.analysisRevisionFingerprint()
-        let wmKey = rawFingerprint.flatMap { raw in revisionFingerprint.map { raw + "|" + $0 } } ?? ""
+        // #836/#1392: idle ticks compare all sources with the last completed pass. Transactional
+        // revisions detect inserts, corrections and deletes without scanning dense sensor tables.
+        // Registry identity also invalidates source-policy changes; edits and recalibration still force.
+        let wmKey = (try? await store.analysisInputFingerprint()) ?? ""
         // #1538: read the stored watermark ONCE for both gates and the attribution line below. There is no
         // suspension point between them, so the three reads this replaces could not disagree — but the log
         // line asserting `newData` and the gate deciding whether to run must be the SAME comparison by
@@ -1245,7 +1245,7 @@ final class IntelligenceEngine: ObservableObject {
                 // its `providedSleep` is empty and the reuse is byte-identical — and since #1801 a WHOOP with
                 // NO gravity gets an HR-only `providedSleep` instead, which is derived from the very HR the
                 // key already fingerprints, so the reuse stays sound by a different route). The per-day key folds the
-                // night's HR fingerprint (a narrower per-day witness than the whole-pass raw-input gate) and, for a
+                // night's raw-input revisions (a narrower witness than the whole-pass gate) and, for a
                 // 4.0, the window-wide skin anchor (a re-anchor from another night shifts that night's skin
                 // conversion without moving its HR). A 5/MG banks skin-temp centidegrees directly — no
                 // per-device raw anchor — so its anchor slot stays nil. Pass-global inputs (profile/
@@ -1270,26 +1270,13 @@ final class IntelligenceEngine: ObservableObject {
                         }
                         skinAnchorResolvedOwners.insert(owner)
                     }
-                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to),
-                       let streamFp = try? await store.dayStreamFingerprint(deviceId: owner, from: from, to: to) {
-                        let baseKey = AnalyzeRecentDayCache.cacheKey(
-                            owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
-                            skinAnchorRaw: skinAnchorByOwner[owner],
-                            // #29: the OTHER scored streams for this night. Without it a night whose R-R
-                            // (or resp/SpO2) landed after its HR keys identically to the HR-only scan it
-                            // was scored from, and the HRV-less result is re-served for the rest of the
-                            // session — force refresh included, since `force` only bypasses the whole-pass
-                            // watermark gate above, never this one. Both reads are index-only aggregates
-                            // over the same `(deviceId, ts)` keys; a miss costs the 7 full stream reads
-                            // this gate exists to skip.
-                            streams: streamFp + "|rrAlias5=\(activeWhoop5RR && owner == Repository.whoopSource)",
-                            // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
-                            // line is ever produced, so the flag describes nothing — but it would still
-                            // flip at midnight and invalidate yesterday, charging EVERY user an extra
-                            // day's re-score to protect lines they never see. Gating it keeps the default
-                            // path exactly as it was.
-                            hrvWindowDetail: hrvTraceActive && dayStart == nowLocalMidnight)
-                        let revision = try? await store.analysisWindowRevision(deviceId: owner, from: from, to: to)
+                    if let revision = try? await store.analysisWindowRevision(deviceId: owner, from: from, to: to) {
+                        // Transactional revisions cover every raw stream and in-place corrections.
+                        // Cache hits must not count millions of unchanged HR/R-R/motion rows first.
+                        let anchor = skinAnchorByOwner[owner].map { String($0.bitPattern) } ?? "nil"
+                        let baseKey = ["window-v1", owner, ownerFamily.rawValue, anchor,
+                                       String(activeWhoop5RR && owner == Repository.whoopSource),
+                                       String(hrvTraceActive && dayStart == nowLocalMidnight)].joined(separator: "|")
                         // The no-motion/provided-night and legacy band-state fallbacks also read
                         // stored sessions. Hash their exact small payloads so edits invalidate reuse.
                         let ownerSleep = try? await store.sleepSessions(deviceId: owner, from: from, to: to, limit: 4000)
@@ -1305,10 +1292,10 @@ final class IntelligenceEngine: ObservableObject {
                             data.append(bandData)
                             sleepKey = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
                         } else { sleepKey = UUID().uuidString }
-                        // prefix | upstream per-day key | raw-data revision | stored-sleep hash. Kept as
+                        // prefix | source policy | raw-data revision | stored-sleep hash. Kept as
                         // separate parts so a miss can name the part that moved (see `checkpointMissReason`).
-                        let keyPrefix = "scan-v2|" + Self.checkpointBuildTag + "|" + dayCacheConfigSig + "|"
-                        let keySuffix = "|" + (revision ?? UUID().uuidString) + "|" + sleepKey
+                        let keyPrefix = "scan-v3|" + Self.checkpointBuildTag + "|" + dayCacheConfigSig + "|"
+                        let keySuffix = "|" + revision + "|" + sleepKey
                         let key = keyPrefix + baseKey + keySuffix
                         dayCacheKey = key
                         if dayScanCacheLocal[day]?.key != key,
@@ -2824,10 +2811,9 @@ final class IntelligenceEngine: ObservableObject {
             // Per-day motion volume over the calibration window, read from the owner-resolved strap streams.
             // (Owner resolution mirrors the scoring loop; one device installs resolve to `deviceId`.)
             //
-            // Each day is re-folded only when its own gravity witness moved. The fold is pure over that one
-            // stream, so an unchanged witness means an unchanged volume — see `StepsMotionCache`. The
-            // fingerprint is a COUNT/MAX aggregate over the same `(deviceId, ts)` index the read walks, so a
-            // hit replaces a read capped at 200,000 rows with one that returns a single row.
+            // Transactional raw revisions cover gravity corrections and deletes. Checking a few daily
+            // metadata rows avoids counting up to 200,000 unchanged samples before each cached fold.
+            // Other raw streams can invalidate conservatively; the motion formula is unchanged.
             var motion: [String: Double] = [:]
             var motionCacheLocal = inStepsMotionCache
             var motionReused = 0
@@ -2842,13 +2828,10 @@ final class IntelligenceEngine: ObservableObject {
                 let owner = await Self.resolveDayOwner(day: dayKey, from: dayMid, to: dayEnd, store: store,
                                                        devices: regDevices, activeId: regActiveId,
                                                        registry: registry, fallbackDeviceId: stepsFallbackId)
-                // A witness that could not be READ is not a witness. `(0, 0)` would be indistinguishable
-                // from a genuinely empty day, so a failed aggregate could serve a stale zero for a day that
-                // has since gained gravity. On a nil fingerprint the cache is bypassed in both directions:
-                // fold fresh, and store nothing under a key that does not describe anything.
-                let fp = try? await store.gravityFingerprint(deviceId: owner, from: dayMid, to: dayEnd)
-                let key = fp.map { StepsMotionCache.cacheKey(owner: owner, gravityCount: $0.count,
-                                                             gravityMaxTs: $0.maxTs) }
+                // A failed revision read bypasses reuse and cache insertion. Treating it as an empty
+                // day could preserve stale motion after a transient store error.
+                let revision = try? await store.analysisWindowRevision(deviceId: owner, from: dayMid, to: dayEnd)
+                let key = revision.map { "motion-revision-v1|\(owner)|\($0)" }
                 let m: Double
                 if let key, let cached = motionCacheLocal[dayKey], cached.key == key {
                     m = cached.motion
@@ -3169,7 +3152,9 @@ final class IntelligenceEngine: ObservableObject {
         // #1681: a pass that completes while leaving the mark SET looks identical in a capture to one that
         // cleared it. Rare-event evidence, so always-on: it costs a line only when it actually happens,
         // and it is exactly what is missing when someone reports the app re-scoring on every launch.
-        if !settled {
+        if !settleDebt {
+            diagnosticSink?("re-score: recent window published; older history remains pending", nil)
+        } else if !settled {
             diagnosticSink?("re-score: debt NOT settled — a newer re-score was recorded while this pass "
                             + "was running, so the mark stays and another pass will run (#1681)", nil)
         }
