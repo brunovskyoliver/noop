@@ -16,10 +16,6 @@ import StrandImport
 // Pure macOS: Foundation + URLSession + Security (Keychain). Compiles on macOS 13, Swift 5.
 // Provider wire formats live in Providers/: OpenAI.swift, Anthropic.swift, Gemini.swift.
 
-/// One-line privacy note the UI should display verbatim near the composer / settings.
-public let aiCoachPrivacyNote =
-    "Private by default: nothing is sent until you add your own key and ask a question - only a short text summary of your metrics goes to the provider you pick."
-
 // MARK: - Chat model
 
 /// One turn in the coaching conversation.
@@ -970,6 +966,7 @@ final class AICoachEngine: ObservableObject {
         messages = []
         apple.reset()
         cancelFollowUps()
+        conversationDay = nil
         droppedSummary = nil      // K13: reset the summary cache on clear
         droppedSummaryKey = []
         Task { try? await repo.storeHandle()?.clearCoachMessages() }
@@ -981,14 +978,32 @@ final class AICoachEngine: ObservableObject {
     func surfaceScheduledBrief(_ text: String) {
         guard messages.isEmpty else { return }
         appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        conversationDay = Self.localEpochDay()
         persistMessages()
+    }
+
+    /// Retire yesterday's in-memory chat when Coach is opened, before checking for today's
+    /// scheduled brief. A process kept alive overnight does not reload persisted messages, so the
+    /// one-time load check cannot clear that chat. Keep the stored rows until a new turn or brief
+    /// replaces them, as the existing restored-chat path does.
+    func retireStaleConversationIfNeeded() {
+        guard Self.isStaleConversation(lastEpochDay: conversationDay,
+                                       todayEpochDay: Self.localEpochDay()) else { return }
+        messages = []
+        apple.reset()
+        cancelFollowUps()
+        conversationDay = nil
+        droppedSummary = nil
+        droppedSummaryKey = []
     }
 
     /// K5: append an explicitly-generated brief (the Coach settings "Generate now" button) as a new
     /// assistant message, unconditionally — unlike `surfaceScheduledBrief`, this always appends so a
     /// mid-conversation tap still shows the fresh brief.
     func appendGeneratedBrief(_ text: String) {
+        retireStaleConversationIfNeeded()
         appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        conversationDay = Self.localEpochDay()
         persistMessages()
     }
 
@@ -1107,12 +1122,8 @@ final class AICoachEngine: ObservableObject {
 
     /// Retire a transcript from an earlier local day before a new turn (see `send`).
     private func retireStaleConversation() {
-        let today = Self.localEpochDay()
-        if Self.isStaleConversation(lastEpochDay: conversationDay, todayEpochDay: today) {
-            messages = []
-            apple.reset()
-        }
-        conversationDay = today
+        retireStaleConversationIfNeeded()
+        conversationDay = Self.localEpochDay()
     }
 
     /// An Apple Intelligence turn: same transcript, day boundary and persistence as a cloud turn; the reply

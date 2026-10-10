@@ -39,7 +39,7 @@ final class SleepStagerV2RespTrigTests: XCTestCase {
 
     func testCachedTableMatchesDirectDFTBitForBit() {
         var rng = SystemRandomNumberGenerator()
-        var trig: [Int: SleepStagerV2.RespTrig] = [:]
+        var trig: [Int: SleepStagerV2.RespDFT] = [:]
         for _ in 0..<300 {
             // Varying spans hit both fresh and cached grid lengths.
             let span = Int.random(in: 20...215, using: &rng)
@@ -50,7 +50,7 @@ final class SleepStagerV2RespTrigTests: XCTestCase {
                 }
             }
             beats.sort { $0.0 != $1.0 ? $0.0 < $1.0 : $0.1 < $1.1 }
-            let want = direct(beats), got = SleepStagerV2.respRegularity(beats, trig: &trig)
+            let want = direct(beats), got = SleepStagerV2.respRegularity(beats, dft: &trig)
             XCTAssertEqual(want?.bitPattern, got?.bitPattern)
         }
         XCTAssertFalse(trig.isEmpty)

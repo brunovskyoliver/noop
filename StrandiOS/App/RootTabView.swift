@@ -253,7 +253,7 @@ struct RootTabView: View {
             case .devices:
                 showDevices = true
                 router.requestedDestination = nil
-            case .insightsHub, .labBook, .fusedRecord, .rhythm:
+            case .insightsHub, .labBook, .fusedRecord, .rhythm, .alarms:
                 routedPillar = dest
                 router.requestedDestination = nil
             case .coach:
@@ -396,6 +396,7 @@ struct RootTabView: View {
                 // `AICoachEngine.pendingPrompt`); this keeps the switch exhaustive and falls back to Coach if
                 // it ever reaches the host.
                 case .coach: CoachView()
+                case .alarms: SmartAlarmView()
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a

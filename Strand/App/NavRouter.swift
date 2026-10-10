@@ -37,6 +37,7 @@ final class NavRouter: ObservableObject {
         /// The Workouts screen — the detected-workout notification's Edit/tap-through target
         /// (2026-09-21). Which row to focus rides in `pendingWorkout`, consumed by `WorkoutsView`.
         case workouts
+        case alarms
 
         var id: String { rawValue }
 
@@ -79,6 +80,8 @@ final class NavRouter: ObservableObject {
         coach.pendingPrompt = question
         openCoach()
     }
+    /// Open the existing wake-alarm and wind-down settings from Sleep.
+    func openAlarms() { requestedDestination = .alarms }
     /// Open the v5 Insights hub (the n-of-1 "what moves your Charge" surface).
     func openInsightsHub() { requestedDestination = .insightsHub }
     /// Open the Lab Book (private health-records logbook).

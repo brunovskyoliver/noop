@@ -72,7 +72,8 @@ extension IntelligenceEngine {
             let windows = Repository.stressWindows(dayStart: b.start, nextDayStart: b.next, dayEnd: b.end,
                                                    sessions: sessions, workouts: workouts)
             let readFrom = min(b.start, windows.mainSleep?.start ?? b.start)
-            guard let fp = await repo.hrFingerprint(from: readFrom, to: b.end - 1), fp.count > 0 else {
+            let fp = await repo.hrFingerprintUnion(from: readFrom, to: b.end - 1)
+            guard Repository.hrUnionHasRows(fp) else {
                 // Raw retention can expire before the derived history. Preserve the last stored
                 // summary when its source samples are unavailable; this day cannot be re-scored.
                 // Explicit history deletion removes these metric rows in its own transaction.
@@ -94,7 +95,7 @@ extension IntelligenceEngine {
                 continue
             }
             let revision = await repo.stressInputRevision(from: readFrom, to: b.end - 1)
-            let key = [stressAlgoVersion, revision, "\(fp.count)", "\(fp.maxTs)", "\(b.end)",
+            let key = [stressAlgoVersion, revision, fp, "\(b.end)",
                        windows.sleepWindows.map { "\($0.start)-\($0.end)" }.joined(separator: ","),
                        windows.mainSleep.map { "\($0.start)-\($0.end)" } ?? "-",
                        windows.activity.map { "\($0.start)-\($0.end)" }.joined(separator: ","),

@@ -198,13 +198,16 @@ extension Repository {
                                     stored: await stressStoredValues(keys: Self.stressAggregateKeys, from: from, to: to))
         }
         let readFrom = min(b.start, windows.mainSleep?.start ?? b.start)
-        guard let fp = await hrFingerprint(from: readFrom, to: b.end - 1) else { return nil }
+        // The per-id union witness (`hrFingerprintUnion`), not a summed count: a window whose composition
+        // changes without its totals changing must still invalidate the memo.
+        let fp = await hrFingerprintUnion(from: readFrom, to: b.end - 1)
+        guard !fp.isEmpty else { return nil }
         let revision = await stressInputRevision(from: readFrom, to: b.end - 1)
-        let sig = "\(revision)|\(refreshSeq)|\(deviceId)|\(fp.count)|\(fp.maxTs)|\(b.end)|\(windows.sleepWindows.map { "\($0.start)-\($0.end)" })"
+        let sig = "\(revision)|\(refreshSeq)|\(deviceId)|\(fp)|\(b.end)|\(windows.sleepWindows.map { "\($0.start)-\($0.end)" })"
             + "|\(windows.mainSleep.map { "\($0.start)-\($0.end)" } ?? "-")"
             + "|\(windows.activity.map { "\($0.start)-\($0.end)" })|\(pri.floors)|\(pri.nights.map { $0.map { "\($0.hr),\($0.hrSpread),\($0.lnRMSSD ?? -1)" } ?? "-" })"
         if let m = stressDayMemo[memoKey], m.sig == sig { return m.result }
-        guard fp.count > 0 else {
+        guard Self.hrUnionHasRows(fp) else {
             let empty = StressMonitor.analyzeDay(
                 StressMonitor.DayInput(day: dayKey, dayStart: b.start, dayEnd: b.end,
                                        tzOffsetSeconds: TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(b.start))),
@@ -228,6 +231,13 @@ extension Repository {
         if stressDayMemo.count > 12 { stressDayMemo.removeAll() }
         stressDayMemo[memoKey] = (sig, result)
         return result
+    }
+
+    /// Whether a `hrFingerprintUnion` witness ("id:count:maxTs|…") saw any heart rate under any id.
+    nonisolated static func hrUnionHasRows(_ witness: String) -> Bool {
+        witness.split(separator: "|").contains { part in
+            part.split(separator: ":").dropLast().last.map { $0 != "0" } ?? false
+        }
     }
 
     /// Today's analysis (the Stress screen, the Home tile and the Health card all read this one).

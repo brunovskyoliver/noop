@@ -56,6 +56,7 @@ enum BroopScreen: Hashable, Identifiable {
         case .journal: self = .journal
         case .workouts: self = .workouts
         case .coach: self = .coach
+        case .alarms: self = .alarms
         case .liveSession: return nil
         }
     }

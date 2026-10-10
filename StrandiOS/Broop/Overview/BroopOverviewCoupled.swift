@@ -206,8 +206,8 @@ private struct BroopOverviewCoupledBreakdown: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let row, let b = ChargeBreakdownWiring.breakdown(days: repo.days, row: row, sleepPerfPercent: sleepPerf,
-                                                                          hrvBaselineEpoch: Baselines.hrvBaselineEpoch()),
+                    if let row, let baselines = repo.chargeBaselines,
+                       let b = ChargeBreakdownWiring.breakdown(baselines: baselines, row: row, sleepPerfPercent: sleepPerf),
                        !b.drivers.isEmpty {
                         BroopOverviewCard {
                             BroopFinalAChargeBreakdown(drivers: b.drivers, confidence: b.confidence,
