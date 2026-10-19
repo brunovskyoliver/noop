@@ -51,9 +51,16 @@ class RecoveryDriversTest {
             baseline = 30.0, spread = 0.55, nValid = 14,
             nightsSinceUpdate = 0, status = BaselineStatus.TRUSTED,
         )
-        val negativeBelowTie = hrvMarginal(29.991177275907276, 60.0, negativeBaseline)
-        val negativeTie = hrvMarginal(29.99117725828923, 60.0, negativeBaseline)
-        val negativeBeyondTie = hrvMarginal(29.991177240671185, 60.0, negativeBaseline)
+        val negativeRHRBaseline = BaselineState(
+            baseline = 60.0, spread = 1.0, nValid = 14,
+            nightsSinceUpdate = 0, status = BaselineStatus.TRUSTED,
+        )
+        // Swift/JVM oracle fixture: both scores are identical and differ by exactly -0.5.
+        // The old HRV-only fixture's exp() evaluation differed by one score ULP across runtimes.
+        val negativeTieHrv = 29.986244412842062
+        val negativeBelowTie = hrvMarginal(negativeTieHrv + 1e-6, 58.541, negativeBaseline, negativeRHRBaseline)
+        val negativeTie = hrvMarginal(negativeTieHrv, 58.541, negativeBaseline, negativeRHRBaseline)
+        val negativeBeyondTie = hrvMarginal(negativeTieHrv - 1e-6, 58.541, negativeBaseline, negativeRHRBaseline)
         assertTrue(negativeBelowTie.first > -0.5)
         assertEquals(0, negativeBelowTie.second)
         assertEquals(-0.5, negativeTie.first, 0.0)
@@ -91,33 +98,88 @@ class RecoveryDriversTest {
             baseline = 30.0, spread = 0.55, nValid = 14,
             nightsSinceUpdate = 0, status = BaselineStatus.TRUSTED,
         )
+        val rhrBaseline = BaselineState(
+            baseline = 60.0, spread = 1.0, nValid = 14,
+            nightsSinceUpdate = 0, status = BaselineStatus.TRUSTED,
+        )
         val scoreBefore = RecoveryScorer.recovery(
-            hrv = 29.99117725828923, rhr = 60.0, resp = null,
-            hrvBaseline = hrvBaseline, rhrBaseline = null,
+            hrv = 29.986244412842062, rhr = 58.541, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
             respBaseline = null, sleepPerf = null,
         )
         val neutralScore = RecoveryScorer.recovery(
-            hrv = hrvBaseline.baseline, rhr = 60.0, resp = null,
-            hrvBaseline = hrvBaseline, rhrBaseline = null,
+            hrv = hrvBaseline.baseline, rhr = 58.541, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
             respBaseline = null, sleepPerf = null,
         )
 
         // Intentionally omit arg 8 (skinTempDev) to exercise the real default path from #51.
         val drivers = RecoveryDrivers.chargeDrivers(
-            hrv = 29.99117725828923, rhr = 60.0, resp = null,
-            hrvBaseline = hrvBaseline, rhrBaseline = null,
+            hrv = 29.986244412842062, rhr = 58.541, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
             respBaseline = null, sleepPerf = null,
         )
         val scoreAfter = RecoveryScorer.recovery(
+            hrv = 29.986244412842062, rhr = 58.541, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+            respBaseline = null, sleepPerf = null,
+        )
+
+        assertEquals(68.855940620972248, scoreBefore!!, 0.0)
+        assertEquals(69.355940620972248, neutralScore!!, 0.0)
+        assertEquals(-0.5, scoreBefore - neutralScore, 0.0)
+        assertEquals(scoreBefore, scoreAfter)
+        assertEquals(
+            listOf(
+                ChargeDriver(
+                    label = ChargeDriverLabel.RESTING_HEART_RATE,
+                    deltaPoints = 11,
+                    value = 58.541,
+                    baseline = 60.0,
+                    unit = ChargeDriverUnit.BEATS_PER_MINUTE,
+                    verdict = ChargeDriverVerdict.BELOW_BASELINE_SUPPORTING,
+                ),
+                ChargeDriver(
+                    label = ChargeDriverLabel.HEART_RATE_VARIABILITY,
+                    deltaPoints = -1,
+                    value = 29.986244412842062,
+                    baseline = 30.0,
+                    unit = ChargeDriverUnit.MILLISECONDS,
+                    verdict = ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING,
+                ),
+            ),
+            drivers,
+        )
+    }
+
+    @Test fun originalHrvOnlyInputMatchesSwiftScoreAndDriverOracle() {
+        val hrvBaseline = BaselineState(
+            baseline = 30.0, spread = 0.55, nValid = 14,
+            nightsSinceUpdate = 0, status = BaselineStatus.TRUSTED,
+        )
+        val full = RecoveryScorer.recovery(
+            hrv = 29.99117725828923, rhr = 60.0, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = null,
+            respBaseline = null, sleepPerf = null,
+        )!!
+        val neutral = RecoveryScorer.recovery(
+            hrv = hrvBaseline.baseline, rhr = 60.0, resp = null,
+            hrvBaseline = hrvBaseline, rhrBaseline = null,
+            respBaseline = null, sleepPerf = null,
+        )!!
+        val drivers = RecoveryDrivers.chargeDrivers(
             hrv = 29.99117725828923, rhr = 60.0, resp = null,
             hrvBaseline = hrvBaseline, rhrBaseline = null,
             respBaseline = null, sleepPerf = null,
         )
 
-        assertEquals(-0.5, scoreBefore!! - neutralScore!!, 0.0)
-        assertEquals(scoreBefore, scoreAfter)
+        // Verbatim Swift oracle bits for full, neutral and marginal, followed by the complete row.
+        // Keep this original input visible: its score drift also changes the displayed driver points.
         assertEquals(
-            listOf(
+            listOf<Any>(
+                "404cb759b59ded46",
+                "404cf759b59ded46",
+                "bfe0000000000000",
                 ChargeDriver(
                     label = ChargeDriverLabel.HEART_RATE_VARIABILITY,
                     deltaPoints = -1,
@@ -127,7 +189,12 @@ class RecoveryDriversTest {
                     verdict = ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING,
                 ),
             ),
-            drivers,
+            listOf<Any>(
+                java.lang.Long.toHexString(full.toRawBits()),
+                java.lang.Long.toHexString(neutral.toRawBits()),
+                java.lang.Long.toHexString((full - neutral).toRawBits()),
+                drivers.single(),
+            ),
         )
     }
 

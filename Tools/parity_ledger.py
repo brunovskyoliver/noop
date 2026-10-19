@@ -830,14 +830,6 @@ def _parse_properties_content(
     return tuple(out)
 
 
-def parse_properties(root: Path, path: Path, language: str) -> list[Declaration]:
-    return list(
-        _parse_properties_content(
-            str(root.resolve()), str(path.resolve()), language, _read(path)
-        )
-    )
-
-
 NUMBER_PATTERN = (
     r"(?:0[xX][0-9A-Fa-f_]+[lL]?|0[bB][01_]+[lL]?|0[oO][0-7_]+[lL]?|"
     r"(?:\d[\d_]*(?:\.[\d_]*)?|\.[\d_]+)(?:[eE][-+]?\d[\d_]*)?[fFdDlL]?)"
@@ -1017,14 +1009,6 @@ def _parse_constants_content(
             )
         )
     return tuple(out)
-
-
-def parse_constants(root: Path, path: Path, language: str) -> list[Constant]:
-    return list(
-        _parse_constants_content(
-            str(root.resolve()), str(path.resolve()), language, _read(path)
-        )
-    )
 
 
 def _inventory(
@@ -1338,19 +1322,6 @@ def _reference_resolves(reference: TwinReference, symbols: dict[str, set[str]]) 
     if not owners:
         return False
     return reference.target_owner is None or _normal_name(reference.target_owner) in owners
-
-
-def _symbol_names(files: list[Path], functions: list[Declaration]) -> set[str]:
-    """Compatibility helper retained for callers outside this module."""
-    names = {_normal_name(item.name) for item in functions}
-    names.update(_normal_name(path.stem) for path in files)
-    declaration = re.compile(
-        r"\b(?:struct|class|enum|actor|protocol|object|interface|typealias|let|var|val)\s+([A-Za-z_][A-Za-z0-9_]*)\b"
-    )
-    for path in files:
-        masked = _mask_non_code(_read(path))
-        names.update(_normal_name(match.group(1)) for match in declaration.finditer(masked))
-    return names
 
 
 def _constant_pairing(

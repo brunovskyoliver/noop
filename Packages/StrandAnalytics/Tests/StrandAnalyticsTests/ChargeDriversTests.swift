@@ -37,12 +37,21 @@ final class ChargeDriversTests: XCTestCase {
         let negativeBaseline = BaselineState(
             baseline: 30.0, spread: 0.55, nValid: 14,
             nightsSinceUpdate: 0, status: .trusted)
+        let negativeRHRBaseline = BaselineState(
+            baseline: 60.0, spread: 1.0, nValid: 14,
+            nightsSinceUpdate: 0, status: .trusted)
+        // A shared Swift/JVM oracle pins this exact tie. The old no-RHR fixture moved inside the
+        // tie on the JVM because the two platforms round exp's neutral score differently.
+        let negativeTieHRV = 29.986244412842062
         let negativeBelowTie = hrvMarginal(
-            hrv: 29.991177275907276, rhr: 60.0, hrvBaseline: negativeBaseline)
+            hrv: negativeTieHRV + 1e-6, rhr: 58.541,
+            hrvBaseline: negativeBaseline, rhrBaseline: negativeRHRBaseline)
         let negativeTie = hrvMarginal(
-            hrv: 29.99117725828923, rhr: 60.0, hrvBaseline: negativeBaseline)
+            hrv: negativeTieHRV, rhr: 58.541,
+            hrvBaseline: negativeBaseline, rhrBaseline: negativeRHRBaseline)
         let negativeBeyondTie = hrvMarginal(
-            hrv: 29.991177240671185, rhr: 60.0, hrvBaseline: negativeBaseline)
+            hrv: negativeTieHRV - 1e-6, rhr: 58.541,
+            hrvBaseline: negativeBaseline, rhrBaseline: negativeRHRBaseline)
         XCTAssertGreaterThan(negativeBelowTie.raw, -0.5)
         XCTAssertEqual(negativeBelowTie.points, 0)
         XCTAssertEqual(negativeTie.raw, -0.5)
@@ -77,27 +86,70 @@ final class ChargeDriversTests: XCTestCase {
         let hrvBaseline = BaselineState(
             baseline: 30.0, spread: 0.55, nValid: 14,
             nightsSinceUpdate: 0, status: .trusted)
+        let rhrBaseline = BaselineState(
+            baseline: 60.0, spread: 1.0, nValid: 14,
+            nightsSinceUpdate: 0, status: .trusted)
+        let hrv = 29.986244412842062
         let scoreBefore = RecoveryScorer.recovery(
-            hrv: 29.99117725828923, rhr: 60.0, resp: nil,
-            hrvBaseline: hrvBaseline, rhrBaseline: nil,
+            hrv: hrv, rhr: 58.541, resp: nil,
+            hrvBaseline: hrvBaseline, rhrBaseline: rhrBaseline,
             respBaseline: nil, sleepPerf: nil)
         let neutralScore = RecoveryScorer.recovery(
-            hrv: hrvBaseline.baseline, rhr: 60.0, resp: nil,
-            hrvBaseline: hrvBaseline, rhrBaseline: nil,
+            hrv: hrvBaseline.baseline, rhr: 58.541, resp: nil,
+            hrvBaseline: hrvBaseline, rhrBaseline: rhrBaseline,
             respBaseline: nil, sleepPerf: nil)
 
         // Intentionally omit arg 8 (skinTempDev) to exercise the real default path from #51.
         let drivers = RecoveryScorer.chargeDrivers(
-            hrv: 29.99117725828923, rhr: 60.0, resp: nil,
-            hrvBaseline: hrvBaseline, rhrBaseline: nil,
+            hrv: hrv, rhr: 58.541, resp: nil,
+            hrvBaseline: hrvBaseline, rhrBaseline: rhrBaseline,
             respBaseline: nil, sleepPerf: nil)
         let scoreAfter = RecoveryScorer.recovery(
-            hrv: 29.99117725828923, rhr: 60.0, resp: nil,
-            hrvBaseline: hrvBaseline, rhrBaseline: nil,
+            hrv: hrv, rhr: 58.541, resp: nil,
+            hrvBaseline: hrvBaseline, rhrBaseline: rhrBaseline,
             respBaseline: nil, sleepPerf: nil)
 
+        XCTAssertEqual(scoreBefore!, 68.855940620972248)
+        XCTAssertEqual(neutralScore!, 69.355940620972248)
         XCTAssertEqual(scoreBefore! - neutralScore!, -0.5)
         XCTAssertEqual(scoreAfter, scoreBefore)
+        XCTAssertEqual(drivers, [ChargeDriver(
+            label: "Resting heart rate",
+            deltaPoints: 11,
+            valueText: "59 bpm",
+            baselineText: "60 bpm baseline",
+            verdict: "below baseline, supporting recovery"), ChargeDriver(
+            label: "Heart rate variability",
+            deltaPoints: -1,
+            valueText: "30 ms",
+            baselineText: "30 ms baseline",
+            verdict: "slightly below baseline, limiting recovery")])
+    }
+
+    func testOriginalHrvOnlyHalfTiePinsCrossPlatformParity() {
+        // Keep the original input: JVM exp rounding changes its marginal and integer driver.
+        // Expected scores and every row field come from the standalone Swift package oracle.
+        let baseline = BaselineState(
+            baseline: 30.0, spread: 0.55, nValid: 14,
+            nightsSinceUpdate: 0, status: .trusted)
+        let hrv = 29.99117725828923
+        let full = RecoveryScorer.recovery(
+            hrv: hrv, rhr: 60, resp: nil,
+            hrvBaseline: baseline, rhrBaseline: nil,
+            respBaseline: nil, sleepPerf: nil)!
+        let neutral = RecoveryScorer.recovery(
+            hrv: baseline.baseline, rhr: 60, resp: nil,
+            hrvBaseline: baseline, rhrBaseline: nil,
+            respBaseline: nil, sleepPerf: nil)!
+        // skinTempDev remains omitted, preserving the original default-argument path.
+        let drivers = RecoveryScorer.chargeDrivers(
+            hrv: hrv, rhr: 60, resp: nil,
+            hrvBaseline: baseline, rhrBaseline: nil,
+            respBaseline: nil, sleepPerf: nil)
+
+        XCTAssertEqual(full, 57.432425214874954)
+        XCTAssertEqual(neutral, 57.932425214874954)
+        XCTAssertEqual(full - neutral, -0.5)
         XCTAssertEqual(drivers, [ChargeDriver(
             label: "Heart rate variability",
             deltaPoints: -1,

@@ -129,6 +129,35 @@ final class TimestampHealTests: XCTestCase {
         XCTAssertEqual(importedSleeps.count, 1, "imported sleep session preserved")
     }
 
+    func testComputedFloorDayIsRetainedUsingTheUtcBoundary() async throws {
+        let store = try await WhoopStore.inMemory()
+        func day(_ key: String) -> DailyMetric {
+            DailyMetric(day: key, totalSleepMin: 400, efficiency: nil, deepMin: nil, remMin: nil,
+                        lightMin: nil, disturbances: nil, restingHr: nil, avgHrv: nil,
+                        recovery: 0.5, strain: nil, exerciseCount: nil)
+        }
+        _ = try await store.upsertDailyMetrics([
+            day("2023-11-13"), day("2023-11-14"), day("2023-11-15"),
+        ], deviceId: "dev1-noop")
+        _ = try await store.upsertDailyMetrics([day("2023-11-13")], deviceId: "dev1")
+
+        let result = try await store.healImplausibleTimestamps(now: now, todayLocalDayKey: todayKey)
+        XCTAssertEqual(result.computedRowsDeleted, 1)
+        let computed = try await store.dailyMetrics(deviceId: "dev1-noop", from: "1900-01-01", to: "2999-12-31")
+        XCTAssertEqual(computed.map(\.day), ["2023-11-14", "2023-11-15"],
+                       "the floor is a UTC sentinel, even when the local zone has reached November 15")
+        let imported = try await store.dailyMetrics(deviceId: "dev1", from: "1900-01-01", to: "2999-12-31")
+        XCTAssertEqual(imported.map(\.day), ["2023-11-13"])
+    }
+
+    func testUtcFloorDayVectors() {
+        // The same literals are pinned by Android's timestamp-heal oracle test.
+        let probes = [1_699_913_599, 1_699_999_999, 1_700_000_000, 1_700_000_001, 1_700_006_400]
+        XCTAssertEqual(probes.map(WhoopStore.utcDayKey), [
+            "2023-11-13", "2023-11-14", "2023-11-14", "2023-11-14", "2023-11-15",
+        ])
+    }
+
     func testTodayItselfIsKept() async throws {
         // The future-day filter is strict `> todayKey`, so TODAY's own row (== todayKey) survives.
         let store = try await WhoopStore.inMemory()

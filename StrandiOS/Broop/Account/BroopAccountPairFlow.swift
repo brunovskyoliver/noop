@@ -284,6 +284,9 @@ private struct BroopAccountSearchStep: View {
     let onSelect: ((uuid: String, name: String, rssi: Int)) -> Void
     @EnvironmentObject private var ble: BLEManager
     @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     var body: some View {
         let found = ble.discoveredWhoops.sorted { $0.rssi > $1.rssi }
@@ -302,14 +305,20 @@ private struct BroopAccountSearchStep: View {
 
             if found.isEmpty {
                 ZStack {
-                    Circle().stroke(BroopAccountStyle.broadcast.opacity(pulse ? 0 : 0.35), lineWidth: 2)
-                        .frame(width: pulse ? 320 : 120, height: pulse ? 320 : 120)
+                    if !poseStill {
+                        Circle().stroke(BroopAccountStyle.broadcast.opacity(pulse ? 0 : 0.35), lineWidth: 2)
+                            .frame(width: pulse ? 320 : 120, height: pulse ? 320 : 120)
+                            .onAppear {
+                                pulse = false
+                                withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { pulse = true }
+                            }
+                            .onDisappear { pulse = false }
+                    }
                     BroopAccountStrapArt(connected: false)
                         .frame(width: 170, height: 300)
                         .rotationEffect(.degrees(-12))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear { withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { pulse = true } }
             } else {
                 ScrollView {
                     VStack(spacing: BroopAccountStyle.rowGap) {

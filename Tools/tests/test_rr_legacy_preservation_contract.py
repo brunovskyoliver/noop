@@ -8,6 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SWIFT_ENGINE = ROOT / "Strand/Data/IntelligenceEngine.swift"
+SWIFT_HEALTHSPAN = ROOT / "Strand/Data/IntelligenceEngine+Healthspan.swift"
+SWIFT_HEALTHSPAN_REPOSITORY = ROOT / "Strand/Data/Repository+Healthspan.swift"
 ANDROID_PERSISTENCE = (
     ROOT
     / "android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt"
@@ -36,10 +38,29 @@ class LegacyScorePreservationContractTests(unittest.TestCase):
         self.assertNotIn("dailies[index] = fresh.with(avgHrv:", persistence)
 
         derivations = source[persistence_end:]
-        self.assertIn("let fa7 = dailies.sorted", derivations)
         self.assertIn("for d in dailies { faGateByDay[d.day] = d }", derivations)
-        self.assertIn("let vHRVs = fa7.compactMap { $0.avgHrv }", derivations)
+        self.assertIn("let faGate7 = Array(faGateByDay.values.sorted", derivations)
+        self.assertIn("gateDays: faGate7", derivations)
+        self.assertRegex(
+            derivations,
+            r"await Self\.writeWeeklyHealthspan\([^)]*\bfresh:\s*dailies\)",
+        )
         self.assertNotIn("persistedDailies", derivations)
+
+        healthspan = SWIFT_HEALTHSPAN.read_text()
+        self.assertRegex(
+            healthspan,
+            r"await repo\.healthspan\([^)]*\bfresh:\s*fresh\)",
+        )
+        repository = SWIFT_HEALTHSPAN_REPOSITORY.read_text()
+        self.assertRegex(
+            repository,
+            r"await healthspanHistory\([\s\S]*?\bfresh:\s*fresh\)",
+        )
+        self.assertIn(
+            "for d in fresh where d.day >= from && d.day <= to { byDay[d.day] = d }",
+            repository,
+        )
 
     def test_android_also_protects_a_separate_persistence_copy(self) -> None:
         source = ANDROID_PERSISTENCE.read_text()

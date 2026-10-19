@@ -432,10 +432,6 @@ class EchoDetectionWordFilter(unittest.TestCase):
         self.assertTrue(ia._has_translatable_words("Apple Health"))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CatalogSummaryPluralCoverage(unittest.TestCase):
     """The human-readable coverage summary must count plural entries the same way the gate does.
 
@@ -828,3 +824,7 @@ class SwiftCommentMasking(unittest.TestCase):
         text = '// a note mentioning "something"\nDataPendingNote(title: "Real copy")\n'
         masked = ia._mask_swift_comments(text)
         self.assertEqual([lit for _o, lit in ia.swift_string_literals(masked, pattern)], ["Real copy"])
+
+
+if __name__ == "__main__":
+    unittest.main()

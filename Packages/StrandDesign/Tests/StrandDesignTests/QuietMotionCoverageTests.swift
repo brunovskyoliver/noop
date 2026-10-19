@@ -12,8 +12,8 @@ import XCTest
 /// It also pins that the gate keeps reading all three signals. Losing one half is invisible: the
 /// screen looks right in whichever mode still works.
 ///
-/// Lives in the StrandDesign package because `swift-packages.yml` runs it by default, while the app
-/// targets' `StrandTests` only runs under `xcodebuild` (and `app-build.yml` is disabled).
+/// Runs in the package suite and StrandTests. The app workflow covers edits to every scanned UI root,
+/// including app-only changes that do not trigger the package workflow.
 final class QuietMotionCoverageTests: XCTestCase {
 
     /// Directories that ship Apple UI. `android/` has its own census in `PoseStillCoverageTest`.
@@ -231,6 +231,135 @@ final class QuietMotionCoverageTests: XCTestCase {
             not at all). Pass the composed `poseStill` instead:
             \(offenders.joined(separator: "\n"))
             """)
+    }
+
+    // MARK: - Broop control-flow regressions
+
+    private struct BroopLoop {
+        let path: String
+        let type: String
+        let branch: String
+        let ungatedBranch: String
+        let marker: String
+    }
+
+    private static let broopLoops = [
+        BroopLoop(path: "StrandiOS/Broop/Account/BroopAccountPairFlow.swift",
+                  type: "BroopAccountSearchStep", branch: "if!poseStill",
+                  ungatedBranch: "iftrue", marker: ".repeatForever("),
+        BroopLoop(path: "StrandiOS/Broop/FinalB/BroopFinalBOnboarding.swift",
+                  type: "BroopFinalBPairingPulse", branch: "ifactive&&!poseStill",
+                  ungatedBranch: "ifactive&&!reduceMotion", marker: ".repeatForever("),
+        BroopLoop(path: "StrandiOS/Broop/Insights/BroopInsightsEvening.swift",
+                  type: "BroopVoiceOrb", branch: "ifmode==.thinking&&!poseStill",
+                  ungatedBranch: "ifmode==.thinking", marker: "TimelineView(.animation("),
+    ]
+
+    /// Read one view's declaration, excluding unrelated monitors and loops elsewhere in its file.
+    private func broopSource(_ loop: BroopLoop) throws -> String {
+        let source = try String(contentsOf: repoRoot().appendingPathComponent(loop.path), encoding: .utf8)
+        let compact = codeLines(source).joined().filter { !$0.isWhitespace }
+        return try sourceBlock(after: "struct\(loop.type):View", in: compact).body
+    }
+
+    /// Balanced braces keep a sibling branch or another view from supplying the expected marker.
+    /// String literals are skipped so a displayed brace cannot change the declaration's extent.
+    private func sourceBlock(after marker: String, in source: String) throws -> (body: String, tail: String) {
+        guard let match = source.range(of: marker), match.upperBound < source.endIndex,
+              source[match.upperBound] == "{" else {
+            throw Failure("missing source block after \(marker)")
+        }
+        let opening = match.upperBound
+        var depth = 1
+        var quoted = false
+        var escaped = false
+        var index = source.index(after: opening)
+        let start = index
+        while index < source.endIndex {
+            let character = source[index]
+            if quoted {
+                if escaped { escaped = false }
+                else if character == "\\" { escaped = true }
+                else if character == "\"" { quoted = false }
+            } else if character == "\"" {
+                quoted = true
+            } else if character == "{" {
+                depth += 1
+            } else if character == "}" {
+                depth -= 1
+                if depth == 0 {
+                    return (String(source[start..<index]), String(source[source.index(after: index)...]))
+                }
+            }
+            index = source.index(after: index)
+        }
+        throw Failure("unclosed source block after \(marker)")
+    }
+
+    private func validateBroopLoop(_ loop: BroopLoop, source: String) throws {
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw Failure("\(loop.type): \(message)") }
+        }
+        try require(source.contains("@ObservedObjectprivatevarmotion=NoopMotionState.shared"),
+                    "the view must observe the shared monitor")
+        try require(source.contains("@Environment(\\.accessibilityReduceMotion)privatevarreduceMotion"),
+                    "the view must read live Reduce Motion")
+        let gate = try sourceBlock(after: "varposeStill:Bool", in: source)
+        try require(gate.body == "motion.poseStill(reduceMotion)",
+                    "the local gate must delegate to the shared monitor")
+        let body = try sourceBlock(after: "varbody:someView", in: source).body
+        let animated = try sourceBlock(after: loop.branch, in: body)
+        let allLoops = source.components(separatedBy: loop.marker).count - 1
+        let gatedLoops = animated.body.components(separatedBy: loop.marker).count - 1
+        try require(allLoops > 0 && allLoops == gatedLoops,
+                    "every loop in the view must be inside its shared quiet-motion branch")
+        if loop.type == "BroopVoiceOrb" {
+            try require(animated.tail.hasPrefix("else{"), "the voice orb needs a static alternative")
+            let still = try sourceBlock(after: "else", in: animated.tail).body
+            try require(still.contains("orb(at:0)") && !still.contains("TimelineView"),
+                        "the static voice orb must render without any timeline")
+            let orb = try sourceBlock(after: "privatefuncorb(attime:TimeInterval)->someView", in: source)
+            try require(!orb.body.contains("TimelineView"), "the shared orb renderer must not own a timeline")
+        }
+    }
+
+    func testBroopAccountSearchLoopUsesTheSharedQuietMotionBranch() throws {
+        let loop = Self.broopLoops[0]
+        try validateBroopLoop(loop, source: broopSource(loop))
+    }
+
+    func testBroopOnboardingLoopUsesTheSharedQuietMotionBranch() throws {
+        let loop = Self.broopLoops[1]
+        try validateBroopLoop(loop, source: broopSource(loop))
+    }
+
+    func testBroopVoiceOrbUsesTheSharedQuietMotionBranchAndStaticAlternative() throws {
+        let loop = Self.broopLoops[2]
+        try validateBroopLoop(loop, source: broopSource(loop))
+    }
+
+    /// These source checks must reject the actual guard regressions even while the monitor remains.
+    /// The mutations stay in memory; they do not change app files or establish runtime behavior.
+    func testBroopSourceChecksRejectRemovedGuardsAndDisconnectedMonitors() throws {
+        for loop in Self.broopLoops {
+            let source = try broopSource(loop)
+            let ungated = source.replacingOccurrences(of: loop.branch, with: loop.ungatedBranch)
+            XCTAssertNotEqual(source, ungated, "\(loop.type): guard mutation must apply")
+            XCTAssertThrowsError(try validateBroopLoop(loop, source: ungated), loop.type)
+            let bypassed = source.replacingOccurrences(of: loop.branch + "{", with: loop.branch + "||true{")
+            XCTAssertNotEqual(source, bypassed, "\(loop.type): bypass mutation must apply")
+            XCTAssertThrowsError(try validateBroopLoop(loop, source: bypassed), loop.type)
+            let disconnected = source.replacingOccurrences(of: "motion.poseStill(reduceMotion)",
+                                                            with: "reduceMotion")
+            XCTAssertNotEqual(source, disconnected, "\(loop.type): monitor mutation must apply")
+            XCTAssertThrowsError(try validateBroopLoop(loop, source: disconnected), loop.type)
+        }
+        let voice = Self.broopLoops[2]
+        let source = try broopSource(voice)
+        let tickingAlternative = source.replacingOccurrences(of: "else{orb(at:0)}",
+            with: "else{TimelineView(.animation){_inorb(at:0)}}")
+        XCTAssertNotEqual(source, tickingAlternative, "voice static-branch mutation must apply")
+        XCTAssertThrowsError(try validateBroopLoop(voice, source: tickingAlternative))
     }
 
     // MARK: - The gate itself

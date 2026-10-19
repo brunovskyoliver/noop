@@ -217,11 +217,6 @@ enum DataBackup {
         return .intact
     }
 
-    /// Convenience over `verifyWrittenBackup(at:)` for callers that only care whether it passed.
-    static func writtenBackupIsIntact(at url: URL) -> Bool {
-        verifyWrittenBackup(at: url) == .intact
-    }
-
     private static func writeVerifiedBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
         if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: dbURL.path) {
             throw ExportIntegrityFailure(complaint: complaint)

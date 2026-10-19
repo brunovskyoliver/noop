@@ -100,7 +100,7 @@ object DataBackup {
      * #1014 (write-side): a torn write, a truncated ZIP or a half-flushed SAF document on a full disk or
      * a flaky provider, otherwise leaves a `.noopbak` that silently "restores" into an empty store, and
      * is caught only by the import-side quick_check much later, when the original may be long gone. Fail
-     * HERE at write time instead. Twin of the Apple `writtenBackupIsIntact`.
+     * HERE at write time instead. Twin of the Apple `verifyWrittenBackup`.
      *
      * The tail is the cheap half and the half that actually catches a torn write; it is SKIPPED, not
      * failed, when the provider will not report a size, since refusing a good backup because a document

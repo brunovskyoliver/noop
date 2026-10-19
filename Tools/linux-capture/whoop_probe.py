@@ -42,10 +42,6 @@ def u32le(b: bytes, off: int) -> int:
     return int.from_bytes(b[off:off + 4], "little")
 
 
-def words_u32le(body: bytes):
-    return [u32le(body, i) for i in range(0, len(body) - 3)]
-
-
 async def resolve(address: str):
     print(f"scanning to resolve {address} …")
     dev = await BleakScanner.find_device_by_address(address, timeout=20.0)

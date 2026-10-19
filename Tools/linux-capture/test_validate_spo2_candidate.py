@@ -312,10 +312,6 @@ class MultiDeviceBatchTests(unittest.TestCase):
             self.assertEqual(rc, 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class LoadFrameRecordsTest(unittest.TestCase):
     """#103: `whoop_sync.py` writes its captures to a SQLite `frames` table, but this validator read
     only capture.json — so a Linux capture had to be round-tripped through
@@ -1025,3 +1021,7 @@ class AppDbReaderTests(unittest.TestCase):
         with open(cap, "w", encoding="utf-8") as f:
             json.dump(frames, f)
         return {"capture": cap, "export": _write_export(td, nights)}
+
+
+if __name__ == "__main__":
+    unittest.main()

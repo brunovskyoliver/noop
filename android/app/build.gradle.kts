@@ -198,6 +198,8 @@ tasks.matching { isMainSourceSetKspTask(it.name) }.configureEach {
     // UP-TO-DATE and never rewrites it. Observed exactly that: three oracle tests failed with the
     // directory absent, and only `--rerun-tasks` brought it back. Treat an empty or missing export as
     // out-of-date so the next build regenerates it instead of grading nothing.
+    // This also needs full symbol processing (ksp.incremental=false in gradle.properties): an
+    // incremental round after a non-entity edit can skip @Database even when this task executes.
     outputs.upToDateWhen {
         roomSchemaDir.get().asFile.walkTopDown().any { it.isFile && it.extension == "json" }
     }

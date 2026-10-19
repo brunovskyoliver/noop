@@ -12,10 +12,6 @@ final class StrandDesignTests: XCTestCase {
         XCTAssertNil(ChartHoverMath.nearestIndex(to: .zero, positions: []))
     }
 
-    func testVersion() {
-        XCTAssertEqual(StrandDesign.version, "0.1.0")
-    }
-
     func testHexParsing() {
         let c = Color(hex: "#0B0D12").rgbaComponents
         XCTAssertEqual(c.r, 0x0B / 255.0, accuracy: 0.01)

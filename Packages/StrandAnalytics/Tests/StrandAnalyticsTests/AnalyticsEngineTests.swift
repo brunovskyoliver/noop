@@ -5,10 +5,6 @@ import WhoopStore
 
 final class AnalyticsEngineTests: XCTestCase {
 
-    func testVersion() {
-        XCTAssertEqual(StrandAnalytics.version, "0.1.0")
-    }
-
     func testDayStringUTC() {
         // 2021-01-01 00:00:00 UTC == 1609459200.
         XCTAssertEqual(AnalyticsEngine.dayString(1_609_459_200), "2021-01-01")

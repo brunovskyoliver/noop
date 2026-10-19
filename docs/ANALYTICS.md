@@ -25,7 +25,6 @@ Every score also carries a small **confidence tier — Solid / Building / Calibr
 All analytics live in the cross-platform `StrandAnalytics` Swift package. Every entry point is a **pure, deterministic, DB-free** function over its inputs — no I/O, no global state, no network. Persistence and BLE are wired in elsewhere (`WhoopStore`, the app target). This makes the whole package straightforward to unit-test against fixed vectors.
 
 - Package: `Packages/StrandAnalytics/Sources/StrandAnalytics/`
-- Top-level index: `StrandAnalytics.swift` (`StrandAnalytics.version == "0.1.0"`)
 - App reference implementation: `Strand/` (SwiftUI, macOS + iOS). The same `StrandAnalytics` code backs both Swift app targets, and Android (Room/Kotlin) runs equivalent analytics — the number-crunching is shared, so results match across platforms.
 
 ---

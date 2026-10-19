@@ -24,7 +24,7 @@ SPEC.loader.exec_module(check_source_references)
 class SourceReferenceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.docs = self.root / "docs"
         self.sources = self.root / "Sources"
         self.docs.mkdir()

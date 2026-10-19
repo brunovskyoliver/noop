@@ -142,6 +142,8 @@ class RepositoryBaselineTests(unittest.TestCase):
         # dropping the step or hanging a filter off it later. That already happened once to the leg this
         # test guards (#1691), which is why the leg is unfiltered in the first place.
         self.assertIn("tests.test_parity_governance_acceptance", core)
+        for module in ("test_parity_arity", "test_parity_artefact_filter"):
+            self.assertIn(f"tests.{module}", core)
         # #2587: the R-R contract reads IntelligenceEngine.swift and
         # IntelligencePersistence.kt, so its two tests must run on this unfiltered leg.
         self.assertIn("python3 -m unittest -v tests.test_rr_legacy_preservation_contract", core)
@@ -188,8 +190,8 @@ class RepositoryBaselineTests(unittest.TestCase):
         self.assertNotIn("'android/**/*.kt'", governance)
         self.assertNotIn("Tools/tests/**", governance)
         self.assertNotIn("test_german_today_localization", governance)
-        self.assertIn("tests.test_parity_ledger", governance)
-        self.assertIn("tests.test_parity_governance_acceptance", governance)
+        for suite_path in sorted((TOOLS / "tests").glob("test_parity_*.py")):
+            self.assertIn(f"tests.{suite_path.stem}", governance)
         self.assertNotIn("tests.test_rr_legacy_preservation_contract", governance)
         pull_request_paths = governance_paths[:6]
         self.assertFalse(any(

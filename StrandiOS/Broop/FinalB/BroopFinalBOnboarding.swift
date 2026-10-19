@@ -452,6 +452,8 @@ private struct BroopFinalBPairingPulse: View {
     var connecting: Bool
     @State private var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     var body: some View {
         ZStack {
@@ -460,7 +462,7 @@ private struct BroopFinalBPairingPulse: View {
                     .stroke(Color.white.opacity(0.07 + 0.03 * Double(3 - i)), lineWidth: 1)
                     .frame(width: 230 * Double(i) / 3, height: 230 * Double(i) / 3)
             }
-            if active && !reduceMotion {
+            if active && !poseStill {
                 Circle()
                     .stroke(BroopPalette.effort.opacity(0.9), lineWidth: 1.5)
                     .frame(width: 80, height: 80)

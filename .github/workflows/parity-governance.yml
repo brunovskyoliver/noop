@@ -74,11 +74,13 @@ jobs:
             tests.test_parity_governance_acceptance \
             tests.test_parity_disposition_kinds \
             tests.test_parity_harness \
+            tests.test_parity_arity \
+            tests.test_parity_artefact_filter \
             2>&1 | tee "$RUNNER_TEMP/out.txt"
           ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
           echo "collected ${ran:-0} tests"
-          if [ "${ran:-0}" -lt 157 ]; then
-            echo "::error::expected at least 157 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
+          if [ "${ran:-0}" -lt 180 ]; then
+            echo "::error::expected at least 180 parity-governance tests, collected ${ran:-0}; check module registration and update the floor after intentional test removals"
             exit 1
           fi
         working-directory: Tools

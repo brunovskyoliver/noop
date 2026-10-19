@@ -5,7 +5,6 @@ package com.noop.analytics
  *
  * Faithful Kotlin port of the shared model types that the StrandAnalytics Swift
  * package defines and shares across its analyzers:
- *   - StrandAnalytics.swift  → [StrandAnalytics] version marker
  *   - WorkoutDetector.swift  → [UserProfile], [ExerciseSession], [ActivityPoint]
  *   - SleepStager.swift      → [StageSegment], [DetectedSleep], [HypnogramMetrics]
  *   - Baselines.swift        → [MetricCfg], [BaselineStatus], [BaselineState], [Deviation]
@@ -23,11 +22,6 @@ package com.noop.analytics
  * All derived intensity / energy / sleep-stage outputs are APPROXIMATE and not
  * medical advice (see the per-analyzer Swift headers).
  */
-
-/** On-device analytics namespace marker. Mirrors Swift `StrandAnalytics`. */
-object StrandAnalytics {
-    const val VERSION: String = "0.1.0"
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UserProfile (WorkoutDetector.swift)

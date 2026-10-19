@@ -109,10 +109,4 @@ final class BackupWriteIntegrityTests: XCTestCase {
                        .unverifiable)
     }
 
-    /// The convenience wrapper keeps agreeing with the verdict it delegates to.
-    func testTheBooleanWrapperTracksTheVerdict() throws {
-        let good = try makeBackup()
-        XCTAssertTrue(DataBackup.writtenBackupIsIntact(at: good))
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: tmp.appendingPathComponent("absent.noopbak")))
-    }
 }

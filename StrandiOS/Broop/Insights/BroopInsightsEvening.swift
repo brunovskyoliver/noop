@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import StrandDesign
 import WhoopStore
 
 // The evening flow: the Home card's evening review (from 17:00) and journal by voice. The person says how the
@@ -384,21 +385,31 @@ struct BroopVoiceOrb: View {
     enum Mode: Equatable { case idle, listening, thinking }
     let level: Double
     let mode: Mode
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     var body: some View {
-        TimelineView(.animation(paused: mode != .thinking)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            let scale: Double = switch mode {
-            case .idle: 0.86
-            case .listening: 0.88 + level * 0.14
-            case .thinking: 0.84 + 0.04 * sin(t * 2.4)
+        if mode == .thinking && !poseStill {
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { ctx in
+                orb(at: ctx.date.timeIntervalSinceReferenceDate)
             }
-            Circle()
-                .fill(BroopPalette.textPrimary)
-                .opacity(mode == .idle ? 0.9 : 1)
-                .scaleEffect(scale)
-                .animation(.easeOut(duration: 0.15), value: level)
+        } else {
+            orb(at: 0)
         }
+    }
+
+    private func orb(at time: TimeInterval) -> some View {
+        let scale: Double = switch mode {
+        case .idle: 0.86
+        case .listening: poseStill ? 0.88 : 0.88 + level * 0.14
+        case .thinking: 0.84 + 0.04 * sin(time * 2.4)
+        }
+        return Circle()
+            .fill(BroopPalette.textPrimary)
+            .opacity(mode == .idle ? 0.9 : 1)
+            .scaleEffect(scale)
+            .animation(poseStill ? nil : .easeOut(duration: 0.15), value: level)
     }
 }
 

@@ -403,32 +403,6 @@ data class DataFreshness(
 }
 
 /**
- * #547 one-time heal predicates, kept PURE (no DB) so they are unit-testable on the JVM. A bad strap
- * clock/flash (pikapik) wrote rows with implausible timestamps BEFORE the ingest gate existed; the heal
- * purges them on upgrade so a normal rescore recomputes the real days cleanly.
- *
- * Bounds mirror the ingest gate exactly: a unix-second `ts` is implausible when below
- * [com.noop.protocol.MIN_PLAUSIBLE_UNIX] (2023-11) or above now + [com.noop.protocol.FUTURE_MARGIN]
- * (one day). A computed daily `day` ("yyyy-MM-dd") is implausible when it sorts AFTER the local "today"
- * key (a future-dated day) or before the floor day. The same predicate the SQL deletes apply, exposed so
- * a test pins the boundary behaviour without Room.
- */
-object HistoryHeal {
-    /** True when a unix-second timestamp is outside the plausible window [min, nowSec + futureMargin]. */
-    fun isImplausibleTs(
-        ts: Long,
-        nowSec: Long,
-        minTs: Long = com.noop.protocol.MIN_PLAUSIBLE_UNIX,
-        futureMargin: Long = com.noop.protocol.FUTURE_MARGIN,
-    ): Boolean = ts < minTs || ts > nowSec + futureMargin
-
-    /** True when a "yyyy-MM-dd" computed-day key is future (after [today]) or before [minDay]. ISO date
-     *  strings sort lexicographically in chronological order, so a plain string compare is correct. */
-    fun isImplausibleDay(day: String, today: String, minDay: String): Boolean =
-        day > today || day < minDay
-}
-
-/**
  * Repository over [WhoopDatabase] / [WhoopDao]. The single seam the rest of the app uses
  * to read/write the local store. Port of WhoopStore's public surface (StreamStore.swift,
  * Reads.swift, MetricsCache.swift) , the phone does NO metric computation here; daily/sleep
@@ -960,7 +934,7 @@ class WhoopRepository(
      * once its garbage rows are purged). Idempotent: a re-run matches nothing.
      *
      * Returns the TOTAL number of rows deleted (for the heal log). Bounds default to the ingest-gate
-     * constants; [nowSec] / [today] / [minDay] are injectable so a test pins the boundary deterministically.
+     * constants; [nowSec] / [today] / [minTs] are injectable so a test pins the boundary deterministically.
      */
     suspend fun healImplausibleTimestamps(
         nowSec: Long = System.currentTimeMillis() / 1000L,
@@ -969,12 +943,14 @@ class WhoopRepository(
         futureMargin: Long = com.noop.protocol.FUTURE_MARGIN,
     ): Int {
         val maxTs = nowSec + futureMargin
-        // The far-past floor day (local day of MIN_PLAUSIBLE_UNIX). A computed (`-noop`) row before this
+        // The far-past floor is a UTC sentinel, matching Swift TimestampHeal. Localizing it can delete
+        // a boundary day east of UTC or retain an earlier day west of UTC. `today` remains local.
+        // A computed (`-noop`) row before this
         // can't legitimately predate NOOP, so it is bad-clock garbage and is purged; the prune queries
         // apply this floor ONLY to `-noop` rows so a WHOOP CSV import (bare "my-whoop", REAL dates going
         // back years) is never touched (v8.2.1). A day after `today` is future-dated and always purged.
         val minDay = java.time.Instant.ofEpochSecond(minTs)
-            .atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
+            .atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
         var deleted = 0
         // (a) raw streams (all keyed by ts)
         deleted += dao.pruneHrByTs(minTs, maxTs)

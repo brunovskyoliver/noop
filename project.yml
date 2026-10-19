@@ -158,6 +158,9 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - StrandTests
+      # This census reads all Apple UI roots. Run it in the app suite too, whose workflow sees
+      # app-only edits that do not trigger the package workflow.
+      - Packages/StrandDesign/Tests/StrandDesignTests/QuietMotionCoverageTests.swift
       # Compile the exact cross-target snapshot source into the test bundle so the AltStore App Group
       # resolver is covered without adding this iOS/widget-only type to the macOS application module.
       - StrandiOSShared/WidgetSnapshot.swift
@@ -182,6 +185,7 @@ targets:
       - package: WhoopProtocol
       - package: WhoopStore
       - package: OuraProtocol
+      - package: StrandDesign
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
