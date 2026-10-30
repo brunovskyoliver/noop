@@ -95,6 +95,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -2143,6 +2145,9 @@ class WhoopBleClient(
     // change exists to remove, surviving inside the fix for it. A blank moment is honest; another strap's
     // timestamp is not.
     private val _state = MutableStateFlow(LiveState())
+    // Packet arrivals stay separate from the value-deduplicated UI state. Live stress needs repeated BPMs.
+    private val _heartRatePackets = MutableSharedFlow<Pair<Long, Int>>(extraBufferCapacity = 64)
+    val heartRatePackets = _heartRatePackets.asSharedFlow()
     val state: StateFlow<LiveState> = _state.asStateFlow()
 
     private val _groundTruthImuStatus = MutableStateFlow(GroundTruthImuStatus())
@@ -2290,6 +2295,7 @@ class WhoopBleClient(
     fun publishExternalLiveHr(hr: Int, rr: List<Int>) {
         if (rr.isNotEmpty()) _state.update { it.withRRIntervals(rr) }
         if (hr in 30..220) {
+            _heartRatePackets.tryEmit(System.currentTimeMillis() / 1000 to hr)
             // #56: a non-WHOOP source (the Oura ring, an FTMS machine, a generic HR strap) is actively
             // streaming live HR. Set streamingLiveHR so the Live console reads it as a trusted stream
             // instead of "connecting / not trusted" — this seam is invoked ONLY when WHOOP's own BLE is
@@ -3203,6 +3209,7 @@ class WhoopBleClient(
                         profileStore.stepsHasBankedMotion = hasMotion
                     }
                     IntelligenceEngine.analyzeRecent(
+                        restV2Enabled = com.noop.ui.NoopPrefs.of(context).getBoolean(com.noop.analytics.RestPerformanceV2.enabledKey, true),
                         repo = repository,
                         profile = profile,
                         importedDeviceId = deviceId,
@@ -8729,7 +8736,10 @@ class WhoopBleClient(
                     // gates on it for exactly that reason), so counting them would let a history sync mask
                     // a dead realtime stream — which is the very shape of the bug this recovers from:
                     // healthy-looking traffic hiding the absence of HR.
-                    if (hr in 30..220 && !replayedOffload) noteLiveHr()
+                    if (hr in 30..220 && !replayedOffload) {
+                        _heartRatePackets.tryEmit(System.currentTimeMillis() / 1000 to hr)
+                        noteLiveHr()
+                    }
                     if (hr in 30..220 && _state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
                 }
                 // The realtime stream usually reports rr_count=0; only update R-R when this frame
@@ -9267,6 +9277,7 @@ class WhoopBleClient(
             // this only avoids the per-frame throwaway LiveState allocation (matches FrameRouter). The bonded
             // transition below stays UNCONDITIONAL: it must still fire once even while HR sits steady.
             noteLiveHr()
+            _heartRatePackets.tryEmit(System.currentTimeMillis() / 1000 to hr)
             if (_state.value.heartRate != hr) _state.update { it.copy(heartRate = hr) }
             // EXPERIMENTAL WHOOP 5.0/MG: there is no confirmed-write bond for a 5/MG strap, so once
             // live HR actually streams over the standard profile we treat the link as established —

@@ -74,6 +74,11 @@ class DispositionKindVocabularyTests(unittest.TestCase):
             {"schema_version": 1, "dispositions": [item]}, "test",
             Path(__file__).resolve().parents[2],
         )
+        parity_ratchet._validate_dispositions(
+            {"schema_version": 1, "dispositions": [
+                {**item, "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"}
+            ]}, "test", Path(__file__).resolve().parents[2],
+        )
         for bad_path in ("Packages/WhoopStore/Sources/Repository.swift",
                          "Strand/../Data/Repository.swift", "Strand/Data/Missing.swift"):
             with self.subTest(path=bad_path), self.assertRaises(parity_ratchet.RatchetError):

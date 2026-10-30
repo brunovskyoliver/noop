@@ -525,6 +525,8 @@ struct BroopAccountScoringPage: View {
 
 struct BroopAccountExperimentalPage: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var behavior: BehaviorStore
+    @AppStorage(PuffinExperiment.defaultsKey) private var puffinExperiments = false
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
     @AppStorage(LiveSessionPrefs.betaKey) private var liveSessionsBeta = true
     @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateDisplayEnabled = false
@@ -537,6 +539,13 @@ struct BroopAccountExperimentalPage: View {
             BroopAccountNotice(symbol: "flask.fill",
                                text: String(localized: "Experimental features are unfinished. They never feed a score you rely on unless their own description says so."),
                                tint: BroopPalette.warning)
+            BroopAccountSection(title: String(localized: "Strap wake-alarm")) {
+                BroopAccountGroup {
+                    BroopAccountToggle(title: String(localized: "Protocol probes"),
+                                       detail: String(localized: "Sends experimental protocol queries and records replies in the strap log. Also enables the experimental 5/MG strap alarm."),
+                                       isOn: $puffinExperiments)
+                }
+            }
             BroopAccountSection(title: String(localized: "Screens")) {
                 BroopAccountGroup {
                     BroopAccountToggle(title: String(localized: "Liquid Today (prototype)"),
@@ -563,6 +572,12 @@ struct BroopAccountExperimentalPage: View {
             }
         }
         .broopAccountChrome(String(localized: "Experimental"))
+        .onChange(of: puffinExperiments) { _, enabled in
+            // Apply an already-saved wake time as soon as the user opts in.
+            if enabled && behavior.smartAlarmEnabled && model.whoop5Detected {
+                model.applySmartAlarm()
+            }
+        }
         .onChange(of: spo2CandidateDisplayEnabled) { _, _ in
             Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
         }

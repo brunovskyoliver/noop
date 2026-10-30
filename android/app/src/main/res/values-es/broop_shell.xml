@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="broop_home">Inicio</string>
+    <string name="broop_health">Salud</string>
+    <string name="broop_back">Atrás</string>
+    <string name="broop_quick_actions">Acciones rápidas</string>
+    <string name="broop_start_activity">Iniciar actividad</string>
+    <string name="broop_add_activity">Añadir actividad</string>
+    <string name="broop_strength_trainer">Entrenador de fuerza</string>
+    <string name="broop_complete_journal">Completa tu diario</string>
+    <string name="broop_live_hr">Frecuencia cardíaca en vivo</string>
+    <string name="broop_updates">Novedades</string>
+    <string name="broop_stress_monitor">Monitor de estrés</string>
+    <string name="broop_previous">Anterior</string>
+    <string name="broop_today">Hoy</string>
+    <string name="broop_next">Siguiente</string>
+    <string name="broop_stress_live">Estrés en directo</string>
+    <string name="broop_stress_latest">Último nivel de estrés</string>
+    <string name="broop_stress_active">Activo</string>
+    <string name="broop_stress_loading">Leyendo tu historial de frecuencia cardíaca…</string>
+    <string name="broop_stress_failed">No se pudieron leer tus datos de estrés. Vuelve a abrir esta pantalla para intentarlo de nuevo.</string>
+    <string name="broop_stress_empty">Lleva tu pulsera para crear tu cronología de estrés en periodos de cinco minutos.</string>
+    <string name="broop_stress_activity_excluded">El movimiento y el ejercicio se excluyen de tu puntuación de estrés.</string>
+    <string name="broop_stress_live_detail">El último minuto de frecuencia cardíaca comparado con tu referencia de calma.</string>
+    <string name="broop_stress_last_scored">Último cálculo a las %1$s</string>
+    <string name="broop_stress_personal_baseline">Referencia personal · %1$d días anteriores</string>
+    <string name="broop_stress_calibrating">Calibrando · usando la frecuencia cardíaca en calma de este día</string>
+    <string name="broop_stress_your_day">Tu día</string>
+    <string name="broop_stress_waking_average">Media despierto</string>
+    <string name="broop_stress_low">Estrés bajo</string>
+    <string name="broop_stress_medium">Estrés medio</string>
+    <string name="broop_stress_high">Estrés alto</string>
+    <string name="broop_stress_scored_waking">Tiempo despierto evaluado</string>
+    <string name="broop_minutes">%1$d min</string>
+    <string name="broop_stress_sleep_high">Estrés alto durante el sueño</string>
+    <string name="broop_stress_breathe_detail">Sigue una sesión de respiración guiada</string>
+    <string name="broop_stress_mind_detail">Resiliencia y estrés acumulado</string>
+    <string name="broop_stress_method_title">Cómo se mide el estrés</string>
+    <string name="broop_stress_method">Las medias de frecuencia cardíaca de cinco minutos usan tus 14 días anteriores de frecuencia cardíaca en calma y despierto. El sueño usa su propia referencia de frecuencia cardíaca y VFC. Se excluyen las actividades registradas, el movimiento y hasta 15 minutos de pulso elevado tras la actividad. Los datos ausentes quedan en blanco. Bajo es menor que 1, medio de 1 a menos de 2 y alto 2 o más en una escala de 0 a 3.</string>
+    <string name="broop_stress_legend">Sueño · azul grisáceo    Actividad · verde    Bajo &lt; 1    Medio 1–2    Alto ≥ 2</string>
+    <string name="broop_stress_timeline_description">Cronología de estrés con %1$d periodos de cinco minutos evaluados; los huecos son datos ausentes</string>
+    <string name="broop_ring_description">%1$s: %2$s%3$s</string>
+</resources>

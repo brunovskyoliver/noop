@@ -300,6 +300,587 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/EnergyReservoir.kt::drained@property#1",
+      "identity_sha256": "2318598b435d8c0586d91366436915a1586442a8d07e93f9845a316923739fd6",
+      "platform": "kotlin",
+      "rationale": "Kotlin nests the drained sum under BroopEnergyEngine.Summary, while Swift owns it on EnergyDaySummary. Both sum the same three drains and are oracle-tested; differently named type owners prevent lexical property pairing."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/EnergyReservoir.kt::fromStress/3#1",
+      "identity_sha256": "6b9f71db77517223728b488d201ff0abd9fa982161f3b7c92e493e1a9dc07dc2",
+      "platform": "kotlin",
+      "rationale": "Android maps its Room-backed StressMonitor epochs into BroopEnergyEngine.DayInput; Swift EnergyReservoir.day accepts the native Swift stress type directly. This is a type adapter, with the integrated values pinned by the body oracle."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/EnergyReservoir.kt::storedPairs/0#1",
+      "identity_sha256": "65debc156dea45a4be2f937315faf4f0ec8c3d329453fb69bccf35f4b18f6de4",
+      "platform": "kotlin",
+      "rationale": "Kotlin exposes summary serialization as a method while Swift EnergyDaySummary.storedPairs is a computed property. The exact keys and rounded values are exercised by the Swift-generated body oracle; the inventory does not pair across declaration kinds."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::allCompleted@property#1",
+      "identity_sha256": "fe93124d8273dd9766e504a170e2ad05c65ad7f2daeb452b02b6035e53c563f1",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.allCompleted property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::allSlots@property#1",
+      "identity_sha256": "d9ee821c84bdd618373a57eddc6cc39afaa259a2ef75a7e7c5f520e5a93275da",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.allSlots property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::canUndo@property#1",
+      "identity_sha256": "f2cde4dde0b401b617229e0ee3ea2f12bc759a78a7d42f42ab0bccb0150e3450",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.canUndo property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::completedWorkingSets@property#1",
+      "identity_sha256": "3deff859862ab6287e45072005b7b7e810835ea2492fb5bd5440befef564ac89",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.completedWorkingSets property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::currentSlot@property#1",
+      "identity_sha256": "b2f442c1ca1171bd06f05ca5308b888b56394e85a699f2196e1d767034f7cfdd",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.currentSlot property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::isFinished@property#1",
+      "identity_sha256": "6213bdae9d47b4cc6980bfe7e20cdcdca5f0797e7c7e996f3a8f67224af29847",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.isFinished property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::lastFor/1#1",
+      "identity_sha256": "498d69b8171d120ab6d041847b2696f14fbcc7127009a52578d3943db4b4d275",
+      "platform": "kotlin",
+      "rationale": "The Swift carry lookup is supplied from its per-exercise last-session dictionary at the app boundary; Kotlin isolates that same lookup for the state-machine API.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::nextPendingSlot@property#1",
+      "identity_sha256": "4e8b685889d250c51d2b2c095734fbdf88d729272864019ff669ee40eca869e5",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.nextPendingSlot property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::normalized/0#1",
+      "identity_sha256": "15cf4b274d99c2a8110834595368bf7a13ebd7bd4319bb7f185c32d2fb33a397",
+      "platform": "kotlin",
+      "rationale": "The Swift LiftPlanItem initializer normalizes target sets and rest seconds; Kotlin uses a copy helper before installing its immutable plan. The initializer has no inventoried function endpoint.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::plannedWorkingSets@property#1",
+      "identity_sha256": "fbe1a870876bf9817de5fb010227924bc5e9ed618bfdfddac0800a178a979a18",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.plannedWorkingSets property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::slot@property#1",
+      "identity_sha256": "6cec7c9c37b0a8ed192e8e3ee4fc117d75801039f34b65390863e033041fe836",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.slot property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::unperformedSlots@property#1",
+      "identity_sha256": "286fcbbdf0e4b10fb5179ac9f049f8f607a7f4238664d261ae67f82de6cd28c8",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.unperformedSlots property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/LiftSessionEngine.kt::upcomingSlot@property#1",
+      "identity_sha256": "9ac830d6cc9f106f70b8c0efa2a6eb578920a32c8bedb76b8c2742e73740360c",
+      "platform": "kotlin",
+      "rationale": "The matching Swift LiftSessionEngine/LiftRecordedSet.upcomingSlot property lives in the excluded Strand app-layer state machine. Kotlin keeps this pure state projection under analytics; the session oracle covers its transitions.",
+      "twin_path": "Strand/Data/LiftSessionEngine.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/MindEngine.kt::hasDaytimeStress@property#1",
+      "identity_sha256": "04227a2239cba7ad7507512aead271da0d92f05fd6804c88164836454e4df3a2",
+      "platform": "kotlin",
+      "rationale": "Kotlin names its input BroopMindDay to coexist with the Android model, while Swift names it MindDay. The same measured-minute and finite-input gate is included in the body oracle; only the declaring type name differs."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/MindEngine.kt::history/4#1",
+      "identity_sha256": "99e2a233b3e6844ee5a4c0e8aa67a459991fbcfe819c163ff2fd5fb72b0bcc33",
+      "platform": "kotlin",
+      "rationale": "One Kotlin Boolean dispatch entry combines the separate Swift ResilienceEngine.history and CumulativeStressEngine.history functions. Both numeric paths have Swift-generated oracle cases; the extra dispatch is a Kotlin API representation."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RestModeHistoryRepair.kt::completedKey",
+      "identity_sha256": "eb8ff5e1ee832697748d7db1f8022297a5f3bd8ac7776114095651fa21eabcb6",
+      "platform": "kotlin",
+      "rationale": "The exact shared stress/Rest history completion key is declared on the excluded Swift IntelligenceEngine extension. Kotlin keeps it beside its cancellable history-repair coordinator; completion semantics have focused tests.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RestPerformanceV2.kt::consistencyKey",
+      "identity_sha256": "53712c6d0d293d1ad20886b23c6e7899bcf75c2905c4c56bf6c5b94221e9b8dc",
+      "platform": "kotlin",
+      "rationale": "The matching Swift RestScoringPrefs.consistencyKey preference/metric key is declared in the excluded app layer. Kotlin stores the identical key with the pure Rest implementation; this records its different source-layer location.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RestPerformanceV2.kt::enabledKey",
+      "identity_sha256": "e36e898bfe2c924ac261dc50b3f391bc865821f9b1e7920e6f3330e18f87c4ea",
+      "platform": "kotlin",
+      "rationale": "The matching Swift RestScoringPrefs.v2Key preference/metric key is declared in the excluded app layer. Kotlin stores the identical key with the pure Rest implementation; this records its different source-layer location.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RestPerformanceV2.kt::hoursVsNeedKey",
+      "identity_sha256": "cf6744708226fa8f01e82e7c0b49a5347dac54b3112765abab3e03233507aa4e",
+      "platform": "kotlin",
+      "rationale": "The matching Swift RestScoringPrefs.hoursVsNeedKey preference/metric key is declared in the excluded app layer. Kotlin stores the identical key with the pure Rest implementation; this records its different source-layer location.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/SleepRegularity.kt::date/1#1",
+      "identity_sha256": "8f37eea0b3c5e20e1150c811caa1e09a6f4dda08bfa287b0041479090a562633",
+      "platform": "kotlin",
+      "rationale": "java.time requires an explicit normalization adapter to match Foundation DateComponents overflow behavior. Swift performs this inline in SleepRegularity.windowStart and dayKey; the Kotlin parser is a separate implementation detail covered by the regularity oracle."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/SleepRegularity.kt::parseWake/3#1",
+      "identity_sha256": "0f1555a3ee0aa44dc32765b6232e6d85fc16932c71ccf68d896f6fa0a3cb9230",
+      "platform": "kotlin",
+      "rationale": "Android org.json stage records are converted into half-open wake ranges before the pure regularity timeline runs. Swift receives typed sleep-stage intervals from its app model, so this JSON adapter has no pure-package function counterpart."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StrainTarget.kt::fromRaw/1#1",
+      "identity_sha256": "893b5ef2838d800ff3b4fe583f7896e21888243777a04e61b4435d3b7d410a76",
+      "platform": "kotlin",
+      "rationale": "Kotlin explicitly parses a persisted raw goal into enum entries. Swift synthesizes Goal.init(rawValue:) for its raw-value enum; this parser supplies the same default without introducing a separate target formula."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressMonitor.kt::roundSwift/1#1",
+      "identity_sha256": "83940c9c59d5e32f82c898b6e96216452b1de75eafb1be99fa009c8c93b951d3",
+      "platform": "kotlin",
+      "rationale": "Kotlin has an explicit sign-aware rounding adapter for Swift Double.rounded() tie behavior. It is used by the stored stress summary and verified against the literal Swift stress oracle, rather than representing a different stress calculation."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressMonitor.kt::storedPairs/0#1",
+      "identity_sha256": "ea77812a26941eee8b8bc63f7e3eebd2896580585c39cce756fe1329a79f4f45",
+      "platform": "kotlin",
+      "rationale": "Kotlin NightAggregate serialization is a function while the Swift NightAggregate.storedPairs endpoint is a computed property. The stress oracle pins the shared keys and values; the inventory cannot pair a function with a property."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressMonitor.kt::storedPairs/0#2",
+      "identity_sha256": "90fe7ee3c53c7e046b551fe21a92852483db2ee4fe361687f31f75e84f950951",
+      "platform": "kotlin",
+      "rationale": "Kotlin DayResult serialization is a function while the Swift DayResult.storedPairs endpoint is a computed property. The stress oracle pins the shared keys and values; the inventory cannot pair a function with a property."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressMonitor.kt::storedPairs/0#3",
+      "identity_sha256": "055e12715181dd759508cd94475107bafd9d4901b6f08340a4fc2bb322cbfcca",
+      "platform": "kotlin",
+      "rationale": "Kotlin StressDaySummary serialization is a function while the Swift StressDaySummary.storedPairs endpoint is a computed property. The stress oracle pins the shared keys and values; the inventory cannot pair a function with a property."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::appendRest/5#1",
+      "identity_sha256": "c5bd2ab687e4f67c538a974c13a3b80c3e898594116a6e43b9f6db60eb641c10",
+      "platform": "kotlin",
+      "rationale": "The Swift analysis post-loop appends Rest and optional component rows inline. Kotlin extracts those same serial appends to remain below the instrumented JVM method budget.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::fromScored/9#1",
+      "identity_sha256": "4c70c5eca73c9bc470d43110187b87a061ec6902370925eb1fe791d72b9d0319",
+      "platform": "kotlin",
+      "rationale": "Swift gathers stored and just-scored sleep sessions before its stressRestPass call. Kotlin isolates that preparation and Room reads from the pure reductions to preserve the JVM method budget.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::rest/2#1",
+      "identity_sha256": "74ff0f9119aa8b780321f958dc63c8cbb47a2e3b12812aa45e348aa94ace2fe8",
+      "platform": "kotlin",
+      "rationale": "Swift passes the resolved consistency and sleep-stress values into RestV2 in the app-layer scoring pass. Kotlin owns that lookup on the immutable pass result before invoking the paired composite.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::retainedOrFresh/3#1",
+      "identity_sha256": "55399a5afd9150a2e1552bd2100094859dfceef79b823475bb8e8bb1b5e20261",
+      "platform": "kotlin",
+      "rationale": "Swift retains cached aggregate values when raw HR is absent and replaces them for present raw inputs in its stressRestPass. Kotlin extracts that branch as a pure test seam; no missing-data gate is waived.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::wakeDay/1#1",
+      "identity_sha256": "ad2884b6c5358119571ac5622519b177d948365a474483424caf3d88ea86fedb",
+      "platform": "kotlin",
+      "rationale": "Swift groups stored and newly staged sleep blocks by their local wake day in its app-layer stress setup. Kotlin makes that local-date conversion a named helper.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/StressRestPass.kt::windowDays/2#1",
+      "identity_sha256": "5ebe56c6b27ab841958f349e503d702f7a19d69f0e312e537f61e01cc92cb73c",
+      "platform": "kotlin",
+      "rationale": "The Swift app-layer analysis prepares the inclusive calendar-day window before stressRestPass. Kotlin names that calendar enumeration separately to test daylight-saving boundaries.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/VitalityEngine.kt::contributions@property#1",
+      "identity_sha256": "af9452010fb0d333b43c205cd1abfe7280cd44cd2ca2608468dda88f0272a2ef",
+      "platform": "kotlin",
+      "rationale": "Android retains the legacy Result.contributions compatibility view for existing Kotlin readers. Canonical v2 results use the shared ageDelta and impacts fields; this alias adds no model calculation or stored key."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/VitalityEngine.kt::deltaYears@property#1",
+      "identity_sha256": "45094ce145294e343366082a8c7ebdba7a6c971af594dc6307c27002f2b52e7e",
+      "platform": "kotlin",
+      "rationale": "Android retains the legacy Result.deltaYears compatibility view for existing Kotlin readers. Canonical v2 results use the shared ageDelta and impacts fields; this alias adds no model calculation or stored key."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/VitalityWindow.kt::bodyAge@property#1",
+      "identity_sha256": "605d699a37ae4d6fa1071ac47a0c0c39d2f43adb11d9648bf23cb2676f28af2e",
+      "platform": "kotlin",
+      "rationale": "Android retains Healthspan.bodyAge as a compatibility projection for existing Kotlin consumers. The canonical v2 current/projected result and oracle remain shared with Swift; the alias is not an independent stored value."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/VitalityWindow.kt::inWindow/1#1",
+      "identity_sha256": "a12eb29ef59e4c9c4614559682ca9475d484e556ad992c50328939b187151f67",
+      "platform": "kotlin",
+      "rationale": "Swift vitalityVO2Points defines the positive-value/date filter as a local closure; Kotlin uses a local function inside the paired helper. The source choice and boundaries are covered by the Healthspan oracle.",
+      "twin_path": "Strand/Data/Repository+Healthspan.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/VitalityWindow.kt::recentBodyAge@property#1",
+      "identity_sha256": "24f531dc78a367273c4f8d3475ff7361d7024b316b1397fd668e8670e72290b8",
+      "platform": "kotlin",
+      "rationale": "Android retains Healthspan.recentBodyAge as a compatibility projection for existing Kotlin consumers. The canonical v2 current/projected result and oracle remain shared with Swift; the alias is not an independent stored value."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/BroopHealthspanRefresh.kt",
+      "identity_sha256": "19e90b0432258c3c0b65c3f20ae7ce08a5b9847da1d076d0d0af9987d98456d4",
+      "platform": "kotlin",
+      "rationale": "This Kotlin data-layer file combines the excluded Swift weekly update and first-history backfill dispatch. The shared Healthspan model and repository reader are independently paired and oracle-tested.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Healthspan.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/BroopHealthspanRefresh.kt::refreshBroopHealthspan/6#1",
+      "identity_sha256": "e36ed5d70e6fd1ffbbb1e57e597f3dab1be5fd350b20c7db5d68e35ba39c1a22",
+      "platform": "kotlin",
+      "rationale": "Swift separates writeWeeklyHealthspan from runHealthspanV2BackfillIfNeeded; Kotlin dispatches the first Sunday-history fill and later weekly updates through one Room helper. Serial canonical reads and writes have a separate regression guard.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Healthspan.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/HealthspanRepository.kt::bodySeries/1#1",
+      "identity_sha256": "730049799b93e4ef030ecc937dbd8c121d100deb674b5321b8010de6070101e1",
+      "platform": "kotlin",
+      "rationale": "Android gathers Health Connect and imported Apple Health body series through a local source adapter. Swift gathers Apple Health directly in its repository. Lab precedence and lean-mass conversion stay in the paired, oracle-tested helper."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-property",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/HealthspanRepository.kt::delta@property#1",
+      "identity_sha256": "8bcf0d2f6462f8bc596e79164141ea00e10c8fda26b7055900c978ac9803669d",
+      "platform": "kotlin",
+      "rationale": "The Swift HealthspanSnapshot.delta computed property is in the excluded app layer. Kotlin keeps the same single-snapshot age subtraction in its data layer; this disposition records the scope boundary.",
+      "twin_path": "Strand/Data/Repository+Healthspan.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/HealthspanRepository.kt::healthspanWeeklyRows/7#1",
+      "identity_sha256": "e47430d73fb9f96d4ef988115bb31ae24f350cb14b37d9d4099583625d096108",
+      "platform": "kotlin",
+      "rationale": "The Swift backfillPoints loop and weekly writer live in the excluded app layer. Kotlin gathers history once and emits the same gated Sunday triples from its repository layer; the age clock and model are shared.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Healthspan.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::allSleepSessions/5#1",
+      "identity_sha256": "09e9f56d23767be7a87da4d540cf4e39b82faa0ca7fdcfc2e2f0a4e8ffaba3d6",
+      "platform": "kotlin",
+      "rationale": "Swift Repository.allSleepSessions merges imported/computed blocks by local wake-day coverage. The main Kotlin repository already pairs to that function; this stress-store adapter accepts explicit epoch bounds and preserves the same source precedence.",
+      "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::analyzeDay/9#1",
+      "identity_sha256": "bc3d5e37e768983ad46de9ec06a897601a614c946feae648804d734373f87aaf",
+      "platform": "kotlin",
+      "rationale": "Android exposes a result-only wrapper around its witness-bearing stress analysis so UI readers do not depend on Room cache metadata. The actual computation is paired to Swift Repository.stressDayAnalysis; this wrapper only unwraps the result."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::decimal/1#1",
+      "identity_sha256": "074ed5a824763d7669d620d114a707bdc98b6e662b201bf63eb710a0759d143a",
+      "platform": "kotlin",
+      "rationale": "This Android-only local memo-signature encoder writes an optional IEEE-754 value into the digest. The signature is in-memory cache state, not a physiological value, cross-platform dedup key, or backup field."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::inputSignature/4#1",
+      "identity_sha256": "75addd765a6d70e20f65424bf9ecfa0618983202c6779015233f21243e6d9512",
+      "platform": "kotlin",
+      "rationale": "Android keeps an ephemeral SHA-256 memo witness over fetched Room sensor rows, masks and prior aggregates. It is never persisted or exported across platforms; Swift uses its own repository cache revision. Numeric stress output remains governed separately."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::intervals/1#1",
+      "identity_sha256": "733e83615930bdf57131cb1a3d2fbdc7214bb2db1c9d38b32ac871f21f520c3b",
+      "platform": "kotlin",
+      "rationale": "This Android-only local memo-signature encoder writes the ordered interval mask into the digest. The signature is in-memory cache state, not a physiological value, cross-platform dedup key, or backup field."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::memoDays",
+      "identity_sha256": "0e664838489e177e92692f4c63cf7a082fa9dca5ddaa78f26d64f851c9dd166f",
+      "platform": "kotlin",
+      "rationale": "The Android reader limits its weak, in-memory Room analysis memo to 96 days. This cache-size cap is platform-local and does not change any stress window or stored result."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::number/1#1",
+      "identity_sha256": "46984d3fda9d6c5e71b0cb6a1095ccd427fd8ce9807ec3c59236be473b0f6b0a",
+      "platform": "kotlin",
+      "rationale": "This Android-only local memo-signature encoder writes one little-endian integer into the digest. The signature is in-memory cache state, not a physiological value, cross-platform dedup key, or backup field."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::rawLimit",
+      "identity_sha256": "581e177323617280ec8e3a824d72ca4ca33afe26b66a5ad410c82a1ced3bb501",
+      "platform": "kotlin",
+      "rationale": "The Android Room stress reader caps fetched sensor arrays at 250000 rows per local-day request. This is an Android query resource bound, not a shared stress formula or persisted field."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::rawSourceIds/2#1",
+      "identity_sha256": "69d224b16f6911ed78ef6c754b0b558519747f01787ef1fc4c26ff8ed9171746",
+      "platform": "kotlin",
+      "rationale": "Android resolves Room raw-source keys from its active device registry and canonical import id before reading stress inputs. Swift has different store ownership plumbing; this helper adds no stress math and uses the existing Android registry resolver."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::string/1#1",
+      "identity_sha256": "d0fdab00b0748cc23c020c0ac311cbd706aa79abe3ff74f4c0b8478afff6834d",
+      "platform": "kotlin",
+      "rationale": "This Android-only local memo-signature encoder writes a length-delimited UTF-8 string into the digest. The signature is in-memory cache state, not a physiological value, cross-platform dedup key, or backup field."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/StressAnalysisStore.kt::wakeDay/1#1",
+      "identity_sha256": "861549c0b509c6c123c4c25b47eefbbb0d4ad09878f1d0529f0615eb2d876e95",
+      "platform": "kotlin",
+      "rationale": "The Swift repository computes local wake-day coverage inline while merging sleep blocks. Kotlin gives this conversion a local name in the stress reader; its timezone is the same one used for the requested day bounds.",
+      "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::replaceComputedScoreWindow/9#1",
+      "identity_sha256": "dbd9018d80ae9811e98026dfbd534a5027c3f48dd94e18ceec065c387c38d79f",
+      "platform": "kotlin",
+      "rationale": "Android Room exposes one transactional replacement API for daily/provenance rows and explicitly declared metric-only stress/energy rows. Swift WhoopStore uses GRDB persistComputedScores plus its specialized series path; the storage API shapes differ, not the score formulas."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::liftSessions/3#1",
+      "identity_sha256": "bd8669085ad972ae45caba071eab3ed91f8a83fdbe5e53ece24e2141564c4af2",
+      "platform": "kotlin",
+      "rationale": "The excluded Swift Healthspan reader fetches finished Lift Log sessions from its store. Kotlin isolates the active/archived/canonical Room union in the repository; the underlying single-source DAO read is paired to WhoopStore.liftSessions.",
+      "twin_path": "Strand/Data/Repository+Healthspan.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::replaceComputedScoreWindow/9#1",
+      "identity_sha256": "321ae2ee2ea64fb3719c0b23d443c5405af922324ab9d4d5533d883328ae60c4",
+      "platform": "kotlin",
+      "rationale": "Android forwards a full computed-window request into the Room transaction API, including the metric-only key boundary. Swift uses its GRDB store directly from the app layer; this is the repository/storage forwarding seam."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::scoringTransaction/1#1",
+      "identity_sha256": "2af5784f7abdd622e0094ebfc0b7880c2904c7af918746a2161d01b65ff30b9c",
+      "platform": "kotlin",
+      "rationale": "Android must wrap the per-day history repair replacements in one cancellable Room transaction. Swift writes through GRDB transaction closures inside WhoopStore, so no repository transaction-forwarding function is required there."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::vitalityDays/4#1",
+      "identity_sha256": "33a45b14afa1a36b272784f2029d37b9e59c27ca56818f449dbbb38acfcfcb5b",
+      "platform": "kotlin",
+      "rationale": "Swift healthspanHistory gathers day inputs and lean mass in one app-layer reader. Kotlin separates this day-source read from its HealthspanRepository lean-mass read; scalar shaping, source choice and lift dedup have their own exact twins and oracle coverage.",
+      "twin_path": "Strand/Data/Repository+Healthspan.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/RestModeHistoryRepair.kt::restModeHistoryDays",
+      "identity_sha256": "889340dc62c2a0cd84412736156c1c0e456d9e3ce711bd0daba5a699de4374ce",
+      "platform": "kotlin",
+      "rationale": "The excluded Swift rescoreForRestModeChange uses the same 4000-day history default. Kotlin names that orchestration bound beside its cancellable repair helper; it is not the unrelated StandReminder history window.",
+      "twin_path": "Strand/Data/IntelligenceEngine+Stress.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::deleteSleepSessions/1#1",
+      "identity_sha256": "c8b426902f241a7569026264d74ecdb6fba167852d86a9c68c7999139e719003",
+      "platform": "kotlin",
+      "rationale": "Android wraps the displayed sleep fragments and their individual tombstone operations in one cancellable Room transaction. Swift BroopSleepInteractions performs the same per-fragment delete or undo through its app-layer loop; the extra repository batch boundary prevents partial Android writes and has rollback tests."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::undoDeleteSleepSessions/1#1",
+      "identity_sha256": "2a19f2c5c1b924e95c7202c8bfb9083cf2e83ff280d70009ada9c5cce1d8a22e",
+      "platform": "kotlin",
+      "rationale": "Android wraps the displayed sleep fragments and their individual tombstone operations in one cancellable Room transaction. Swift BroopSleepInteractions performs the same per-fragment delete or undo through its app-layer loop; the extra repository batch boundary prevents partial Android writes and has rollback tests."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/NightScoreRows.kt",
+      "identity_sha256": "8301a63e6e54ee6ec5774425c10c3685d905da037dd81ee761f1b6e37a86900c",
+      "platform": "kotlin",
+      "rationale": "Swift app-layer pass 2 appends the same SpO2 candidate, HRV overcount and primary-session RHR witness rows inline. Kotlin extracts those serial appends into a separate helper to stay below the instrumented scoring-coroutine method budget; it adds no computed signal or metric key.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/NightScoreRows.kt::witnesses/6#1",
+      "identity_sha256": "ce0c567e985bd999e6645a3a0ac276b7c032860485c1e6831f4ed5f6df66f8a0",
+      "platform": "kotlin",
+      "rationale": "Swift app-layer pass 2 appends the same SpO2 candidate, HRV overcount and primary-session RHR witness rows inline. Kotlin extracts those serial appends into a separate helper to stay below the instrumented scoring-coroutine method budget; it adds no computed signal or metric key.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/NightScoreRows.kt::cachedSleep/2#1",
+      "identity_sha256": "27f88f2377a205a4477272536b78724774784f79fe2a73e698d7b2239b32c723",
+      "platform": "kotlin",
+      "rationale": "Swift app-layer scoring pass maps detector sleep sessions to cached rows inline. Kotlin extracts the same source id, interval, efficiency, RHR, HRV, encoded stages and sparse-coverage fields to stay below the instrumented coroutine method budget; the helper introduces no staging formula or stored field.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/NightScoreRows.kt::computedDay/1#1",
+      "identity_sha256": "bd6ffaed01de78068b1e60785dcdea8003684ec93c33b345089b0cdbd75e08ca",
+      "platform": "kotlin",
+      "rationale": "Swift IntelligenceEngine builds its published Computed day from the persisted daily fields inside its app-layer pass. Kotlin isolates that exact day, recovery, strain, sleep duration, HRV and resting-HR projection to preserve the JVM instrumented method budget; this adapter does not recalculate or store any value.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
     }
   ]
 }

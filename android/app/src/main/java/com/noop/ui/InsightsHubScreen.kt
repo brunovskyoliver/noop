@@ -3,6 +3,7 @@ package com.noop.ui
 import com.noop.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
@@ -85,7 +88,7 @@ import kotlin.math.roundToInt
 // Insights hub. All maths is in com.noop.analytics (EffectRanker / DoseResponseEngine).
 
 @Composable
-fun InsightsHubScreen(vm: AppViewModel) {
+fun InsightsHubScreen(vm: AppViewModel, broop: Boolean = false) {
     val days by vm.recentDays.collectAsState()
     val hub = remember { InsightsHubViewModel() }
     val state by hub.state.collectAsState()
@@ -95,6 +98,18 @@ fun InsightsHubScreen(vm: AppViewModel) {
 
     var outcome by remember { mutableStateOf(InsightsOutcome.Recovery) }
     val ranked = remember(state, outcome) { hub.rankFor(state, outcome) }
+
+    if (broop) {
+        BroopPage(uiString(R.string.nav_insights_hub)) {
+            Text(uiString(R.string.broop_account_insights_method), style = BroopType.body, color = BroopPalette.textBody)
+            MoversSection(outcome = outcome, onOutcome = { outcome = it }, ranked = ranked)
+            if (!state.loaded) Text(uiString(R.string.broop_account_loading), style = BroopType.body, color = BroopPalette.textBody)
+            if (state.loaded) DoseSection(state.doseCards)
+            Text(uiString(R.string.l10n_insights_hub_screen_everything_here_is_a_pattern_in_ed2162a6),
+                style = BroopType.caption, color = BroopPalette.textBody)
+        }
+        return
+    }
 
     // PERF (#707): lazy scaffold — each section (and its standalone Spacer, a real child of the eager
     // `spacedBy(20.dp)` Column) becomes one `item { }`, so the LazyColumn's matching `spacedBy(20.dp)`
@@ -143,6 +158,25 @@ private fun MoversSection(
     onOutcome: (InsightsOutcome) -> Unit,
     ranked: List<RankedEffect>,
 ) {
+    var detail by remember { mutableStateOf<RankedEffect?>(null) }
+    detail?.let { selected ->
+        AlertDialog(
+            onDismissRequest = { detail = null },
+            title = { Text(selected.behavior) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(BroopMetrics.gap)) {
+                    Text(selected.sentence())
+                    Text(uiString(R.string.broop_account_effect_means,
+                        outcome.format(selected.effect.meanWith), selected.effect.nWith,
+                        outcome.format(selected.effect.meanWithout), selected.effect.nWithout))
+                    Text(uiString(R.string.broop_account_effect_confidence, selected.confidence.raw,
+                        String.format(Locale.US, "%.2f", selected.effect.cohensD)))
+                    Text(uiString(R.string.broop_account_insights_method))
+                }
+            },
+            confirmButton = { TextButton(onClick = { detail = null }) { Text(uiString(R.string.broop_account_done)) } },
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         // Header then the outcome selector on its own row below it — on a ~360dp phone the pill
         // control can't share a row with the weighted header without compressing (matches macOS).
@@ -168,14 +202,14 @@ private fun MoversSection(
         } else {
             // Fade + rise the ranked mover cards in sequence (mirrors iOS .staggeredAppear(index:)).
             ranked.forEachIndexed { i, r ->
-                Box(modifier = Modifier.staggeredAppear(i)) { MoverCard(r, outcome) }
+                Box(modifier = Modifier.staggeredAppear(i)) { MoverCard(r, outcome) { detail = r } }
             }
         }
     }
 }
 
 @Composable
-private fun MoverCard(r: RankedEffect, outcome: InsightsOutcome) {
+private fun MoverCard(r: RankedEffect, outcome: InsightsOutcome, onClick: () -> Unit) {
     val e = r.effect
     val movedGood: Boolean? = when {
         e.delta == 0.0 -> null
@@ -191,7 +225,7 @@ private fun MoverCard(r: RankedEffect, outcome: InsightsOutcome) {
     val deltaText = e.pctChange?.let { "$arrow ${abs(it).roundToInt()}%" }
         ?: "$arrow ${String.format(Locale.US, "%.1f", abs(e.delta))}"
 
-    NoopCard(tint = outcome.domain.color) {
+    NoopCard(modifier = Modifier.clickable(onClick = onClick), tint = outcome.domain.color) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
             // Header: behaviour name + lead/lag chip + confidence pill.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -486,7 +520,7 @@ internal enum class InsightsOutcome(
 ) {
     Recovery("Charge", "Charge", "recovery", true, DomainTheme.Charge, { it.recovery }, { "${it.roundToInt()}%" }),
     Hrv("HRV", "HRV", "hrv", true, DomainTheme.Rest, { it.avgHrv }, { "${it.roundToInt()} ms" }),
-    Sleep("Rest", "Rest", "sleep_performance", true, DomainTheme.Rest, { it.efficiency }, { "${it.roundToInt()}%" }),
+    Sleep("Rest", "Rest", "sleep_performance", true, DomainTheme.Rest, { null }, { "${it.roundToInt()}%" }),
     Rhr("RHR", "Resting HR", "rhr", false, DomainTheme.Stress, { it.restingHr?.toDouble() }, { "${it.roundToInt()} bpm" }),
 }
 
@@ -592,7 +626,8 @@ internal class InsightsHubViewModel {
         val outcomeByKey = HashMap<String, Map<String, Double>>()
         for (o in InsightsOutcome.entries) {
             val dict = HashMap<String, Double>()
-            for (d in days) o.pick(d)?.let { dict[d.day] = it }
+            for (row in vm.repo.metricSeries("my-whoop", o.key, "0000-01-01", "9999-12-31")) dict[row.day] = row.value
+            for (d in days) if (d.day !in dict) o.pick(d)?.let { dict[d.day] = it }
             outcomeByKey[o.key] = dict
         }
 

@@ -92,11 +92,9 @@ class IntelligenceEngineJacocoBudgetTest {
             "Fitness upsert" to Regex(
                 """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*faPts\b""",
             ),
-            // Vitality reads its 180-day window AFTER the Fitness Age upsert so this week's VO₂max estimate
-            // is part of it, then computes and writes Body Age / Pace of Aging.
-            "Vitality read" to Regex("""\brepo\s*\.\s*vitalityDays\s*\("""),
-            "Vitality compute" to Regex("""\bVitalityWindow\s*\.\s*healthspan\s*\("""),
-            "Vitality upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*rows\s*\)"""),
+            // The canonical Healthspan helper reads AFTER the Fitness upsert so its VO₂ estimate is visible.
+            // Its internal history read, Sunday computation and write are checked separately below.
+            "Healthspan refresh" to Regex("""\brefreshBroopHealthspan\s*\("""),
             "Apple Health read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*APPLE_HEALTH_SOURCE\b"""),
             "Health Connect read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*HEALTH_CONNECT_SOURCE\b"""),
             "gravity samples" to Regex("""\brepo\s*\.\s*gravitySamplesForDevice\s*\("""),
@@ -150,6 +148,43 @@ class IntelligenceEngineJacocoBudgetTest {
     }
 
     @Test
+    fun healthspanRefreshKeepsTheCanonicalHistoryAndSundayWriteOrder() {
+        val noopRoot = locateIntelligenceEngineSource().parent.parent
+        fun body(path: Path, name: String): Pair<String, String> {
+            val raw = String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+            val code = maskCommentsAndLiterals(raw)
+            val declaration = Regex("""\bfun\s+(?:WhoopRepository\s*\.\s*)?$name\s*\(""").findAll(code).toList()
+            assertEquals("Expected one $name declaration in $path", 1, declaration.size)
+            val open = code.indexOf('{', declaration.single().range.last + 1)
+            val close = matchingBrace(code, open)
+            return code.substring(open, close + 1) to raw.substring(open, close + 1)
+        }
+        fun assertSerialOrdered(code: String, vararg operations: String) {
+            var previous = -1
+            for (operation in operations) {
+                val position = requireExactlyOne(code, Regex("""\b$operation\s*\("""))
+                assertTrue("$operation moved before its dependency", position > previous)
+                previous = position
+            }
+            for (operation in listOf("async", "launch", "coroutineScope", "supervisorScope", "catch")) {
+                assertTrue("Healthspan persistence must be serial and propagate failures",
+                    !Regex("""\b$operation\s*\(""").containsMatchIn(code))
+            }
+        }
+        val (refresh, _) = body(noopRoot.resolve("data/BroopHealthspanRefresh.kt"), "refreshBroopHealthspan")
+        assertSerialOrdered(refresh, "metricSeriesComputedUnion", "healthspanWeeklyRows", "upsertMetricSeries")
+        val (weekly, weeklyRaw) = body(noopRoot.resolve("data/HealthspanRepository.kt"), "healthspanWeeklyRows")
+        assertSerialOrdered(weekly, "healthspanHistory", "healthspan")
+        assertEquals("All three weekly metrics must share the computed source and Sunday key",
+            listOf("vitality", "body_age", "pace_of_aging"),
+            Regex("""MetricSeriesRow\(source, sunday, "([a-z_]+)",""").findAll(weeklyRaw).map { it.groupValues[1] }.toList())
+        assertTrue("Weekly writes must use the canonical computed source",
+            Regex("""\bcomputedDeviceId\s*\(\s*activeDeviceId\s*\)""").containsMatchIn(weekly))
+        val (history, _) = body(noopRoot.resolve("data/HealthspanRepository.kt"), "healthspanHistory")
+        assertSerialOrdered(history, "vitalityDays", "leanMassPoints")
+    }
+
+    @Test
     fun extractedBlockRetainsRuntimeReadCallbackTraceAndFailureOrder() {
         val events = arrayListOf<String>()
         val repo = recordingRepository(events)
@@ -162,15 +197,16 @@ class IntelligenceEngineJacocoBudgetTest {
         )
 
         assertEquals("diag", events.first())
-        assertEquals("apple:apple-health", events[1])
-        assertEquals("apple:health-connect", events[2])
+        // Healthspan reads measured VO₂/body weight before the steps calibration reads its own window.
+        assertEquals(listOf("apple:health-connect", "apple:apple-health", "apple:health-connect", "apple:apple-health",
+            "apple:apple-health", "apple:health-connect"), events.drop(1).take(6))
         // Cold cache: every day is folded, so every day pays BOTH the witness and the read it guards.
         assertEquals(60, events.count { it == "gravityFp" })
         assertEquals(60, events.count { it == "gravity" })
         // Each day asks for the witness BEFORE the read it might skip; a read that came first would make
         // the cache pointless while still passing a count.
-        assertEquals("gravityFp", events[3])
-        assertEquals("gravity", events[4])
+        assertEquals("gravityFp", events[7])
+        assertEquals("gravity", events[8])
         // Three diagnostics now: the fitness gate first, the motion-cache readout once the reads are done,
         // and the phase line last of all.
         assertEquals(3, events.count { it == "diag" })
@@ -198,7 +234,7 @@ class IntelligenceEngineJacocoBudgetTest {
         } catch (failure: InvocationTargetException) {
             assertSame(sentinel, failure.cause)
         }
-        assertEquals(listOf("diag", "apple:apple-health"), failureEvents)
+        assertEquals(listOf("diag", "apple:health-connect"), failureEvents)
     }
 
     /**
@@ -258,10 +294,10 @@ class IntelligenceEngineJacocoBudgetTest {
                     events.add("gravityFp")
                     GravityWitness(0, 0L)
                 }
-                // The Vitality window reader (`WhoopRepository.vitalityDays`). Empty history, so Vitality
-                // writes nothing; left unrecorded so the sequence below stays about the steps reads.
+                // The complete Healthspan reader also gathers finished lifts, sleep consistency and
+                // shared-resolver daily fallbacks. Empty history keeps its unlock gate closed.
                 "days", "editedSleepSessions", "pairedDevices", "workouts", "dismissedWorkouts",
-                "metricSeries" -> emptyList<Any>()
+                "metricSeries", "liftSessions", "sleepSessions", "dailyMetricsRange", "metricKeys" -> emptyList<Any>()
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }
         } as WhoopDao

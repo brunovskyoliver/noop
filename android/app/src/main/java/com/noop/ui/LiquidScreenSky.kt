@@ -52,29 +52,34 @@ import androidx.compose.ui.unit.dp
 // exactly the previous `showDayCycleBackground ? sky : null` behavior. Routing every screen through these
 // two helpers is what keeps the image seamless across tabs including More.
 
-/** The scaffold `topBackground` slot honouring the image > sky > canvas precedence. `isActive` is
+/** Broop uses its gradient; classic honours the image > sky > canvas precedence. `isActive` is
  *  snapshot-backed, so toggling/removing the image in Settings re-picks the backdrop live. */
 fun screenBackdropSlot(
     showDayCycleBackground: Boolean,
     skyBehindCards: Boolean,
 ): (@Composable () -> Unit)? = when {
+    BroopPrefs.enabled -> { { Box(Modifier.fillMaxSize().background(BroopPalette.background).clearAndSetSemantics {}) } }
     BackgroundImageStore.isActive -> { { BackgroundImageBackdrop() } }
     showDayCycleBackground -> { { LiquidScreenSky(fillHeight = skyBehindCards) } }
     else -> null
 }
 
-/** `fullBleedBackground` for the same precedence: a custom image always bleeds behind the whole scroll;
+/** Broop fills the viewport. In classic mode a custom image bleeds behind the whole scroll;
  *  the sky only when "Sky behind cards" is on. */
 fun screenBackdropFullBleed(
     showDayCycleBackground: Boolean,
     skyBehindCards: Boolean,
-): Boolean = BackgroundImageStore.isActive || (showDayCycleBackground && skyBehindCards)
+): Boolean = BroopPrefs.enabled || BackgroundImageStore.isActive || (showDayCycleBackground && skyBehindCards)
 
 /** The reusable liquid sky backdrop for a liquid screen's top region. Drop it into a scaffold's
  *  `topBackground` slot. [height] is the sky band; the sky fades into the theme canvas within it, so the
  *  cards below sit on the flat surface. Mirrors the iOS `liquidScaffoldSky`. */
 @Composable
 fun LiquidScreenSky(height: Dp = 340.dp, fillHeight: Boolean = false) {
+    if (BroopPrefs.enabled) {
+        Box(Modifier.fillMaxSize().background(BroopPalette.background).clearAndSetSemantics {})
+        return
+    }
     // "Sky behind cards" (opt-in): fill the whole viewport and hold the atmosphere with a softer settle so
     // the sky still reads UNDER the lower cards, instead of the default top-band that dissolves to canvas.
     val sizeMod = if (fillHeight) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(height)

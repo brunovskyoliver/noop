@@ -353,4 +353,7 @@ data class DayResult(
      * defaulted so every existing construction site is unchanged. Mirrors Swift `DayResult.mainNightBlocks`.
      */
     val mainNightBlocks: List<SleepStageTotals.NightBlock> = emptyList(),
+    /** Active energy only; the legacy daily column retains total energy. */
+    val activeEnergyKcal: Double? = null,
+    val hrCoverage: HRInputCoverage? = null,
 )

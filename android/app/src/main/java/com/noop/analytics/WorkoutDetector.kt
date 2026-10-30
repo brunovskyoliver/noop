@@ -869,6 +869,7 @@ object Calories {
         profile: UserProfile,
         hrmax: Double?,
         restingHR: Double?,
+        maxSpanSeconds: Double = 86_400.0,
     ): DayEnergyEstimate {
         if (hrSamples.isEmpty()) return DayEnergyEstimate(0.0, 0.0, 0.0)
 
@@ -910,7 +911,7 @@ object Calories {
             minOf(median, dayMaxObservedGapS)
         }
         val observedSeconds = minOf(
-            dayMaxObservedSpanS,
+            maxOf(0.0, maxSpanSeconds),
             positiveGaps.fold(nominalSampleS) { total, gap ->
                 total + minOf(gap, dayMaxObservedGapS)
             },

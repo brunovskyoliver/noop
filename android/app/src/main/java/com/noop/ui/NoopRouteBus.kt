@@ -2,6 +2,7 @@ package com.noop.ui
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 // MARK: - Cross-entrypoint route bus (2026-09-21)
 //
@@ -24,6 +25,16 @@ data class WorkoutDetectedRoute(
 )
 
 object NoopRouteBus {
+    private val _shortcuts = MutableStateFlow<List<BroopShortcutAction>>(emptyList())
+    internal val shortcuts: StateFlow<List<BroopShortcutAction>> = _shortcuts
+    internal fun postShortcut(action: BroopShortcutAction) { _shortcuts.update { it + action } }
+    internal fun consumeShortcut() { _shortcuts.update { it.drop(1) } }
+
+    private val _resumeLift = MutableStateFlow(false)
+    val resumeLift: StateFlow<Boolean> = _resumeLift
+    fun postLiftResume() { _resumeLift.value = true }
+    fun consumeLiftResume() { _resumeLift.value = false }
+
 
     private val _workoutDetected = MutableStateFlow<WorkoutDetectedRoute?>(null)
 

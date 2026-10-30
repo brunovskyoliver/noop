@@ -535,9 +535,11 @@ fun SettingsScreen(
     onOpenBackupSync: () -> Unit = {},
     onOpenSelfHostedPush: () -> Unit = {},
     onOpenStepsCalibration: () -> Unit = {},
+    section: BroopAccountSection? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    fun displays(vararg groups: BroopAccountSection): Boolean = section == null || section in groups
     val live by vm.live.collectAsStateWithLifecycle()
     // #2338: the read-only advertising-name probe result. Its own flow on the BLE client rather than a
     // LiveState field, matching the other opcode probes.
@@ -916,8 +918,8 @@ fun SettingsScreen(
     ) { uri -> if (uri != null) setBackgroundFromUri(uri) }
 
     ScreenScaffold(
-        title = uiString(R.string.l10n_settings_screen_settings_c7f73bb5),
-        subtitle = "Your numbers, your strap, and how NOOP works. All on this phone.",
+        title = uiString(section?.titleRes ?: R.string.l10n_settings_screen_settings_c7f73bb5),
+        subtitle = if (section == null) "Your numbers, your strap, and how NOOP works. All on this phone." else null,
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the static time-of-day sky settles
         // into the theme canvas behind the top of the list, exactly like the liquid Today. This is a long,
         // scroll-heavy list with NO hero gauge, so the liquid finish here is just the sky + liquidPress on
@@ -941,7 +943,7 @@ fun SettingsScreen(
         // Day streak (#569): consecutive days with a Charge score, computed on-device from your own
         // history. Uses NoopCard directly (not SettingsSection) to keep the wiring self-contained.
         val streaks by vm.streaks.collectAsStateWithLifecycle()
-        NoopCard(tint = Palette.chargeColor) {
+        if (displays(BroopAccountSection.Profile)) NoopCard(tint = Palette.chargeColor) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(uiString(R.string.settings_streak_title), style = NoopType.subhead, color = Palette.textPrimary)
                 Text(
@@ -955,7 +957,7 @@ fun SettingsScreen(
             }
         }
 
-        SettingsCard(
+        if (displays(BroopAccountSection.Profile)) SettingsCard(
             icon = Icons.Outlined.AccountCircle,
             title = uiString(R.string.l10n_settings_screen_profile_photo_33f385bb),
             blurb = "Optional. Add a photo for the avatar in the top-left. Stored only on this phone. NOOP is offline, so it's never uploaded.",
@@ -995,7 +997,7 @@ fun SettingsScreen(
         }
 
         // --- Profile ---
-        SettingsCard(
+        if (displays(BroopAccountSection.Profile)) SettingsCard(
             icon = Icons.Outlined.Person,
             title = uiString(R.string.l10n_settings_screen_profile_ff4fc027),
             blurb = "These power your heart-rate zones, calorie estimates and recovery baselines. Keep them accurate.",
@@ -1293,7 +1295,7 @@ fun SettingsScreen(
         }
 
         // --- Daily cycle ---
-        SettingsCard(
+        if (displays(BroopAccountSection.Profile)) SettingsCard(
             icon = Icons.Filled.Autorenew,
             title = uiString(R.string.settings_day_cycle_title),
             blurb = uiString(R.string.settings_day_cycle_description),
@@ -1327,7 +1329,7 @@ fun SettingsScreen(
 
         // --- Units ---
         // Independent body and exercise-distance choices plus temperature/effort overrides. Display-only.
-        SettingsCard(
+        if (displays(BroopAccountSection.Units)) SettingsCard(
             icon = Icons.Filled.Straighten,
             title = uiString(R.string.l10n_settings_screen_units_12748281),
             blurb = uiString(R.string.units_settings_blurb),
@@ -1463,11 +1465,18 @@ fun SettingsScreen(
         }
 
         // --- Appearance (Theme) ---
-        SettingsCard(
+        if (displays(BroopAccountSection.Appearance)) SettingsCard(
             icon = Icons.Filled.Brightness6,
             title = uiString(R.string.l10n_settings_screen_appearance_41def7a0),
             blurb = uiString(R.string.settings_appearance_detail),
         ) {
+            SettingsToggleRow(
+                title = uiString(R.string.broop_account_broop_interface),
+                detail = uiString(R.string.broop_account_broop_interface_detail),
+                checked = BroopPrefs.enabled,
+                onCheckedChange = { BroopPrefs.setEnabled(context, it) },
+            )
+            SettingsRowDivider()
             // App-owned UI language. Recreates the Activity on change so every composable + non-composable
             // resource lookup switches together. Sits above the theme controls because it re-words them all.
             val languages = AppLanguage.entries
@@ -1863,7 +1872,7 @@ fun SettingsScreen(
         // among the theme controls in Appearance meant two of them sat between unrelated rows while the
         // other two had nowhere to go. Grouped, the size and transparency read as what they are: choices
         // about the same bar the toggles above them move and hide.
-        SettingsCard(
+        if (displays(BroopAccountSection.Appearance, BroopAccountSection.Features)) SettingsCard(
             icon = Icons.Filled.ViewAgenda,
             title = uiString(R.string.l10n_settings_screen_bottom_bar_f84098a9),
             blurb = uiString(R.string.l10n_settings_screen_how_the_navigation_bar_looks_f186b099),
@@ -1982,7 +1991,7 @@ fun SettingsScreen(
         // image is downscaled + kept on this phone only (NOOP is offline, so it's never uploaded), and left
         // out of the .noopbak backup like the avatar. Reads BackgroundImageStore snapshot state, so the
         // controls + the live backdrop update the instant an image is set, removed, or re-scaled.
-        SettingsCard(
+        if (displays(BroopAccountSection.Appearance)) SettingsCard(
             icon = Icons.Outlined.Image,
             title = "Background image",
             blurb = "Optional. Use your own photo behind every tab, in place of the day-cycle sky. " +
@@ -2076,7 +2085,7 @@ fun SettingsScreen(
         // Two staged launcher icons — machined titanium (default) and blued/dark-blue titanium. The
         // swap is done by enabling exactly one <activity-alias> (.IconDefault / .IconNavy) at runtime;
         // the launcher may take a beat (or briefly disappear/redraw) while it re-reads the icon.
-        SettingsCard(
+        if (displays(BroopAccountSection.Appearance)) SettingsCard(
             icon = Icons.Filled.Palette,
             title = uiString(R.string.l10n_settings_screen_app_icon_abde7a74),
             blurb = "Choose how NOOP looks on your home screen. The launcher may take a moment to refresh the icon after you change it.",
@@ -2095,7 +2104,7 @@ fun SettingsScreen(
         }
 
         // --- Strap ---
-        SettingsCard(
+        if (displays(BroopAccountSection.Strap, BroopAccountSection.Scoring)) SettingsCard(
             icon = Icons.Filled.Sensors,
             title = uiString(R.string.l10n_settings_screen_strap_02b88eeb),
             blurb = "NOOP pairs directly with your WHOOP over Bluetooth: no WHOOP app, no cloud.",
@@ -2672,14 +2681,14 @@ fun SettingsScreen(
         // screen opens at the everyday handful instead of the full wall of cards. Nothing is removed;
         // the experimental probes, diagnostics, raw-capture export and Trends report all stay one tap
         // away. Mirrors the iOS SettingsView "Advanced" disclosure and the Test Centre Advanced group.
-        SettingsDisclosureGroup(
+        if (displays(BroopAccountSection.Experimental, BroopAccountSection.Scoring, BroopAccountSection.Data)) SettingsDisclosureGroup(
             title = uiString(R.string.l10n_settings_screen_advanced_4d064726),
             subtitle = "Experimental probes, diagnostics, raw-sensor export, and the Trends report. Tucked away to keep the everyday screen tidy.",
-            expanded = advancedOpen,
+            expanded = advancedOpen || section != null,
             onToggle = { advancedOpen = !advancedOpen; SettingsDisclosurePrefs.write(NoopPrefs.of(context), advancedOpen) },
         ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.screenRowSpacing)) {
-        SettingsCard(
+        if (displays(BroopAccountSection.Experimental)) SettingsCard(
             icon = Icons.Filled.CloudSync,
             title = uiString(R.string.nav_self_hosted_push),
             blurb = uiString(R.string.push_settings_row_detail),
@@ -2696,7 +2705,7 @@ fun SettingsScreen(
         // Developer-only 5/MG controls now live in Test Centre. Keep the implementation below during
         // the compatibility transition, but never render a second copy in everyday Settings.
         if (false && showFiveMGControls) {
-        SettingsCard(
+        if (displays(BroopAccountSection.Experimental)) SettingsCard(
             icon = Icons.Filled.Science,
             title = uiString(R.string.l10n_settings_screen_experimental_whoop_5_mg_41ef7041),
             blurb = "Normal WHOOP 5/MG recording and history sync are supported. These remaining controls are developer experiments for unmapped protocol features; they are not required for everyday use.",
@@ -3092,7 +3101,7 @@ fun SettingsScreen(
 
         // --- Diagnostics (every model) --- the raw-sensor CSV export is split out of the 5/MG card so it
         // stays available on a WHOOP 4.0 too (#22): a 4.0 owner still needs it to share decoded streams.
-        SettingsCard(
+        if (displays(BroopAccountSection.Scoring, BroopAccountSection.Experimental)) SettingsCard(
             icon = Icons.Filled.Science,
             title = uiString(R.string.l10n_settings_screen_diagnostics_3af2279f),
             blurb = "A read-only export of the decoded sensor streams NOOP already stores. Works on any strap. Nothing is written to your device, and nothing is uploaded.",
@@ -3306,12 +3315,12 @@ fun SettingsScreen(
 
         // --- Trends report (#436) — shareable offline PDF over a date range. Self-contained
         // card (its own NoopCard + range picker + CTA), so it drops in without a SettingsSection wrapper.
-        TrendsReportExportSection(vm)
+        if (displays(BroopAccountSection.Data)) TrendsReportExportSection(vm)
         } // end Advanced disclosure content Column
         } // end SettingsDisclosureGroup("Advanced")
 
         // --- Health & wellness (v5 opt-in toggles) ---
-        SettingsCard(
+        if (displays(BroopAccountSection.Features)) SettingsCard(
             icon = Icons.Filled.Science,
             title = uiString(R.string.l10n_settings_screen_health_wellness_93475778),
             blurb = "Optional, on-device wellness signals. Each is off by default, computed only on this phone from data you already have, and never a medical diagnosis.",
@@ -3469,7 +3478,7 @@ fun SettingsScreen(
         // A nav row into the Test Centre: the single home for the diagnostic, log and test controls (spec
         // section 7). The strap log, recalibrate, scheduled export and experimental toggles also live there
         // on the same bindings, so this is a faster door to the full set without growing this screen.
-        SettingsCard(
+        if (displays(BroopAccountSection.Experimental)) SettingsCard(
             icon = Icons.Filled.BugReport,
             title = uiString(R.string.l10n_settings_screen_test_centre_37b36828),
             blurb = "Turn on a test for the thing that's wrong, wear the strap, then tap Report. Your strap log, recalibrate, scheduled export and experimental probes all live here too.",
@@ -3490,11 +3499,53 @@ fun SettingsScreen(
         // Recalibrate re-learns it from tonight onward. Writes now-seconds to BOTH noop.hrvBaselineEpoch
         // and noop.recoveryBaselineEpoch (so HRV plus resting HR / respiration / skin temp re-anchor);
         // foldHistory drops every night before that epoch and re-seeds. Mirrors the iOS/Mac button.
-        SettingsCard(
+        if (displays(BroopAccountSection.Scoring)) SettingsCard(
             icon = Icons.Filled.Favorite,
             title = uiString(R.string.l10n_settings_screen_charge_d4e1aee4),
             blurb = "Charge is NOOP's daily readiness score, learned from your own HRV, resting heart rate and more over time. Your history stays.",
         ) {
+            var restV2 by remember { mutableStateOf(NoopPrefs.of(context).getBoolean(com.noop.analytics.RestPerformanceV2.enabledKey, true)) }
+            var showEnergy by remember { mutableStateOf(NoopPrefs.of(context).getBoolean("noop.showEnergy", true)) }
+            SettingsToggleRow(
+                title = uiString(R.string.broop_account_show_energy),
+                detail = uiString(R.string.broop_account_show_energy_detail),
+                checked = showEnergy,
+                onCheckedChange = { enabled ->
+                    showEnergy = enabled
+                    NoopPrefs.of(context).edit().putBoolean("noop.showEnergy", enabled).apply()
+                },
+            )
+            SettingsRowDivider()
+            var effortGoal by remember { mutableStateOf(com.noop.analytics.StrainTarget.Goal.fromRaw(NoopPrefs.of(context).getString("noop.strainTargetGoal", null))) }
+            SettingsToggleRow(
+                title = uiString(R.string.broop_account_rest_v2),
+                detail = uiString(R.string.broop_account_rest_v2_detail),
+                checked = restV2,
+                onCheckedChange = {
+                    restV2 = it
+                    NoopPrefs.of(context).edit().putBoolean(com.noop.analytics.RestPerformanceV2.enabledKey, it).apply()
+                    vm.refreshScores()
+                },
+            )
+            SettingsRowDivider()
+            Text(uiString(R.string.broop_account_effort_goal), style = NoopType.subhead, color = Palette.textPrimary)
+            Text(uiString(R.string.broop_account_effort_goal_detail), style = NoopType.footnote, color = Palette.textSecondary)
+            SegmentedPillControl(
+                items = com.noop.analytics.StrainTarget.Goal.entries,
+                selection = effortGoal,
+                label = { goal -> uiString(when (goal) {
+                    com.noop.analytics.StrainTarget.Goal.RESTORE -> R.string.broop_account_goal_restore
+                    com.noop.analytics.StrainTarget.Goal.MAINTAIN -> R.string.broop_account_goal_maintain
+                    com.noop.analytics.StrainTarget.Goal.BUILD -> R.string.broop_account_goal_build
+                }) },
+                onSelect = { goal ->
+                    effortGoal = goal
+                    NoopPrefs.of(context).edit().putString("noop.strainTargetGoal", goal.raw).apply()
+                },
+                adaptsToAvailableWidth = true,
+            )
+            SettingsRowDivider()
+
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(uiString(R.string.l10n_settings_screen_recalibrate_charge_baseline_52a05a26), style = NoopType.subhead, color = Palette.textPrimary)
@@ -3656,7 +3707,7 @@ fun SettingsScreen(
             )
         }
 
-        SettingsCard(
+        if (displays(BroopAccountSection.Data)) SettingsCard(
             icon = Icons.Filled.Storage,
             title = uiString(R.string.l10n_settings_screen_backup_restore_a1616284),
             blurb = "Move all your NOOP data to another phone. Export saves everything (history, sleeps, workouts, settings) to a single file you can copy across; import replaces this phone's data with a backup.",
@@ -3742,7 +3793,7 @@ fun SettingsScreen(
         // Discoverability signpost: the daily-backup toggle, folder picker and keep-count live on the
         // separate Backup & Sync screen; surface an entry here, right under the one-off Backup & restore,
         // since that's where a user looks for "turn on automatic backups".
-        SettingsCard(
+        if (displays(BroopAccountSection.Data)) SettingsCard(
             icon = Icons.Filled.CloudSync,
             title = uiString(R.string.l10n_settings_screen_automatic_backups_8a772f3c),
             blurb = "Have NOOP save a dated backup to a folder every day (around 1am) and keep the last several - so if data ever corrupts, restore the newest. Point the folder at Drive/Dropbox for off-device copies. Off until you switch it on.",
@@ -3757,7 +3808,7 @@ fun SettingsScreen(
         }
 
         // --- About ---
-        SettingsCard(
+        if (displays(BroopAccountSection.About)) SettingsCard(
             icon = Icons.Filled.Info,
             title = uiString(R.string.l10n_settings_screen_about_6b21fb79),
             blurb = "NOOP: all your data, none of the cloud.",

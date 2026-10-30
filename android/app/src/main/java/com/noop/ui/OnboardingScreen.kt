@@ -54,6 +54,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -91,7 +92,7 @@ import kotlinx.coroutines.withContext
 // the app shell. It uses the same AppViewModel/Repository/BLE client as the app itself.
 
 @Composable
-fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
+fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit, broop: Boolean = false) {
     val context = LocalContext.current
     val pages = remember { OnboardingPage.entries }
     // rememberSaveable so a config change (rotation, dark-mode, font-scale, locale,
@@ -148,14 +149,15 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
         pageIndex++
     }
 
+    CompositionLocalProvider(LocalBroopOnboarding provides broop) {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Palette.surfaceBase,
+        color = if (broop) BroopPalette.bgBottom else Palette.surfaceBase,
     ) {
         // Design Reset: the flow sits on a flat opaque surfaceBase substrate — no scenic starfield
         // hero behind the steps (mirrors the iOS onboarding's clean surfaceBase background). Each
         // step's read-outs live on flat opaque NoopCards over this canvas, not floating on a scene.
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().then(if (broop) Modifier.background(BroopPalette.background) else Modifier)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -166,7 +168,15 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
                 .padding(horizontal = Metrics.screenPadding)
                 .padding(top = 16.dp, bottom = 16.dp),
         ) {
-            OnboardingTopBar(
+            fun goBack() {
+                var target = pageIndex - 1
+                if (target >= 0 && pages[target] == OnboardingPage.Bonded && !live.bonded) target--
+                if (target >= 0) pageIndex = target
+            }
+            if (broop) {
+                BroopOnboardingTopBar(page = pageIndex + 1, total = pages.size,
+                    onBack = if (pageIndex > 0) ({ goBack() }) else null)
+            } else OnboardingTopBar(
                 page = pageIndex + 1,
                 total = pages.size,
                 progress = (pageIndex + 1).toFloat() / pages.size.toFloat(),
@@ -196,9 +206,20 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
                 }
             }
 
-            OnboardingFooter(
+            val cta = if (broop) when (page) {
+                OnboardingPage.Welcome -> uiString(R.string.broop_onboarding_get_started)
+                OnboardingPage.Expectations -> uiString(R.string.broop_onboarding_understand)
+                OnboardingPage.Wear -> uiString(R.string.broop_onboarding_wearing)
+                OnboardingPage.Done -> uiString(R.string.broop_onboarding_enter)
+                else -> uiString(page.ctaRes)
+            } else uiString(page.ctaRes)
+            fun next() {
+                if (pageIndex == pages.lastIndex) complete() else advance()
+            }
+            if (broop) BroopOnboardingFooter(cta = cta, onNext = { next() })
+            else OnboardingFooter(
                 canGoBack = pageIndex > 0,
-                cta = uiString(page.ctaRes),
+                cta = cta,
                 onBack = {
                     var target = pageIndex - 1
                     // Skip the bonded celebration going back when nothing is bonded.
@@ -215,6 +236,7 @@ fun OnboardingScreen(viewModel: AppViewModel, onFinished: () -> Unit) {
             )
         }
         }
+    }
     }
 }
 
@@ -314,24 +336,25 @@ private fun StepShell(
     subtitle: String? = null,
     content: @Composable () -> Unit,
 ) {
+    val broop = LocalBroopOnboarding.current
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = if (broop) Alignment.Start else Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         if (title != null || subtitle != null) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                horizontalAlignment = if (broop) Alignment.Start else Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 title?.let {
                     // Big SF-Rounded hero headline — the onboarding's first-impression voice.
                     Text(
                         it,
-                        style = NoopType.display(30f),
+                        style = if (broop) BroopType.title else NoopType.display(30f),
                         color = Palette.textPrimary,
-                        textAlign = TextAlign.Center,
+                        textAlign = if (broop) TextAlign.Start else TextAlign.Center,
                     )
                 }
                 subtitle?.let {
@@ -339,7 +362,7 @@ private fun StepShell(
                         it,
                         style = NoopType.body,
                         color = Palette.textSecondary,
-                        textAlign = TextAlign.Center,
+                        textAlign = if (broop) TextAlign.Start else TextAlign.Center,
                     )
                 }
             }
@@ -352,6 +375,10 @@ private fun StepShell(
 
 @Composable
 private fun WelcomeStep() {
+    if (LocalBroopOnboarding.current) {
+        BroopOnboardingWelcome()
+        return
+    }
     StepShell {
         Column(
             modifier = Modifier
@@ -393,7 +420,7 @@ private fun WelcomeStep() {
 @Composable
 private fun WhatItDoesStep() {
     StepShell(
-        title = uiString(R.string.l10n_onboarding_screen_what_noop_does_b25b362d),
+        title = uiString(if (LocalBroopOnboarding.current) R.string.broop_onboarding_what else R.string.l10n_onboarding_screen_what_noop_does_b25b362d),
         subtitle = uiString(R.string.onboarding_three_promises),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
@@ -971,6 +998,10 @@ private fun AppearanceStep() {
         title = uiString(R.string.l10n_onboarding_screen_make_it_yours_54135155),
         subtitle = uiString(R.string.onboarding_appearance_subtitle),
     ) {
+        if (LocalBroopOnboarding.current) Text(
+            stringResource(R.string.broop_onboarding_appearance_note),
+            style = BroopType.body, color = BroopPalette.textBody,
+        )
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -986,13 +1017,13 @@ private fun AppearanceStep() {
                 ThemeSwatch(
                     title = uiString(R.string.l10n_onboarding_screen_light_a36ef8ab),
                     tokens = LightTokens,
-                    selected = Palette.isLight,
+                    selected = if (LocalBroopOnboarding.current) mode == AppearanceMode.LIGHT else Palette.isLight,
                     modifier = Modifier.weight(1f),
                 )
                 ThemeSwatch(
                     title = uiString(R.string.l10n_onboarding_screen_dark_ae1ef014),
                     tokens = DarkTokens,
-                    selected = !Palette.isLight,
+                    selected = if (LocalBroopOnboarding.current) mode != AppearanceMode.LIGHT else !Palette.isLight,
                     modifier = Modifier.weight(1f),
                 )
             }

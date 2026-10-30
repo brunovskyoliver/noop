@@ -21,6 +21,8 @@ import com.noop.analytics.CircadianEngine
 import com.noop.analytics.V5HealthSignals
 import com.noop.analytics.RegistryDayOwnerSource
 import com.noop.analytics.RestScorer
+import com.noop.analytics.RestModeHistoryRepair
+import com.noop.analytics.RestPerformanceV2
 import com.noop.analytics.RouteMath
 import com.noop.analytics.SleepMark
 import com.noop.analytics.SleepMarkType
@@ -135,6 +137,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val ble = noopApp.ble
 
     val repo: WhoopRepository get() = repository
+    internal val broopStressLive by lazy { BroopStressLiveSampler(this) }
+    internal val broopLift by lazy { BroopLiftController(this) }
 
     /** The registry's active strap id (the same id the read path resolves to). The getter stays source
      * compatible for existing call sites; reactive screens collect [activeStrapIdFlow]. */
@@ -712,6 +716,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  wind-down reminder read. Twin of iOS `AppModel.tonightPlan`; rebuilt by [refreshTonightPlan]. */
     private val _tonightPlan = MutableStateFlow<com.noop.analytics.SleepPlanner.Plan?>(null)
     val tonightPlan: StateFlow<com.noop.analytics.SleepPlanner.Plan?> = _tonightPlan.asStateFlow()
+    private val _strainTargetDebtMin = MutableStateFlow<Double?>(null)
+    internal val strainTargetDebtMin: StateFlow<Double?> = _strainTargetDebtMin.asStateFlow()
+    private var tonightPlanJob: Job? = null
 
     // Wind-down nudge (#207) — cross-platform, NON-safety-critical. A gentle evening notification
     // derived from the user's earliest wake time. Inexact daily alarm; no exact-alarm permission.
@@ -766,13 +773,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * rows (from [IntelligenceEngine]) gap-fill, so recovery/strain/sleep populate from
      * the strap with no WHOOP import.
      */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val recentDays: StateFlow<List<DailyMetric>> =
         // #797: bound the dashboard merge window. The unbounded daysMergedFlow re-merged the WHOLE daily
         // history on every DB change; a years-deep import made that a heavy refresh feeding Today / Trends /
         // illness watch. recentDaysMergedFlow caps each source to RECENT_DAYS_CAP most-recent days first, so
         // the merge stays bounded while every current surface (deepest Trends range, 7-day Fitness Age /
         // Vitality windows) keeps its data. Same oldest-first ordering as before.
-        repository.recentDaysMergedFlow(deviceId)
+        activeStrapIdFlow.map { it ?: noopApp.activeDeviceId }.distinctUntilChanged()
+            .flatMapLatest { repository.recentDaysMergedFlow(it) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
@@ -785,13 +794,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * window start, so it only ever covers MORE days than the window; [ChargeBaselines.history] trims to the
      * current one. Mirrors the Swift `Repository.chargeBaselines`.
      */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val chargeBaselines: StateFlow<ChargeBaselines.Resolved?> = run {
         val startSec = System.currentTimeMillis() / 1000L
         val startTz = java.util.TimeZone.getDefault().getOffset(startSec * 1000L) / 1000L
         val from = Baselines.cutoffKey(AnalyticsEngine.dayString(startSec, startTz), ChargeBaselines.windowDays - 1)
+        activeStrapIdFlow.map { it ?: noopApp.activeDeviceId }.distinctUntilChanged().flatMapLatest { activeId ->
         combine(
-            repository.importedDailyUnionFlow(deviceId, from, "9999-12-31"),
-            repository.computedDailyUnionFlow(deviceId, from, "9999-12-31"),
+            repository.importedDailyUnionFlow(activeId, from, "9999-12-31"),
+            repository.computedDailyUnionFlow(activeId, from, "9999-12-31"),
         ) { imported, own ->
             val nowSec = System.currentTimeMillis() / 1000L
             val tz = java.util.TimeZone.getDefault().getOffset(nowSec * 1000L) / 1000L
@@ -803,6 +814,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 hrvEpoch = prefs.getLong(Baselines.hrvBaselineEpochKey, 0L).toDouble(),
                 recoveryEpoch = prefs.getLong(Baselines.recoveryBaselineEpochKey, 0L).toDouble(),
             )
+        }
         }
             .flowOn(Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -911,6 +923,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // existing WHOOP flow below runs unchanged; it only acts when a non-WHOOP strap is the active
         // device. The Devices screen (next task) calls onActiveDeviceChanged after a setActive.
         noopApp.sourceCoordinator.start()
+        viewModelScope.launch { activeStrapIdFlow.collect { broopLift.resumeSaved() } }
         // #1410: on the first launch after an update, append an APP_VERSION_CHANGED event so a single
         // export can answer "what ran when". Idempotent — the stored last-seen version only advances
         // once the transition is recorded, so a background-only launch is caught on the next UI open.
@@ -1198,6 +1211,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // are set only after persistence returns. Cached-only days are preserved, changing Effort's
             // old broad-window write behavior. Cancellation/failure retries next launch.
             runCatching {
+                val restMode = NoopPrefs.of(appContext).getBoolean(RestPerformanceV2.enabledKey, true)
                 IntelligenceEngine.runEffortRescoreIfNeeded(
                     repo = repository,
                     profile = currentProfile(),
@@ -1207,16 +1221,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         !IntelligencePersistence.historyRepairIsPending(
                             effortDone = NoopPrefs.effortRescoreDone(appContext),
                             sleepWearDone = NoopPrefs.sleepWearRescoreDone(appContext),
-                        )
+                        ) && NoopPrefs.of(appContext).getBoolean(RestModeHistoryRepair.completedKey, false)
                     },
                     flagSet = {
                         NoopPrefs.setEffortRescoreDone(appContext)
                         NoopPrefs.setSleepWearRescoreDone(appContext)
+                        NoopPrefs.of(appContext).edit().putBoolean(RestModeHistoryRepair.completedKey,
+                            restMode == NoopPrefs.of(appContext).getBoolean(RestPerformanceV2.enabledKey, true)).apply()
                     },
                     // #1567: this rewrites the FULL history once, so a missing owner source would bake the
                     // WHOOP5 skin-temp scale into every day of it.
                     ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
                     preserveUnscoredHistory = true,
+                    restV2Enabled = restMode,
                 )
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             while (isActive) {
@@ -1258,6 +1275,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         profileStore.stepsHasBankedMotion = hasMotion
                     }
                     IntelligenceEngine.analyzeRecent(
+                        restV2Enabled = com.noop.ui.NoopPrefs.of(appContext).getBoolean(com.noop.analytics.RestPerformanceV2.enabledKey, true),
                         repo = repository,
                         profile = currentProfile(),
                         importedDeviceId = deviceId,
@@ -1895,7 +1913,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** The resting HR a manual workout's Effort is scored against, live and at save: today's measured
      *  value, else the scorer's default. One funnel so the live readout and the saved number agree.
      *  Twin of iOS `AppModel.workoutRestingHR`. */
-    private fun workoutRestingHR(): Double =
+    internal fun workoutRestingHR(): Double =
         _today.value?.restingHr?.toDouble() ?: StrainScorer.defaultRestingHR
 
     /**
@@ -1931,22 +1949,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Rebuild [tonightPlan] from the last month of nights and push its bed-to-wake window to the wind-down
      *  reminder, so the reminder fires its lead before the planned bedtime. Twin of iOS `refreshTonightPlan`. */
     fun refreshTonightPlan() {
-        viewModelScope.launch {
+        tonightPlanJob?.cancel()
+        val activeId = activeStrapId
+        tonightPlanJob = viewModelScope.launch {
             val now = System.currentTimeMillis() / 1000L
             val lo = now - 30L * 86_400L
-            val sleeps = runCatching {
-                val imported = repository.sleepSessionsUnion(activeStrapId, lo, now)
-                val computed = repository.computedSleepSessionsUnion(activeStrapId, lo, now)
-                WhoopRepository.mergeSleepRichness(imported, computed) { localDayString(it.endTs) }
-                    .sortedBy { it.effectiveStartTs }
-            }.getOrDefault(emptyList())
-            val habitual = runCatching { repository.habitualMidsleepSec(activeStrapId) }.getOrNull()
+            val sleeps = try { com.noop.data.StressAnalysisStore.allSleepSessions(repository, activeId, lo, now) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { emptyList() }
+            val habitual = try { repository.habitualMidsleepSec(activeId) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
             val inputs = tonightPlanInputs(
                 days = recentDays.value, sleeps = sleeps, habitualMidsleepSec = habitual,
                 today = java.time.LocalDate.now().toString(), wakeMinute = tonightWakeMinute(),
-                timeZone = java.util.TimeZone.getDefault(),
+                timeZone = java.util.TimeZone.getDefault(), age = profileStore.age,
             )
             val plan = com.noop.analytics.SleepPlanner.plan(inputs)
+            if (activeStrapId != activeId) return@launch
+            _strainTargetDebtMin.value = inputs.debtMin
             _tonightPlan.value = plan
             val window = ((plan.wakeMinute - plan.target.bedMinute) % 1440 + 1440) % 1440
             val clamped = window.coerceIn(300, 660)
@@ -2009,11 +2030,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Persist a bed/wake-time edit for one sleep session (delete-then-upsert at the new window), then
      *  re-score the affected day immediately so Charge / Rest / recovery and the persisted
      *  sleep_performance honor the corrected window without waiting for the 15-min loop — matching Swift
-     *  SleepView, which calls analyzeRecent() right after editSleepTimes. Swallows persist failures — the
-     *  Sleep screen already applied the change optimistically. */
-    suspend fun updateSleepSessionTimes(session: com.noop.data.SleepSession, newStartTs: Long, newEndTs: Long) {
-        runCatching { repository.updateSleepSessionTimes(session, newStartTs, newEndTs) }
+     *  SleepView, which calls analyzeRecent() right after editSleepTimes. Returns false on persistence failure. */
+    suspend fun updateSleepSessionTimes(session: com.noop.data.SleepSession, newStartTs: Long, newEndTs: Long): Boolean {
+        try { repository.updateSleepSessionTimes(session, newStartTs, newEndTs) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { return false }
         rescoreAfterEdit()
+        return true
     }
 
     /** Persist a bed/wake edit across a BRIDGED night's fragments (#1492), then re-score as
@@ -2021,9 +2044,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  split night defines neither the displayed bedtime nor the displayed wake. */
     suspend fun updateSleepGroupTimes(
         group: List<com.noop.data.SleepSession>, newStartTs: Long, newEndTs: Long,
-    ) {
-        runCatching { repository.updateSleepGroupTimes(group, newStartTs, newEndTs) }
+    ): Boolean {
+        try { repository.updateSleepGroupTimes(group, newStartTs, newEndTs) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { return false }
         rescoreAfterEdit()
+        return true
     }
 
     /** Delete one sleep session, then re-score the affected day immediately so the dashboard aggregates
@@ -2033,6 +2059,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun deleteSleepSession(session: com.noop.data.SleepSession) {
         runCatching { repository.deleteSleepSession(session) }
         rescoreAfterEdit()
+    }
+
+    /** Delete the displayed night atomically and re-score once after the whole group succeeds. */
+    suspend fun deleteSleepSessions(sessions: List<com.noop.data.SleepSession>): Boolean {
+        if (sessions.isEmpty()) return true
+        try { repository.deleteSleepSessions(sessions) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { return false }
+        rescoreAfterEdit()
+        return true
     }
 
     /** Undo the most recent sleep delete (#65): restore the row into its ORIGINAL namespace, lift the
@@ -2048,11 +2084,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  A bed/wake correction can retire several fragments of a bridged night, and the single-session call
      *  above re-scores on each invocation — looping it would run a full analyzeRecent per restored
      *  fragment, back to back, on the exact pass #1005/#836 found to be the heaviest thing NOOP does in the
-     *  background. The restores are independent; only the scoring needs to see the finished set. */
-    suspend fun undoDeleteSleepSessions(sessions: List<com.noop.data.SleepSession>) {
-        if (sessions.isEmpty()) return
-        sessions.forEach { runCatching { repository.undoDeleteSleepSession(it) } }
+     *  background. The restore transaction must succeed before the undo strip is cleared. */
+    suspend fun undoDeleteSleepSessions(sessions: List<com.noop.data.SleepSession>): Boolean {
+        if (sessions.isEmpty()) return true
+        try { repository.undoDeleteSleepSessions(sessions) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { return false }
         rescoreAfterEdit()
+        return true
     }
 
     /** Re-open one deliberately deleted sleep window (#515): remove its durable tombstone first, then
@@ -2081,9 +2120,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  then re-score the affected day immediately so the day's aggregates pick up the new session, matching
      *  Swift SleepView's analyzeRecent() after addManualNap. Swallows persist failures; the Sleep screen
      *  recomputes from the persisted rows on its next reload. */
-    suspend fun addManualNap(startTs: Long, endTs: Long) {
-        runCatching { repository.addManualNap(deviceId, startTs, endTs) }
+    suspend fun addManualNap(startTs: Long, endTs: Long): Boolean {
+        try { repository.addManualNap(activeStrapId, startTs, endTs) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { return false }
         rescoreAfterEdit()
+        return true
     }
 
     // --- On-device short-nap detection (PR #569 reimpl under NoopApp). Candidates are detected on the
@@ -2113,6 +2155,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissDetectedNap(candidate: com.noop.analytics.NapCandidate): List<com.noop.analytics.NapCandidate> =
         com.noop.data.NapStore.dismiss(appContext, com.noop.data.NapStore.idFor(candidate))
 
+    private var restModeRescoreJob: Job? = null
+
+    /** Recompute the full history after changing Rest mode, using the same preferences as edits. */
+    fun refreshScores() {
+        val prefs = NoopPrefs.of(appContext)
+        val mode = prefs.getBoolean(RestPerformanceV2.enabledKey, true)
+        // Set this synchronously: even cancellation before the coroutine starts must leave the repair pending.
+        prefs.edit().putBoolean(RestModeHistoryRepair.completedKey, false).apply()
+        restModeRescoreJob?.cancel()
+        restModeRescoreJob = viewModelScope.launch {
+            RestModeHistoryRepair.run(mode,
+                currentMode = { prefs.getBoolean(RestPerformanceV2.enabledKey, true) },
+                markComplete = { prefs.edit().putBoolean(RestModeHistoryRepair.completedKey, it).apply() },
+                rescore = {
+                    rescoreAfterEdit(maxDays = RestModeHistoryRepair.restModeHistoryDays,
+                        preserveUnscoredHistory = true, restMode = mode)
+                },
+            )
+            // Daily rows republish through Room; refresh the app-layer plan and activity projections too.
+            refreshTonightPlan()
+            loadWorkouts()
+        }
+    }
+
     /**
      * Re-score recent days right after an edit that changes them (a sleep edit / delete / add-nap, or a
      * manually-added workout — #598), so daily recovery + the
@@ -2124,16 +2190,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * a failure here just leaves the loop to catch up; never throws into the edit caller. CancellationException
      * is rethrown so a ViewModel teardown mid-edit isn't swallowed (matches the loop's #125 handling).
      */
-    private suspend fun rescoreAfterEdit() {
+    private suspend fun rescoreAfterEdit(
+        maxDays: Int = 21,
+        preserveUnscoredHistory: Boolean = false,
+        restMode: Boolean = NoopPrefs.of(appContext).getBoolean(RestPerformanceV2.enabledKey, true),
+    ): Boolean = try {
         runCatching {
             // #1816: set the motion sink before the pass, clear it after (same pattern as the 15-min loop).
             IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
                 profileStore.stepsHasBankedMotion = hasMotion
             }
             IntelligenceEngine.analyzeRecent(
+                restV2Enabled = restMode,
+                maxDays = maxDays,
+                preserveUnscoredHistory = preserveUnscoredHistory,
                 repo = repository,
                 profile = currentProfile(),
-                importedDeviceId = deviceId,
+                importedDeviceId = activeStrapId,
                 maxHROverride = profileStore.hrMaxOverride
                     .takeIf { it > 0 }?.toDouble(),
                 ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
@@ -2168,7 +2241,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 effortMethod = NoopPrefs.effortMethod(appContext),
                 dayCycleMode = NoopPrefs.dayCycleMode(appContext),
             )
-        }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+        }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }.isSuccess
+    } finally {
         IntelligenceEngine.stepsHasMotionSink = null
     }
     fun loadWorkouts() {
@@ -2294,6 +2368,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // the Avg HR on the same card. Defaults keep any caller without a row on today's behaviour.
         val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
         return runCatching { repository.hrBucketsFor(ids, from, to, bucket) }.getOrDefault(emptyList())
+    }
+
+    /** Completeness of the same source and exact window used by the session chart. */
+    suspend fun workoutHrCoverage(from: Long, to: Long, source: String, rowDeviceId: String): com.noop.analytics.HRInputCoverage? {
+        if (to <= from) return null
+        val ids = WhoopRepository.workoutHrDeviceIds(source, rowDeviceId, deviceId)
+        val samples = runCatching { repository.hrSamplesFor(ids, from, to - 1, 200_000) }.getOrNull() ?: return null
+        return com.noop.analytics.HRInputCoverage.measure(samples, from, to)
     }
 
     /** Per-zone MINUTES for a workout window, binning the strap's raw HR samples into the age-derived
@@ -3233,6 +3315,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (ev == lastDispatchedEvent) return       // not a fresh event since we last looked
         lastDispatchedEvent = ev
         if (ev == null || !ev.startsWith("DOUBLE_TAP")) return
+        if (broopLift.isActive) { broopLift.advance(fromStrap = true); return }
         val action = _doubleTapAction.value
         if (action == DoubleTapAction.NONE) return
         ble.externalLog("Double-tap -> ${action.label}")
@@ -3256,7 +3339,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  store yet, so — matching the iOS markMoment's user-visible effect (a buzz + a greppable log line)
      *  — this writes a timestamped line into the shareable strap log and buzzes once. Additive: no new
      *  persistence, no change to any existing path. */
-    private fun markMoment() {
+    internal fun markMoment() {
         val clock = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date())
         ble.externalLog("Moment marked @ $clock")
         ble.buzz(1)

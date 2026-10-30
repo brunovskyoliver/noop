@@ -8,19 +8,11 @@ import androidx.room.PrimaryKey
 /**
  * The in-app strength log — the Room half of GRDB's `v46-lift-log`.
  *
- * Five `deviceId`-keyed tables holding saved programs and the sessions run from them. The Apple side
- * ships the screens that read and write these; this is the SCHEMA twin, landed with the migration
- * rather than after it, because `docs/CONTRIBUTING.md` is explicit that a migration cannot land
- * until its twin does and that the oracle's divergence ledger should only ever shrink.
- *
- * WHAT THIS DELIBERATELY IS NOT. There is no DAO and no Compose UI here yet, so nothing on Android
- * reads or writes these tables today. That is a stated gap, not an oversight: the value of a gym log
- * book is entirely in how it feels to tap through between sets with the phone face-down, and screens
- * written without a device to try them on would compile and be bad to use. An Android user should
- * take that half. What is landed here is the half that CAN be proved correct without a device —
- * `SchemaOracleTest` compares Room's KSP-exported schema against the same `schema_oracle.json` the
- * GRDB suite checks, so a column, order, affinity, nullability, default, key or index that drifts
- * from Apple's fails this build.
+ * Five `deviceId`-keyed tables hold saved programs, the exercise vocabulary and recorded sessions.
+ * Android's Broop Lift Log reads and writes these tables through BroopLiftStore. Its live controller
+ * keeps an additional local crash snapshot of the plan and in-progress stage; completed records keep
+ * the same schema as Swift. `SchemaOracleTest` compares Room's KSP-exported schema against the shared
+ * `schema_oracle.json` used by GRDB.
  *
  * FIELD ORDER IS THE CONTRACT. Room emits columns in declaration order, so each class below follows
  * its GRDB `create(table:)` exactly; a reordering here is a real schema divergence even though every

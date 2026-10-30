@@ -45,4 +45,16 @@ final class WorkoutDetectorBackfillTests: XCTestCase {
         let filled = WorkoutDetector.backfillWorkout(real, avgBpm: 150, peakHR: 170, caloriesKcal: 80.0, strain: 9.5)
         XCTAssertEqual(filled, real, "nothing to fill -> byte-identical row, so the caller can skip the write")
     }
+    func testMergedWorkoutDoesNotInheritOneFragmentsTotals() {
+        let real = manualRow()
+        let partial = WorkoutDetector.backfillWorkout(real, avgBpm: 150, peakHR: 170,
+            caloriesKcal: 80, strain: 9.5, boutBounds: 1000..<1300)
+        XCTAssertEqual(partial, real)
+        let whole = WorkoutDetector.backfillWorkout(real, avgBpm: 150, peakHR: 170,
+            caloriesKcal: 80, strain: 9.5, boutBounds: 1000..<1600)
+        XCTAssertEqual(whole.strain, 9.5)
+        XCTAssertEqual(whole.startTs, 1000)
+        XCTAssertEqual(whole.endTs, 1600)
+    }
+
 }

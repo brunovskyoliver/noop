@@ -19,6 +19,9 @@ val requestedReleaseBuild = gradle.startParameter.taskNames.any {
 }
 
 android {
+    // Notification integration tests load the same localized resources as the installed app.
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     namespace = "com.noop"
     compileSdk = 35
 
@@ -306,6 +309,8 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // Keep Kotlin's common artifact stable while AGP resolves the Compose instrumentation graph.
+    androidTestImplementation("org.jetbrains.kotlin:kotlin-stdlib-common:1.9.24")
 
     // --- Compose tooling (debug-only) ---
     debugImplementation("androidx.compose.ui:ui-tooling")

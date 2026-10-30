@@ -1935,7 +1935,7 @@ struct SleepView: View {
     static func mainNightSession(_ sessions: [CachedSleepSession],
                                  habitualMidsleepSec: Int? = nil) -> CachedSleepSession? {
         SleepStageTotals.mainNightIndex(
-            sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) },
+            sessions.map { SleepStageTotals.NightBlock(session: $0) },
             offsetSec: tzOffsetSec, habitualMidsleepSec: habitualMidsleepSec).map { sessions[$0] }
     }
 
@@ -1949,7 +1949,7 @@ struct SleepView: View {
     static func mainNightGroup(_ sessions: [CachedSleepSession],
                                habitualMidsleepSec: Int? = nil) -> [CachedSleepSession] {
         guard let idx = SleepStageTotals.mainNightGroupIndices(
-            sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) },
+            sessions.map { SleepStageTotals.NightBlock(session: $0) },
             offsetSec: tzOffsetSec, habitualMidsleepSec: habitualMidsleepSec) else { return [] }
         return idx.map { sessions[$0] }.sorted { $0.effectiveStartTs < $1.effectiveStartTs }
     }
@@ -1999,7 +1999,7 @@ struct SleepView: View {
     /// hero used, so the words match the block the hero shows. nil only when the day has no blocks. (C1)
     private func mainSleepReasonText(_ night: Night) -> String? {
         guard let sel = SleepStageTotals.mainNightSelection(
-            night.sourceBlocks.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) },
+            night.sourceBlocks.map { SleepStageTotals.NightBlock(session: $0) },
             offsetSec: SleepView.tzOffsetSec, habitualMidsleepSec: habitualMidsleepSec) else { return nil }
         let dur = durationText(sel.asleepMinutes)
         switch sel.reason {

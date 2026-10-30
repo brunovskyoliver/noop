@@ -219,6 +219,7 @@ final class BroopStore: ObservableObject {
         async let restSeriesA = repo.exploreSeries(key: "sleep_performance", source: "my-whoop")
         async let stressA = repo.series(key: "stress", source: "my-whoop")
         async let stepsA = repo.exploreSeries(key: "steps_est", source: "my-whoop")
+        async let activeEnergyA = repo.exploreSeries(key: "active_energy_kcal", source: "my-whoop")
         async let appleA = repo.appleDailyRows()
         async let workoutsA = repo.workoutRows(from: from, to: toExclusive)
         async let overCountA = repo.exploreSeries(key: "hrv_rr_overcount", source: "my-whoop", days: 14)
@@ -229,6 +230,8 @@ final class BroopStore: ObservableObject {
         let restSeries = await restSeriesA
         let stressStored = await stressA
         let stepsSeries = await stepsA
+        let activeEnergy = await activeEnergyA
+        let activeByDay = Dictionary(activeEnergy.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
         let apple = await appleA
         s.workouts = await workoutsA
         let overCount = await overCountA
@@ -257,14 +260,13 @@ final class BroopStore: ObservableObject {
         s.vitals = BroopVitals.readings(repo: repo, spo2CandidateByDay: spo2CandidateByDay,
                                         hrvOverCountByDay: hrvOverCountByDay)
 
-        // Steps and calories: Liquid's fallbacks, in Liquid's order.
-        let stepsByDay = Dictionary(stepsSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
-        let stepsEst = stepsByDay[key] ?? (isToday ? stepsSeries.last?.value : nil)
-        s.steps = day?.steps.map(Double.init)
-            ?? apple.filter { $0.day == key }.compactMap { $0.steps }.max().map(Double.init)
-            ?? stepsEst
-        s.activeKcal = apple.filter { $0.day == key }.compactMap { $0.activeKcal }.max()
-            ?? day?.activeKcalEst
+        // Resolve current activity and its history from the same sources, including Apple Health.
+        let activity = BroopActivityReadings.resolve(day: key,
+            native: days.map { .init(day: $0.day, steps: $0.steps.map(Double.init), activeKcal: activeByDay[$0.day]) },
+            apple: apple.map { .init(day: $0.day, steps: $0.steps.map(Double.init), activeKcal: $0.activeKcal) },
+            estimates: stepsSeries)
+        s.steps = activity.steps?.value
+        s.activeKcal = activity.activeKcal?.value
 
         // Sleep: the main night that ended on the selected day (SleepView's resolution) — drawn as the
         // stages chart only. Every sleep FIGURE comes from the day row, as on the classic Today, so the
@@ -297,9 +299,10 @@ final class BroopStore: ObservableObject {
         let window = Array(days[max(0, end - 30)..<end])
         func stat(_ name: String, unit: String, better: BroopReading.Better,
                   value: Double?, format: @escaping (Double) -> String,
+                  history: [Double]? = nil,
                   _ metric: (DailyMetric) -> Double?) -> BroopReading? {
             guard let value else { return nil }
-            let hist = window.compactMap(metric)
+            let hist = history ?? window.compactMap(metric)
             guard !hist.isEmpty else { return nil }
             let mean = hist.reduce(0, +) / Double(hist.count)
             let variance = hist.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(hist.count)
@@ -369,17 +372,24 @@ final class BroopStore: ObservableObject {
         s.consistency = repo.importedSleep[sleepKey]?.consistencyPct ?? v2Parts?.consistencyPct
         guard !Task.isCancelled else { return }
 
-        let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps, format: whole) { $0.steps.map(Double.init) }
-        let kcalStat = stat(String(localized: "Active calories"), unit: "kcal", better: .neutral, value: s.activeKcal, format: whole) { $0.activeKcalEst }
+        let stepsStat = stat(String(localized: "Steps"), unit: "", better: .neutral, value: s.steps,
+                             format: whole, history: activity.steps?.history) { $0.steps.map(Double.init) }
+        let kcalStat = stat(String(localized: "Active calories"), unit: "kcal", better: .neutral, value: s.activeKcal,
+                            format: whole, history: activity.activeKcal?.history) { activeByDay[$0.day] }
         let effortStat = stat(String(localized: "Effort"), unit: "", better: .neutral,
                               value: s.effort, format: one) { d in d.strain.map { UnitFormatter.effortValue($0, scale: scale) } }
         s.effortStats = [effortStat, stepsStat, kcalStat].compactMap { $0 }
 
         let rows: [(BroopReading?, String, String)] = [
             (hrv, "hrv", "waveform.path.ecg"), (rhr, "rhr", "heart"),
-            (restorativeStat, "restorative_pct", "moon.stars"), (resp, "resp_rate", "lungs"),
-            (stepsStat, "steps", "shoeprints.fill"), (kcalStat, "active_kcal", "flame")]
+            (restorativeStat, "restorative_pct", "moon.stars"), (resp, "resp_rate", "lungs")]
         s.dashboard = rows.compactMap { r in r.0.map { BroopDashboardItem(reading: $0, metricKey: r.1, symbol: r.2) } }
+        s.dashboard += [
+            BroopDashboardItem(name: String(localized: "Steps"), value: s.steps, format: whole,
+                               comparison: stepsStat, metricKey: "steps", symbol: "shoeprints.fill"),
+            BroopDashboardItem(name: String(localized: "Active calories"), value: s.activeKcal, format: whole,
+                               comparison: kcalStat, metricKey: "active_kcal", symbol: "flame")
+        ].compactMap { $0 }
 
         let weekStart = Repository.localDayKey(cal.date(byAdding: .day, value: -6, to: logicalDay) ?? logicalDay)
         s.journalDays = await repo.nativeJournalDays(from: weekStart, to: key)
@@ -401,10 +411,30 @@ final class BroopStore: ObservableObject {
 
 /// One My Dashboard row.
 struct BroopDashboardItem: Identifiable {
-    let reading: BroopReading
+    let name: String
+    let valueText: String
+    let comparison: BroopReading?
     let metricKey: String
     let symbol: String
     var id: String { metricKey }
+
+    init(reading: BroopReading, metricKey: String, symbol: String) {
+        name = reading.name
+        valueText = reading.text + (reading.unit == "%" ? "%" : "")
+        comparison = reading
+        self.metricKey = metricKey
+        self.symbol = symbol
+    }
+
+    init?(name: String, value: Double?, format: (Double) -> String,
+          comparison: BroopReading?, metricKey: String, symbol: String) {
+        guard let value else { return nil }
+        self.name = name
+        valueText = format(value)
+        self.comparison = comparison
+        self.metricKey = metricKey
+        self.symbol = symbol
+    }
 }
 
 /// Routes pushed inside the Broop tabs.

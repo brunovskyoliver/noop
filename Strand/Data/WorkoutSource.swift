@@ -74,7 +74,7 @@ enum WorkoutSource: Equatable {
 
     /// 2026-09-22: the classifier's advisory label for a `detected` row, as a localized sport name.
     /// nil for any other sport or an unrecognized token — the suggestion only ever stands in for
-    /// "Activity". Kotlin twin `WorkoutEditing.suggestedClassRes`.
+    /// "Activity". Kotlin twin `WorkoutEditing.suggestedClassName` returns the corresponding English label.
     static func suggestedClassName(_ token: String?) -> String? {
         switch token {
         case "walk":     return String(localized: "Walking")

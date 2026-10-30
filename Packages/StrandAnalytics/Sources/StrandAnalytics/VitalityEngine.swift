@@ -25,8 +25,8 @@ import Foundation
 // mass %. HRV is deliberately NOT an input (the white paper does not use it). A missing input contributes 0
 // and is reported as missing so the UI can say so instead of showing a value.
 //
-// iOS-only fork change: the Android twin (`VitalityEngine.kt`) is intentionally NOT updated, so the
-// Swift/Kotlin byte-parity oracle for this file no longer applies.
+// The Android twin (`VitalityEngine.kt`) implements the same nine-factor model.
+// HealthspanV2ParityTest and HealthspanV2Tests pin the shared Swift-generated curve oracle.
 public enum VitalityEngine {
 
     /// Years of age per unit of ln(hazard): 1 / 0.1 (white paper, Gompertz law).

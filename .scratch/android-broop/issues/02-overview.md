@@ -1,0 +1,80 @@
+# Android Broop overview, sleep and score pages
+
+## Changes
+
+- Added a shared selected-day snapshot for Home, Rest, Charge and Effort. Day navigation reaches the full recorded history; changing days invalidates the previous snapshot before rendering the new date. Rest carries its score, night and contributors together and rejects future-dated outliers.
+- Rebuilt Home with the Broop header, wordmark, three score dials, collapsed dial navigation, Health and Stress monitors, Energy link, daily outlook/review, activities, Tonight, journal week and dashboard. Activity rows open the exact workout; Add Activity and Start Activity open the existing manual and sport/GPS forms.
+- Rebuilt Charge and Effort detail pages with real contributors, prior-30-day comparisons, score explanations, trends, workout links and HR-zone breakdowns. The Charge breakdown and scoring guide reuse the shipped controls.
+- Rebuilt Rest/Sleep with the selected night's score/contributors, recorded epoch timeline, stage totals, naps, atomic group bed/wake editing, deletion/undo and manual nap entry. Saved section order/visibility controls Tonight, sleep marks, body-clock dial, nightly statistics, debt ledger and stage comparisons. The complete native Sleep details/settings page remains accessible for its additional controls.
+- Added the pre-sleep HR and sleep HR dip cards and 14/30-day trends. They use the existing pure analytics, exact five-minute full-epoch windows, nap exclusion, preceding waking interval and baseline. Missing readings remain absent. The pre-sleep preference is default off under `broop.sleep.preSleepHeartRate`.
+- Added a focused series detail page for Broop sleep and zone metrics, with interactive chart selection and 14/30/all ranges. Consistency uses the actual SRI when an imported newest-day value is absent. Hours-versus-needed prefers the same stored Rest contributor used by the score.
+- Home Health Monitor uses the canonical `vitalsFor` resolver, including experimental SpO2, HRV overcount and temperature preferences. Home Stress uses the shared live/latest Stress resolver supplied by the root agent.
+- Ported `SleepRegularity.swift`, including captured-window unknown handling, WASO, naps, DST, SRI, four-prior-day Rest consistency and imported consistency precedence. Replaced the obsolete bedtime-spread fallback in the existing native Sleep model.
+- Ported `StrainTarget.swift`. Effort target bounds use the day's own scored Charge, the current planner's debt, the illness banner and `noop.strainTargetGoal`. Past dates exclude today's debt and illness. The score hero renders the target arc and midpoint tick.
+- Added English resources in `broop_overview.xml`; new UI uses Broop design tokens.
+
+## Verification
+
+- Compiled and ran the actual Swift `SleepRegularity.swift` and `SleepStageVocabulary.swift` standalone with `swiftc -O`. The Kotlin regression fixture contains its literal stdout for varying shifts, capture thresholds, missing days, naps, WASO, duplicate overlaps, cold start and four time zones, including Bratislava spring/fall DST.
+- Compiled and ran the actual Swift `StrainTarget.swift` standalone with its exact extracted scorer dependencies. The Kotlin regression fixture contains its literal stdout for Charge, goal, debt and illness combinations, clamped bounds, minutes-to-target and Edwards rates.
+- Added `SleepRegularityTest`, `StrainTargetTest` and `BroopOverviewModelTest`; updated `SleepConsistencyParityTest` for the current Swift SRI contract.
+- `git diff --check` passed. Parent compile 4 passed before the final section/target enhancements. Parent build/test 2 compiled the overview and HR cards, then failed test compilation in another agent's in-progress Vitality API changes. Final app compilation and Kotlin test execution are owned by the parent build lane and remain to be appended here.
+- No Gradle task was run in this agent, to avoid concurrent builds. No BLE command path was changed or hardware behavior claimed.
+
+## Integration
+
+- Root integrated focused metric routing, legacy metric aliases, Home target-ring arcs, and Scoring goal preferences. The shared planner now publishes raw sleep debt for all Effort target readers.
+- Final app/unit/device verification is owned by the parent lane. A real strap check is still required for live sensor data and connection behavior; this task does not establish hardware validation.
+
+## Translation and integration review follow-up
+
+- Added all 122 overview resources in German, Spanish, French and European Portuguese. Verified exact key coverage, XML parsing and positional-format placeholders against English. The overview-only hardcoded-literal scan reports zero findings. The full i18n CI scan still reported unrelated literals and existing non-focus locale gaps; those results were sent to the parent.
+- Corrected the overview Rest v2 switch to default on, matching the current Swift authority. Computed Rest parts are ignored when that switch is off. Snapshot, metric and sleep-HR reads now invalidate after history sync even when daily metric rows remain equal. Imported sleep precedence now follows the local wake-day contract across all three loaders.
+- Reviewed parent backend code without editing it. Findings sent to the parent: enumerate every window day rather than only scored nights; preserve all sleep blocks and imported wake-day precedence; preserve derived stress/energy when raw retention expires; read all workout sources for activity masking; fall back to imported stored stress values when computed values are absent; re-arm and run full-history scoring on Rest-mode changes; cache unchanged historical stress/energy by raw revisions, windows, priors and heart inputs; derive Energy resting HR from merged day rows with imported precedence rather than only fresh scored rows. The parent owns fixes and their final verification.
+
+## Stress store delegation
+
+- Updated only `data/StressAnalysisStore.kt` in the delegated backend area. Added `analyzeDayWithWitness`, preserving the existing `analyzeDay` API. Its result exposes raw-HR presence and an input signature so the pass can preserve retained stress/Energy without treating a sparse raw day as retained.
+- Added reusable `allSleepSessions` and `allWorkouts` readers. Sleep keeps every imported block and excludes computed blocks on a covered local wake day. Workout masks read registered WHOOPs and their computed siblings, canonical imports, Apple Health, Health Connect, lifting and activity files, then apply natural-key deduplication, dismissal and cross-source deduplication without fetching HR.
+- Stored stress values now retain imported fallback and prefer computed values, with the active strap winning within each layer. Day-time zone offset follows the actual Swift funnel at local midnight, including DST transition days.
+- Added a bounded per-repository memo keyed by the actual HR/R-R/gravity values, sleep/activity windows, every prior field, exclusive day end and time-zone offset. Same-timestamp corrections invalidate it. Cancellation is checked before reads, between read groups, during hashing and before publishing results.
+- The cache saves analysis CPU for unchanged days. Raw rows still must be fetched and hashed when HR exists, because the available Android COUNT/MAX witnesses do not detect value corrections. Empty retained days use measured-plus-PPG EXISTS probes and skip raw HR/R-R/gravity fetches; the empty analysis still carries personal references needed by Energy. A durable correction-aware raw revision would be required to skip present-day raw queries safely.
+- Added eight DAO-proxy cases in `StressAnalysisStoreTest` covering precedence, blocks/naps, all workout sources/dismissal, the Swift workout natural key, retained no-HR behavior, identical-input reuse, same-timestamp HR/R-R/motion corrections, windows/priors/day-end invalidation and cancellation. `git diff --check` passed. Test execution remains with the parent's Gradle lane.
+
+## Final interaction review
+
+- Traced Home's profile/devices, date picker/swipes, score dials and collapsed links, Health/Stress/Energy, outlook/review, both activity forms and workout detail routes, Tonight, journal and dashboard metric links against the current Swift Broop source. Returning from Journal now reloads completion dots even when physiological Flow values are unchanged.
+- Outlook/review and Charge now render the actual readiness headline, summary, signal details and numerical evidence. Coach links hand off a question naming the selected score/day. Home and Effort show the exact lower/in/above-target state from `Band.zone`; target debt comes from the same VM Flow as the planner and active activity coach.
+- Sleep now offers Add Sleep when its night is absent, direct date/time nap editing and deletion, and deletion/undo across the full displayed bridged main-night group. New editors use the shared validated window and ask before a correction outside recorded coverage. They retain the draft/undo state and show a localized error on failed persistence. Parent added transactional batch delete/restore and boolean mutation outcomes.
+- Native Details accepts an optional selected-day seed, finds the matching local wake day across gaps, and preserves the chosen historical night on reload. Existing callers retain their prior behavior.
+- Replaced the static night graphic with interactive per-stage rows, the selected night's HR trace, actual persisted group motion, clock endpoints, provenance and main-night selection explanation. Added low-confidence, sparse-motion and partial-recording notes from existing analytics gates. Oura raw stage provenance remains explicit.
+- Added a direct Customize Sleep entry; saved ordering/hidden sections refresh immediately. Preserved body clock, marks under the active source, statistics/metric drill-ins, debt ledger, stage comparisons, asleep-duration history and full Tonight planner tiers/need/nap/debt assumptions.
+- Replaced the single 14-day score trend with Swift's meaningful metric sets and 7-day/30-day/6-month ranges, period averages, the preceding period and press-to-read. Added sleep-hours and respiratory detail fallbacks with correct units.
+- Added two regression cases for historical native-details selection across missing days and bridged-main-night versus single-nap delete scope. Parent production build 5 compiled the Full/Demo app and test APK with the new night/editor/readiness/trend code; its unit compilation was blocked by an unrelated `IntelligenceEngineJacocoBudgetTest.readString` error. Later target-context/progress changes and the final regression run remain with the parent lane.
+- Overview-only hardcoded-literal audit: zero findings. English and all four focus locale files contain the same 139 keys, valid XML and matching positional placeholders. `git diff --check` passed.
+
+## Limits of this area's verification
+
+- No Gradle task or emulator session was run by this subagent, to avoid concurrent build/device work. Parent build and emulator results are the final integration evidence.
+- Native Android dialogs and Compose charts implement the same actions and data with platform controls; this is feature parity, not a pixel comparison.
+- Stress memo reuse still reads and hashes present raw arrays because Android has no correction-aware durable write revision. Empty-history EXISTS probes skip raw fetches. This limitation is documented in the store API; same-timestamp HR/R-R/motion corrections cannot serve stale cached analyses.
+
+## Parent-lane verification update
+
+- The parent's `android-unit-all2.log` run executed 6,779 JVM tests. All 23 cases in this area's five suites passed: `SleepRegularityTest` (3), `StrainTargetTest` (2), `SleepConsistencyParityTest` (3), `BroopOverviewModelTest` (7), and `StressAnalysisStoreTest` (8), with zero failures/errors/skips in those suites.
+- That full run still failed three tests outside this area: the intelligence JaCoCo budget, the pre-existing recovery-driver Swift oracle fixture, and a lifting notification resource fixture. The parent owns those fixes and final device checks.
+
+## Final route corrections
+
+- Replaced the Broop `coupled_view` route with `BroopOverviewCoupledScreen`. It is a static Broop page, with today's own 0–21 stored Effort, the canonical Charge carry/calibration/readiness, target band, calories/activity count, same-day resolved Rest, Coupled's imported-need/personal-mean/7.5-hour-floor rule and actual main-night bed/wake. It opens the shared breakdown and today's Sleep page. Its independent today state cannot inherit a historical Home selection.
+- Replaced the Broop `full_day_chart` route with `BroopOverviewDayChartScreen`. It uses the shared selected date and summary, native adaptive raw/bucket reader and pinch/pan math, all existing metric/source controls, unsupported-stream states and temperature conversion. Added actual main-sleep/workout overlays, Charge-at-wake/Effort-at-latest markers, min/average/max/resolution and hold-to-read with a nearest measured point. Sleep overlap is strict; workouts include boundary touches, matching the actual Swift chart. The sync label collects live state separately from the heavy chart.
+- Added a shared Broop Charge breakdown for both Coupled and Charge detail. Its sleep driver consumes the explicit repository-resolved same-row Rest score, including stored v2 and the current v2/legacy unstored-row fallback. A missing sleep input remains absent. It displays the existing engine's confidence, values/baselines, signed deltas and verdicts, diverging magnitude bars, actual relative skin-temperature tier/value, calibration countdown and scoring guide. Existing native driver and confidence rows are reused through narrow internal visibility changes.
+- Added six `BroopOverviewRoutesParityTest` cases. Actual standalone Swift source bodies generate the expected stdout for seven Coupled sleep-need cases, six annotation windows plus tie selection and skin-temperature boundary labels. Additional tests cover adjusted sleep onset, same-day Rest resolution and explicit/missing Charge sleep inputs. The reproducible Foundation-only Swift fixture is `android/app/src/test/resources/broop_overview_final_oracle.swift`; `swiftc -O` and execution passed. Kotlin test execution remains with the parent build lane.
+- Added 33 strings and format templates to English/German/Spanish/French/European Portuguese. All five catalogues now contain the same 172 keys. XML and positional-placeholder validation passed; the overview hardcoded-literal scanner reports zero findings; `git diff --check` passed.
+- Files changed in this follow-up: new `BroopOverviewCoupledScreen.kt`, `BroopOverviewDayChartScreen.kt`, `BroopOverviewChargeBreakdown.kt`; own `BroopOverviewModel.kt` and `BroopOverviewScreens.kt`; narrow helper visibility changes in `FullDayChartScreen.kt` and `TodayScreen.kt`; the two authorized route replacements in `BroopAppRoot.kt`; five overview resource catalogues; the new Kotlin test suite and Swift fixture. No analytics/data files changed in this follow-up. Parent final compile/tests/runtime results remain required on these frozen sources.
+
+- Parent compile follow-up: promoted the existing `DisplayText.localized()` helper from private to internal so Coupled resolves the canonical carried caption through the same resource/dynamic funnel. No caption logic was duplicated. Rechecked the new pages’ shared references; the compile-reported private declaration was the only missing visibility change. Sources frozen again for the parent rebuild.
+
+## Final parent integration
+
+Full and Demo APK builds passed. The final complete JVM suite has 6,784 passing tests, six skipped and one unchanged RecoveryDrivers oracle failure; all new port tests pass. All six emulator tests passed, rendering 68 destinations and completing historical score navigation, chart gestures, strength persistence/history and unpaired onboarding. Seven representative pages also passed at 360 dp with 130% text. See [01-port.md](01-port.md) for commands, evidence and hardware limits.

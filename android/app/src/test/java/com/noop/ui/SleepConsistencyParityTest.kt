@@ -1,79 +1,51 @@
 package com.noop.ui
 
 import com.noop.data.SleepSession
+import java.time.LocalDate
+import java.util.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import java.util.Calendar
-import java.util.TimeZone
 
-/**
- * Pins the BEDTIME-ONSET consistency fallback (#sleep-consistency-parity) — the score must be
- * byte-identical to iOS `SleepView.consistencySeries` (bedtime-minute rolling-14 SD → 100·(1−sd/120)),
- * NOT the old duration proxy. Runs under a fixed UTC default timezone so the local-time bed-minute is
- * deterministic (both platforms use the device tz; the algorithm — not the tz — is what parity pins).
- */
+/** SleepModel's UI adapter preserves the Swift-oracle SRI and its known-pair capture gate. */
 class SleepConsistencyParityTest {
+    private var savedZone = TimeZone.getDefault()
+    private val dates = (0L..8L).map { LocalDate.parse("2026-01-01").plusDays(it).toString() }
 
-    private var savedTz: TimeZone? = null
+    @Before fun forceUtc() { savedZone = TimeZone.getDefault(); TimeZone.setDefault(TimeZone.getTimeZone("UTC")) }
+    @After fun restoreZone() { TimeZone.setDefault(savedZone) }
 
-    @Before fun forceUtc() {
-        savedTz = TimeZone.getDefault()
-        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    private fun session(day: String, shiftMinutes: Int = 0): SleepSession {
+        val start = LocalDate.parse(day).minusDays(1).atTime(23, 0).toEpochSecond(java.time.ZoneOffset.UTC) + shiftMinutes * 60
+        return SleepSession("my-whoop", start, start + 8 * 3600)
     }
 
-    @After fun restoreTz() { savedTz?.let { TimeZone.setDefault(it) } }
-
-    /** Unix seconds for a given UTC wall-clock (matches the tz the production Calendar reads under). */
-    private fun ts(year: Int, month0: Int, day: Int, hour: Int, minute: Int): Long {
-        val c = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-        c.clear()
-        c.set(year, month0, day, hour, minute, 0)
-        return c.timeInMillis / 1000L
+    @Test fun alternatingOneHourShiftMatchesActualSwiftOracle() {
+        val sessions = dates.mapIndexed { index, day -> session(day, if (index % 2 == 0) 0 else 60) }
+        val metric = consistencySeries(sessions, dates)
+        assertEquals(4, metric.series.size)
+        assertEquals(83.33333333333333, metric.latest!!, 1e-12)
+        assertEquals(83.33333333333333, metric.typical!!, 1e-12)
     }
 
-    private fun session(startTs: Long) =
-        SleepSession(deviceId = "my-whoop", startTs = startTs, endTs = startTs + 8 * 3600)
-
-    @Test fun onsetSpreadScore_matchesTheHandComputedIosValue() {
-        // Bedtimes 23:00 / 23:30 / 22:30 → bed-minutes 1380 / 1410 / 1350 (all >= 12h, no wrap).
-        // window mean 1380, population variance (0 + 900 + 900)/3 = 600, sd = √600 = 24.49490,
-        // score = 100·(1 − 24.49490/120) = 79.58758…  (only the 3rd night has a >=3 window).
-        val sessions = listOf(
-            session(ts(2026, 5, 1, 23, 0)),
-            session(ts(2026, 5, 2, 23, 30)),
-            session(ts(2026, 5, 3, 22, 30)),
-        )
-        val m = consistencySeries(sessions)
-        assertEquals(1, m.series.size)
-        assertEquals(79.58758, m.latest!!, 1e-4)
-        assertEquals(79.58758, m.typical!!, 1e-4)
+    @Test fun fiveNightsCannotMeetThe120HourKnownPairFloor() {
+        val metric = consistencySeries(dates.take(5).map { session(it) }, dates.take(5))
+        assertNull(metric.latest)
+        assertEquals(emptyList<Double>(), metric.series)
     }
 
-    @Test fun fewerThanThreeNights_yieldsEmpty() {
-        val m = consistencySeries(listOf(session(ts(2026, 5, 1, 23, 0)), session(ts(2026, 5, 2, 23, 0))))
-        assertNull(m.latest)
-        assertEquals(0, m.series.size)
-    }
-
-    /** Order is by startTs (matching iOS repo.sleeps), and the ONSET value uses effectiveStartTs
-     *  (startTsAdjusted when a bedtime was hand-edited). */
-    @Test fun sortsByStartTs_andReadsEffectiveOnset() {
-        val edited = SleepSession(
-            deviceId = "my-whoop",
-            startTs = ts(2026, 5, 2, 21, 0),               // raw onset 21:00…
-            endTs = ts(2026, 5, 3, 5, 0),
-            startTsAdjusted = ts(2026, 5, 2, 23, 0),       // …hand-set to 23:00 → this is what counts
-        )
-        val sessions = listOf(
-            session(ts(2026, 5, 1, 23, 0)),
-            edited,
-            session(ts(2026, 5, 3, 23, 0)),
-        )
-        // All three effective onsets are 23:00 → zero spread → score 100.
-        val m = consistencySeries(sessions)
-        assertEquals(100.0, m.latest!!, 1e-9)
+    @Test fun effectiveOnsetAndWakeSegmentsDriveTheSameTimelineAsSleep() {
+        val sessions = dates.map { day ->
+            val canonical = session(day)
+            canonical.copy(startTs = canonical.startTs - 2 * 3600, startTsAdjusted = canonical.startTs)
+        }.reversed()
+        val metric = consistencySeries(sessions, dates)
+        assertEquals(100.0, metric.latest!!, 1e-12)
+        val target = sessions.first()
+        val wakeStart = target.effectiveStartTs + 3 * 3600
+        val withWake = sessions.map { if (it == target) it.copy(stagesJSON = """[{"start":$wakeStart,"end":${wakeStart + 3600},"stage":"awake"}]""") else it }
+        assertEquals(98.61111111111111, consistencySeries(withWake, dates).latest!!, 1e-12)
     }
 }

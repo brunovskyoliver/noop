@@ -2904,4 +2904,8 @@
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
     <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Aujourd\'hui à votre façon, fréquence cardiaque lisible par toute application, et l\'italien</string>
+
+    <string name="accuracy_hr_coverage">Couverture de la fréquence cardiaque</string>
+    <string name="accuracy_missing_hr">Les données de fréquence cardiaque manquantes peuvent sous-estimer Effort et les calories.</string>
+    <string name="accuracy_strength_effort">Effort mesure la charge cardiovasculaire. Notez les séries et les poids pour suivre la charge de musculation.</string>
 </resources>

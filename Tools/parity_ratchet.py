@@ -180,7 +180,7 @@ def _validate_dispositions(value: dict, location: str, root: Path | None = None)
         if disposition_type == "out_of_scope_twin":
             twin_path = item["twin_path"]
             if (platform != "kotlin" or not isinstance(twin_path, str)
-                    or re.fullmatch(r"Strand/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.swift", twin_path) is None):
+                    or re.fullmatch(r"Strand/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_+-]+\.swift", twin_path) is None):
                 raise RatchetError(f"{prefix} twin_path must name a Swift file in excluded Strand/")
             if root is not None and not (root / twin_path).is_file():
                 raise RatchetError(f"{prefix} twin_path does not exist: {twin_path}")

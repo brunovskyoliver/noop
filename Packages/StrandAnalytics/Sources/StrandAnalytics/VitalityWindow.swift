@@ -11,8 +11,7 @@ import Foundation
 //     age + 0.5. pace = (projected − current) / 0.5 = 1 + 2 · (Δprojected − Δcurrent), clamped −1…3.
 //     A factor the last 30 days did not measure keeps its 6-month value.
 //
-// Pure and deterministic. iOS-only fork change: the Kotlin twin (`VitalityWindow.kt`) is intentionally
-// not updated.
+// Pure and deterministic. The Kotlin twin (`VitalityWindow.kt`) shares the same windows and gates.
 public extension VitalityEngine {
 
     /// One local day of inputs. Zone and strength minutes are that day's totals (0 when none);

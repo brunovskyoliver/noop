@@ -21,6 +21,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import android.view.HapticFeedbackConstants
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -60,7 +65,8 @@ val liquidHeartPink: Color = Color(red = 1f, green = 107f / 255f, blue = 129f / 
 // MARK: - LiquidVessel — a circular liquid gauge
 
 /**
- * A circular liquid gauge. [value] is 0..1 (null = empty / no-data). Square (aspectRatio 1:1).
+ * A circular gauge. Broop uses its static token ring; classic uses the liquid render below.
+ * [value] is 0..1 (null = empty / no-data). Square (aspectRatio 1:1).
  *
  * When [animated] and Reduce Motion is off it runs a live 60fps-class `withFrameNanos` clock: each frame
  * it steps a remembered [LiquidSim] against the shared [LiquidMotion] tilt and the latest [value], then
@@ -90,6 +96,21 @@ fun LiquidVessel(
     // and why this went unnoticed for so long.
     onTap: (() -> Unit)? = null,
 ) {
+    if (BroopPrefs.enabled) {
+        val click = onTap?.let { Modifier.clickable(onClick = it) } ?: Modifier
+        Canvas(modifier = modifier.aspectRatio(1f).then(click)) {
+            val stroke = BroopMetrics.ringStroke.toPx()
+            val inset = stroke / 2
+            val ringSize = Size(maxOf(0f, size.width - stroke), maxOf(0f, size.height - stroke))
+            drawArc(BroopPalette.track, -90f, 360f, false, Offset(inset, inset), ringSize, style = Stroke(stroke))
+            value?.takeIf { it.isFinite() }?.coerceIn(0.0, 1.0)?.let { fraction ->
+                drawArc(tint, -90f, (fraction * 360).toFloat(), false, Offset(inset, inset), ringSize,
+                    style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+        }
+        return
+    }
+
     val renderStill = rememberPoseStill()
 
     if (animated && !renderStill) {
@@ -153,7 +174,8 @@ fun LiquidVessel(
 // MARK: - LiquidTube — a horizontal liquid tube
 
 /**
- * A horizontal liquid tube filled to [frac] (0..1). Fixed [height] (default 14dp).
+ * A horizontal gauge filled to [frac] (0..1). Broop uses a static token bar.
+ * Fixed [height] (default 14dp); classic retains the liquid render below.
  *
  * When [animated] and Reduce Motion is off it runs a live `withFrameNanos` clock: each frame it steps a
  * remembered [LiquidSim] against the shared [LiquidMotion] tilt and [frac], then draws via
@@ -171,6 +193,16 @@ fun LiquidTube(
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    if (BroopPrefs.enabled) {
+        val fraction = frac.takeIf { it.isFinite() }?.coerceIn(0.0, 1.0)?.toFloat() ?: 0f
+        Canvas(modifier = modifier.height(height)) {
+            val radius = CornerRadius(size.height / 2)
+            drawRoundRect(BroopPalette.track, cornerRadius = radius)
+            if (fraction > 0f) drawRoundRect(tint, size = Size(size.width * fraction, size.height), cornerRadius = radius)
+        }
+        return
+    }
+
     val renderStill = rememberPoseStill()
     val clamped = frac.coerceIn(0.0, 1.0)
 
@@ -210,7 +242,8 @@ fun LiquidTube(
 // MARK: - LiquidThread — the live heart-rate thread
 
 /**
- * The live heart-rate thread. [bpm] is the recent series (any length ≥ 2; below that the renderer no-ops).
+ * The heart-rate thread. Broop draws the current curve without a frame clock.
+ * [bpm] is the recent series (any length ≥ 2; below that the renderer no-ops).
  * Fixed [height] (default 96dp). [tint] defaults to the liquid heart pink ([liquidHeartPink] = #ff6b81),
  * matching the iOS default.
  *
@@ -229,6 +262,13 @@ fun LiquidThread(
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
+    if (BroopPrefs.enabled) {
+        Canvas(modifier = modifier.height(height)) {
+            with(LiquidRender) { thread(size = size, values = bpm, now = 0.0, tint = tint) }
+        }
+        return
+    }
+
     val renderStill = rememberPoseStill()
 
     if (animated && !renderStill) {

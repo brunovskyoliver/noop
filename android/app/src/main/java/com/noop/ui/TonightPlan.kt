@@ -19,9 +19,10 @@ internal fun tonightPlanInputs(
     today: String,
     wakeMinute: Int,
     timeZone: TimeZone,
+    age: Int? = null,
 ): SleepPlanner.Inputs {
     val naps = napSleepMinutesByDay(sleeps, habitualMidsleepSec)
-    val needMin = RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, null) * 60.0
+    val needMin = RestScorer.personalizedNeedHours(days.mapNotNull { it.totalSleepMin?.let { m -> m / 60.0 } }, age) * 60.0
     val ledger = SleepDebt.ledger(
         series = days.map { d -> d.day to SleepDebt.creditedSleepMin(d.totalSleepMin, naps[d.day] ?: 0.0) },
         needHours = needMin / 60.0,

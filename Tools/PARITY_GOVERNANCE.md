@@ -46,6 +46,10 @@ authority root may resolve to an exact declaration in the wider repository
 reference scope; that external endpoint is hashed into the pair authority but
 does not silently widen the unpaired-inventory roots.
 
+Constant comparison evaluates literal arithmetic and unambiguous references to declared
+numeric constants in the same language. It does not execute source code. Cyclic,
+ambiguous or nonliteral expressions remain unverifiable findings.
+
 The compact baseline stores exact-identity-set hashes grouped by rule and narrow
 source scope. Every group has a review reason and provenance; no wildcard or
 umbrella issue matches findings. Governance is intentionally asymmetric: new

@@ -12,6 +12,7 @@ struct BroopOverviewCoupledScreen: View {
     @EnvironmentObject private var repo: Repository
     @ObservedObject private var strainContext = StrainTargetContext.shared
     @State private var habitual: Int?
+    @State private var activeKcal: Double?
     @State private var showBreakdown = false
 
     private var day: DailyMetric? { repo.today }
@@ -82,7 +83,10 @@ struct BroopOverviewCoupledScreen: View {
         }
         .background(BroopBackground())
         .broopBarChrome()
-        .task(id: repo.refreshSeq) { habitual = await repo.habitualMidsleepSec() }
+        .task(id: repo.refreshSeq) {
+            habitual = await repo.habitualMidsleepSec()
+            activeKcal = await repo.exploreSeries(key: "active_kcal", source: "my-whoop").first { $0.day == todayKey }?.value
+        }
         .sheet(isPresented: $showBreakdown) {
             BroopOverviewCoupledBreakdown(row: day?.recovery != nil ? day : carried,
                                           sleepPerf: sleepPerformance,
@@ -150,7 +154,7 @@ struct BroopOverviewCoupledScreen: View {
                     VStack(alignment: .leading, spacing: 12) {
                         stat(String(localized: "Optimal"), target.map { String(localized: "\($0.lowerText) to \($0.upperText)") } ?? "—",
                              recovery.map(BroopPalette.band) ?? BroopPalette.textSecondary)
-                        stat(String(localized: "Calories"), day?.activeKcalEst.map { "\(Int($0.rounded())) kcal" } ?? "—",
+                        stat(String(localized: "Calories"), activeKcal.map { "\(Int($0.rounded())) kcal" } ?? "—",
                              BroopPalette.textPrimary)
                         stat(String(localized: "Workouts"), "\(day?.exerciseCount ?? 0)", BroopPalette.textPrimary)
                     }

@@ -171,7 +171,13 @@ object SleepStageTotals {
 
     /** One candidate block for main-night selection: its effective onset and end (unix seconds). A user
      *  wake/bed edit moves [end], never the detected onset key. */
-    data class NightBlock(val start: Long, val end: Long) {
+    data class NightBlock(val start: Long, val end: Long, val boundsConfirmed: Boolean = false) {
+        companion object {
+            /** A time edit writes startTsAdjusted even when onset is unchanged. */
+            fun fromSession(session: com.noop.data.SleepSession): NightBlock = NightBlock(
+                session.effectiveStartTs, session.endTs, session.userEdited && session.startTsAdjusted != null)
+        }
+
         val durationS: Long get() = end - start
         val midpointSec: Long get() = start + (end - start) / 2
     }
@@ -281,7 +287,7 @@ object SleepStageTotals {
                 // still in the overnight band: a real mid-night wake, not an isolated daytime nap. This stops
                 // one overnight sleep being split into a nap + a main sleep, while a daytime nap (daytime
                 // onset, or a gap >= NIGHT_TAIL_BRIDGE_MAX_MIN) still stands as its own block.
-                val bridges = gap >= 0 &&
+                val bridges = !last.boundsConfirmed && !b.boundsConfirmed && gap >= 0 &&
                     (gap < bridgeS ||
                         (gap < nightTailBridgeS && isOvernightOnset(b.start, offsetSec)))
                 if (bridges) {
@@ -516,6 +522,7 @@ object SleepStageTotals {
         // user's real bedtime, not a fixed clock band. null = cold-start. Existing callers compile
         // unchanged. Mirrors Swift `habitualMidsleepSec`. (#547)
         habitualMidsleepSec: Long? = null,
+        confirmedBounds: Set<Long> = emptySet(),
     ): HonoredAggregate? {
         var applied = false
         // (startTs, effective stages) for every block on the day — detected (edit-substituted) then any
@@ -553,7 +560,7 @@ object SleepStageTotals {
             // BIPHASIC GAP-BRIDGE (#561): bridge adjacent blocks split by a short wake gap into the
             // main-night GROUP and SUM that group's stages, so the edit/recompute seam reports the SAME
             // night `analyzeDay` does. Naps outside the group remain their own rows. Mirrors Swift.
-            val group = mainNightGroupIndicesByStages(blocks, onsetByStart, offsetSec, habitualMidsleepSec)
+            val group = mainNightGroupIndicesByStages(blocks, onsetByStart, offsetSec, habitualMidsleepSec, confirmedBounds)
                 ?: return null
             // #259: trim each SELECTED block's stages to its EFFECTIVE onset before summing. A hand-edited
             // or onset-trimmed bedtime that the raw was too sparse to re-stage (WHOOP 4.0) leaves pre-onset
@@ -595,6 +602,7 @@ object SleepStageTotals {
         onsetByStart: Map<Long, Long>,
         offsetSec: Long,
         habitualMidsleepSec: Long? = null,
+        confirmedBounds: Set<Long> = emptySet(),
     ): List<Int>? {
         if (blocks.isEmpty()) return null
         fun onset(b: Pair<Long, String?>): Long = onsetByStart[b.first] ?: b.first
@@ -615,7 +623,8 @@ object SleepStageTotals {
                 // unconditional short-wake bridge (< GAP_BRIDGE_MAX_MIN), then the wider overnight night-tail
                 // bridge ([GAP_BRIDGE_MAX_MIN, NIGHT_TAIL_BRIDGE_MAX_MIN) only when the fragment's onset is
                 // still in the overnight band) that stops one night being split into a nap + a main sleep. (#861)
-                val bridges = gap >= 0 &&
+                val boundsLocked = b.first in confirmedBounds || groups.lastOrNull().orEmpty().any { blocks[it].first in confirmedBounds }
+                val bridges = !boundsLocked && gap >= 0 &&
                     (gap < bridgeS ||
                         (gap < nightTailBridgeS && isOvernightOnset(onset(b), offsetSec)))
                 if (bridges) {

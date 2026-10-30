@@ -1,83 +1,57 @@
 package com.noop.analytics
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
-/** Mirror of the Swift VitalityEngineTests — identical inputs + expected numbers (parity guard). */
 class VitalityEngineTest {
-
-    @Test fun averageReadsAtTheirAge() {
-        val r = VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 40.0, restingHR = 65.0, vo2max = 45.0, expectedVO2max = 45.0,
-            sleepHours = 7.5, sleepConsistency = 0.75, rmssd = 45.0, rmssdNorm = 45.0, steps = 7000.0))!!
-        assertEquals(40.0, r.bodyAge, 0.01)
-        assertEquals(50.0, r.vitality, 0.01)
-        assertEquals(0.0, r.deltaYears, 0.01)
-        assertEquals(6, r.factorsUsed)
+    private fun neutral(age: Double = 40.0, sex: String = "male"): VitalityEngine.Inputs {
+        var inputs = VitalityEngine.Inputs(age, sex)
+        for (factor in VitalityEngine.Factor.entries) inputs = inputs.setting(factor, VitalityEngine.target(factor, age, sex))
+        return inputs
     }
 
-    @Test fun healthyIsYounger() {
-        val r = VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 40.0, restingHR = 52.0, vo2max = 55.5, expectedVO2max = 45.0,
-            sleepHours = 7.5, sleepConsistency = 0.9, rmssd = 54.0, rmssdNorm = 45.0, steps = 11000.0))!!
-        // VO₂max dominates the fitness domain, so resting HR counts at half (Swift twin: same values).
-        assertEquals(32.98, r.bodyAge, 0.01)
-        assertEquals(67.54, r.vitality, 0.01)
-        assertTrue(r.deltaYears > 0)
+    @Test fun meetingEveryRecommendationReadsChronologicalAge() {
+        for (age in listOf(22.0, 30.0, 47.5, 63.0, 80.0)) for (sex in listOf("male", "female", "")) {
+            val result = VitalityEngine.compute(neutral(age, sex))!!
+            assertEquals(age, result.bodyAge, 0.0)
+            assertEquals(50.0, result.vitality, 0.0)
+            assertEquals(9, result.factorsUsed)
+            assertTrue(result.impacts.all { it.years == 0.0 })
+        }
     }
 
-    @Test fun unhealthyIsOlder() {
-        val r = VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 40.0, restingHR = 80.0, vo2max = 34.5, expectedVO2max = 45.0,
-            sleepHours = 5.5, sleepConsistency = 0.5, rmssd = 31.5, rmssdNorm = 45.0, steps = 3000.0))!!
-        assertEquals(49.06, r.bodyAge, 0.01)
-        assertEquals(27.35, r.vitality, 0.01)
-        assertTrue(r.deltaYears < 0)
+    @Test fun missingInputsHaveNoImpactAndDoNotCountTowardGate() {
+        val input = VitalityEngine.Inputs(40.0, sleepHours = 7.0, restingHR = 60.0)
+        assertNull(VitalityEngine.compute(input))
+        assertNull(VitalityEngine.compute(input.copy(chronoAge = 0.0, steps = 8000.0)))
+        val result = VitalityEngine.compute(input.copy(steps = 8000.0))!!
+        assertEquals(3, result.factorsUsed)
+        assertEquals(9, result.impacts.size)
+        assertTrue(result.impacts.firstOrNull { it.factor == VitalityEngine.Factor.LEAN_MASS }!!.isMissing)
+        assertEquals(0.0, result.impacts.firstOrNull { it.factor == VitalityEngine.Factor.LEAN_MASS }!!.years, 0.0)
     }
 
-    @Test fun nilBelowMinFactors() {
-        assertNull(VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 40.0, restingHR = 65.0, sleepHours = 7.5)))
-        assertNotNull(VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 40.0, restingHR = 65.0, sleepHours = 7.5, sleepConsistency = 0.75)))
+    @Test fun overlapCountsLargerImpactInFullAndSmallerAtPointSeven() {
+        val result = VitalityEngine.compute(neutral(30.0).copy(vo2max = 37.0, restingHR = 70.0))!!
+        assertEquals(1.0, result.impacts.firstOrNull { it.factor == VitalityEngine.Factor.VO2MAX }!!.adjustment, 0.0)
+        assertEquals(0.7, result.impacts.firstOrNull { it.factor == VitalityEngine.Factor.RHR }!!.adjustment, 0.0)
+        assertEquals(result.impacts.sumOf { it.years }, result.ageDelta, 1e-12)
+        assertEquals(result.bodyAge - result.chronoAge, result.ageDelta, 0.0)
     }
 
-    @Test fun clamps() {
-        val young = VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 22.0, restingHR = 40.0, vo2max = 70.0, expectedVO2max = 40.0,
-            sleepHours = 7.5, sleepConsistency = 1.0, rmssd = 90.0, rmssdNorm = 45.0, steps = 11000.0))!!
-        assertTrue(young.bodyAge >= VitalityEngine.minBodyAge)
-        assertTrue(young.vitality in 0.0..100.0)
-
-        val old = VitalityEngine.compute(VitalityEngine.Inputs(
-            chronoAge = 85.0, restingHR = 110.0, vo2max = 12.0, expectedVO2max = 35.0,
-            sleepHours = 3.0, sleepConsistency = 0.1, rmssd = 8.0, rmssdNorm = 30.0, steps = 200.0))!!
-        assertTrue(old.bodyAge <= VitalityEngine.maxBodyAge)
-        assertTrue(old.vitality >= 0.0)
+    @Test fun derivedVitalityUsesClampedAgeDelta() {
+        val low = VitalityEngine.compute(neutral(18.0).copy(sleepConsistency = 100.0, vo2max = 100.0))!!
+        assertEquals(18.0, low.bodyAge, 0.0)
+        assertEquals(50.0, low.vitality, 0.0)
+        val high = VitalityEngine.compute(neutral(100.0).copy(sleepHours = 2.0, restingHR = 150.0))!!
+        assertEquals(100.0, high.bodyAge, 0.0)
+        assertEquals(50.0, high.vitality, 0.0)
     }
 
-    @Test fun rmssdNormByAge() {
-        assertEquals(47.0, VitalityEngine.rmssdNorm(20.0), 0.01)
-        assertEquals(33.0, VitalityEngine.rmssdNorm(40.0), 0.01)
-        assertEquals(31.0, VitalityEngine.rmssdNorm(45.0), 0.01)
-        assertEquals(20.0, VitalityEngine.rmssdNorm(90.0), 0.01)
-    }
-
-    @Test fun sleepConsistencyTest() {
-        assertEquals(1.0, VitalityEngine.sleepConsistency(listOf(7.0, 7.0, 7.0, 7.0))!!, 1e-9)
-        assertEquals(0.857, VitalityEngine.sleepConsistency(listOf(6.0, 8.0, 6.0, 8.0))!!, 0.005)
+    @Test fun legacyDurationRegularityRemainsSeparateFromHealthspanPercent() {
+        assertEquals(1.0, VitalityEngine.sleepConsistency(listOf(7.0, 7.0, 7.0))!!, 0.0)
+        assertEquals(0.8571428571428572, VitalityEngine.sleepConsistency(listOf(6.0, 8.0, 6.0, 8.0))!!, 1e-15)
         assertNull(VitalityEngine.sleepConsistency(listOf(7.0, 7.0)))
-    }
-
-    @Test fun contributionSigns() {
-        val low = VitalityEngine.contributions(VitalityEngine.Inputs(chronoAge = 40.0, restingHR = 50.0))
-            .first { it.key == "rhr" }
-        assertTrue(low.lnHazard < 0)
-        val high = VitalityEngine.contributions(VitalityEngine.Inputs(chronoAge = 40.0, restingHR = 85.0))
-            .first { it.key == "rhr" }
-        assertTrue(high.lnHazard > 0)
+        assertEquals(70.0, VitalityEngine.target(VitalityEngine.Factor.SLEEP_CONSISTENCY, 40.0, "male"), 0.0)
     }
 }

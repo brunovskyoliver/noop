@@ -197,7 +197,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
-private fun DisplayText.localized(): String = when (this) {
+internal fun DisplayText.localized(): String = when (this) {
     is DisplayText.Resource -> uiString(id, *args.toTypedArray())
     is DisplayText.Dynamic -> value
 }
@@ -5542,7 +5542,7 @@ private fun RecoveryDriversSection(
 /** The SURFACED Charge confidence pill (dot + tier tag). Reads the existing ScoreConfidence, never
  *  recomputes it. SOLID = gold/accent, BUILDING = the blue warning tone, CALIBRATING = neutral slate. */
 @Composable
-private fun ChargeConfidencePill(tier: ScoreConfidence) {
+internal fun ChargeConfidencePill(tier: ScoreConfidence) {
     val (label, tone) = when (tier) {
         ScoreConfidence.SOLID -> uiString(R.string.today_confidence_solid) to StrandTone.Accent
         ScoreConfidence.BUILDING -> uiString(R.string.today_confidence_building) to StrandTone.Warning
@@ -5554,7 +5554,7 @@ private fun ChargeConfidencePill(tier: ScoreConfidence) {
 /** One "What shaped it" driver row: an up/down delta chip (signed points, green up / red down),
  *  the label + verdict, and the value over its baseline. Mirrors the iOS driver row layout. */
 @Composable
-private fun DriverRow(driver: ChargeDriver) {
+internal fun DriverRow(driver: ChargeDriver) {
     val positive = driver.deltaPoints >= 0
     // A zero delta reads neutral (no green/red), not a misleading "good".
     val tone = when {

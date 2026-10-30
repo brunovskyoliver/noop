@@ -455,6 +455,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
                     }
                 }
             }
+            if (!showLiveWorkout) BroopActivityStrainCoach(viewModel)
             if (confirmingEnd) {
                 EndWorkoutConfirmationDialog(
                     onConfirm = {

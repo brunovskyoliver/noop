@@ -1,9 +1,8 @@
 import XCTest
 @testable import StrandAnalytics
 
-/// Healthspan v2 (Broop Age / WHOOP-Age method). Replaces the v1 `VitalityEngineTests` /
-/// `VitalityWindowTests` and their Swift↔Kotlin oracle: this is an iOS-only fork change and the Kotlin
-/// twin (`VitalityEngine.kt` / `VitalityWindow.kt`) is intentionally left on v1, so no oracle pins it.
+/// Healthspan v2 (Broop Age / WHOOP-Age method). The Android twins use this same model;
+/// the shared curve oracle below and HealthspanV2ParityTest pin both implementations.
 final class HealthspanV2Tests: XCTestCase {
 
     typealias VE = VitalityEngine
@@ -318,5 +317,50 @@ final class HealthspanV2Tests: XCTestCase {
         XCTAssertEqual(VE.epochDay("1970-01-01"), 0)
         XCTAssertEqual(VE.epochDay("2026-09-24"), 20_720)
         XCTAssertNil(VE.epochDay("2026-13-01"))
+    }
+
+    /// Shared verbatim with Android's Swift-generated oracle, over all nine curves and their caps.
+    func testAndroidSharedCurveOracle() {
+        func f(_ x: Double) -> String {
+            String(format: "%.9f", locale: Locale(identifier: "en_US_POSIX"), x == 0 ? 0 : x)
+        }
+        func digest(_ text: String) -> String {
+            var hash: UInt64 = 14695981039346656037
+            for unit in text.utf16 { hash = (hash ^ UInt64(unit)) &* 1099511628211 }
+            return String(hash, radix: 16)
+        }
+        let ages: [Double] = [18, 20, 29.5, 30, 40, 55, 60, 72.25, 100]
+        let sexes = ["male", "female", "", "nonbinary", "MALE"]
+        let samples: [[Double]] = [
+            [0,3.9,4,5.5,6.999,7,8,9,10,14],
+            [-1,0,59.9,60,65,70,75.1,80.9,85.25,90,100,140],
+            [-2,0,7,9.5,10,15,53.6,100,150,300,600,900],
+            [-2,0,7,9.5,10,15,53.6,100,150,300,600,900],
+            [-2,0,7,9.5,10,15,40,53.6,60,100,120,300],
+            [0,1999,2000,3553,5801,7842,8000,10901,15000],
+            [0,10,18,35,45,70,100],
+            [0,39,40,55,60,64,85,100,110],
+            [0,39,40,50,67,70,80,90,97,100]
+        ]
+        var actual: [String] = []
+        for (index, factor) in VE.Factor.allCases.enumerated() {
+            var lines: [String] = []
+            for age in ages { for sex in sexes { for value in samples[index] {
+                lines.append([f(age), sex, f(value), f(VE.target(factor, age: age, sex: sex)),
+                              f(VE.lnHazard(factor, value: value, age: age, sex: sex))].joined(separator: "|"))
+            } } }
+            actual.append("curve|\(factor.rawValue)|\(lines.count)|\(digest(lines.joined(separator: "\n")))")
+        }
+        XCTAssertEqual(actual.joined(separator: "\n"), """
+        curve|sleepHours|450|8c0cb0b78b3ef905
+        curve|sleepConsistency|540|e7609bea94ff59a5
+        curve|zone13|540|7b7fe0ef2d413a70
+        curve|zone45|540|5d4970297867e03d
+        curve|strength|540|82c1acf2ff57614c
+        curve|steps|405|a04ead91a424fb5a
+        curve|vo2max|315|4d188abe1cca49fd
+        curve|rhr|405|c8d714f0f0b04e1
+        curve|leanMass|450|49fef509adbcd931
+        """)
     }
 }
