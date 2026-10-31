@@ -26,7 +26,7 @@ import sys
 import tarfile
 import tempfile
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable
@@ -95,10 +95,14 @@ REFERENCE_GLOBS = (
     "android/**/*.kt",
 )
 
-# These constants intentionally describe different platform-local persistence schemas. Their normalized
-# names happen to match, but their migration generations do not and must not be compared as parity twins.
-# Keep the exclusion exact so unrelated schema constants still go through the normal pairing audit.
+# These names coincide but describe different semantics, so they are not parity twins.
+# Keep each exclusion exact; all other same-named constants remain subject to the normal pairing audit.
 CONSTANT_NON_TWIN_PAIRS = frozenset({
+    # Mind lookback thresholds are unrelated to the Health Connect export query window.
+    (
+        "Packages/StrandAnalytics/Sources/StrandAnalytics/MindEngine.swift::windowDays",
+        "android/app/src/main/java/com/noop/ingest/HealthConnectWriter.kt::WINDOW_DAYS",
+    ),
     (
         "Packages/WhoopStore/Sources/WhoopStore/WhoopStore.swift::schemaVersion",
         "android/app/src/main/java/com/noop/data/WhoopDatabase.kt::SCHEMA_VERSION",
@@ -1011,6 +1015,43 @@ def _parse_constants_content(
     return tuple(out)
 
 
+def _resolve_numeric_constants(constants: list[Constant]) -> list[Constant]:
+    """Resolve literal arithmetic through unambiguous same-language constant references."""
+    by_name: dict[str, list[Constant]] = defaultdict(list)
+    for item in constants:
+        by_name[_normal_name(item.name)].append(item)
+    cache: dict[int, str | None] = {}
+
+    def value(item: Constant, visiting: frozenset[int] = frozenset()) -> str | None:
+        if item.value is not None:
+            return item.value
+        marker = id(item)
+        if marker in visiting:
+            return None
+        if marker in cache:
+            return cache[marker]
+        def substitute(match: re.Match) -> str:
+            token = match.group(0)
+            owner, _, name = token.rpartition(".")
+            candidates = by_name.get(_normal_name(name or owner or token), [])
+            if owner:
+                candidates = [candidate for candidate in candidates
+                              if _normal_name(candidate.owner) == _normal_name(owner)]
+            else:
+                local = [candidate for candidate in candidates if candidate.path == item.path
+                         and candidate.owner == item.owner]
+                candidates = local or [candidate for candidate in candidates if candidate.path == item.path] or candidates
+            if len(candidates) != 1:
+                return token
+            resolved = value(candidates[0], visiting | {marker})
+            return "(" + resolved.removeprefix("number:") + ")" if resolved and resolved.startswith("number:") else token
+        expanded = re.sub(r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?\b", substitute, item.display_value)
+        parsed = _literal(expanded)
+        cache[marker] = parsed[0] if parsed and parsed[0].startswith("number:") else None
+        return cache[marker]
+    return [replace(item, value=value(item)) for item in constants]
+
+
 def _inventory(
     root: Path,
     snapshot: _SourceSnapshot | None = None,
@@ -1041,6 +1082,8 @@ def _inventory(
             functions.extend(snapshot.functions(root, path, language))
             properties.extend(snapshot.properties(root, path, language))
             constants.extend(snapshot.constants(root, path, language))
+    swift_constants = _resolve_numeric_constants(swift_constants)
+    kotlin_constants = _resolve_numeric_constants(kotlin_constants)
     return (
         swift_files,
         kotlin_files,

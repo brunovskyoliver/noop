@@ -51,7 +51,7 @@ object Palette {
 
     // Chart style — when CLASSIC, the DATA accessors below return the throwback red→green ramps
     // (light/dark tuned). Reads ChartStylePrefs.style (snapshot state) so a flip re-colours live.
-    val isClassic: Boolean get() = ChartStylePrefs.style == ChartStyle.CLASSIC
+    val isClassic: Boolean get() = !BroopPrefs.enabled && ChartStylePrefs.style == ChartStyle.CLASSIC
     private val classic: ClassicRamp get() = if (isLight) ClassicLight else ClassicDark
 
     // Surfaces.
@@ -82,22 +82,22 @@ object Palette {
     // Accent — user-selectable chrome anchor (mint default / WHOOP blue / custom). Chrome ONLY; the
     // recovery/strain/sleep DATA worlds are never themed by this. Reads AccentPrefs snapshot state so a
     // change is live. Twin of macOS StrandPalette.accent* branching on AccentColor.
-    val accent get() = when (AccentPrefs.color) {
+    val accent get() = if (BroopPrefs.enabled) active.accent else when (AccentPrefs.color) {
         AccentColor.MINT -> active.accent
         AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)
         AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent)
     }
-    val accentHover get() = when (AccentPrefs.color) {
+    val accentHover get() = if (BroopPrefs.enabled) active.accentHover else when (AccentPrefs.color) {
         AccentColor.MINT -> active.accentHover
         AccentColor.WHOOP_BLUE -> if (isLight) Color(0xFF3A6FC0) else Color(0xFF8FBEEC)
         AccentColor.CUSTOM -> AccentColor.lighten(AccentPrefs.customHex)
     }
-    val accentMuted get() = when (AccentPrefs.color) {
+    val accentMuted get() = if (BroopPrefs.enabled) active.accentMuted else when (AccentPrefs.color) {
         AccentColor.MINT -> active.accentMuted
         AccentColor.WHOOP_BLUE -> (if (isLight) Color(0xFF234F9E) else Color(0xFF60A0E0)).copy(alpha = 0.18f)
         AccentColor.CUSTOM -> AccentColor.parseHex(AccentPrefs.customHex, active.accent).copy(alpha = 0.18f)
     }
-    val focusRing get() = if (AccentPrefs.color == AccentColor.MINT) active.focusRing else accent
+    val focusRing get() = if (BroopPrefs.enabled || AccentPrefs.color == AccentColor.MINT) active.focusRing else accent
     const val disabledOpacity = 0.45f
 
     // Recovery / Charge gradient.
@@ -577,12 +577,12 @@ private val NoopShapes = Shapes(
  */
 @Composable
 fun NoopTheme(content: @Composable () -> Unit) {
-    val dark = when (AppearancePrefs.mode) {
+    val dark = BroopPrefs.enabled || when (AppearancePrefs.mode) {
         AppearanceMode.LIGHT -> false
         AppearanceMode.DARK -> true
         AppearanceMode.SYSTEM -> isSystemInDarkTheme()
     }
-    val tokens = if (dark) DarkTokens else LightTokens
+    val tokens = if (BroopPrefs.enabled) BroopTokens else if (dark) DarkTokens else LightTokens
     if (Palette.active !== tokens) Palette.active = tokens
 
     // Status-/nav-bar icon appearance: light icons on the dark theme, dark icons on the warm-paper

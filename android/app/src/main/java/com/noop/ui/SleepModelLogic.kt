@@ -219,7 +219,7 @@ internal fun buildSleepModel(
             val series = days.mapNotNull { imported.consistency[it.day] }
             Metric(series.lastOrNull(), null, mean(series), series)
         } else {
-            consistencySeries(sessions)
+            consistencySeries(sessions, days.map { it.day })
         }
     }
     val hoursVsNeeded = metric(days, todayKey) { d ->
@@ -405,39 +405,16 @@ private fun metric(
     return Metric(fresh?.second, latestDay, mean(series), series)
 }
 
-/**
- * Consistency per night from the rolling BEDTIME-ONSET spread — the real "sleep consistency" (steadier
- * bed times → higher score), now reconstructed from the session onset timestamps (`sessions`) rather than
- * the old duration proxy that read only `days`. Byte-identical to iOS `SleepView.consistencySeries` so the
- * tile shows the SAME number on both platforms (#sleep-consistency-parity). The imported `sleep_consistency`
- * series still wins when present; this is the strap-only fallback.
- */
-internal fun consistencySeries(sessions: List<SleepSession>): Metric {
-    // Byte-identical to iOS SleepView.consistencySeries (#sleep-consistency-parity): BEDTIME-ONSET
-    // regularity, not the old duration proxy. Each session's local bed-minute (hour*60+min, evening
-    // onsets wrapped +24h) over a trailing-14 SD → 100*(1 - sd/120). Sessions are ordered by startTs to
-    // match iOS's repo.sleeps ordering (the onset VALUE uses effectiveStartTs = startTsAdjusted ?: startTs).
-    val cal = Calendar.getInstance()
-    fun bedMinutes(effectiveStartTs: Long): Double {
-        cal.timeInMillis = effectiveStartTs * 1000L
-        var m = (cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)).toDouble()
-        if (m < 12 * 60) m += 24 * 60   // wrap evening onsets into one continuous scale
-        return m
-    }
-    val mins = sessions.sortedBy { it.startTs }.map { bedMinutes(it.effectiveStartTs) }
-    if (mins.size < 3) return Metric(null, null, null, emptyList())
-    val scores = ArrayList<Double>()
-    for (i in mins.indices) {
-        val lo = max(0, i - 13)
-        val window = mins.subList(lo, i + 1)
-        if (window.size < 3) continue
-        val m = window.average()
-        val variance = window.sumOf { (it - m) * (it - m) } / window.size
-        val sd = Math.sqrt(variance)
-        // 120 min of onset SD maps to a 0 score; tighter routines climb to 100.
-        scores.add((100.0 * (1.0 - sd / 120.0)).coerceIn(0.0, 100.0))
-    }
-    return Metric(scores.lastOrNull(), null, mean(scores), scores)
+/** Seven-window Sleep Regularity Index, with the same capture and WASO rules as Swift SleepModel. */
+internal fun consistencySeries(
+    sessions: List<SleepSession>,
+    dayKeys: List<String> = sessions.map { localDayString(it.endTs) }.distinct().sorted(),
+): Metric {
+    val readings = com.noop.analytics.SleepRegularity.sri(dayKeys, sessions.map {
+        com.noop.analytics.SleepRegularity.Session(it.effectiveStartTs, it.endTs, it.stagesJSON)
+    })
+    val series = com.noop.analytics.SleepRegularity.resolve(dayKeys, emptyMap(), readings).map { it.second }
+    return Metric(series.lastOrNull(), null, mean(series), series)
 }
 
 private fun mean(vals: List<Double>): Double? = if (vals.isEmpty()) null else vals.sum() / vals.size

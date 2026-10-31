@@ -23,6 +23,7 @@ internal object IntelligencePersistence {
         val nowLocalMidnight: Long,
         val nowSeconds: Long,
         val tzOffsetSeconds: Long,
+        val zone: java.time.ZoneId = java.time.ZoneOffset.ofTotalSeconds(tzOffsetSeconds.toInt()),
     )
 
     data class ComputedWindow(
@@ -33,12 +34,13 @@ internal object IntelligencePersistence {
         val metricRows: List<MetricSeriesRow>,
         val provenance: List<ScoreInputProvenanceRow>,
         val markerSourceIds: List<String>,
+        val independentMetricDays: List<String> = emptyList(),
     )
 
     /** Keep the per-day repair loop outside the instrumented scoring coroutine's bytecode budget. */
     suspend fun persistComputedWindow(repo: WhoopRepository, window: ComputedWindow, preserveUnscoredHistory: Boolean) {
         val windows = if (preserveUnscoredHistory) byScoredDay(window) else listOf(window)
-        for (part in windows) part.persistInto(repo)
+        repo.scoringTransaction { for (part in windows) part.persistInto(repo) }
     }
 
     private suspend fun ComputedWindow.persistInto(repo: WhoopRepository) =
@@ -49,10 +51,11 @@ internal object IntelligencePersistence {
         val dailiesByDay = window.dailies.groupBy { it.day }
         val metricsByDay = window.metricRows.groupBy { it.day }
         val provenanceByDay = window.provenance.groupBy { it.day }
-        return dailiesByDay.keys.sorted().map { day ->
+        val independentDays = window.metricRows.filter { it.key in StressRestPass.independentKeys }.map { it.day }
+        return (dailiesByDay.keys + independentDays + window.independentMetricDays).distinct().sorted().map { day ->
             window.copy(from = day, to = day,
-                dailies = dailiesByDay.getValue(day),
-                metricRows = metricsByDay[day].orEmpty(),
+                dailies = dailiesByDay[day].orEmpty(),
+                metricRows = metricsByDay[day].orEmpty().filter { day in dailiesByDay || it.key in StressRestPass.independentKeys },
                 provenance = provenanceByDay[day].orEmpty())
         }
     }
@@ -144,13 +147,12 @@ internal object IntelligencePersistence {
             val oldHrv = existing.avgHrv ?: continue
             if (fresh.avgHrv != null || (fresh.totalSleepMin ?: 0.0) <= 0.0) continue
             val owner = ownerByDay[fresh.day] ?: continue
-            val dayStart = try {
-                java.time.LocalDate.parse(fresh.day).toEpochDay() * 86_400L - clock.tzOffsetSeconds
-            } catch (_: java.time.format.DateTimeParseException) { continue }
-            val readFrom = dayStart - StreamReadCap.LOOKBACK_SECONDS
-            val readTo = IntelligenceEngine.sleepReadWindowEnd(
-                dayStart, clock.nowLocalMidnight, clock.nowSeconds,
-            )
+            val date = try { java.time.LocalDate.parse(fresh.day) }
+                catch (_: java.time.format.DateTimeParseException) { continue }
+            val windows = LocalDayWindows(zone = clock.zone)
+            val window = windows.window(LocalCalendarDate(date.year, date.monthValue, date.dayOfMonth)) ?: continue
+            val readFrom = window.start.epochSecond - StreamReadCap.LOOKBACK_SECONDS
+            val readTo = minOf(window.nextStart.epochSecond - 1, clock.nowSeconds)
             if (!repo.legacyWhoop5RrWithheld(owner, readFrom, readTo)) continue
             val snapshot = LegacyScoreSnapshot(
                 avgHrv = oldHrv,
@@ -215,6 +217,8 @@ internal suspend fun WhoopRepository.replaceComputedScoreWindow(
     dailyMetrics = window.dailies,
     metricPoints = window.metricRows,
     provenance = window.provenance,
-    replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY),
+    replaceMetricKeys = listOf(DayCycleIntelligenceIntegration.ONSET_KEY,
+        "active_energy_kcal", "hr_day_coverage", "hr_day_longest_gap_s") + StressRestPass.keys,
     replaceMetricSourceIds = window.markerSourceIds,
+    independentMetricKeys = StressRestPass.independentKeys,
 )

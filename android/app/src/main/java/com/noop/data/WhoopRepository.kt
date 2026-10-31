@@ -413,6 +413,7 @@ class WhoopRepository(
     private val transactor: Transactor = object : Transactor {
         override suspend fun <R> run(block: suspend () -> R): R = block()
     },
+    private val restV2Enabled: () -> Boolean = { true },
 ) {
 
     /** Transaction boundary injected so repository writes remain testable without a Room runtime. */
@@ -439,11 +440,12 @@ class WhoopRepository(
     private var readoutRevisions = ReadoutDataRevisions()
     private val stepRevisionIndex = StepDataRevisionIndex()
 
-    constructor(db: WhoopDatabase) : this(
+    constructor(db: WhoopDatabase, restV2Enabled: () -> Boolean = { true }) : this(
         dao = db.whoopDao(),
         transactor = object : Transactor {
             override suspend fun <R> run(block: suspend () -> R): R = db.withTransaction { block() }
         },
+        restV2Enabled = restV2Enabled,
     )
 
     // MARK: - Device
@@ -769,10 +771,14 @@ class WhoopRepository(
         provenance: List<ScoreInputProvenanceRow>,
         replaceMetricKeys: List<String> = emptyList(),
         replaceMetricSourceIds: List<String> = listOf(deviceId),
+        independentMetricKeys: List<String> = emptyList(),
     ) = dao.replaceComputedScoreWindow(
         deviceId, from, to, dailyMetrics, metricPoints, provenance,
-        replaceMetricKeys, replaceMetricSourceIds,
+        replaceMetricKeys, replaceMetricSourceIds, independentMetricKeys,
     )
+
+    /** Groups a scoring pass's per-day writes into one cancellable Room transaction. */
+    suspend fun <R> scoringTransaction(block: suspend () -> R): R = transactor.run(block)
 
     /** Computed-only daily rows; unlike daysMerged this can never substitute imported/calendar steps. */
     suspend fun computedDailyUnion(activeStrapId: String, from: String, to: String): List<DailyMetric> =
@@ -890,6 +896,16 @@ class WhoopRepository(
             dao.insertDismissedSleep(listOf(DismissedSleep(session.deviceId, session.startTs, session.endTs)))
         }
         dao.deleteSleepSession(session.deviceId, session.startTs)
+    }
+
+    /** Delete every displayed fragment and its detector tombstone in one transaction. */
+    suspend fun deleteSleepSessions(sessions: List<SleepSession>) = transactor.run {
+        sessions.distinctBy { it.deviceId to it.startTs }.forEach { deleteSleepSession(it) }
+    }
+
+    /** Restore every fragment of the same deletion together, including original namespaces. */
+    suspend fun undoDeleteSleepSessions(sessions: List<SleepSession>) = transactor.run {
+        sessions.distinctBy { it.deviceId to it.startTs }.forEach { undoDeleteSleepSession(it) }
     }
 
     /** Undo a [deleteSleepSession] (#65): lift the tombstone and restore the deleted row into its ORIGINAL
@@ -1726,6 +1742,13 @@ class WhoopRepository(
     suspend fun sleepSessionsForDevice(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT) =
         dao.sleepSessions(deviceId, from, to, limit)
 
+    /** Lift Log sessions across the registered WHOOP union, deduplicated by the workout natural key. */
+    suspend fun liftSessions(deviceId: String, fromTs: Long, toTs: Long): List<LiftSessionRow> {
+        val seen = mutableSetOf<Pair<Long, String>>()
+        return rawWhoopSourceIds(deviceId).flatMap { dao.liftSessions(it, fromTs, toTs) }
+            .filter { seen.add(it.startTs to it.sport.lowercase(java.util.Locale.ROOT)) }.sortedBy { it.startTs }
+    }
+
     /**
      * The user's learned habitual midsleep (local time-of-day seconds) for [deviceId], or null under
      * [com.noop.analytics.SleepStageTotals.HABITUAL_MIN_DAYS] of history (cold-start). Computed EXACTLY as
@@ -2169,22 +2192,27 @@ class WhoopRepository(
         dao.dailyMetricsRange(deviceId, from, to)
 
     /**
-     * The 180 days of Vitality / Body Age / Pace of Aging inputs ending on [newestDay]: merged dailies
+     * Healthspan inputs from [fromDay] through [newestDay]: merged dailies
      * ([fresh] rows win per day), the dismissal-filtered, cross-source-deduped workout list the Workouts
      * screen shows, and VO₂max (measured import preferred over the estimate). One reader for the analysis
-     * pass and the Health screen breakdown. Twin of Swift `Repository.vitalityDays(endingOn:fresh:)`.
+     * pass and the Health screen breakdown. The Swift healthspanHistory reader combines these day inputs
+     * with the lean-mass inputs that Android reads in HealthspanRepository.
      */
     suspend fun vitalityDays(
         activeDeviceId: String,
         newestDay: String,
         fresh: List<DailyMetric> = emptyList(),
+        fromDay: String = com.noop.analytics.VitalityWindow.windowStart(newestDay),
     ): List<com.noop.analytics.VitalityWindow.Day> {
-        val from = com.noop.analytics.VitalityWindow.windowStart(newestDay)
+        val from = fromDay
         val byDay = LinkedHashMap<String, DailyMetric>()
-        for (d in daysMerged(activeDeviceId)) if (d.day in from..newestDay) byDay[d.day] = d
+        val mergedDays = daysMerged(activeDeviceId)
+        for (d in mergedDays) if (d.day in from..newestDay) byDay[d.day] = d
         for (d in fresh) if (d.day in from..newestDay) byDay[d.day] = d
-        val lookbackDays = com.noop.analytics.VitalityWindow.longWindowDays + 8
         val now = System.currentTimeMillis() / 1000
+        val todayEpoch = java.time.LocalDate.now().toEpochDay().toInt()
+        val fromEpoch = com.noop.analytics.VitalityWindow.epochDay(from) ?: todayEpoch
+        val lookbackDays = maxOf(1, todayEpoch - fromEpoch + 8)
         val lo = now - lookbackDays * 86_400L
         val hi = now + 86_400L
         val rows = workoutsUnion(activeDeviceId, lo, hi) +
@@ -2193,16 +2221,39 @@ class WhoopRepository(
             workouts(ACTIVITY_FILE_SOURCE, lo, hi) + workouts(com.noop.ingest.LiftingImporter.SOURCE_ID, lo, hi)
         val workouts = com.noop.ui.WorkoutEditing.dedupCrossSource(
             com.noop.ui.WorkoutEditing.filterDismissed(rows, dismissedDetectedUnion(activeDeviceId)))
+        val apple = appleDaily("health-connect", from, newestDay) + appleDaily("apple-health", from, newestDay)
+        val measuredVO2 = com.noop.analytics.VitalityWindow.vo2Points(
+            measured = apple.mapNotNull { row -> row.vo2max?.let { row.day to it } } +
+                metricSeries("health-connect", "vo2max", from, newestDay).map { it.day to it.value } +
+                metricSeries(com.noop.analytics.LabBookProjection.SOURCE_ID, "vo2max", from, newestDay).map { it.day to it.value } +
+                metricSeries("apple-health", "vo2max", from, newestDay).map { it.day to it.value },
+            estimated = emptyList(), from = from, to = newestDay,
+        )
         val vo2 = com.noop.analytics.VitalityWindow.vo2Points(
-            measured = metricSeries("apple-health", "vo2max", from, newestDay).map { it.day to it.value },
+            measured = emptyList(),
             estimated = metricSeriesComputedUnion(activeDeviceId, "vo2max_est", from, newestDay)
                 .map { it.day to it.value },
             from = from, to = newestDay,
         )
-        return com.noop.analytics.VitalityWindow.days(byDay.values.toList(), workouts, vo2) { ts ->
+        val lifts = liftSessions(activeDeviceId, lo, hi).mapNotNull { session ->
+            session.endTs?.let { com.noop.analytics.VitalityWindow.Lift(session.startTs, it, session.sport) }
+        }
+        val steps = resolvedSeries("steps", "my-whoop", from, newestDay, activeDeviceId).points
+            .filter { it.value > 0 }.associate { it.day to it.value }.toMutableMap()
+        for (row in apple.asReversed()) if (row.day !in steps && row.steps != null && row.steps > 0) steps[row.day] = row.steps.toDouble()
+        val importedConsistency = metricSeries("my-whoop", "sleep_consistency", from, newestDay)
+            .associate { it.day to it.value }
+        val sleepSessions = allSleepSessionsUnion(activeDeviceId, lookbackDays + com.noop.analytics.SleepRegularity.windowDays + 1)
+        val dayKeys = mergedDays.map { it.day }.sorted()
+        val sri = com.noop.analytics.SleepRegularity.sri(byDay.keys.sorted(), sleepSessions.map {
+            com.noop.analytics.SleepRegularity.Session(it.effectiveStartTs, it.endTs, it.stagesJSON)
+        })
+        val consistency = com.noop.analytics.SleepRegularity.resolve(dayKeys, importedConsistency, sri).toMap()
+        return com.noop.analytics.VitalityWindow.days(byDay.values.toList(), workouts, vo2,
+            lifts = lifts, measuredVO2ByDay = measuredVO2, consistencyByDay = consistency, stepsByDay = steps, dayOf = { ts ->
             val offsetSec = (java.util.TimeZone.getDefault().getOffset(ts * 1000) / 1000).toLong()
             com.noop.analytics.AnalyticsEngine.dayString(ts, offsetSec)
-        }.filter { it.day in from..newestDay }
+        }).filter { it.day in from..newestDay }
     }
 
     // MARK: - Cross-source resolver (PR#196 , freshest-wins charts/metrics)
@@ -2327,7 +2378,7 @@ class WhoopRepository(
         val sleepTotalKey = candidate.key == "sleep_total_min" || candidate.key == "asleep_min"
         for (row in dao.dailyMetricsRange(candidate.source, from, bufferDayAfter(to))) {
             if (!byDay.containsKey(row.day)) {
-                dailyColumn(candidate.key, row)?.let {
+                dailyColumn(candidate.key, row, restV2Enabled())?.let {
                     byDay[row.day] = CandidateRow(row.day, it, sleepTotalKey && bareSleepAggregate(row))
                 }
             }
@@ -2632,7 +2683,10 @@ class WhoopRepository(
         }
 
         /** Build a repository backed by the process-wide singleton database. */
-        fun from(context: Context): WhoopRepository = WhoopRepository(WhoopDatabase.get(context))
+        fun from(context: Context): WhoopRepository = WhoopRepository(WhoopDatabase.get(context)) {
+            com.noop.ui.NoopPrefs.of(context.applicationContext)
+                .getBoolean(com.noop.analytics.RestPerformanceV2.enabledKey, true)
+        }
 
         // MARK: - Compact per-epoch JSON (v18 motionJSON / sleepStateJSON), byte-equivalent with Swift's
         // JSONEncoder/JSONDecoder on [Double] / [Int]: a bare `[..]` array, whole doubles emitted WITHOUT a
@@ -2678,6 +2732,7 @@ class WhoopRepository(
             strapDeviceId: String,
         ): List<MetricSourceCandidate> {
             val computedSource = "$strapDeviceId-noop"
+            val computedKey = if (key == "active_kcal") "active_energy_kcal" else key
             fun uniqued(cs: List<MetricSourceCandidate>): List<MetricSourceCandidate> {
                 val seen = LinkedHashSet<MetricSourceCandidate>()
                 for (c in cs) seen.add(c)
@@ -2696,8 +2751,8 @@ class WhoopRepository(
                 val candidates = mutableListOf(
                     MetricSourceCandidate(strapDeviceId, key),
                     MetricSourceCandidate(WHOOP_SOURCE, key),
-                    MetricSourceCandidate(computedSource, key),
-                    MetricSourceCandidate("$WHOOP_SOURCE-noop", key),
+                    MetricSourceCandidate(computedSource, computedKey),
+                    MetricSourceCandidate("$WHOOP_SOURCE-noop", computedKey),
                 )
                 appleCompatibleKey(key)?.let {
                     candidates.add(MetricSourceCandidate(APPLE_HEALTH_SOURCE, it))
@@ -2712,7 +2767,7 @@ class WhoopRepository(
                 // metricSeries under this source from HealthConnectImporter.
                 candidates.add(MetricSourceCandidate(HEALTH_CONNECT_SOURCE, key))
                 if (noopComputedCanFillAppleMetric(key)) {
-                    candidates.add(MetricSourceCandidate(computedSource, key))
+                    candidates.add(MetricSourceCandidate(computedSource, computedKey))
                 }
                 return uniqued(candidates)
             }
@@ -2753,7 +2808,8 @@ class WhoopRepository(
          * carries), so the day resolves to its own Rest. Consistency is left to the scorer's neutral
          * default here (the daily row carries no regularity term).
          */
-        internal fun dailyColumn(key: String, d: DailyMetric): Double? = when (key) {
+        // Swift twin `Repository.dailyColumn(key:day:)`.
+        internal fun dailyColumn(key: String, d: DailyMetric, restV2Enabled: Boolean = false): Double? = when (key) {
             "recovery" -> d.recovery
             "hrv" -> d.avgHrv
             "rhr", "resting_hr" -> d.restingHr?.toDouble()
@@ -2766,9 +2822,10 @@ class WhoopRepository(
             "sleep_deep_min", "deep_min" -> d.deepMin
             "sleep_rem_min", "rem_min" -> d.remMin
             "sleep_light_min", "core_min" -> d.lightMin
-            "sleep_performance" -> com.noop.analytics.RestScorer.restFromDaily(d)
+            "sleep_performance" -> if (restV2Enabled) com.noop.analytics.RestPerformanceV2.composite(d) else com.noop.analytics.RestScorer.restFromDaily(d)
             "steps" -> d.steps?.toDouble()
-            "active_kcal", "energy_kcal" -> d.activeKcalEst
+            "active_kcal" -> null // The legacy daily column includes resting energy.
+            "energy_kcal" -> d.activeKcalEst
             else -> null
         }
 

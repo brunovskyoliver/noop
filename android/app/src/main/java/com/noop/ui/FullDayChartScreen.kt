@@ -49,7 +49,7 @@ import kotlin.math.roundToInt
 // per-second rows (WhoopDao.hrSamples, same COALESCE). The chart's pinch/pan reports the new window and
 // we re-read at the new resolution. Mirrors macOS FullDayChartView + OverviewHRChart's zoom binding.
 
-private enum class TimelineMetric(val title: String) {
+internal enum class TimelineMetric(val title: String) {
     Hr(uiString(R.string.timeline_metric_heart_rate)),
     // #803: this trace is a rolling rMSSD over the RR series, NOT the raw RR interval it used to plot.
     // The honest title says exactly what the curve is (windowed rMSSD), not a bare "HRV".
@@ -385,7 +385,7 @@ private fun TimelineStat(label: String, value: String, modifier: Modifier = Modi
 
 /** Adaptive read: HR rides the COALESCE-preserving Room reads (buckets at day scale, raw when zoomed);
  *  other metrics read their raw sample tables and bin in-process when zoomed out. */
-private suspend fun readTimeline(
+internal suspend fun readTimeline(
     vm: AppViewModel,
     deviceId: String,
     metric: TimelineMetric,
@@ -594,7 +594,7 @@ private fun dayLabel(dayStartSec: Long, todayStart: Long): String = when (daySta
  * HR chart's HrTimeAxisLabels (TodayScreen.kt), adapted to the Timeline's wall-clock x mapping.
  */
 @Composable
-private fun TimelineTimeAxisLabels(
+internal fun TimelineTimeAxisLabels(
     ticks: List<Pair<Long, String>>,
     windowStart: Long,
     windowEnd: Long,

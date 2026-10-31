@@ -193,6 +193,7 @@ fun SleepScreen(
     vm: AppViewModel,
     onOpenJournal: () -> Unit = {},
     onOpenAlarms: () -> Unit = {},
+    initialDayKey: String? = null,
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     // Whether the ACTIVE strap is an Oura ring, off the canonical brand table (not an "oura" literal) — so
@@ -249,6 +250,8 @@ fun SleepScreen(
     // user on the night they just edited. (#160)
     var nightOffset by remember { mutableIntStateOf(0) }
     LaunchedEffect(days, vm.activeStrapId) {
+        val selectedBeforeReload = if (initialDayKey != null) sleeps.groupBy { localDayString(it.endTs) }
+            .keys.sortedDescending().getOrNull(nightOffset) else null
         loadedSleepDays = null
         val strap = vm.activeStrapId
         val loaded = runCatching {
@@ -277,7 +280,9 @@ fun SleepScreen(
         }.getOrDefault(emptyList())
         kotlinx.coroutines.currentCoroutineContext().ensureActive()
         sleeps = loaded
-        nightOffset = 0
+        nightOffset = selectedBeforeReload?.let { selected ->
+            broopSleepNightIndex(loaded.groupBy { localDayString(it.endTs) }.toSortedMap(reverseOrder()).values.toList(), selected)
+        } ?: 0
         loadedSleepDays = days
         loadedSleepStrap = strap
     }
@@ -511,6 +516,13 @@ fun SleepScreen(
         sleeps.groupBy { localDayString(it.endTs) }
             .toSortedMap(reverseOrder())                       // newest day first
             .map { (_, blocks) -> blocks.sortedBy { it.effectiveStartTs } }
+    }
+    var initialDaySeeded by remember(initialDayKey) { mutableStateOf(false) }
+    LaunchedEffect(initialDayKey, navDays, sleepRowsReady) {
+        if (!initialDaySeeded && initialDayKey != null && sleepRowsReady && navDays.isNotEmpty()) {
+            broopSleepNightIndex(navDays, initialDayKey)?.let { nightOffset = it }
+            initialDaySeeded = true
+        }
     }
 
     // The navigated night, decoded once per (offset, data) change — chevron taps re-pick
@@ -1917,7 +1929,7 @@ private fun MainSleepFooter(
  */
 internal fun mainSleepReasonText(blocks: List<SleepSession>, habitualMidsleepSec: Long?): String? {
     val sel = SleepStageTotals.mainNightSelection(
-        blocks.map { SleepStageTotals.NightBlock(it.effectiveStartTs, it.endTs) },
+        blocks.map { SleepStageTotals.NightBlock.fromSession(it) },
         uiTzOffsetSec(),
         habitualMidsleepSec,
     ) ?: return null

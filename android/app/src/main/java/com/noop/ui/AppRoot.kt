@@ -508,6 +508,10 @@ object BottomBarStyleStore {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRoot(viewModel: AppViewModel = viewModel()) {
+    if (BroopPrefs.enabled) {
+        BroopAppRoot(viewModel)
+        return
+    }
     val nav = rememberNavController()
 
     val backStack by nav.currentBackStackEntryAsState()
@@ -1359,7 +1363,7 @@ private fun NavHostController.navigateTopLevel(route: String) {
  * [FusedRecordScreen] its read-model. Keeps the screen itself I/O-free + previewable. Re-loads on entry.
  */
 @Composable
-private fun FusedRecordRoute(viewModel: AppViewModel) {
+internal fun FusedRecordRoute(viewModel: AppViewModel) {
     var record by remember {
         mutableStateOf(FusedRecord(rows = emptyList(), dayOwner = null as FusionSource?, contributingSourceCount = 0))
     }

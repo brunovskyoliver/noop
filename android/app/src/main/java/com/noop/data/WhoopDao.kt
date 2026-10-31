@@ -249,6 +249,10 @@ internal const val PROMOTE_WHOOP4_HISTORY_SQL =
  */
 @Dao
 interface WhoopDao : DeviceRegistryDao {
+    @Query("SELECT * FROM liftSession WHERE deviceId = :deviceId AND startTs >= :fromTs AND startTs <= :toTs ORDER BY startTs")
+    // Swift twin `WhoopStore.liftSessions(deviceId:fromTs:toTs:)`.
+    suspend fun liftSessions(deviceId: String, fromTs: Long, toTs: Long): List<LiftSessionRow>
+
 
     // MARK: - Device
 
@@ -515,6 +519,7 @@ interface WhoopDao : DeviceRegistryDao {
         provenance: List<ScoreInputProvenanceRow>,
         replaceMetricKeys: List<String> = emptyList(),
         replaceMetricSourceIds: List<String> = listOf(deviceId),
+        independentMetricKeys: List<String> = emptyList(),
     ) {
         // #1196: a scoring pass that produced NO computed daily rows must NOT wipe the persisted window.
         // That happens transiently during a reconnect+offload storm (a pass runs over a still-incomplete
@@ -524,7 +529,16 @@ interface WhoopDao : DeviceRegistryDao {
         // looked like data loss. In steady state `dailyMetrics` covers the window, so this guard never
         // fires and the write is byte-identical to before. (Twin of the Swift IntelligenceEngine
         // empty-window guard; the post-offload trigger is additionally gated on newData — see #1146.)
-        if (dailyMetrics.isEmpty()) return
+        if (dailyMetrics.isEmpty()) {
+            // Waking Stress and Energy do not require a scored sleep night. Replace only their
+            // declared keys, preserving every daily score and unrelated metric/provenance row.
+            for (sourceId in replaceMetricSourceIds) {
+                for (key in independentMetricKeys) deleteMetricSeriesKeyInRange(sourceId, from, to, key)
+            }
+            val independent = metricPoints.filter { it.key in independentMetricKeys }
+            if (independent.isNotEmpty()) upsertMetricSeries(independent)
+            return
+        }
         deleteDailyMetricsInRange(deviceId, from, to)
         deleteScoreInputProvenanceInRange(deviceId, from, to)
         for (sourceId in replaceMetricSourceIds) {

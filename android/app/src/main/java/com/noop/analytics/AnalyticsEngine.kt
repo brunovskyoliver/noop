@@ -432,6 +432,8 @@ object AnalyticsEngine {
         // ImuActivityFeatures?`, null when nothing captured overlaps — the WHOOP 4.0 / no-capture
         // path. Pure lookup; opens no BLE and decodes only files the caller already banked.
         imuActivityFeatures: ((Long, Long) -> ImuActivityFeatures?)? = null,
+        dayBounds: Pair<Long, Long>? = null,
+        confirmedSleepStarts: Set<Long> = emptySet(),
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -442,7 +444,8 @@ object AnalyticsEngine {
         // incl. fractional offsets), matching the Swift twin.
         val dayStartUtc = dayStartUtcSeconds(day)
         val dayEndUtc = dayStartUtc + 86_400
-        fun tsInDay(ts: Long): Boolean = (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+        fun tsInDay(ts: Long): Boolean = dayBounds?.let { ts >= it.first && ts < it.second }
+            ?: ((ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc)
 
         // ── Sleep detection + staging ─────────────────────────────────────────
         val detectedSessions = SleepStager.detectSleep(
@@ -514,7 +517,7 @@ object AnalyticsEngine {
         // SAME group; the debt ledger starts with it and separately credits naps, so #525 does not regress.
         // Mirrors Swift. (#525 / #561)
         val mainGroupIdx = SleepStageTotals.mainNightGroupIndices(
-            matched.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            matched.map { SleepStageTotals.NightBlock(it.start, it.end, it.start in confirmedSleepStarts) },
             tzOffsetSeconds, habitualMidsleepSec,
         ) ?: emptyList()
         val mainGroup: List<DetectedSleep> = mainGroupIdx.map { matched[it] }
@@ -843,8 +846,10 @@ object AnalyticsEngine {
         val effMaxHR: Double? = maxHROverride
             ?: if (profile.age > 0) StrainScorer.tanakaHRmax(profile.age) else null
         val restForStrain = restingHRDaily?.toDouble() ?: StrainScorer.defaultRestingHR
+        val effortHr = if (dayBounds == null) (dayHr ?: hr) else (dayHr ?: hr).filter { tsInDay(it.ts) }
+        val hrCoverage = dayBounds?.let { HRInputCoverage.measure(effortHr, it.first, it.second) }
         val strain = StrainScorer.strain(
-            hr = dayHr ?: hr,
+            hr = effortHr,
             maxHR = effMaxHR,
             restingHR = restForStrain,
             method = effortMethod,
@@ -862,7 +867,7 @@ object AnalyticsEngine {
         // is handed an HRmax with its provenance already gone. Built only when a sink is attached, and it
         // changes no score.
         strainDiag?.let { sink ->
-            val hrForPeak = dayHr ?: hr
+            val hrForPeak = effortHr
             sink(
                 StrainScorer.dayCalibrationLine(
                     day = day,
@@ -890,7 +895,7 @@ object AnalyticsEngine {
         // window for pure-function callers/tests.
         var detectionFunnel: WorkoutDetector.DetectionFunnel? = null
         val workouts = WorkoutDetector.detect(
-            hr = dayHr ?: hr,
+            hr = effortHr,
             gravity = dayGravity ?: gravity,
             restingHR = restingHRDaily?.toDouble(),
             // #1545: the DAY's effective HRmax, not just the override. Passing maxHROverride meant an
@@ -989,16 +994,18 @@ object AnalyticsEngine {
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
         val dayHrFiltered = (dayHr ?: hr).filter { tsInDay(it.ts) }
-        val activeKcalEst: Double? = if (dayHrFiltered.isEmpty()) {
+        val dayEnergy = if (dayHrFiltered.isEmpty()) {
             null
         } else {
-            Calories.estimateDayCalories(
+            Calories.estimateDayEnergy(
                 hrSamples = dayHrFiltered,
                 profile = profile,
                 hrmax = effMaxHR,
                 restingHR = restingHRDaily?.toDouble(),
+                maxSpanSeconds = dayBounds?.let { (it.second - it.first).toDouble() } ?: 86_400.0,
             )
         }
+        val activeKcalEst = dayEnergy?.totalKcal
 
         // ── Assemble DailyMetric ──────────────────────────────────────────────
         // deviceId is stamped by the caller (IntelligenceEngine persists under
@@ -1043,7 +1050,7 @@ object AnalyticsEngine {
 
         // ── Per-score confidence tiers (mirror Swift ScoreConfidence.derive decisions) ──
         val chargeConfidence = ScoreConfidence.forCharge(recovery, baselines.hrv)
-        val effortConfidence = ScoreConfidence.forEffort(strain, hr.size)
+        val effortConfidence = ScoreConfidence.forEffort(strain, effortHr.size, hrCoverage)
         // Rest confidence with H9 + the #345 sparse-motion guard: downgrade to low-confidence a night whose
         // deep+REM share is implausibly low on a high-efficiency night (H9 staging miss) OR that was staged
         // on sparse gravity (WHOOP 4.0 coarse-banked motion can't reliably stage sleep — a confident 85–100
@@ -1093,6 +1100,8 @@ object AnalyticsEngine {
             workouts = workouts,
             recovery = recovery,
             strain = strain,
+            activeEnergyKcal = dayEnergy?.activeKcal,
+            hrCoverage = hrCoverage,
             rest = rest,
             nightlySkinTempC = nightlySkinTempC,
             chargeConfidence = chargeConfidence,
@@ -1102,7 +1111,7 @@ object AnalyticsEngine {
             sessionSleepStateByStart = sessionSleepStateByStart,
             gravitySparse = gravitySparse,
             detectionFunnel = detectionFunnel,
-            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            mainNightBlocks = mainGroup.map { SleepStageTotals.NightBlock(it.start, it.end, it.start in confirmedSleepStarts) },
         )
     }
 

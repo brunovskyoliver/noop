@@ -179,6 +179,7 @@ fun LiveWorkoutScreen(vm: AppViewModel, onClose: () -> Unit) {
             // The accumulating Effort — same liveStrain source and 0–21 / 0–100 scale, rendered as a centered
             // free metric to sit alongside TIME and HEART RATE. Keeps the "of N" scale the iOS redesign dropped.
             EffortGauge(liveStrain = w.liveStrain, effortScale = effortScale)
+            BroopActivityStrainCoach(vm)
 
             // Zone section — the zone label capsule on the header row, the five-segment rail, and the band.
             ZoneRail(zone = zone, zoneSet = zoneSet)

@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        BroopPrefs.load(this)
         // NOTE: `crash` stays RAW here on purpose. acknowledge() fingerprints what it is given, and
         // pendingCrash() fingerprints the stored file — hand it redacted text and the two hashes never
         // match, so the screen would reappear on every launch forever, which is precisely the loop the
@@ -159,13 +160,24 @@ class MainActivity : ComponentActivity() {
         // A detected-workout notification tap (or Edit action) lands here on a cold launch; the
         // route bus holds it until the shell + Workouts screen are composed to consume it.
         com.noop.notif.dispatchWorkoutDetectedRoute(intent)
+        BroopAndroidShortcuts.dispatchIntent(intent)
+        if (intent?.getBooleanExtra("com.noop.lift.RESUME", false) == true) {
+            NoopRouteBus.postLiftResume()
+            intent.removeExtra("com.noop.lift.RESUME")
+        }
     }
 
     /** appLaunchIntent is SINGLE_TOP|CLEAR_TOP, so a notification tap while the app is alive reuses
      *  this Activity and delivers the span extras here instead of through onCreate. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == BroopAndroidShortcuts.intentAction) setIntent(intent)
         com.noop.notif.dispatchWorkoutDetectedRoute(intent)
+        BroopAndroidShortcuts.dispatchIntent(intent)
+        if (intent?.getBooleanExtra("com.noop.lift.RESUME", false) == true) {
+            NoopRouteBus.postLiftResume()
+            intent.removeExtra("com.noop.lift.RESUME")
+        }
     }
 
     /** Request the BLE permissions appropriate to the running OS version. */
@@ -1685,6 +1697,7 @@ fun NoopRoot() {
     if (!onboarded) {
         OnboardingScreen(
             viewModel = appViewModel,
+            broop = BroopPrefs.enabled,
             onFinished = {
                 // A brand-new user just saw the expectations in onboarding, don't also pop the
                 // changelog at them; mark them current (mirrors macOS ContentView onFinished).
@@ -1701,6 +1714,7 @@ fun NoopRoot() {
 
     // Existing, onboarded user: render the app, and if they've updated since last launch
     // (stored version behind current), show "What's New" once over the top.
+    BroopShortcutHandler(appViewModel)
     AppRoot(viewModel = appViewModel)
 
     if (lastSeenChangelog != AppChangelog.CURRENT_VERSION) {

@@ -1512,6 +1512,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
     // prefer the imported per-workout percentages (a WHOOP-computed split); only when the row carries
     // none do we derive zone-minutes from the strap's own raw HR — so we never overwrite a real
     // imported split with an on-device approximation.
+    var hrCoverage by remember(row.startTs) { mutableStateOf<com.noop.analytics.HRInputCoverage?>(null) }
     var hrCurve by remember(row.startTs) { mutableStateOf<List<HrBucket>>(emptyList()) }
     var zoneColorsEnabled by remember(row.startTs) { mutableStateOf(false) }
     var zoneMinutes by remember(row.startTs) { mutableStateOf<List<Double>?>(null) }
@@ -1521,6 +1522,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
     // so it "fills in after sync". null for non-foot sports or when no strap counter covers the window.
     var steps by remember(row.startTs) { mutableStateOf<Int?>(null) }
     LaunchedEffect(row.startTs, row.endTs) {
+        hrCoverage = vm.workoutHrCoverage(row.startTs, row.endTs, row.source, row.deviceId)
         hrCurve = vm.workoutHrBuckets(row.startTs, row.endTs, row.source, row.deviceId)
         steps = if (WorkoutSport.isOnFoot(row.sport)) vm.workoutSteps(row.startTs, row.endTs) else null
         val imported = parseZonePercents(row.zonesJSON)
@@ -1597,6 +1599,14 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
                 val effortScale = UnitPrefs.effortScale(LocalContext.current)
                 CardDivider()
                 SessionEffortCard(strain = strain, effortScale = effortScale)
+            }
+
+            hrCoverage?.takeIf { WorkoutEditing.classify(row.source) in setOf(WorkoutSource.MANUAL, WorkoutSource.DETECTED) }?.let { coverage ->
+                DetailRow(uiString(R.string.accuracy_hr_coverage), "${(coverage.fraction * 100).roundToInt()}%")
+                if (!coverage.isComplete) Text(uiString(R.string.accuracy_missing_hr), style = NoopType.footnote, color = Palette.textSecondary)
+                if (row.sport.contains("strength", true) || row.sport.contains("weight", true)) {
+                    Text(uiString(R.string.accuracy_strength_effort), style = NoopType.footnote, color = Palette.textSecondary)
+                }
             }
 
             // HR curve over the session window (#410). A faint baseline shows under 2 points.
@@ -2097,7 +2107,7 @@ private fun Cell(text: String, modifier: Modifier, color: Color? = null) {
 // dialog to plain numeric fields — the persisted startTs is identical).
 
 @Composable
-private fun ManualWorkoutDialog(
+internal fun ManualWorkoutDialog(
     editing: WorkoutRow?,
     isCopy: Boolean = false,
     onDismiss: () -> Unit,

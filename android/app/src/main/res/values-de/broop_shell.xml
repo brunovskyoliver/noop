@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="broop_home">Start</string>
+    <string name="broop_health">Gesundheit</string>
+    <string name="broop_back">Zurück</string>
+    <string name="broop_quick_actions">Schnellaktionen</string>
+    <string name="broop_start_activity">Aktivität starten</string>
+    <string name="broop_add_activity">Aktivität hinzufügen</string>
+    <string name="broop_strength_trainer">Krafttrainer</string>
+    <string name="broop_complete_journal">Dein Tagebuch ausfüllen</string>
+    <string name="broop_live_hr">Live-Herzfrequenz</string>
+    <string name="broop_updates">Updates</string>
+    <string name="broop_stress_monitor">Stressmonitor</string>
+    <string name="broop_previous">Zurück</string>
+    <string name="broop_today">Heute</string>
+    <string name="broop_next">Weiter</string>
+    <string name="broop_stress_live">Live-Stress</string>
+    <string name="broop_stress_latest">Neuester Stresswert</string>
+    <string name="broop_stress_active">Aktiv</string>
+    <string name="broop_stress_loading">Dein Herzfrequenzverlauf wird gelesen…</string>
+    <string name="broop_stress_failed">Deine Stressdaten konnten nicht gelesen werden. Öffne diese Seite erneut, um es nochmals zu versuchen.</string>
+    <string name="broop_stress_empty">Trage dein Band, um deine Stress-Zeitleiste in Fünf-Minuten-Schritten aufzubauen.</string>
+    <string name="broop_stress_activity_excluded">Bewegung und Training werden von deinem Stresswert ausgeschlossen.</string>
+    <string name="broop_stress_live_detail">Die letzte Minute Herzfrequenz im Vergleich zu deinem Ruhe-Basiswert.</string>
+    <string name="broop_stress_last_scored">Zuletzt berechnet um %1$s</string>
+    <string name="broop_stress_personal_baseline">Persönlicher Basiswert · %1$d vorherige Tage</string>
+    <string name="broop_stress_calibrating">Kalibrierung · verwendet die ruhige Herzfrequenz dieses Tages</string>
+    <string name="broop_stress_your_day">Dein Tag</string>
+    <string name="broop_stress_waking_average">Durchschnitt im Wachzustand</string>
+    <string name="broop_stress_low">Niedriger Stress</string>
+    <string name="broop_stress_medium">Mittlerer Stress</string>
+    <string name="broop_stress_high">Hoher Stress</string>
+    <string name="broop_stress_scored_waking">Bewertete Wachzeit</string>
+    <string name="broop_minutes">%1$d min</string>
+    <string name="broop_stress_sleep_high">Hoher Stress im Schlaf</string>
+    <string name="broop_stress_breathe_detail">Eine geführte Atemübung starten</string>
+    <string name="broop_stress_mind_detail">Resilienz und kumulativer Stress</string>
+    <string name="broop_stress_method_title">So wird Stress gemessen</string>
+    <string name="broop_stress_method">Fünf-Minuten-Mittelwerte der Herzfrequenz nutzen deine ruhige Wachherzfrequenz der letzten 14 Tage. Schlaf nutzt eine eigene Herzfrequenz- und HRV-Referenz. Erfasste Aktivität, Bewegung und bis zu 15 Minuten erhöhter Puls nach Aktivität werden ausgeschlossen. Fehlende Daten bleiben leer. Niedrig liegt unter 1, mittel bei 1 bis unter 2 und hoch bei 2 oder mehr auf einer Skala von 0–3.</string>
+    <string name="broop_stress_legend">Schlaf · Blaugrau    Aktivität · Grün    Niedrig &lt; 1    Mittel 1–2    Hoch ≥ 2</string>
+    <string name="broop_stress_timeline_description">Stress-Zeitleiste mit %1$d bewerteten Fünf-Minuten-Zeiträumen; Lücken sind fehlende Daten</string>
+    <string name="broop_ring_description">%1$s: %2$s%3$s</string>
+</resources>

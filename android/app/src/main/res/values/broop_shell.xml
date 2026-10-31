@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="broop_demo" translatable="false">DEMO</string>
+    <string name="broop_app_name" translatable="false">Broop</string>
+    <color name="broop_launcher_background">#13181C</color>
+    <string name="broop_home">Home</string>
+    <string name="broop_health">Health</string>
+    <string name="broop_back">Back</string>
+    <string name="broop_quick_actions">Quick actions</string>
+    <string name="broop_start_activity">Start activity</string>
+    <string name="broop_add_activity">Add activity</string>
+    <string name="broop_strength_trainer">Strength trainer</string>
+    <string name="broop_complete_journal">Complete your journal</string>
+    <string name="broop_live_hr">Live heart rate</string>
+    <string name="broop_updates">Updates</string>
+    <string name="broop_stress_monitor">Stress monitor</string>
+    <string name="broop_previous">Previous</string>
+    <string name="broop_today">Today</string>
+    <string name="broop_next">Next</string>
+    <string name="broop_stress_live">Live stress</string>
+    <string name="broop_stress_latest">Latest stress</string>
+    <string name="broop_stress_active">Active</string>
+    <string name="broop_stress_loading">Reading your heart-rate history…</string>
+    <string name="broop_stress_failed">Your stress data could not be read. Open this screen again to retry.</string>
+    <string name="broop_stress_empty">Wear your strap to build your five-minute stress timeline.</string>
+    <string name="broop_stress_activity_excluded">Movement or exercise is excluded from your stress score.</string>
+    <string name="broop_stress_live_detail">The last minute of heart rate, compared with your calm baseline.</string>
+    <string name="broop_stress_last_scored">Last scored at %1$s</string>
+    <string name="broop_stress_personal_baseline">Personal baseline · %1$d prior days</string>
+    <string name="broop_stress_calibrating">Calibrating · using this day’s calm heart rate</string>
+    <string name="broop_stress_your_day">Your day</string>
+    <string name="broop_stress_waking_average">Waking average</string>
+    <string name="broop_stress_low">Low stress</string>
+    <string name="broop_stress_medium">Medium stress</string>
+    <string name="broop_stress_high">High stress</string>
+    <string name="broop_stress_scored_waking">Scored waking time</string>
+    <string name="broop_minutes">%1$d min</string>
+    <string name="broop_stress_sleep_high">High sleep stress</string>
+    <string name="broop_stress_breathe_detail">Follow a guided breathing session</string>
+    <string name="broop_stress_mind_detail">Resilience and cumulative stress</string>
+    <string name="broop_stress_method_title">How stress is measured</string>
+    <string name="broop_stress_method">Five-minute heart-rate averages use your previous 14 days of calm waking heart rate. Sleep uses its own heart-rate and HRV reference. Logged activity, movement and up to 15 minutes of elevated pulse after activity are excluded. Missing data stays blank. Low is below 1, medium is 1 to below 2, and high is 2 or above on a 0–3 scale.</string>
+    <string name="broop_stress_legend">Sleep · blue-grey    Activity · green    Low &lt; 1    Medium 1–2    High ≥ 2</string>
+    <string name="broop_stress_timeline_description">Stress timeline with %1$d scored five-minute periods; gaps are missing data</string>
+    <string name="broop_ring_description">%1$s: %2$s%3$s</string>
+</resources>

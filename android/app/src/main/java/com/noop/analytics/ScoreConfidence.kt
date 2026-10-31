@@ -75,8 +75,9 @@ enum class ScoreConfidence(val raw: String) {
          * @param score the computed Effort, or null.
          * @param hrSampleCount number of HR samples in the day's window.
          */
-        fun forEffort(score: Double?, hrSampleCount: Int): ScoreConfidence {
+        fun forEffort(score: Double?, hrSampleCount: Int, coverage: HRInputCoverage? = null): ScoreConfidence {
             if (score == null) return CALIBRATING
+            if (coverage != null && !coverage.isComplete) return BUILDING
             return if (hrSampleCount < solidHrSamples) BUILDING else SOLID
         }
 

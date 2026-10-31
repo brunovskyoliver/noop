@@ -729,6 +729,20 @@ enum SwiftTwo {
         self.kotlin.write_text("object Engine { const val HOURS = 48L * 3_601L }\n")
         self.assertTrue(any(item.rule == "constant-value-mismatch" for item in self.findings(twin_map)))
 
+    def test_numeric_constant_references_resolve_before_comparison(self) -> None:
+        self.swift.write_text("enum Clock { static let epoch = 60 }\nenum Engine { static let hours = 86400 / Clock.epoch }\n")
+        self.kotlin.write_text("object Clock { const val EPOCH = 60 }\nobject Engine { const val HOURS = 1440 }\n")
+        self.assertFalse(any(item.rule.startswith("constant-") for item in self.findings()))
+        self.kotlin.write_text(self.kotlin.read_text().replace("HOURS = 1440", "HOURS = 1441"))
+        self.assertTrue(any(item.rule == "constant-value-mismatch" for item in self.findings()))
+
+    def test_cyclic_or_ambiguous_numeric_references_remain_unverifiable(self) -> None:
+        self.swift.write_text("enum Engine { static let limit = other; static let other = limit }\n")
+        self.kotlin.write_text("object Engine { const val LIMIT = 3 }\n")
+        self.assertTrue(any(item.rule == "constant-unverifiable" for item in self.findings()))
+        self.swift.write_text("enum A { static let base = 3 }\nenum B { static let base = 4 }\nenum Engine { static let limit = base * 2 }\n")
+        self.assertTrue(any(item.rule == "constant-unverifiable" for item in self.findings()))
+
     def test_new_equal_mirrored_constant_pair_must_be_added_to_map(self) -> None:
         self.write_clean_tree()
         frozen_map = parity_ledger.build_twin_map(self.root)
