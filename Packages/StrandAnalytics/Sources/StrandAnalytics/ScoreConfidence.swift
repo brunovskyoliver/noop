@@ -49,8 +49,9 @@ public enum ScoreConfidence: String, Equatable, Sendable, Codable {
     /// - solid:       a score exists AND the HR window is dense (≥ solidReadings samples).
     /// - building:    a score exists but the HR window is thin (PPG-backed / short day).
     public static let solidEffortReadings: Int = 3600  // ~1 h at 1 Hz of HR coverage
-    public static func effort(strain: Double?, hrSampleCount: Int) -> ScoreConfidence {
+    public static func effort(strain: Double?, hrSampleCount: Int, coverage: HRInputCoverage? = nil) -> ScoreConfidence {
         guard strain != nil else { return .calibrating }
+        if let coverage, !coverage.isComplete { return .building }
         return hrSampleCount >= solidEffortReadings ? .solid : .building
     }
 

@@ -7,7 +7,8 @@ import StrandAnalytics
 // history backfill and the screens' per-factor breakdown, so every readout explains exactly the data the
 // stored number was computed from.
 //
-// iOS-only fork change: the Android twin of this reader is intentionally not updated.
+// Android HealthspanRepository and WhoopRepository.vitalityDays use the same source rules, with
+// Health Connect supplying the platform-equivalent body measurements.
 extension Repository {
 
     /// Everything the model reads for a span of days: one `VitalityEngine.Day` per day plus the dated

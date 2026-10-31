@@ -63,6 +63,7 @@ struct BroopActivityDetailView: View {
     @State private var route: [RouteMath.LatLng] = []
     @State private var steps: (count: Int, fromStrap: Bool)?
     @State private var loaded = false
+    @State private var hrCoverage: HRInputCoverage?
     @State private var exportingRoute = false
 
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -78,6 +79,7 @@ struct BroopActivityDetailView: View {
                 chips.padding(.horizontal, BroopMetrics.page).padding(.top, 12)
                 headline.padding(.horizontal, BroopMetrics.page).padding(.top, 20)
                 chart.padding(.top, 26)
+                coverageNote.padding(.horizontal, BroopMetrics.page).padding(.top, BroopMetrics.section)
                 zones.padding(.horizontal, BroopMetrics.page).padding(.top, 18)
                 keyStatistics.padding(.top, 30)
                 recoverySection
@@ -95,6 +97,26 @@ struct BroopActivityDetailView: View {
         }
         .broopActivityPage()
         .task(id: "\(row.startTs)-\(row.endTs)-\(repo.refreshSeq)") { await load() }
+    }
+
+    @ViewBuilder private var coverageNote: some View {
+        if let coverage = hrCoverage, [.manual, .detected].contains(WorkoutSource.classify(row.source)) {
+            VStack(alignment: .leading, spacing: BroopMetrics.gap) {
+                HStack {
+                    Text("Heart-rate coverage")
+                    Spacer()
+                    Text(verbatim: "\(Int((coverage.fraction * 100).rounded()))%")
+                }
+                if !coverage.isComplete {
+                    Text("Missing heart-rate data can understate Effort and calories.")
+                }
+                if row.sport.localizedCaseInsensitiveContains("strength") || row.sport.localizedCaseInsensitiveContains("weight") {
+                    Text("Effort measures cardiovascular load. Log sets and weights to track lifting load.")
+                }
+            }
+            .font(BroopType.regular(13))
+            .foregroundStyle(BroopPalette.textSecondary)
+        }
     }
 
     // MARK: Header
@@ -485,6 +507,7 @@ struct BroopActivityDetailView: View {
             let pts = RouteMath.decode(r.polyline)
             return pts.count >= 2 ? pts : []
         }()
+        hrCoverage = await repo.workoutHrCoverage(from: row.startTs, to: row.endTs, source: row.source)
         let buckets = await repo.workoutHrBuckets(from: row.startTs, to: row.endTs, source: row.source)
         var minutes: [Double]?
         var fromImport = false

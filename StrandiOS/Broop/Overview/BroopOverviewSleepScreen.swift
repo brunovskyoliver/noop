@@ -316,7 +316,7 @@ struct BroopOverviewSleepScreen: View {
     /// The selector's own reason for picking this block (`SleepStageTotals.mainNightSelection`).
     private func reasonText(_ night: Night) -> String? {
         guard let sel = SleepStageTotals.mainNightSelection(
-            night.sourceBlocks.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) },
+            night.sourceBlocks.map { SleepStageTotals.NightBlock(session: $0) },
             offsetSec: SleepView.tzOffsetSec, habitualMidsleepSec: night.habitualMidsleepSec) else { return nil }
         let dur = BroopFormat.duration(sel.asleepMinutes)
         switch sel.reason {

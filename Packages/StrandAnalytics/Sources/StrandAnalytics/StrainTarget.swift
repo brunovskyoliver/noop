@@ -44,8 +44,10 @@ public enum StrainTarget {
         case overreaching
     }
 
-    public static let lowerIntercept21 = 1.75, lowerSlope21 = 0.15
-    public static let upperIntercept21 = 8.0, upperSlope21 = 0.12
+    public static let lowerIntercept21 = 1.75
+    public static let lowerSlope21 = 0.15
+    public static let upperIntercept21 = 8.0
+    public static let upperSlope21 = 0.12
     public static let debtFreeMinutes = 60.0
     public static let debtPerHour21 = 0.5
     public static let maxDebtShift21 = 2.0

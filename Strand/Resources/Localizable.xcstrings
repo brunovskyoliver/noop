@@ -1,6 +1,201 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Heart-rate coverage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heart-rate coverage"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herzfrequenz-Abdeckung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cobertura de frecuencia cardíaca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couverture de la fréquence cardiaque"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copertura della frequenza cardiaca"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokrycie danych tętna"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cobertura da frequência cardíaca"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Покрытие данных пульса"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率数据覆盖率"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率資料覆蓋率"
+          }
+        }
+      }
+    },
+    "Missing heart-rate data can understate Effort and calories." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing heart-rate data can understate Effort and calories."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehlende Herzfrequenzdaten können Effort und Kalorien zu niedrig ausweisen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La falta de datos de frecuencia cardíaca puede subestimar Effort y las calorías."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les données de fréquence cardiaque manquantes peuvent sous-estimer Effort et les calories."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I dati mancanti della frequenza cardiaca possono sottostimare Effort e calorie."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak danych tętna może zaniżać Effort i kalorie."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A falta de dados de frequência cardíaca pode subestimar Effort e as calorias."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробелы в данных пульса могут занижать Effort и калории."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺失的心率数据可能导致 Effort 和卡路里被低估。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少心率資料可能導致 Effort 和卡路里被低估。"
+          }
+        }
+      }
+    },
+    "Effort measures cardiovascular load. Log sets and weights to track lifting load." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort measures cardiovascular load. Log sets and weights to track lifting load."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort misst die Herz-Kreislauf-Belastung. Protokolliere Sätze und Gewichte, um die Krafttrainingsbelastung zu erfassen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort mide la carga cardiovascular. Registra series y pesos para seguir la carga del entrenamiento de fuerza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort mesure la charge cardiovasculaire. Notez les séries et les poids pour suivre la charge de musculation."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort misura il carico cardiovascolare. Registra serie e pesi per monitorare il carico del sollevamento."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort mierzy obciążenie układu krążenia. Zapisuj serie i ciężary, aby śledzić obciążenie treningu siłowego."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort mede a carga cardiovascular. Regista séries e pesos para acompanhar a carga do treino de força."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort измеряет сердечно-сосудистую нагрузку. Записывайте подходы и веса, чтобы отслеживать силовую нагрузку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort 衡量心血管负荷。记录组数和重量以跟踪力量训练负荷。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effort 衡量心血管負荷。記錄組數與重量以追蹤重量訓練負荷。"
+          }
+        }
+      }
+    },
     "Move, relative to tonight" : {
       "localizations" : {
         "en" : {

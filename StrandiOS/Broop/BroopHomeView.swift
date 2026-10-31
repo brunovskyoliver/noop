@@ -533,35 +533,38 @@ struct BroopOverviewActivityRow: View {
     }
 }
 
-/// A My Dashboard tile: icon and caps name, today's value with a trend triangle, the 30-day baseline under.
+/// A My Dashboard tile with its current value and a comparison when history is available.
 struct BroopOverviewDashboardRow: View {
     let item: BroopDashboardItem
 
     var body: some View {
-        let r = item.reading
         HStack(spacing: 14) {
             Image(systemName: item.symbol)
                 .font(.system(size: 17, weight: .light))
                 .foregroundStyle(BroopPalette.textSecondary)
                 .frame(width: 24)
-            BroopCaps(r.name, size: 11)
+            BroopCaps(item.name, size: 11)
                 .lineLimit(2)
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 HStack(alignment: .center, spacing: 5) {
-                    Text(verbatim: r.text + (r.unit == "%" ? "%" : ""))
+                    Text(verbatim: item.valueText)
                         .font(BroopType.number(22))
                         .broopNumeral(22)
                         .foregroundStyle(BroopPalette.textPrimary)
-                    Image(systemName: r.trendSymbol ?? "circle.fill")
-                        .font(.system(size: r.trendSymbol == nil ? 4 : 7))
-                        .foregroundStyle(r.trendSymbol == nil ? BroopPalette.textTertiary : r.trendTint)
-                        .frame(width: 8)
+                    if let r = item.comparison {
+                        Image(systemName: r.trendSymbol ?? "circle.fill")
+                            .font(.system(size: r.trendSymbol == nil ? 4 : 7))
+                            .foregroundStyle(r.trendSymbol == nil ? BroopPalette.textTertiary : r.trendTint)
+                            .frame(width: 8)
+                    }
                 }
-                Text(verbatim: r.format(r.baseline) + (r.unit == "%" ? "%" : ""))
-                    .font(BroopType.number(12.5))
-                    .foregroundStyle(BroopPalette.textSecondary)
-                    .padding(.trailing, 13)
+                if let r = item.comparison {
+                    Text(verbatim: r.format(r.baseline) + (r.unit == "%" ? "%" : ""))
+                        .font(BroopType.number(12.5))
+                        .foregroundStyle(BroopPalette.textSecondary)
+                        .padding(.trailing, 13)
+                }
             }
         }
         .padding(.horizontal, 16)

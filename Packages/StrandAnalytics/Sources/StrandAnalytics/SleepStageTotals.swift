@@ -1,4 +1,5 @@
 import Foundation
+import WhoopStore
 
 /// Decode a sleep session's `stagesJSON` (either the on-device segment array `[{start,end,stage}]` or
 /// the imported minute dict `{light,deep,rem,awake}`) into stage MINUTE totals, and aggregate a night's
@@ -183,7 +184,17 @@ public enum SleepStageTotals {
     /// timing test reads the user's clock, not UTC.
     public struct NightBlock: Codable, Equatable {
         public let start: Int, end: Int
-        public init(start: Int, end: Int) { self.start = start; self.end = end }
+        /// Explicit time edits bound a session; nearby detection must not extend it again.
+        public let boundsConfirmed: Bool?
+        public init(start: Int, end: Int, boundsConfirmed: Bool = false) {
+            self.start = start; self.end = end; self.boundsConfirmed = boundsConfirmed
+        }
+        /// Time edits set startTsAdjusted even when the onset is unchanged. A stage-only edit
+        /// or a legacy manual row without that witness does not assert a confirmed final wake.
+        public init(session: CachedSleepSession) {
+            self.init(start: session.effectiveStartTs, end: session.endTs,
+                      boundsConfirmed: session.userEdited && session.startTsAdjusted != nil)
+        }
         public var durationS: Int { end - start }
         public var midpointSec: Int { start + (end - start) / 2 }
     }
@@ -296,7 +307,7 @@ public enum SleepStageTotals {
         for b in sorted.dropFirst() {
             let last = out[out.count - 1]
             let gap = b.start - last.end
-            if gap >= 0 && gap < bridgeS {
+            if last.boundsConfirmed != true && b.boundsConfirmed != true && gap >= 0 && gap < bridgeS {
                 out[out.count - 1] = NightBlock(start: last.start, end: max(last.end, b.end))
             } else {
                 out.append(b)
@@ -346,7 +357,7 @@ public enum SleepStageTotals {
                 // still in the overnight band: a real mid-night wake, not an isolated daytime nap. This
                 // stops one overnight sleep being split into a nap + a main sleep, while a daytime nap
                 // (daytime onset, or a gap at/over nightTailBridgeMaxMin) still stands as its own block.
-                let bridges = gap >= 0
+                let bridges = last.boundsConfirmed != true && b.boundsConfirmed != true && gap >= 0
                     && (gap < bridgeS
                         || (gap < nightTailBridgeS && isOvernightOnset(b.start, offsetSec: offsetSec)))
                 if bridges {
@@ -534,7 +545,8 @@ public enum SleepStageTotals {
         // The learned habitual midsleep (local time-of-day seconds) so the scored pick aligns to the
         // user's real bedtime, not a fixed clock band. nil = cold-start (fall back to the overnight-band
         // bonus). Existing callers compile unchanged. (#547)
-        habitualMidsleepSec: Int? = nil
+        habitualMidsleepSec: Int? = nil,
+        confirmedBounds: Set<Int> = []
     ) -> (sleep: DailySleep, editApplied: Bool)? {
         // Substitute an edited block's stages ONLY when the edit has usable (non-nil) stages — an edit
         // that reshaped to nil must fall back to the detected stages, never drop the block (which would
@@ -572,7 +584,8 @@ public enum SleepStageTotals {
             // edit/recompute seam reports the SAME night `analyzeDay` does (a briefly-interrupted main sleep
             // is one night, not the longer fragment only). Naps outside the group remain their own rows.
             let group = mainNightGroupIndicesByStages(blocks, onsetByStart: onsetByStart, offsetSec: offsetSec,
-                                                      habitualMidsleepSec: habitualMidsleepSec)
+                                                      habitualMidsleepSec: habitualMidsleepSec,
+                                                      confirmedBounds: confirmedBounds)
             // OUT-OF-BED time between the bridged fragments counts as AWAKE (#777/#705), using the SAME
             // single definition `analyzeDay` applies so the seam can't double-count it. Each fragment's
             // effective span is `[onset, onset + decoded in-bed]`; the gap between consecutive fragments is
@@ -616,7 +629,8 @@ public enum SleepStageTotals {
     /// regression. (#561)
     static func mainNightGroupIndicesByStages(_ blocks: [(startTs: Int, stagesJSON: String?)],
                                               onsetByStart: [Int: Int], offsetSec: Int,
-                                              habitualMidsleepSec: Int? = nil) -> [Int]? {
+                                              habitualMidsleepSec: Int? = nil,
+                                              confirmedBounds: Set<Int> = []) -> [Int]? {
         guard !blocks.isEmpty else { return nil }
         func onset(_ b: (startTs: Int, stagesJSON: String?)) -> Int { onsetByStart[b.startTs] ?? b.startTs }
         func effEnd(_ b: (startTs: Int, stagesJSON: String?)) -> Int {
@@ -638,7 +652,9 @@ public enum SleepStageTotals {
                 // unconditional short-wake bridge (< gapBridgeMaxMin), then the wider overnight night-tail
                 // bridge ([gapBridgeMaxMin, nightTailBridgeMaxMin) only when the fragment's onset is still in
                 // the overnight band) that stops one night being split into a nap + a main sleep. (#861)
-                let bridges = gap >= 0
+                let boundsLocked = confirmedBounds.contains(b.startTs)
+                    || (groups.last ?? []).contains { confirmedBounds.contains(blocks[$0].startTs) }
+                let bridges = !boundsLocked && gap >= 0
                     && (gap < bridgeS
                         || (gap < nightTailBridgeS && isOvernightOnset(onset(b), offsetSec: offsetSec)))
                 if bridges {

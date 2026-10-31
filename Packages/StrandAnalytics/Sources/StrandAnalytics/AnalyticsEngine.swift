@@ -91,6 +91,9 @@ public enum AnalyticsEngine {
         public let skinTempRelative: SkinTempRelative?
         /// Day strain / "Effort" [0,100] or nil (insufficient HR samples / invalid HRR).
         public let strain: Double?
+        /// Active energy only. The legacy daily calorie column retains total energy.
+        public let activeEnergyKcal: Double?
+        public let hrCoverage: HRInputCoverage?
         /// Rest composite [0,100] or nil (no asleep time). This is the value the
         /// `sleep_performance` metric key carries (duration-vs-need 0.50 + efficiency
         /// 0.20 + restorative share 0.20 + consistency 0.10). The downstream metric-series
@@ -136,12 +139,15 @@ public enum AnalyticsEngine {
                     chargeDrivers: [ChargeDriver] = [],
                     skinTempRelative: SkinTempRelative? = nil,
                     detectionFunnel: WorkoutDetector.DetectionFunnel? = nil,
-                    mainNightBlocks: [SleepStageTotals.NightBlock] = []) {
+                    mainNightBlocks: [SleepStageTotals.NightBlock] = [],
+                    activeEnergyKcal: Double? = nil, hrCoverage: HRInputCoverage? = nil) {
             self.daily = daily; self.sleepSessions = sleepSessions
             self.mainNightBlocks = mainNightBlocks
             self.cachedSleep = cachedSleep; self.workouts = workouts
             self.detectionFunnel = detectionFunnel
             self.recovery = recovery; self.strain = strain
+            self.activeEnergyKcal = activeEnergyKcal
+            self.hrCoverage = hrCoverage
             self.chargeDrivers = chargeDrivers
             self.skinTempRelative = skinTempRelative
             self.nightlySkinTempC = nightlySkinTempC
@@ -506,7 +512,9 @@ public enum AnalyticsEngine {
                                   // `(startTs, endTs) -> ImuActivityFeatures?`, nil when nothing
                                   // captured overlaps — the WHOOP 4.0 / no-capture path. Pure lookup;
                                   // opens no BLE and decodes only files the caller already banked.
-                                  imuActivityFeatures: ((Int, Int) -> ImuActivityFeatures?)? = nil) -> DayResult {
+                                  imuActivityFeatures: ((Int, Int) -> ImuActivityFeatures?)? = nil,
+                                  dayBounds: Range<Int>? = nil,
+                                  confirmedSleepStarts: Set<Int> = []) -> DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). `dayString(ts, offsetSec:)` formats the UTC
         // calendar day of (ts + offset) with a FIXED offset, so "== day" is exactly membership in
@@ -516,7 +524,10 @@ public enum AnalyticsEngine {
         // formatter compare (locked by AnalyticsEngineDayBoundsTests, incl. fractional offsets).
         let dayStartUtc = dayStartUtcSeconds(day)
         let dayEndUtc = dayStartUtc + 86_400
-        func tsInDay(_ ts: Int) -> Bool { (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc }
+        func tsInDay(_ ts: Int) -> Bool {
+            if let dayBounds { return dayBounds.contains(ts) }
+            return (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+        }
 
         // ── Sleep detection + staging ─────────────────────────────────────────
         let detectedSessions = SleepStager.detectSleep(hr: hr, rr: rr, resp: resp, gravity: gravity,
@@ -588,7 +599,7 @@ public enum AnalyticsEngine {
         // block the bare `mainNightIndex` would pick. Intelligence / the Ledger / the Sleep tab all read
         // this SAME group (the seam below passes the same `gapBridgeMaxMin`), so #525 does not regress.
         let mainGroupIdx = SleepStageTotals.mainNightGroupIndices(
-            matched.map { SleepStageTotals.NightBlock(start: $0.start, end: $0.end) },
+            matched.map { SleepStageTotals.NightBlock(start: $0.start, end: $0.end, boundsConfirmed: confirmedSleepStarts.contains($0.start)) },
             offsetSec: tzOffsetSeconds, habitualMidsleepSec: habitualMidsleepSec) ?? []
         let mainGroup: [SleepSession] = mainGroupIdx.map { matched[$0] }
 
@@ -934,10 +945,12 @@ public enum AnalyticsEngine {
         // night `hr` for pure-function callers/tests.
         let effMaxHR = StrainScorer.effortMaxHR(override: maxHROverride, age: profile.age)
         let restForStrain = restingHRDaily.map(Double.init) ?? StrainScorer.defaultRestingHR
+        let effortHr = dayBounds == nil ? (dayHr ?? hr) : (dayHr ?? hr).filter { tsInDay($0.ts) }
+        let hrCoverage = dayBounds.map { HRInputCoverage(samples: effortHr, window: $0) }
         // The Effort ring's own funnel. A nil sink builds nothing at all, so a caller that does not want
         // diagnostics pays nothing; IntelligenceEngine passes its per-day recorder, the same one the
         // `workout detect` and `sleep-detect` lines beside it already use.
-        let strain = StrainScorer.strain(dayHr ?? hr, maxHR: effMaxHR, restingHR: restForStrain,
+        let strain = StrainScorer.strain(effortHr, maxHR: effMaxHR, restingHR: restForStrain,
                                          method: effortMethod, sex: profile.sex,
                                          diag: strainDiag, day: day)
         // #2438 step 0 asks two things of a contributed log: whether the day was scored against the
@@ -947,7 +960,7 @@ public enum AnalyticsEngine {
         // `strain` is handed an HRmax with its provenance already gone. Built only when a sink is
         // attached, and it changes no score.
         if let strainDiag {
-            let hrForPeak = dayHr ?? hr
+            let hrForPeak = effortHr
             strainDiag(StrainScorer.dayCalibrationLine(
                 // The value the day was actually scored against, which for an age-less profile is the
                 // one `strain` substitutes internally rather than nil. Reporting nil there would put
@@ -971,7 +984,7 @@ public enum AnalyticsEngine {
         // sleep sessions; nil → WorkoutDetector derives it from the day's own HR floor.
         var detectionFunnel: WorkoutDetector.DetectionFunnel? = nil
         var workouts = WorkoutDetector.detect(
-            hr: dayHr ?? hr, gravity: dayGravity ?? gravity,
+            hr: effortHr, gravity: dayGravity ?? gravity,
             restingHR: restingHRDaily.map(Double.init),
             // #1545: the DAY's effective HRmax, not just the override. Passing `maxHROverride` meant an
             // install with no override left the detector to fall back to `StrainScorer.estimateHRmax`,
@@ -1064,9 +1077,11 @@ public enum AnalyticsEngine {
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
         let dayHrFiltered = (dayHr ?? hr).filter { tsInDay($0.ts) }
-        let activeKcalEst: Double? = dayHrFiltered.isEmpty ? nil : Calories.estimateDayCalories(
+        let dayEnergy = dayHrFiltered.isEmpty ? nil : Calories.estimateDayEnergy(
             dayHrFiltered, profile: profile, hrmax: effMaxHR,
-            restingHR: restingHRDaily.map(Double.init))
+            restingHR: restingHRDaily.map(Double.init),
+            maxSpanSeconds: Double(dayBounds?.count ?? 86_400))
+        let activeKcalEst = dayEnergy?.totalKcal
 
         // ── Assemble DailyMetric ──────────────────────────────────────────────
         let daily = DailyMetric(
@@ -1148,7 +1163,7 @@ public enum AnalyticsEngine {
 
         // ── Per-score confidence tiers ────────────────────────────────────────
         let chargeConfidence = ScoreConfidence.charge(recovery: recovery, hrvBaseline: baselines.hrv)
-        let effortConfidence = ScoreConfidence.effort(strain: strain, hrSampleCount: hr.count)
+        let effortConfidence = ScoreConfidence.effort(strain: strain, hrSampleCount: effortHr.count, coverage: hrCoverage)
         // Rest confidence with H9: downgrade a high-efficiency night whose deep+REM share is implausibly low
         // to low-confidence (likely staging miss) — honest, no faked stages. tstS/efficiency are the
         // main-group totals computed above; restorative = deepS + remS. `stageCoverage` adds the third
@@ -1172,7 +1187,8 @@ public enum AnalyticsEngine {
                          chargeDrivers: chargeDrivers,
                          skinTempRelative: skinTempRelative,
                          detectionFunnel: detectionFunnel,
-                         mainNightBlocks: mainGroup.map { SleepStageTotals.NightBlock(start: $0.start, end: $0.end) })
+                         mainNightBlocks: mainGroup.map { SleepStageTotals.NightBlock(start: $0.start, end: $0.end, boundsConfirmed: confirmedSleepStarts.contains($0.start)) },
+                         activeEnergyKcal: dayEnergy?.activeKcal, hrCoverage: hrCoverage)
     }
 
     /// The R-R rows the always-on `hrv diag` line describes (#2425). Pure. Byte-parity twin of Kotlin

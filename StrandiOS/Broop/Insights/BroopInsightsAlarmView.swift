@@ -26,6 +26,7 @@ struct BroopInsightsAlarmView: View {
     @State private var perDayOn = WindDownNudge.hasPerDayOverrides
     @State private var overrides: [Int: Int] = WindDownNudge.perDayWakeOverrides
     @AppStorage("alarm.rejectStreak") private var alarmRejectStreak = 0
+    @AppStorage(PuffinExperiment.defaultsKey) private var puffinExperiments = false
     /// Which SleepPlanner tier the planner headline shows: 0 = 100% (Peak), 1 = 85% (Perform), 2 = 70% (Get By).
     /// Display only; the reminder and caffeine cutoff always plan for the full need (`plan.target`).
     @AppStorage("broop.insights.sleepGoalTier") private var goalTier = 0
@@ -406,9 +407,12 @@ struct BroopInsightsAlarmView: View {
 
     /// #864 honesty: a WHOOP 5/MG arms only with Experimental on, and a 5/MG wake is unconfirmed.
     @ViewBuilder private var armingNote: some View {
-        if model.whoop5Detected && !PuffinExperiment.isEnabled {
+        if model.whoop5Detected && !puffinExperiments {
             panelText(String(localized: "Your WHOOP 5/MG won't arm this until Experimental mode is on (Settings, Experimental). Right now your wake time is saved but the strap is NOT armed. Even with Experimental on, a 5/MG strap-driven wake is still unconfirmed on our side, so keep a backup alarm."),
                       color: BroopPalette.warning)
+            BroopAccountLink(value: BroopAccountRoute.experimental, symbol: "flask",
+                             title: String(localized: "Experimental"),
+                             subtitle: String(localized: "Protocol probes"))
         } else if model.whoop5Detected {
             panelText(String(localized: "Armed on the strap itself with the experimental 5/MG command. A strap-driven wake is still unconfirmed on 5/MG on our side (confirmed only on WHOOP 4.0), so keep a backup alarm for anything you truly can't miss."))
         } else {

@@ -2378,6 +2378,7 @@ final class Repository: ObservableObject {
     static func sourceCandidates(forKey key: String, preferredSource: String,
                                  actualWhoopSource: String) -> [MetricSourceCandidate] {
         let computedSource = actualWhoopSource + "-noop"
+        let computedKey = key == "active_kcal" ? "active_energy_kcal" : key
         func uniqued(_ cs: [MetricSourceCandidate]) -> [MetricSourceCandidate] {
             var seen = Set<MetricSourceCandidate>(); var out: [MetricSourceCandidate] = []
             for c in cs where !seen.contains(c) { seen.insert(c); out.append(c) }
@@ -2397,8 +2398,8 @@ final class Repository: ObservableObject {
             var candidates = [
                 MetricSourceCandidate(source: actualWhoopSource, key: key),
                 MetricSourceCandidate(source: whoopSource, key: key),
-                MetricSourceCandidate(source: computedSource, key: key),
-                MetricSourceCandidate(source: whoopSource + "-noop", key: key),
+                MetricSourceCandidate(source: computedSource, key: computedKey),
+                MetricSourceCandidate(source: whoopSource + "-noop", key: computedKey),
             ]
             if let appleKey = appleCompatibleKey(forWhoopKey: key) {
                 candidates.append(MetricSourceCandidate(source: appleHealthSource, key: appleKey))
@@ -2413,7 +2414,7 @@ final class Repository: ObservableObject {
             // Compare (#443). A real Apple export still wins per day; HC fills the rest.
             candidates.append(MetricSourceCandidate(source: healthConnectSource, key: key))
             if noopComputedCanFillAppleMetric(key) {
-                candidates.append(MetricSourceCandidate(source: computedSource, key: key))
+                candidates.append(MetricSourceCandidate(source: computedSource, key: computedKey))
             }
             return uniqued(candidates)
         }
@@ -2460,6 +2461,13 @@ final class Repository: ObservableObject {
     /// byte-identical. The flag is forwarded to the non-strap `series(...)` delegation below so every source
     /// path honours it.
     func exploreSeries(key: String, source: String, days: Int = 4000, fullHistory: Bool = false) async -> [(day: String, value: Double)] {
+        if key == "active_kcal", source == "my-whoop" {
+            let native = await exploreSeries(key: "active_energy_kcal", source: source, days: days, fullHistory: fullHistory)
+            let apple = await series(key: "active_kcal", source: "apple-health", days: days, fullHistory: fullHistory)
+            var values = Dictionary(native.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
+            for point in apple { values[point.day] = point.value }
+            return values.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
+        }
         guard source == "my-whoop" else {
             return Self.oneSkinTempScale(key: key, await series(key: key, source: source, days: days, fullHistory: fullHistory))
         }
@@ -2590,7 +2598,8 @@ final class Repository: ObservableObject {
         case "sleep_light_min", "core_min": return d.lightMin
         case "sleep_performance": return Self.restFallback(daily: d)
         case "steps":            return d.steps.map(Double.init)
-        case "active_kcal", "energy_kcal": return d.activeKcalEst
+        case "active_kcal": return nil // The legacy daily column includes resting energy.
+        case "energy_kcal": return d.activeKcalEst
         default:                 return nil
         }
     }
@@ -3414,6 +3423,14 @@ final class Repository: ObservableObject {
         let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId,
                                           importedIds: importedReadIds)
         return await hrBuckets(deviceIds: ids, from: from, to: to, bucketSeconds: bucket)
+    }
+
+    /// Completeness of the same strap and exact window used by a workout's HR chart.
+    func workoutHrCoverage(from: Int, to: Int, source: String = "") async -> HRInputCoverage? {
+        guard to > from else { return nil }
+        let ids = Self.workoutHrDeviceIds(source: source, activeStrapId: deviceId, importedIds: importedReadIds)
+        let samples = await hrSamples(deviceIds: ids, from: from, to: to - 1, limit: 200_000)
+        return HRInputCoverage(samples: samples, window: from..<to)
     }
 
     /// Raw HR samples binned into per-zone MINUTES for a workout window, using the age-derived

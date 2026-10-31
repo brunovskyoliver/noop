@@ -844,8 +844,11 @@ public enum WorkoutDetector {
     /// 2026-09-21: `zonesJSON`/`steps` join the same fill-only-when-absent rule so a detected bout can
     /// complete a manual row's missing zone split and step count without ever overwriting either.
     public static func backfillWorkout(_ real: WorkoutRow, avgBpm: Int, peakHR: Int, caloriesKcal: Double?, strain: Double?,
-                                       zonesJSON: String? = nil, steps: Int? = nil) -> WorkoutRow {
-        WorkoutRow(
+                                       zonesJSON: String? = nil, steps: Int? = nil,
+                                       boutBounds: Range<Int>? = nil) -> WorkoutRow {
+        // A fragment's totals cannot represent a user-confirmed whole session.
+        if let boutBounds, boutBounds.lowerBound != real.startTs || boutBounds.upperBound != real.endTs { return real }
+        return WorkoutRow(
             startTs: real.startTs, endTs: real.endTs, sport: real.sport, source: real.source,
             durationS: real.durationS,
             energyKcal: real.energyKcal ?? caloriesKcal,
@@ -1072,7 +1075,8 @@ public enum Calories {
     public static func estimateDayEnergy(_ hrSamples: [HRSample],
                                          profile: UserProfile,
                                          hrmax: Double?,
-                                         restingHR: Double?) -> DayEnergyEstimate {
+                                         restingHR: Double?,
+                                         maxSpanSeconds: Double = 86_400) -> DayEnergyEstimate {
         if hrSamples.isEmpty {
             return DayEnergyEstimate(restingKcal: 0, activeKcal: 0, observedSeconds: 0)
         }
@@ -1112,7 +1116,7 @@ public enum Calories {
                 : positiveGaps[mid]
             return min(median, dayMaxObservedGapS)
         }()
-        let observedSeconds = min(dayMaxObservedSpanS, positiveGaps.reduce(nominalSampleS) {
+        let observedSeconds = min(max(0, maxSpanSeconds), positiveGaps.reduce(nominalSampleS) {
             $0 + min($1, dayMaxObservedGapS)
         })
         let restingKcal = restingRate * observedSeconds
