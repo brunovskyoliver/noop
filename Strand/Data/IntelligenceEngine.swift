@@ -1984,7 +1984,9 @@ final class IntelligenceEngine: ObservableObject {
                                    respLine: respLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
-                                   hrvDiag: Self.mergedDayDiag(hrvDiag, strainDiagLines),
+                                   hrvDiag: Self.mergedDayDiag(
+                                       hrvDiag,
+                                       strainDiagLines),
                                    spo2Candidate: spo2CandidateMean,
                                    hrvOverCounted: hrvOverCounted,
                                    primarySessionRHR: primarySessionRHR,
