@@ -3,15 +3,7 @@ import SwiftUI
 import StrandDesign
 import UserNotifications
 
-/// iOS entry point. Unlike the macOS app (which adds a `MenuBarExtra` scene), iOS uses a single
-/// `WindowGroup`; the glanceable menu-bar role is filled by the Home/Lock-Screen widget instead.
-///
-/// The iOS shell is `RootTabView` (a `TabView`), NOT the macOS `ContentView`. `ContentView` embeds
-/// `RootView()` — the `NavigationSplitView` sidebar shell — and `RootView.swift` is excluded from the
-/// iOS target in `project.yml` (the sidebar has no iPhone analogue), so `ContentView` cannot compile
-/// on iOS. The first-run onboarding/pairing wizard, the Terms acknowledgment gate, and the post-update
-/// "What's New" sheet that `ContentView` layers on are reproduced here as `iOSRootView`, wrapped around
-/// `RootTabView` so the iOS app keeps the same gating without depending on the macOS-only shell.
+/// iOS entry point: one `WindowGroup` holding the launch gates and `RootTabView`.
 @main
 struct StrandiOSApp: App {
     /// UIKit bridge for Home Screen quick actions. SwiftUI keeps ownership of the scene and window.
@@ -37,10 +29,6 @@ struct StrandiOSApp: App {
     /// double-tap handler. See `LiftSessionController`.
     @StateObject private var liftSession: LiftSessionController
     @Environment(\.scenePhase) private var scenePhase
-    /// Appearance preference (System/Light/Dark). Default follows the OS; the Settings picker writes it.
-    @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
-    /// Fork: the Broop interface is dark-only, so the classic screens it links to render dark too.
-    @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
     /// Chart data-colour style (Titanium / Classic throwback). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
     /// Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
@@ -58,18 +46,6 @@ struct StrandiOSApp: App {
         // #1008: pin the pre-change Overnight-only default for existing installs before
         // anything reads it. Idempotent; a no-op on fresh installs and after the first launch.
         PuffinExperiment.migrateContinuousHrvOvernightDefault()
-        #if DEBUG
-        // DEBUG-only promo-screenshot harness: when launched with `--demo-hour <Int>`, pin Today to that
-        // hour's day-cycle scene + a per-hour stat frame. No-op (active stays nil) when the arg is absent.
-        // MUST live here, not in StrandApp.swift — that is the macOS @main and is excluded from the iOS
-        // target, so the hook there never runs on iOS.
-        DemoDayHarness.applyLaunchArgsIfNeeded()
-        // DEBUG-only sync harness: `--demo-sync` drives the Today header's charge→sync control with a
-        // synthetic battery + a looping sync signal, so the morph is watchable with no strap paired.
-        // Same reason this lives here rather than StrandApp.swift: that file is the macOS @main and is
-        // excluded from the iOS target. See DemoSyncHarness.swift.
-        DemoSyncHarness.applyLaunchArgsIfNeeded()
-        #endif
         // Debug-only canary: trips if the App Group entitlement is missing on this target before any
         // silent no-op (PendingIntents, WidgetSnapshot.publish, Live Activity) can mask the issue as
         // "the widget doesn't show anything yet." No-op in Release.
@@ -313,17 +289,14 @@ struct StrandiOSApp: App {
                 // v5 L3: the shared stress check-in nudge surface, so the Breathe screen's passive
                 // card observes the SAME instance the central detector (AppModel.evaluateStress) posts to.
                 .environment(\.stressNudgeCenter, model.stressNudgeCenter)
-                .preferredColorScheme(broopEnabled ? .dark : AppearanceMode.resolve(appearanceRaw).colorScheme)
+                .preferredColorScheme(.dark)
                 // Match SwiftUI format styles to the localization selected by the app's bundles. Language
                 // changes are process-wide on Apple and are applied after the documented reopen.
                 .environment(\.locale, AppLanguage.activeLocale)
                 .chartStyle(chartStyleRaw)
                 .noopAccent(accentRaw, customHex: accentCustomHex)
-                // Broop: white controls everywhere, including the launch gates and alerts presented from
-                // this root (the Shortcut-import alert below), which sit outside RootTabView's own tint.
-                // There is no AccentColor asset, so without this they fall back to system blue on the iOS
-                // versions whose alert buttons follow the tint. nil leaves the classic look untouched.
-                .tint(broopEnabled ? BroopPalette.textPrimary : nil)
+                // White controls everywhere, including the launch gates and alerts presented from this root.
+                .tint(BroopPalette.textPrimary)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
                 // fixed-geometry tiles/gauges stay legible at the largest accessibility sizes rather than
                 // clipping; the common Larger-Text range still scales fully.
@@ -424,7 +397,7 @@ struct StrandiOSApp: App {
         // HealthKit authorization is intentionally NOT requested on launch. The system permission
         // dialog without prior in-app rationale violates Apple HIG / App Review guidance — the user
         // sees the prompt before any context. It is requested from an explicit user action instead:
-        // the "Enable Apple Health" affordance in AppleHealthView (More → Data → Apple Health).
+        // the Apple Health integration page under More.
         // Below, `refreshAuthIfPreviouslyGranted` re-primes `auth` for users who already granted
         // access (it only reads write/share status, never prompts) so background syncs resume; and
         // HealthKitBridge.sync guards on `auth == .authorized`, so the scenePhase trigger stays a
@@ -533,19 +506,12 @@ struct StrandiOSApp: App {
     }
 }
 
-/// iOS root — the `RootTabView` shell with the first-run onboarding/pairing wizard overlaid until
-/// complete, the Terms acknowledgment gate over everything until the current version is accepted, and
-/// a "What's New" changelog sheet shown automatically after an update.
-///
-/// This mirrors the macOS `ContentView` (same `@AppStorage` keys, same gate ordering) but swaps the
-/// excluded `RootView()` sidebar for `RootTabView()`. The shared `OnboardingWizard`, `TermsGateView`,
-/// `WhatsNewView`, `AppChangelog`, and `Terms` symbols all compile into the iOS target unchanged.
+/// The `RootTabView` shell with the first-run onboarding wizard overlaid until complete, the Terms gate
+/// over everything until the current version is accepted, and What's New after an update.
 private struct iOSRootView: View {
     @AppStorage("noop.onboarded") private var onboarded = false
     @AppStorage("noop.lastSeenChangelogVersion") private var lastSeenChangelog = ""
     @AppStorage("noop.acceptedTermsVersion") private var acceptedTerms = ""
-    /// Broop swaps only the faces of the gates below; keys, order and conditions stay the same.
-    @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
     @State private var showWhatsNew = false
     /// Starts false so a cold-launch external action can't race this view's onAppear decision about the
     /// automatic What's New sheet. It becomes true only when no sheet is due or its dismissal completes.
@@ -562,7 +528,7 @@ private struct iOSRootView: View {
             return AnyView(
                 NavigationStack {
                     demo
-                        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                        .background(BroopBackground())
                         .navigationBarTitleDisplayMode(.inline)
                 }
             )
@@ -577,7 +543,7 @@ private struct iOSRootView: View {
                 demoBypass || (onboarded && acceptedTerms == Terms.currentVersion
                     && automaticLaunchSheetResolved))
             if !onboarded && !demoBypass {
-                onboardingGate(onFinished: {
+                BroopFinalBOnboardingWizard(onFinished: {
                     onboarded = true
                     // A brand-new user just saw the expectations in onboarding — don't also pop the
                     // changelog at them; mark them current.
@@ -589,7 +555,7 @@ private struct iOSRootView: View {
             // Terms acknowledgment gate — over EVERYTHING (before onboarding/pairing/Bluetooth) until
             // the current terms version is accepted; re-appears if the terms materially change.
             if acceptedTerms != Terms.currentVersion && !demoBypass {
-                termsGate(onAccept: {
+                BroopFinalBOnboardingTermsGate(onAccept: {
                     // Keep any external action behind the gate while the accepted-terms change decides
                     // whether What's New must present next. This write must precede acceptedTerms.
                     automaticLaunchSheetResolved = false
@@ -602,7 +568,7 @@ private struct iOSRootView: View {
         .animation(.easeInOut(duration: 0.35), value: onboarded)
         .animation(.easeInOut(duration: 0.35), value: acceptedTerms)
         .sheet(isPresented: $showWhatsNew, onDismiss: { automaticLaunchSheetResolved = true }) {
-            whatsNewSheet(onClose: {
+            BroopFinalBOnboardingWhatsNew(onClose: {
                 lastSeenChangelog = AppChangelog.currentVersion
                 showWhatsNew = false
             })
@@ -627,35 +593,6 @@ private struct iOSRootView: View {
             }
         }
         .onChange(of: acceptedTerms) { _, _ in showWhatsNewIfDue() }
-    }
-
-    // The Broop UI shows the Broop face of each gate. The callbacks, and so everything they store, are
-    // the ones the classic gates receive.
-    @ViewBuilder
-    private func onboardingGate(onFinished: @escaping () -> Void) -> some View {
-        if broopEnabled {
-            BroopFinalBOnboardingWizard(onFinished: onFinished)
-        } else {
-            OnboardingWizard(onFinished: onFinished)
-        }
-    }
-
-    @ViewBuilder
-    private func termsGate(onAccept: @escaping () -> Void) -> some View {
-        if broopEnabled {
-            BroopFinalBOnboardingTermsGate(onAccept: onAccept)
-        } else {
-            TermsGateView(onAccept: onAccept)
-        }
-    }
-
-    @ViewBuilder
-    private func whatsNewSheet(onClose: @escaping () -> Void) -> some View {
-        if broopEnabled {
-            BroopFinalBOnboardingWhatsNew(onClose: onClose)
-        } else {
-            WhatsNewView(onClose: onClose)
-        }
     }
 
     /// DEBUG: launched with --demo-seed, skip the first-run gates (onboarding / terms / What's New) so the
@@ -710,27 +647,6 @@ enum DemoScreens {
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--demo-screen"), i + 1 < args.count else { return nil }
         switch args[i + 1].lowercased() {
-        case "today":    return AnyView(TodayView())
-        // The DEFAULT iOS Today (`noop.liquidTodayEnabled` ships true), so it needs its own entry — plain
-        // "today" renders the CLASSIC screen, which is exactly the screen whose behaviour Liquid was found
-        // to have diverged from. Without this, the default Today was the one screen the harness could not
-        // capture.
-        case "liquidtoday": return AnyView(LiquidTodayView())
-        case "trends":   return AnyView(TrendsView())
-        case "sleep":    return AnyView(SleepView())
-        case "live":     return AnyView(LiveView())
-        case "stress":   return AnyView(StressView())
-        case "workouts": return AnyView(WorkoutsView())
-        case "health":   return AnyView(HealthView())
-        case "insights": return AnyView(InsightsView())
-        case "explore":  return AnyView(MetricExplorerView())
-        case "compare":  return AnyView(CompareView())
-        case "settings": return AnyView(SettingsView())
-        case "chargebreakdown": return AnyView(ChargeBreakdownDemoHost())
-        case "devices":  return AnyView(DevicesView())
-        case "devicescatalog": return AnyView(DeviceCardCatalog())
-        case "fitnessage": return AnyView(FitnessAgeDemoScreen())
-        case "vitality": return AnyView(VitalityDemoScreen())
         case "broophealthspan": return AnyView(BroopHealthspanView())
         case "broopsleep": return AnyView(BroopStoreDemoHost { BroopScreenView(screen: .sleep) })
         case "broopjetlag": return AnyView(BroopWiringDemoHost(kind: .jetLag))
@@ -748,18 +664,6 @@ enum DemoScreens {
         case "broopvoicejournal": return AnyView(BroopInsightsVoiceJournalSheet())
         case "broopcoachbrief": return AnyView(ScrollView { BroopInsightsCoachBriefCard {}.padding(BroopMetrics.page) }
                                                 .background(BroopBackground()))
-        case "addwizard": return AnyView(AddWizardDemoHost())
-        // Oura onboarding: the Add-device wizard deep-linked straight to the Oura factory-reset-and-adopt
-        // prep step (the Beta banner + get/lose card + the red irreversible-consent gate), screenshot-able
-        // WITHOUT a ring.
-        case "ouraonboarding": return AnyView(OuraOnboardingDemoHost())
-        // Oura device card: the locally-adopted Oura ring card (Beta chip + per-gen honest capability copy
-        // + battery + local-state note), rendered with mock data, no ring required.
-        case "ouradevice": return AnyView(OuraDeviceDemoScreen())
-        // #221: a WHOOP 5/MG whose encrypted bond was refused (#78) — the "Connected · not paired" pill
-        // + self-service pairing guidance, screenshot-able WITHOUT reproducing the bond refusal on real
-        // hardware.
-        case "bondrefused": return AnyView(BondRefusedDemoScreen())
         default:         return nil
         }
     }
@@ -767,24 +671,3 @@ enum DemoScreens {
 #endif
 #endif
 
-#if DEBUG
-/// DEBUG-only host so `--demo-screen addwizard` can render the multi-step Add-a-device wizard.
-/// A SwiftUI View body is main-actor, so it can pull the injected LiveState and hand it to the
-/// wizard's `init(live:)` (the nonisolated DemoScreens switch can't construct a LiveState itself).
-private struct AddWizardDemoHost: View {
-    @EnvironmentObject var live: LiveState
-    var body: some View { AddDeviceWizard(live: live, onClose: {}) }
-}
-
-/// DEBUG-only host so `--demo-screen ouraonboarding` renders the Add-device wizard deep-linked to the
-/// Oura factory-reset-and-adopt prep step (the Beta banner + what-you-get/what-you-lose card + the red
-/// irreversible-consent gate). A SwiftUI View body is main-actor, so it can pull the injected LiveState
-/// and seed the wizard's `startAt` into the Oura prep step without a ring present.
-private struct OuraOnboardingDemoHost: View {
-    @EnvironmentObject var live: LiveState
-    var body: some View {
-        AddDeviceWizard(live: live, onClose: {}, startAt: (.oura, .prep))
-    }
-
-}
-#endif

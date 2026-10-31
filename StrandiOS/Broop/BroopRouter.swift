@@ -22,7 +22,7 @@ enum BroopScreen: Hashable, Identifiable {
     case journal, insightsHub, intelligence, fusedRecord, coach, alarms
     // Account
     case settings, devices, appleHealth, miBand, dataSources, backupSync, shortcutsExport
-    case noopLimitations, automations, siriShortcuts, powerSaving, testCentre, classicToday
+    case noopLimitations, automations, siriShortcuts, powerSaving, testCentre
 
     var id: Self { self }
 
@@ -77,7 +77,7 @@ struct BroopScreenView: View {
         case .journal, .insightsHub, .intelligence, .fusedRecord, .coach, .alarms:
             BroopInsightsScreens(screen: screen)
         case .settings, .devices, .appleHealth, .miBand, .dataSources, .backupSync, .shortcutsExport,
-             .noopLimitations, .automations, .siriShortcuts, .powerSaving, .testCentre, .classicToday:
+             .noopLimitations, .automations, .siriShortcuts, .powerSaving, .testCentre:
             BroopAccountScreens(screen: screen)
         }
     }

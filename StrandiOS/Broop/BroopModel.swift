@@ -443,7 +443,3 @@ enum BroopRoute: Hashable {
 }
 #endif
 
-enum BroopPrefs {
-    /// On by default in this fork; More → "Classic NOOP interface" turns it off.
-    static let enabledKey = "broop.uiEnabled"
-}

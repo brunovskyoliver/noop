@@ -90,8 +90,6 @@ struct BroopMoreView: View {
                                      subtitle: String(localized: "Diagnostics and bug reports"))
                     BroopAccountLink(value: BroopScreen.noopLimitations, symbol: "checklist",
                                      title: String(localized: "What Your Strap Reads"))
-                    BroopAccountLink(value: BroopScreen.classicToday, symbol: "rectangle.grid.1x2",
-                                     title: String(localized: "Classic Today"))
                     BroopAccountLink(value: BroopAccountRoute.about, symbol: "info.circle", title: String(localized: "About"))
                 }
 

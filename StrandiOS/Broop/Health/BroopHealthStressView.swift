@@ -14,7 +14,6 @@ struct BroopHealthStressView: View {
     @State private var day: StressMonitor.DayResult?
     @State private var loaded = false
     @State private var showInfo = false
-    @State private var showAdvanced = false
 
     private var date: Date {
         Calendar.current.date(byAdding: .day, value: -dayOffset, to: Calendar.current.startOfDay(for: Date())) ?? Date()
@@ -57,9 +56,6 @@ struct BroopHealthStressView: View {
                 NavigationLink(value: BroopScreen.breathe) {
                     BroopHealthRow(symbol: "wind", title: String(localized: "Guided breathing"), detail: String(localized: "Increase relaxation or alertness"))
                 }.buttonStyle(BroopPressableStyle())
-                Button { showAdvanced = true } label: {
-                    BroopHealthRow(symbol: "waveform.path.ecg", title: String(localized: "Advanced HRV and history"), detail: String(localized: "Classic stress analysis"))
-                }.buttonStyle(BroopPressableStyle())
             }
             .padding(.horizontal, BroopMetrics.page)
             .padding(.bottom, BroopMetrics.tabBarClearance)
@@ -84,9 +80,6 @@ struct BroopHealthStressView: View {
                 Text(verbatim: BroopMethodText.stress)
                     .font(BroopType.regular(16)).foregroundStyle(BroopPalette.textBody).padding(BroopMetrics.page)
             }.broopSheetBar(String(localized: "Stress method")) { showInfo = false }
-        }
-        .sheet(isPresented: $showAdvanced) {
-            NavigationStack { StressView().broopSheetBar(String(localized: "Advanced stress")) { showAdvanced = false } }
         }
     }
 

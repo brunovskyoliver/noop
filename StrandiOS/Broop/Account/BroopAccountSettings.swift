@@ -14,7 +14,6 @@ import WhoopStore
 /// same side effects (re-score on a recipe change, BLE re-arm on an HRV-capture change, and so on).
 struct BroopAccountSettingsView: View {
     @EnvironmentObject private var profile: ProfileStore
-    @AppStorage(BroopPrefs.enabledKey) private var broopEnabled = true
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
 
     var body: some View {
@@ -39,7 +38,6 @@ struct BroopAccountSettingsView: View {
                     BroopAccountLink(value: BroopAccountRoute.features, symbol: "sparkles", title: String(localized: "Coach & Features"))
                     BroopAccountLink(value: BroopAccountRoute.strap, symbol: "applewatch.side.right", title: String(localized: "Strap & Sync"),
                                          subtitle: String(localized: "Connection, strap log, Live Activities"))
-                    classicInterfaceCard
                 }
             }
             BroopAccountSection(title: String(localized: "Data & Privacy")) {
@@ -70,17 +68,6 @@ struct BroopAccountSettingsView: View {
 
     private var sexLabel: String { BroopAccountFormat.sex(profile.sex) }
 
-    private var classicInterface: Binding<Bool> {
-        Binding(get: { !broopEnabled }, set: { broopEnabled = !$0 })
-    }
-
-    private var classicInterfaceCard: some View {
-        BroopAccountGroup {
-            BroopAccountToggle(title: String(localized: "Classic NOOP interface"),
-                               detail: String(localized: "Use the original five-tab NOOP layout. To return, turn on More → Broop interface."),
-                               isOn: classicInterface)
-        }
-    }
 }
 
 enum BroopAccountFormat {
@@ -538,12 +525,6 @@ struct BroopAccountAppearancePage: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguageRaw = AppLanguage.system.rawValue
     @AppStorage(ClockFormatPreference.defaultsKey) private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
-    @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
-    @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
-    @AppStorage(SleepChartStyle.storageKey) private var sleepChartStyleRaw = SleepChartStyle.classic.rawValue
-    @AppStorage(AccentColor.storageKey) private var accentRaw = AccentColor.mint.rawValue
-    @AppStorage(AccentColor.customHexKey) private var accentCustomHex = AccentColor.defaultCustomHex
-    @AppStorage(UnitPrefs.trendChartStyleKey) private var trendChartStyleRaw = TrendChartStyle.line.rawValue
     @AppStorage("appIcon.alt") private var useNavyIcon = false
     @AppStorage(QuietMotionPrefs.enabledKey) private var quietMotion = false
     @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
@@ -575,30 +556,6 @@ struct BroopAccountAppearancePage: View {
                     BroopAccountGroup {
                         BroopAccountToggle(title: String(localized: "Hide bar when scrolling"), isOn: $bottomBarAutoHide)
                     }
-                }
-            }
-            BroopAccountSection(title: String(localized: "Classic screens"),
-                                footer: String(localized: "Broop screens are always dark. These choices style the classic NOOP screens and the parts of the app that still use them.")) {
-                BroopAccountGroup {
-                    BroopAccountPicker(title: String(localized: "Preset"), selection: themePresetBinding,
-                                       options: ThemePreset.allCases.map { ($0, $0.label) })
-                    BroopAccountPicker(title: String(localized: "Theme"), selection: $appearanceRaw,
-                                       options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) })
-                    BroopAccountPicker(title: String(localized: "Chart colours"), selection: $chartStyleRaw,
-                                       options: ChartStyle.allCases.map { ($0.rawValue, $0.label) })
-                    BroopAccountPicker(title: String(localized: "Sleep chart"), selection: $sleepChartStyleRaw,
-                                       options: SleepChartStyle.allCases.map { ($0.rawValue, $0.label) })
-                    BroopAccountPicker(title: String(localized: "Accent"), selection: $accentRaw,
-                                       options: AccentColor.allCases.map { ($0.rawValue, $0.label) })
-                    if AccentColor.resolve(accentRaw) == .custom {
-                        BroopAccountRow(title: String(localized: "Custom colour")) {
-                            ColorPicker("", selection: customAccentBinding, supportsOpacity: false)
-                                .labelsHidden()
-                                .accessibilityLabel(Text("Custom accent colour"))
-                        }
-                    }
-                    BroopAccountPicker(title: String(localized: "Trend charts"), selection: $trendChartStyleRaw,
-                                       options: TrendChartStyle.allCases.map { ($0.rawValue, $0.label) })
                 }
             }
             BroopAccountSection(title: String(localized: "App icon")) {
@@ -738,27 +695,6 @@ struct BroopAccountAppearancePage: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    private var customAccentBinding: Binding<Color> {
-        Binding(get: { Color(hex: accentCustomHex) },
-                set: { accentCustomHex = BroopAccountFormat.hex($0) ?? AccentColor.defaultCustomHex })
-    }
-
-    /// The preset is derived from the four coordinated prefs; picking one writes all four.
-    private var themePresetBinding: Binding<ThemePreset> {
-        Binding(
-            get: {
-                ThemePreset.matching(accent: AccentColor.resolve(accentRaw), chart: ChartStyle.resolve(chartStyleRaw),
-                                     backdrop: showDayCycleBackground, cardOpacity: cardOpacityPercent)
-            },
-            set: { preset in
-                guard let r = preset.recipe else { return }
-                accentRaw = r.accent.rawValue
-                chartStyleRaw = r.chart.rawValue
-                showDayCycleBackground = r.backdrop
-                cardOpacityPercent = r.cardOpacity
-            })
     }
 
     /// Same as the classic control: skip no-op requests, revert the picker if iOS refuses.
