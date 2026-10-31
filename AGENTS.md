@@ -45,7 +45,7 @@ build-from-source target** folded into the same repo.
 | Import | `Packages/StrandImport` | WHOOP CSV + Apple Health importers. |
 | Design system | `Packages/StrandDesign` | SwiftUI palette / components / charts. |
 | macOS + shared app | `Strand/` (scheme **Strand**, product `NOOP`, macOS 13+) | `BLE/` (CoreBluetooth), `Collect/`, `Data/` (Repository), `Screens/`, `App/` (`RootView`/`ContentView` = sidebar shell). Shared with iOS where a file isn't macOS-only. |
-| iOS-only app | `StrandiOS/` (scheme **NOOPiOS**, iOS 17+), `StrandiOSShared/`, `StrandiOSWidgets/`, `NOOPWatch*` | `StrandiOSApp` (@main), `RootTabView` (the iOS tab shell — no macOS analogue), iOS widgets, watch app. |
+| iOS-only app | `StrandiOS/` (scheme **NOOPiOS**, iOS 17+), `StrandiOSShared/`, `StrandiOSWidgets/`, `NOOPWatch*` | `StrandiOSApp` (@main), `RootTabView` (the Broop tab shell — no macOS analogue), iOS widgets, watch app. |
 | Android app | `android/` (Kotlin, Compose, Room; flavors `Full`/`Demo`) | `com.noop.{ble,collect,data,ingest,analytics,protocol,ui,widget,…}` — mirrors the Swift layering with its own reimplementations. |
 
 `project.yml` is the **XcodeGen source of truth**; `Strand.xcodeproj/` is generated — never hand-edit
@@ -115,6 +115,9 @@ cd android && ./gradlew testFullDebugUnitTest              # add --tests "com.no
 # After a branch switch, ALWAYS: --no-build-cache --rerun-tasks. Gradle can otherwise serve
 # generated sources (Room/KSP) from the previous branch and fail classes you never touched.
 cd android && ./gradlew compileFullDebugKotlin             # compile the whole app module
+# iPhone app alone, from project.ios.yml (no macOS app, Watch app or widgets):
+Tools/ios.sh build     # prints the .app path to install on a simulator
+Tools/ios.sh test      # StrandTests hosted by the iPhone app; screens only macOS compiles are excluded
 # macOS app (needs Xcode on macOS):
 xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
@@ -255,8 +258,8 @@ The workflow has no push trigger; a direct non-release commit to `main` needs an
 
 ## iOS / Android specifics worth knowing
 
-- **iOS is `NOOPiOS`**, not `Strand`. `ContentView`/`RootView` (the macOS sidebar) are excluded from
-  iOS; the iOS shell is `RootTabView`. A file shared with macOS (`TodayView`, `Repository`, analytics)
+- **iOS is `NOOPiOS`**, not `Strand`. `ContentView`/`RootView` (the macOS sidebar) and the classic screens listed
+  in `project.yml` are excluded from iOS; the iOS shell is `RootTabView`, in the Broop interface. A file shared with macOS (`TodayView`, `Repository`, analytics)
   must keep compiling for **both** — check the `Strand` (macOS) build too when you edit shared files.
 - **Android** is Compose + Room, flavors `Full` (real) and `Demo`. Profile/prefs live in
   SharedPreferences; the DB is Room. UI state uses a `mutate {}` recomposition-counter idiom in places.

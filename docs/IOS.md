@@ -119,6 +119,11 @@ are very welcome.
 
 ## Build from source
 
+To work on the iPhone app alone, run `Tools/ios.sh build` or `Tools/ios.sh test`. They use
+`project.ios.yml`, which leaves out the macOS app, Watch app and widgets. Unit tests run on a local
+simulator; install the printed `.app` on any other simulator for UI checks. Release builds still use
+`project.yml`, which embeds the Watch app and widgets.
+
 Prefer to build it yourself (which also grants HealthKit/widgets under your own Apple ID)? Run
 `xcodegen generate`, then build the **`NOOPiOS`** scheme in Xcode. The reconciliation that brought the
 [PR #42](../../../pull/42) port onto current `main` is summarised in **"Lessons from the fold-in"**
