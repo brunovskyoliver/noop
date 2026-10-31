@@ -200,7 +200,7 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
         }
     }
 
-    func testScoringPreservesPriorDetectionsPublishesFreshBoutAndBackfillsRealOverlap() async throws {
+    func testScoringPreservesPriorDetectionsKeepsFreshBoutUnpublishedAndBackfillsRealOverlap() async throws {
         try await withPreferences {
             let store = try await WhoopStore.inMemory()
             let now = Int(Date().timeIntervalSince1970)
@@ -239,15 +239,11 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
 
             await engine.analyzeRecent(maxDays: 2, force: true)
 
-            // Fork: a fresh bout is published as a detected row, while a prior detected row that this
-            // pass derived nothing for (no HR under it) is left alone rather than reconciled away (#2187).
+            // A fresh bout stays an analytics input until the opt-in suggestion card saves it, and a prior
+            // detected row this pass derived nothing for is left alone rather than reconciled away (#2187).
             let detected = try await store.workouts(
                 deviceId: deviceId + "-noop", from: dayStart, to: dayStart + 86_399, limit: 100)
-            XCTAssertTrue(detected.contains(legacy), "a rescore must preserve earlier detected history")
-            let fresh = detected.filter { $0 != legacy }
-            XCTAssertEqual(fresh.count, 1, "only the bout with no real overlap is published: \(detected)")
-            XCTAssertEqual(fresh.first?.sport, "detected")
-            XCTAssertTrue(fresh.first.map { $0.startTs < firstStart + duration && firstStart < $0.endTs } ?? false)
+            XCTAssertEqual(detected, [legacy], "a rescore must preserve history and publish no fresh bout")
 
             // A second pass over unchanged data refreshes in place: no duplicate, nothing dropped.
             await engine.analyzeRecent(maxDays: 2, force: true)
@@ -265,9 +261,9 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             XCTAssertNotNil(enriched.maxHr)
             XCTAssertNotNil(enriched.strain)
 
-            XCTAssertTrue(diagnostics.contains { $0.contains("detectedBout verdict=persisted") },
-                          "the published bout should remain locally diagnosable: \(diagnostics)")
-            XCTAssertTrue(diagnostics.contains { $0.contains("detectedBout verdict=droppedOverlapBackfilled") },
+            XCTAssertTrue(diagnostics.contains { $0.contains("detectedBout verdict=analyticsOnly") },
+                          "the unpublished bout should remain locally diagnosable: \(diagnostics)")
+            XCTAssertTrue(diagnostics.contains { $0.contains("detectedBout verdict=droppedOverlap") },
                           "the retained overlap enrichment should remain locally diagnosable: \(diagnostics)")
         }
     }
