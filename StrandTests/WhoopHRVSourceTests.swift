@@ -5,7 +5,7 @@ import WhoopProtocol
 
 final class WhoopHRVSourceTests: XCTestCase {
     func testBothWhoopGenerationsUseOpticalTiming() {
-        XCTAssertEqual(LiveView.hrvSnapshotSource(for: .whoop4), .opticalPPG)
-        XCTAssertEqual(LiveView.hrvSnapshotSource(for: .whoop5mg), .opticalPPG)
+        XCTAssertEqual(LiveRules.hrvSnapshotSource(for: .whoop4), .opticalPPG)
+        XCTAssertEqual(LiveRules.hrvSnapshotSource(for: .whoop5mg), .opticalPPG)
     }
 }

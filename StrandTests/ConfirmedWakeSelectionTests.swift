@@ -11,9 +11,9 @@ final class ConfirmedWakeSelectionTests: XCTestCase {
         }
         let tail = CachedSleepSession(startTs: start+7*3600+1800, endTs: start+9*3600,
             efficiency: 1, restingHr: nil, avgHrv: nil, stagesJSON: nil)
-        XCTAssertEqual(SleepView.mainNightGroup([first(edited: false, adjusted: nil), tail]).count, 2)
-        XCTAssertEqual(SleepView.mainNightGroup([first(edited: true, adjusted: nil), tail]).count, 2)
-        let confirmed = SleepView.mainNightGroup([first(edited: true, adjusted: start), tail])
+        XCTAssertEqual(SleepRules.mainNightGroup([first(edited: false, adjusted: nil), tail]).count, 2)
+        XCTAssertEqual(SleepRules.mainNightGroup([first(edited: true, adjusted: nil), tail]).count, 2)
+        let confirmed = SleepRules.mainNightGroup([first(edited: true, adjusted: start), tail])
         XCTAssertEqual(confirmed.count, 1)
         XCTAssertEqual(confirmed.last?.endTs, start+7*3600)
     }

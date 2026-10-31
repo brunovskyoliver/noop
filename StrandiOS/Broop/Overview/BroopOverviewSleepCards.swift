@@ -5,7 +5,7 @@ import StrandDesign
 import WhoopStore
 
 // The Rest deep dive's secondary cards: freshness, naps, sleep marks, the tonight plan, the debt ledger,
-// statistics and stages against typical. Each reads the same model or store the classic Sleep card does.
+// statistics and stages against typical. Each reads the same model or store the Sleep card does.
 
 /// Small amber-chip note ("Low confidence", "May be incomplete").
 struct BroopOverviewNote: View {
@@ -28,7 +28,7 @@ struct BroopOverviewNote: View {
     }
 }
 
-/// Whether last night is still syncing, calculating or missing, through the classic Sleep screen's own
+/// Whether last night is still syncing, calculating or missing, through the Sleep screen's own
 /// `resolveSleepFreshness` ladder. Owns the live observations so their ticks stay in this leaf.
 struct BroopOverviewSleepFreshness: View {
     @EnvironmentObject private var live: LiveState
@@ -161,7 +161,7 @@ struct BroopOverviewNapsCard: View {
 
 // MARK: - Sleep marks
 
-/// "Going to sleep" / "I'm awake" marks, logged exactly as the classic card logs them: a strap-log line
+/// "Going to sleep" / "I'm awake" marks, logged exactly as the card logs them: a strap-log line
 /// and a `sleep_mark` metric-series row. Logging only; it never moves the detected night.
 struct BroopOverviewSleepMarks: View {
     @EnvironmentObject private var repo: Repository
@@ -314,7 +314,7 @@ struct BroopOverviewPlannerContent: View, Equatable {
 
 // MARK: - Sleep debt
 
-/// The recency-weighted debt over the last 14 nights (`SleepModel.sleepDebtLedger`, as the classic card).
+/// The recency-weighted debt over the last 14 nights (`SleepModel.sleepDebtLedger`, as the card).
 struct BroopOverviewDebtCard: View {
     let ledger: SleepDebtLedger
 
@@ -399,7 +399,7 @@ struct BroopOverviewDebtCard: View {
 
 // MARK: - Statistics
 
-/// The seven classic Night-detail metrics (latest night, from `SleepModel`) against their typical, in
+/// The seven Night-detail metrics (latest night, from `SleepModel`) against their typical, in
 /// dashboard-row form, each opening its trend page.
 struct BroopOverviewSleepStatsCard: View {
     let model: SleepModel

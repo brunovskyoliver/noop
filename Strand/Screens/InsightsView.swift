@@ -33,30 +33,6 @@ private struct InsightsLoadKey: Equatable {
     let dayKey: String
 }
 
-/// #833 (Insights freeze): the snapshot InsightsView.load() builds, parked on the long-lived Repository so a
-/// re-mount (macOS keys the NavigationSplitView detail with `.id`, so every sidebar switch cold-mounts the
-/// screen) can RESTORE it in-memory instead of re-running the full history read on the @MainActor. The exact
-/// twin of Today's `TodayHistoryWideCache` for #849; holds load()'s six computed outputs. Consumed only when
-/// the seq AND the dayKey still match (see `Repository.insightsLoadedSeq` / `insightsLoadedDayKey`).
-struct InsightsLoadCache {
-    let behaviours: [String: Set<String>]
-    /// Per behaviour, the days it was logged NO. Cached alongside `behaviours` because a restore that
-    /// dropped it would leave the ranker with no controls and silently produce no insights at all.
-    let controls: [String: Set<String>]
-    let importedQuestions: [String]
-    let dayAnswers: [String: Bool]
-    /// The journal day offset the `dayAnswers` were read for (0 = today, 1 = yesterday, -1 = tomorrow). The
-    /// restore guards on it so a re-mount, which resets `journalDayOffset` to 0, only reuses the cache when
-    /// the cached answers match that reset day, otherwise it falls through to a fresh read (#833).
-    let journalDayOffset: Int
-    let outcomeByKey: [String: [String: Double]]
-    let seriesByKey: [String: [(day: String, value: Double)]]
-    let activityCosts: [ActivityCost]
-    /// #322: per-question numeric journal series (question → [day: value]) for numeric journal items
-    /// (e.g. "caffeine mg", "alcohol units"). A numeric series feeds the same effect ranker the metric
-    /// outcomes do, so a numeric behaviour can rank in Insights. Empty for a yes/no-only journal.
-    let numericJournalByKey: [String: [String: Double]]
-}
 
 struct InsightsView: View {
     @EnvironmentObject var repo: Repository
@@ -67,57 +43,6 @@ struct InsightsView: View {
 
     // MARK: Selected outcome (segmented)
 
-    /// One interrogable outcome metric: how to fetch it and how to read its direction.
-    enum Outcome: String, CaseIterable, Identifiable {
-        case recovery, hrv, sleep, rhr
-        var id: String { rawValue }
-
-        /// Short segment label.
-        var label: String {
-            switch self {
-            case .recovery: return String(localized: "Charge")
-            case .hrv:      return "HRV"
-            case .sleep:    return String(localized: "Rest")
-            case .rhr:      return "RHR"
-            }
-        }
-        /// The metricSeries key (source is always "my-whoop" for these).
-        var key: String {
-            switch self {
-            case .recovery: return "recovery"
-            case .hrv:      return "hrv"
-            case .sleep:    return "sleep_performance"
-            case .rhr:      return "rhr"
-            }
-        }
-        /// The human outcome name used by BehaviorInsights.sentence.
-        var outcomeName: String {
-            switch self {
-            case .recovery: return String(localized: "Charge")
-            case .hrv:      return "HRV"
-            case .sleep:    return String(localized: "Rest")
-            case .rhr:      return String(localized: "Resting HR")
-            }
-        }
-        /// Whether a higher value is the "good" direction (drives tint).
-        var higherIsBetter: Bool {
-            switch self {
-            case .recovery, .hrv, .sleep: return true
-            case .rhr:                    return false
-            }
-        }
-        /// The Bevel colour world each outcome belongs to, Charge→green, HRV→Rest
-        /// (periwinkle, the HRV world), Rest→indigo, RHR→Stress (teal). Drives the
-        /// section's domain accent + the segmented selection's wash.
-        var domain: DomainTheme {
-            switch self {
-            case .recovery: return .charge
-            case .hrv:      return .rest
-            case .sleep:    return .rest
-            case .rhr:      return .stress
-            }
-        }
-    }
 
     /// One personal-experiment window length (and the matching baseline span).
     private enum ExperimentLength: Int, CaseIterable, Identifiable {
@@ -135,14 +60,14 @@ struct InsightsView: View {
         }
     }
 
-    @State private var outcome: Outcome = .recovery
+    @State private var outcome: InsightsRules.Outcome = .recovery
 
     // MARK: Personal-experiment state (LOCAL ONLY, UserDefaults-backed, single user)
     //
     // A running n-of-1 plan: one behaviour, one outcome, a short window. All five
     // keys mirror the Android SharedPreferences keys (InsightsScreen.kt) for parity.
     @AppStorage("noop.experiment.behaviour")    private var experimentBehaviour = ""
-    @AppStorage("noop.experiment.outcome")      private var experimentOutcomeRaw = Outcome.recovery.rawValue
+    @AppStorage("noop.experiment.outcome")      private var experimentOutcomeRaw = InsightsRules.Outcome.recovery.rawValue
     @AppStorage("noop.experiment.startedDay")   private var experimentStartedDay = ""
     @AppStorage("noop.experiment.durationDays") private var experimentDurationDays = ExperimentLength.twoWeeks.rawValue
     @AppStorage("noop.experiment.baselineDays") private var experimentBaselineDays = ExperimentLength.twoWeeks.rawValue
@@ -387,7 +312,7 @@ struct InsightsView: View {
         // MainActor-isolated, so reading the published cache here is on the right actor.
         let mergedDays = repo.days
 
-        // Outcome series (Whoop) → both [day:value] dictionaries and ordered series. The imported
+        // InsightsRules.Outcome series (Whoop) → both [day:value] dictionaries and ordered series. The imported
         // metricSeries only exists after a CSV import; fill the days it doesn't cover from the
         // merged daily metrics so an account-free user's logging still gets effects
         // (recovery/hrv/rhr have daily columns; sleep_performance stays import-only).
@@ -398,7 +323,7 @@ struct InsightsView: View {
             var dict: [String: Double] = [:]
             for row in s { dict[row.day] = row.value }
             for d in mergedDays where dict[d.day] == nil {
-                if let v = Self.dailyOutcome(key: key, day: d) { dict[d.day] = v }
+                if let v = InsightsRules.dailyOutcome(key: key, day: d) { dict[d.day] = v }
             }
             byKey[key] = dict
             seriesMap[key] = dict.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
@@ -408,7 +333,7 @@ struct InsightsView: View {
         // consumes, under a namespaced "journal.numeric:<question>" key so it never collides with the
         // four fixed metric outcomes. This makes a numeric journal series (caffeine mg, alcohol units)
         // a first-class series the ranker/correlations can consume, exactly like a metric outcome; the
-        // four boolean effect cards key on Outcome.key only, so they are untouched.
+        // four boolean effect cards key on InsightsRules.Outcome.key only, so they are untouched.
         for (question, series) in numericByBehaviour {
             let namespaced = Self.numericJournalKey(question)
             byKey[namespaced] = series
@@ -420,7 +345,7 @@ struct InsightsView: View {
         // displaySport, keeping manual/imported labels, keyed by the LOCAL calendar day the session
         // STARTED (the same local-day calendar DailyMetric.day uses, so the engine's D+1 alignment is
         // honest). The recovery side is [localDayKey: Charge] off the merged DailyMetric.recovery.
-        let costs = Self.computeActivityCosts(workouts: await repo.workoutRows(), days: mergedDays)
+        let costs = InsightsRules.computeActivityCosts(workouts: await repo.workoutRows(), days: mergedDays)
 
         await MainActor.run {
             self.behaviours = byBehaviour
@@ -478,17 +403,6 @@ struct InsightsView: View {
         recomputeRelationships()
     }
 
-    /// The merged DailyMetric column backing an outcome key, for days the imported metricSeries
-    /// doesn't cover (strap-only users). sleep_performance has no daily column, so it stays
-    /// import-only, never seeded here.
-    private static func dailyOutcome(key: String, day d: DailyMetric) -> Double? {
-        switch key {
-        case "recovery": return d.recovery
-        case "hrv":      return d.avgHrv
-        case "rhr":      return d.restingHr.map(Double.init)
-        default:         return nil
-        }
-    }
 
     // MARK: - Activity Cost input shaping (#439)
     //
@@ -497,28 +411,6 @@ struct InsightsView: View {
     // ActivityCostEngine.evaluate ranks the per-sport recovery cost. Keying both sides on the LOCAL
     // calendar day (DailyMetric.day's calendar) keeps the engine's D+1 next-morning lookups aligned.
 
-    // `internal` (not private) so the Workouts post-log note (#439) reuses the exact same input
-    // shaping rather than duplicating it, one source of truth for [sport: days] / [day: Charge].
-    static func computeActivityCosts(workouts: [WorkoutRow], days: [DailyMetric]) -> [ActivityCost] {
-        // Local-day offset so the activity day key lands on the SAME calendar as DailyMetric.day
-        // (which IntelligenceEngine/WhoopImporter both bucket by local midnight, #277).
-        let tzOffset = TimeZone.current.secondsFromGMT()
-        var activityDaysBySport: [String: Set<String>] = [:]
-        for w in workouts {
-            // displaySport collapses the detector's "detected" token into one "Activity" bucket and
-            // de-camelCases WHOOP sport names; manual/imported labels pass through unchanged.
-            let sport = WorkoutSource.displaySport(w.sport)
-            guard !sport.isEmpty else { continue }
-            let day = AnalyticsEngine.dayString(w.startTs, offsetSec: tzOffset)
-            activityDaysBySport[sport, default: []].insert(day)
-        }
-        var recoveryByDay: [String: Double] = [:]
-        for d in days {
-            if let r = d.recovery { recoveryByDay[d.day] = r }
-        }
-        return ActivityCostEngine.evaluate(activityDaysBySport: activityDaysBySport,
-                                           recoveryByDay: recoveryByDay)
-    }
 
     // MARK: - Memoized recomputation
 
@@ -603,8 +495,8 @@ struct InsightsView: View {
                         .pickerStyle(.menu)
                         .accessibilityLabel("Experiment behaviour")
                     }
-                    experimentField("Outcome") {
-                        SegmentedPillControl(Outcome.allCases, selection: experimentOutcomeBinding) { $0.label }
+                    experimentField("InsightsRules.Outcome") {
+                        SegmentedPillControl(InsightsRules.Outcome.allCases, selection: experimentOutcomeBinding) { $0.label }
                             .accessibilityLabel("Experiment outcome metric")
                     }
                     experimentField("Window") {
@@ -782,9 +674,9 @@ struct InsightsView: View {
         )
     }
 
-    private var experimentOutcomeBinding: Binding<Outcome> {
+    private var experimentOutcomeBinding: Binding<InsightsRules.Outcome> {
         Binding(
-            get: { Outcome(rawValue: experimentOutcomeRaw) ?? .recovery },
+            get: { InsightsRules.Outcome(rawValue: experimentOutcomeRaw) ?? .recovery },
             set: { experimentOutcomeRaw = $0.rawValue }
         )
     }
@@ -798,7 +690,7 @@ struct InsightsView: View {
 
     private var activeExperimentSnapshot: ExperimentSnapshot? {
         guard !experimentStartedDay.isEmpty,
-              let outcome = Outcome(rawValue: experimentOutcomeRaw),
+              let outcome = InsightsRules.Outcome(rawValue: experimentOutcomeRaw),
               let behavior = resolvedExperimentBehaviour
         else { return nil }
 
@@ -852,8 +744,8 @@ struct InsightsView: View {
         if ExperimentLength(rawValue: experimentDurationDays) == nil {
             experimentDurationDays = ExperimentLength.twoWeeks.rawValue
         }
-        if Outcome(rawValue: experimentOutcomeRaw) == nil {
-            experimentOutcomeRaw = Outcome.recovery.rawValue
+        if InsightsRules.Outcome(rawValue: experimentOutcomeRaw) == nil {
+            experimentOutcomeRaw = InsightsRules.Outcome.recovery.rawValue
         }
         experimentBaselineDays = experimentDurationDays
         experimentStartedDay = Repository.localDayKey(Date())
@@ -908,7 +800,7 @@ struct InsightsView: View {
     }
 
     private func formatExperimentDelta(_ delta: Double?,
-                                       outcome: Outcome,
+                                       outcome: InsightsRules.Outcome,
                                        includeSign: Bool = true) -> String {
         guard let delta else { return "—" }
         let prefix: String
@@ -957,7 +849,7 @@ struct InsightsView: View {
 
     private struct ExperimentSnapshot {
         let behavior: String
-        let outcome: Outcome
+        let outcome: InsightsRules.Outcome
         let startDay: String
         let durationDays: Int
         let daysElapsed: Int
@@ -1027,9 +919,9 @@ struct InsightsView: View {
     }
 
     private var behaviourOutcomeControl: some View {
-        SegmentedPillControl(Outcome.allCases, selection: $outcome,
+        SegmentedPillControl(InsightsRules.Outcome.allCases, selection: $outcome,
                              adaptsToAvailableWidth: true) { $0.label }
-            .accessibilityLabel("Outcome metric")
+            .accessibilityLabel("InsightsRules.Outcome metric")
     }
 
     private var noEffects: some View {
@@ -1370,7 +1262,7 @@ struct InsightsView: View {
     /// Format an outcome value with sensible units for a specific metric (used by the
     /// experiment card, which formats against its own stored outcome rather than the
     /// segmented selection).
-    private func formatOutcome(_ v: Double, as outcome: Outcome) -> String {
+    private func formatOutcome(_ v: Double, as outcome: InsightsRules.Outcome) -> String {
         switch outcome {
         case .recovery, .sleep: return "\(Int(v.rounded()))%"
         case .hrv:              return "\(Int(v.rounded())) ms"

@@ -6,9 +6,9 @@ import StrandAnalytics
 /// wanted, on one thin 24-hour dial (midnight at the top), in the flat Broop dial style.
 ///
 /// Reads `AppModel.circadianPhase` in this leaf only, so the model's once-a-second republish re-renders the
-/// dial and not the sleep screen (the classic `BodyClockDialSection` rule). The window, the offset and the
+/// dial and not the sleep screen (the `BodyClockDialSection` rule). The window, the offset and the
 /// chronotype come from `CircadianEngine`; the caption and chronotype words from `BodyClockDialCard`'s static
-/// helpers, so the classic and Broop dials state the same comparison. Hidden for an unreadable fit, and
+/// helpers, so the and Broop dials state the same comparison. Hidden for an unreadable fit, and
 /// when the engine has no ideal window for the night (a non-positive or full-day length).
 struct BroopFinalABodyClockSection: View {
     @EnvironmentObject private var appModel: AppModel

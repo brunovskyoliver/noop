@@ -14,12 +14,12 @@ import StrandAnalytics
 /// .lastVitalsDay`), but the Charge hero read `displayDay?.recovery` raw. So Charge alone blanked while
 /// everything around it held, on a screen where every other surface in the app showed a number.
 ///
-/// The selection itself is NOT re-implemented here: `resolve` composes `TodayView.lastScoredRecoveryDay`
-/// (the #547 future-day guard included) and `TodayView.carriedCaption`, so Liquid and Classic cannot drift.
+/// The selection itself is NOT re-implemented here: `resolve` composes `TodayRules.lastScoredRecoveryDay`
+/// (the #547 future-day guard included) and `TodayRules.carriedCaption`, so Liquid and Classic cannot drift.
 /// This pins the presentation decision on top of them. Pure, so it needs no strap, no clock and no view.
 final class LiquidChargeCarryTests: XCTestCase {
 
-    private typealias Display = LiquidTodayView.ChargeDisplay
+    private typealias Display = TodayDisplay.ChargeDisplay
 
     private func day(_ key: String, recovery: Double?) -> DailyMetric {
         DailyMetric(day: key, totalSleepMin: nil, efficiency: nil, deepMin: nil, remMin: nil,

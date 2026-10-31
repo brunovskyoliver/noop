@@ -7,8 +7,8 @@ import StrandDesign
 // MARK: - Data Sources
 
 /// Every import and data source as WHOOP-style integration cards. Imports run through the AppModel
-/// pipeline (WHOOP, Apple Health, Mi Band) or `DataSourceImports` (the classic screen's own logic,
-/// shared), so a file lands exactly as it does from the classic Data Sources screen.
+/// pipeline (WHOOP, Apple Health, Mi Band) or `DataSourceImports` (the screen's own logic,
+/// shared), so a file lands exactly as it does from the Data Sources screen.
 struct BroopAccountDataSourcesView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var repo: Repository
@@ -228,7 +228,7 @@ struct BroopAccountDataSourcesView: View {
 }
 
 /// "Broadcast HR from this phone": the screen-owned HrBroadcaster, started while the switch is on and
-/// released when the screen goes away, exactly as on the classic Data Sources screen.
+/// released when the screen goes away, exactly as on the Data Sources screen.
 private struct BroopAccountPhoneBroadcastCard: View {
     @EnvironmentObject private var live: LiveState
     @AppStorage(HrBroadcaster.defaultsKey) private var broadcastHrEnabled = false

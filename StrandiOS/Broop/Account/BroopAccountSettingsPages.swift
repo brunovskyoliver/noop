@@ -7,7 +7,7 @@ import WhoopStore
 
 // MARK: - Notifications
 
-/// Every notification switch the iPhone app has, in one list. The classic Notifications screen is
+/// Every notification switch the iPhone app has, in one list. the Notifications screen is
 /// macOS-only (it picks Mac apps), so on iPhone these switches live on Automations and Features; this
 /// page binds the same keys and runs the same authorisation requests, so the two places always agree.
 struct BroopAccountNotificationsPage: View {
@@ -170,7 +170,7 @@ struct BroopAccountStrapPage: View {
     }
 }
 
-/// Connection status, Re-scan / Disconnect and the WHOOP 4.0 rename, the classic Strap card's controls.
+/// Connection status, Re-scan / Disconnect and the WHOOP 4.0 rename, the Strap card's controls.
 /// Observes `LiveState` on its own so the rest of the page does not re-render on every strap tick.
 struct BroopAccountStrapConnectionCard: View {
     @EnvironmentObject private var model: AppModel
@@ -221,7 +221,7 @@ struct BroopAccountStrapConnectionCard: View {
         return BroopAccountStyle.danger
     }
 
-    /// Same priority as the classic Strap card (see SettingsView.strapStatusDetail).
+    /// Same priority as the Strap card (see SettingsView.strapStatusDetail).
     private var statusDetail: String {
         if live.encryptedBond && live.connected {
             return String(localized: "Your strap is paired and sending data. Open Live for a real-time heart rate.")
@@ -274,7 +274,7 @@ struct BroopAccountStrapConnectionCard: View {
     }
 }
 
-/// Copy / Save the strap log, the same text the classic Strap card and Live screen export.
+/// Copy / Save the strap log, the same text the Strap card and Live screen export.
 struct BroopAccountStrapLogRow: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var live: LiveState
@@ -371,7 +371,7 @@ struct BroopAccountDataPage: View {
         }
     }
 
-    /// Same outcomes and copy as the classic Backup & restore card.
+    /// Same outcomes and copy as the Backup & restore card.
     @MainActor
     private func handleBackup(_ result: DataBackup.BackupResult) {
         busy = false
@@ -588,7 +588,7 @@ struct BroopAccountExperimentalPage: View {
         }
     }
 
-    /// The classic raw CSV export: the ACTIVE strap id (`repo.deviceId`), last 24 h, shared via the sheet.
+    /// the raw CSV export: the ACTIVE strap id (`repo.deviceId`), last 24 h, shared via the sheet.
     private func exportRawSensorCSV() {
         rawCsvBusy = true
         let strapId = model.repo.deviceId

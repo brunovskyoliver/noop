@@ -256,7 +256,7 @@ enum AppleDemoSeeder {
     }
 
     /// A plausible light→deep→rem cycle as the COMPUTED segment array
-    /// [{"start":epoch,"end":epoch,"stage":"light"|"deep"|"rem"|"wake"}] that SleepView.decodeSegments
+    /// [{"start":epoch,"end":epoch,"stage":"light"|"deep"|"rem"|"wake"}] that SleepRules.decodeSegments
     /// reads, laid end-to-end from `onset`.
     private static func segmentsJSON(onset: Int, deep: Double, rem: Double, light: Double, awakeMin: Double) -> String {
         var t = onset

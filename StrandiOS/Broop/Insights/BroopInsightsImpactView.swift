@@ -7,7 +7,7 @@ import StrandAnalytics
 // and metric relationships in the same visual language. Data and ranking: `BroopInsightsImpactModel`.
 
 struct BroopInsightsImpactView: View {
-    typealias Outcome = InsightsView.Outcome
+    typealias Outcome = InsightsRules.Outcome
 
     @EnvironmentObject private var repo: Repository
     @StateObject private var model = BroopInsightsImpactModel()
@@ -15,7 +15,7 @@ struct BroopInsightsImpactView: View {
     @State private var outcome: Outcome = .recovery
     @State private var detail: BehaviorEffect?
 
-    // Personal experiment state: the same keys the classic Insights card and Android use.
+    // Personal experiment state: the same keys the Insights card and Android use.
     @AppStorage("noop.experiment.behaviour") private var experimentBehaviour = ""
     @AppStorage("noop.experiment.outcome") private var experimentOutcomeRaw = Outcome.recovery.rawValue
     @AppStorage("noop.experiment.startedDay") private var experimentStartedDay = ""
@@ -412,7 +412,7 @@ struct BroopInsightsEffectBox: Identifiable {
 /// sentence, the diverging bar and the with / without evidence behind it.
 struct BroopInsightsBehaviorDetail: View {
     let effect: BehaviorEffect
-    let outcome: InsightsView.Outcome
+    let outcome: InsightsRules.Outcome
     /// The ranker's own sentence when it carries a lead/lag clause; the plain effect sentence otherwise.
     var sentence: String? = nil
     @Environment(\.dismiss) private var dismiss

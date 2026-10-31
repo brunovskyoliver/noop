@@ -1,7 +1,7 @@
 import XCTest
 @testable import Strand
 
-/// #358 parity: `CompareView.restoreSelection` is the twin of the Android `ComparePrefs.parseCompareSelection`
+/// #358 parity: `CompareRules.restoreSelection` is the twin of the Android `ComparePrefs.parseCompareSelection`
 /// (`ComparePrefsTest.kt`) — restore a deliberate sub-minimum selection when every saved id still resolves,
 /// but fall back to the defaults only when a catalog change dropped the saved ids below the minimum.
 ///
@@ -14,38 +14,38 @@ final class CompareRestoreTests: XCTestCase {
     private let sleep = "my-whoop:sleep_performance"
 
     func testBlankYieldsNilSoTheCallerUsesDefaults() {
-        XCTAssertNil(CompareView.restoreSelection("", minSelection: 2, maxSelection: 4))
-        XCTAssertNil(CompareView.restoreSelection("   ,  ", minSelection: 2, maxSelection: 4))
+        XCTAssertNil(CompareRules.restoreSelection("", minSelection: 2, maxSelection: 4))
+        XCTAssertNil(CompareRules.restoreSelection("   ,  ", minSelection: 2, maxSelection: 4))
     }
 
     func testRestoresSubMinimumWhenEveryIdResolves() {
         // A deliberate single-metric selection: every id resolves → restore it, don't reset to defaults.
-        XCTAssertEqual(CompareView.restoreSelection(recovery, minSelection: 2, maxSelection: 4)?.map(\.id),
+        XCTAssertEqual(CompareRules.restoreSelection(recovery, minSelection: 2, maxSelection: 4)?.map(\.id),
                        [recovery])
     }
 
     func testFallsBackWhenSurvivorsDropBelowMinimum() {
         // One real id + one lost to a catalog change → 1 survivor (< min) → nil (defaults).
-        XCTAssertNil(CompareView.restoreSelection("\(recovery),gone:xyz", minSelection: 2, maxSelection: 4))
+        XCTAssertNil(CompareRules.restoreSelection("\(recovery),gone:xyz", minSelection: 2, maxSelection: 4))
     }
 
     func testRestoresWhenAtLeastMinimumSurvives() {
         // Two resolve, one lost → 2 >= min → restore the survivors, in saved order.
         XCTAssertEqual(
-            CompareView.restoreSelection("\(recovery),\(hrv),gone:xyz", minSelection: 2, maxSelection: 4)?.map(\.id),
+            CompareRules.restoreSelection("\(recovery),\(hrv),gone:xyz", minSelection: 2, maxSelection: 4)?.map(\.id),
             [recovery, hrv])
     }
 
     func testCapsAtMaxSelectionInOrder() {
         // Three valid ids, maxSelection 2 → keep the first two.
         XCTAssertEqual(
-            CompareView.restoreSelection("\(recovery),\(hrv),\(sleep)", minSelection: 2, maxSelection: 2)?.map(\.id),
+            CompareRules.restoreSelection("\(recovery),\(hrv),\(sleep)", minSelection: 2, maxSelection: 2)?.map(\.id),
             [recovery, hrv])
     }
 
     func testDedupesRepeatedIds() {
         XCTAssertEqual(
-            CompareView.restoreSelection("\(recovery),\(recovery),\(hrv)", minSelection: 2, maxSelection: 4)?.map(\.id),
+            CompareRules.restoreSelection("\(recovery),\(recovery),\(hrv)", minSelection: 2, maxSelection: 4)?.map(\.id),
             [recovery, hrv])
     }
 }

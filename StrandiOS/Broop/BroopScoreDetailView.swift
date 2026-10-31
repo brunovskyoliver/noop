@@ -118,7 +118,7 @@ struct BroopOverviewChargeScreen: View {
                 .padding(.top, BroopMetrics.section)
         }
         .sheet(isPresented: $showBreakdown) {
-            // The same "What shaped it" sheet the classic Coupled view opens (shared components, the
+            // The same "What shaped it" sheet the Coupled view opens (shared components, the
             // Today derivation), kept classic: it is the engine's own explainer.
             BroopOverviewChargeBreakdownSheet(onClose: { showBreakdown = false })
         }
@@ -181,8 +181,8 @@ struct BroopOverviewChargeScreen: View {
     }
 }
 
-/// "What shaped your Charge": the classic Charge breakdown components over the displayed row, as the
-/// classic Coupled and Today sheets host them.
+/// "What shaped your Charge": the Charge breakdown components over the displayed row, as the
+/// Coupled and Today sheets host them.
 private struct BroopOverviewChargeBreakdownSheet: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var store: BroopStore

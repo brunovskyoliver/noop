@@ -6,7 +6,7 @@ import SwiftUI
 /// take one off, an "ADD TO SLEEP" rule with the hidden cards and a white plus, and an outlined SAVE pill.
 ///
 /// It edits the same `EditableLayoutDraft` and writes the same two `@AppStorage` strings through
-/// `SleepLayoutPrefs` as the classic `SleepCustomizationSheet`, so the classic Sleep screen and Android read
+/// `SleepLayoutPrefs` as the `SleepCustomizationSheet`, so the Sleep screen and Android read
 /// the same order. Last Night's Sleep (`.stages`) is always drawn at the top of the Broop screen and Hours of
 /// Sleep (`.asleepDuration`) lives in its trend card, so neither is offered here; both keep their saved slot.
 struct BroopFinalASleepCustomizeSheet: View {
@@ -170,7 +170,7 @@ struct BroopFinalASleepCustomizeSheet: View {
     }
 
     private func save() {
-        // Full order (shown then hidden) plus the hidden set, exactly as the classic sheet stores it.
+        // Full order (shown then hidden) plus the hidden set, exactly as the sheet stores it.
         sectionOrderRaw = SleepLayoutPrefs.encode(draft.visible + draft.hidden)
         hiddenSectionsRaw = SleepLayoutPrefs.encodeHidden(draft.hidden)
         dismiss()

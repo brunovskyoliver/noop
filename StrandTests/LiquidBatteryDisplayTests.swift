@@ -10,7 +10,7 @@ import XCTest
 /// phone during a real strap incident. `resolve` is pure, so all of it pins with no strap and no BLE.
 final class LiquidBatteryDisplayTests: XCTestCase {
 
-    private typealias Display = LiquidTodayView.StrapBatteryDisplay
+    private typealias Display = TodayDisplay.StrapBatteryDisplay
 
     // MARK: - A3: "charging" must not be hostage to "charge %"
 

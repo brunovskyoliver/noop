@@ -2,7 +2,7 @@ import XCTest
 @testable import Strand
 import StrandAnalytics
 
-/// #H9 — the Sleep stage-breakdown LOW-CONFIDENCE badge gate (`SleepView.isStagingLowConfidence`).
+/// #H9 — the Sleep stage-breakdown LOW-CONFIDENCE badge gate (`SleepRules.isStagingLowConfidence`).
 ///
 /// The UI badge must agree with the engine's persisted Rest confidence: it flags ONLY the suspicious case
 /// — a high-efficiency night (lots of measured sleep) whose deep+REM share is implausibly low, which the
@@ -17,7 +17,7 @@ final class SleepStagingConfidenceTests: XCTestCase {
         // 7h asleep, ~2% restorative, 95% efficiency → well below the 10% restorative floor on a >85%-eff night.
         let asleep = 7.0 * 60.0      // 420 min
         let deep = 4.0, rem = 4.0    // 8 min restorative ≈ 1.9% of asleep
-        XCTAssertTrue(SleepView.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
+        XCTAssertTrue(SleepRules.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
                                                        efficiency: 0.95))
     }
 
@@ -25,7 +25,7 @@ final class SleepStagingConfidenceTests: XCTestCase {
     func testHealthyRestorativeShare_isNotFlagged() {
         let asleep = 7.0 * 60.0
         let deep = 90.0, rem = 100.0   // ~45% restorative
-        XCTAssertFalse(SleepView.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
+        XCTAssertFalse(SleepRules.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
                                                         efficiency: 0.95))
     }
 
@@ -34,20 +34,20 @@ final class SleepStagingConfidenceTests: XCTestCase {
     func testLowEfficiencyNight_isNotFlagged_evenWithLowRestorative() {
         let asleep = 5.0 * 60.0
         let deep = 3.0, rem = 3.0      // tiny restorative …
-        XCTAssertFalse(SleepView.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
+        XCTAssertFalse(SleepRules.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem,
                                                         efficiency: 0.60))   // … but the night was fragmented
     }
 
     /// An UNSTAGED night (no deep+REM at all) isn't flagged here — there's no staging split to doubt; its
     /// base Rest confidence already reads honestly (.building from no staged sleep), not a downgrade.
     func testUnstagedNight_isNotFlagged() {
-        XCTAssertFalse(SleepView.isStagingLowConfidence(asleepMin: 6 * 60, deepMin: 0, remMin: 0,
+        XCTAssertFalse(SleepRules.isStagingLowConfidence(asleepMin: 6 * 60, deepMin: 0, remMin: 0,
                                                         efficiency: 0.95))
     }
 
     /// A zero-asleep night can't be evaluated → never flagged (guard against a divide-by-zero / nonsense).
     func testZeroAsleep_isNotFlagged() {
-        XCTAssertFalse(SleepView.isStagingLowConfidence(asleepMin: 0, deepMin: 0, remMin: 0,
+        XCTAssertFalse(SleepRules.isStagingLowConfidence(asleepMin: 0, deepMin: 0, remMin: 0,
                                                         efficiency: 0.95))
     }
 
@@ -55,7 +55,7 @@ final class SleepStagingConfidenceTests: XCTestCase {
     /// overload also downgrades to `.building`. Pins the two surfaces to the same threshold.
     func testAgreesWithEngineRestConfidence() {
         let asleep = 7.0 * 60.0, deep = 4.0, rem = 4.0, eff = 0.95
-        let uiFlag = SleepView.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem, efficiency: eff)
+        let uiFlag = SleepRules.isStagingLowConfidence(asleepMin: asleep, deepMin: deep, remMin: rem, efficiency: eff)
         let tier = ScoreConfidence.rest(hasSession: true, hasStagedSleep: true,
                                         asleepSeconds: asleep * 60, restorativeSeconds: (deep + rem) * 60,
                                         efficiency: eff)

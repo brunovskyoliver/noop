@@ -2,7 +2,7 @@
 import SwiftUI
 import StrandDesign
 
-/// The passive stress check-in (the classic `StressCheckInCard`) as a Broop card. Same surface and rules:
+/// The passive stress check-in (the `StressCheckInCard`) as a Broop card. Same surface and rules:
 /// it renders only while `StressNudgeCenter` holds a pending nudge; Breathe now dismisses and hands the
 /// host a one-minute session, Not now dismisses, Turn off flips `BiofeedbackPrefs.checkInEnabled` and
 /// dismisses. Never an alarm and never a diagnosis.
@@ -70,7 +70,7 @@ struct BroopFinalBStressCheckIn: View {
         }
     }
 
-    /// The classic card's honest one-liner: the two estimates the engine surfaced, as "your own number".
+    /// the card's honest one-liner: the two estimates the engine surfaced, as "your own number".
     private static func honestLine(_ nudge: StressNudgeCenter.Nudge) -> String? {
         guard let fast = nudge.fastRMSSD, let base = nudge.baselineRMSSD, base > 0 else { return nil }
         return String(format: String(localized: "RMSSD %.0f ms now vs your ~%.0f ms baseline (estimate from PPG-derived R-R)."),

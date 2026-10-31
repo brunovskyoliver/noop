@@ -11,15 +11,15 @@ final class TodayChargeTapCollapseTests: XCTestCase {
     // MARK: #205 one-word readiness read (kept on the hero after Readiness folded into the Charge tap)
 
     func testReadinessWord_mapsEveryLevel() {
-        XCTAssertEqual(TodayView.readinessWord(.primed), "Push")
-        XCTAssertEqual(TodayView.readinessWord(.balanced), "Maintain")
-        XCTAssertEqual(TodayView.readinessWord(.strained), "Rest")
-        XCTAssertEqual(TodayView.readinessWord(.rundown), "Rest")
+        XCTAssertEqual(TodayRules.readinessWord(.primed), "Push")
+        XCTAssertEqual(TodayRules.readinessWord(.balanced), "Maintain")
+        XCTAssertEqual(TodayRules.readinessWord(.strained), "Rest")
+        XCTAssertEqual(TodayRules.readinessWord(.rundown), "Rest")
     }
 
     func testReadinessWord_insufficientHasNoWord() {
         // Not enough history yet: the hero shows no readiness word (the old card hid itself), so nil.
-        XCTAssertNil(TodayView.readinessWord(.insufficient))
+        XCTAssertNil(TodayRules.readinessWord(.insufficient))
     }
 
     // MARK: S5 collapsed Data Sources footer summary

@@ -4,7 +4,7 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-/// One finished gym session, WHOOP's strength summary over the classic `LiftSessionDetailSheet`: the
+/// One finished gym session, WHOOP's strength summary over the `LiftSessionDetailSheet`: the
 /// session figures, every exercise with every set as performed and how it compares with last time, sets
 /// per muscle and the RPE profile. Every figure is arithmetic from `LiftMetrics` over the sets listed on
 /// the same page. Effort sits beside them and is never derived from weights: it is what was measured from
@@ -340,7 +340,7 @@ struct BroopFinalBLiftSessionDetail: View {
         }
     }
 
-    // MARK: Load / delete (as the classic sheet)
+    // MARK: Load / delete (as the sheet)
 
     private func load() async {
         guard let store = await repo.storeHandle() else { sessionRpe = session.sessionRpe; loaded = true; return }
@@ -392,7 +392,7 @@ private struct BroopStatRowLite: View {
 }
 
 /// Correct a finished session (WHOOP's set table): fix a number, add or drop a set, mark a warm-up, or
-/// change the session RPE. The classic `LiftSessionEditSheet` rules apply unchanged: text is parsed once
+/// change the session RPE. the `LiftSessionEditSheet` rules apply unchanged: text is parsed once
 /// on save, only edited fields are written back, a 0 empties on focus and returns if left empty, and only
 /// this session changes, never the program.
 struct BroopFinalBLiftSessionEditor: View {
@@ -580,7 +580,7 @@ struct BroopFinalBLiftSessionEditor: View {
         clearedZero = nil
     }
 
-    /// A new set starts from the exercise's last one, without its RPE (as the classic editor).
+    /// A new set starts from the exercise's last one, without its RPE (as the editor).
     private func addSet(_ exercise: Int) {
         restoreClearedZero()
         guard let last = exercises[exercise].entries.last,

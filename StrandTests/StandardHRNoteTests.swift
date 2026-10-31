@@ -10,28 +10,28 @@ final class StandardHRNoteTests: XCTestCase {
 
     // A real explanation string → the note renders.
     func testNonEmptyNoteShows() {
-        XCTAssertTrue(LiveView.shouldShowStandardHRNote(
+        XCTAssertTrue(LiveRules.shouldShowStandardHRNote(
             "Standard HR mode (low bandwidth) — your Bluetooth radio couldn't sustain the full stream."))
     }
 
     // No fallback engaged (the normal full-stream case) → no note.
     func testNilNoteHidden() {
-        XCTAssertFalse(LiveView.shouldShowStandardHRNote(nil))
+        XCTAssertFalse(LiveRules.shouldShowStandardHRNote(nil))
     }
 
     // An empty string must not render an empty banner.
     func testEmptyNoteHidden() {
-        XCTAssertFalse(LiveView.shouldShowStandardHRNote(""))
+        XCTAssertFalse(LiveRules.shouldShowStandardHRNote(""))
     }
 
     // A whitespace-only string is effectively empty → no note.
     func testWhitespaceOnlyNoteHidden() {
-        XCTAssertFalse(LiveView.shouldShowStandardHRNote("   \n\t  "))
+        XCTAssertFalse(LiveRules.shouldShowStandardHRNote("   \n\t  "))
     }
 
     // Leading/trailing whitespace around real content still shows (we don't trim what we display, only the
     // emptiness test trims).
     func testPaddedRealContentShows() {
-        XCTAssertTrue(LiveView.shouldShowStandardHRNote("  live HR via standard profile  "))
+        XCTAssertTrue(LiveRules.shouldShowStandardHRNote("  live HR via standard profile  "))
     }
 }

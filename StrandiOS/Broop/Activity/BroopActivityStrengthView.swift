@@ -4,10 +4,10 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-/// Strength Trainer over the classic Lift Log: MY WORKOUTS lists the saved programs (start, edit, create,
+/// Strength Trainer over the Lift Log: MY WORKOUTS lists the saved programs (start, edit, create,
 /// import) and PROGRESS carries this week's sets per muscle and the finished sessions. The builder, the
 /// spreadsheet import and a past session's detail are the native `BroopFinalBLift…` sheets over the
-/// classic rules. Lifting never changes Effort, exactly as on the classic screen.
+/// rules. Lifting never changes Effort, exactly as on the screen.
 struct BroopActivityStrengthView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var session: LiftSessionController
@@ -147,7 +147,7 @@ struct BroopActivityStrengthView: View {
         }
     }
 
-    /// Snapshot the program into the session plan, as the classic Lift Log does.
+    /// Snapshot the program into the session plan, as the Lift Log does.
     private func start(_ program: LiftProgramRow) async {
         guard let store = await repo.storeHandle() else { return }
         let items = (try? await store.liftProgramItems(programId: program.id)) ?? []
@@ -231,7 +231,7 @@ struct BroopActivityStrengthView: View {
         }
     }
 
-    /// One muscle's week, drawn as the classic screen draws it: the number is the truth, the bar spans 20
+    /// One muscle's week, drawn as the screen draws it: the number is the truth, the bar spans 20
     /// sets purely as a drawing choice, and the ~4-set research floor is a tick, never a "done" point.
     private func muscleBar(_ muscle: LiftMuscle, sets: Double) -> some View {
         let floor = LiftMetrics.ReferenceDose.hypertrophyMinimumSetsPerWeek

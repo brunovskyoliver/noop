@@ -5,7 +5,7 @@ import StrandDesign
 import WhoopStore
 
 /// Broop Health Monitor (`.health`): the live heart-rate hero, the vitals against the wearer's range as a
-/// two-column grid (each opens its trend), then everything else the classic Health screen carried — strap
+/// two-column grid (each opens its trend), then everything else the Health screen carried — strap
 /// sync, HRV status, Charge contributors, the skin-temperature suite, Healthspan, records and the
 /// shareable report.
 struct BroopHealthMonitorView: View {
@@ -166,7 +166,7 @@ struct BroopHealthVitalCard: View {
 
 // MARK: - Sync
 
-/// Manual "Sync now" and honest sync status (#364), gated exactly as the classic control.
+/// Manual "Sync now" and honest sync status (#364), gated exactly as the control.
 struct BroopHealthSyncCard: View {
     @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var model: AppModel
@@ -258,7 +258,7 @@ private struct BroopHealthCatchUp: View {
 
 // MARK: - HRV status
 
-/// The 7-night HRV status against the usual range (`HRVStatus`, classic `HRVStatusSection` rebuilt).
+/// The 7-night HRV status against the usual range (`HRVStatus`, `HRVStatusSection` rebuilt).
 struct BroopHealthHRVStatusCard: View {
     @EnvironmentObject private var model: AppModel
     var showsLink = false
@@ -400,7 +400,7 @@ private struct BroopHealthHRVStatusContent: View, Equatable {
 // MARK: - Charge contributors
 
 /// The inputs to today's Charge as bars scored against the on-device baseline. Same arithmetic as the
-/// classic `RecoveryContributorsSection` (70 at baseline), so the two can never read differently.
+/// `RecoveryContributorsSection` (70 at baseline), so the two can never read differently.
 struct BroopHealthChargeContributors: View {
     @EnvironmentObject private var repo: Repository
 
@@ -500,7 +500,7 @@ struct BroopHealthChargeContributors: View {
 // MARK: - Skin temperature suite
 
 /// The v5 skin-temperature suite: illness heads-up, body clock and the opt-in cycle awareness, as Broop cards
-/// (`BroopFinalA…`) worded through the classic cards' copy; the opt-in/opt-out gating is the classic rule.
+/// (`BroopFinalA…`) worded through the cards' copy; the opt-in/opt-out gating is the rule.
 struct BroopHealthSkinTempSection: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var repo: Repository

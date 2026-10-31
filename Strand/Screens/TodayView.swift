@@ -190,9 +190,6 @@ struct ActiveWorkoutIndicatorSection: View {
 struct TodayView: View {
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
     private var dayCycleMode: DayCycleMode { DayCycleMode.persisted(dayCycleModeRaw) }
-    /// Product mark, never natural-language copy. Keeping it out of localization also makes source
-    /// classification and tint selection stable when the app language changes.
-    private static let whoopBrandName = "WHOOP"
     @EnvironmentObject var repo: Repository
     // PERF (scroll stutter): TodayView deliberately does NOT observe `LiveState` directly. A connected
     // strap publishes `LiveState` ~1 Hz (heart rate + each R-R packet), and an `@EnvironmentObject live`
@@ -599,7 +596,7 @@ struct TodayView: View {
     /// recovery, and we're not mid-calibration (calibration owns its own copy). Past offsets / scored
     /// today / mid-calibration all return nil so live behaviour is unchanged.
     private var lastScoredRecoveryDay: DailyMetric? {
-        Self.lastScoredRecoveryDay(
+        TodayRules.lastScoredRecoveryDay(
             days: repo.days,
             selectedDayKey: selectedDayKey,
             isToday: selectedDayOffset == 0,
@@ -678,22 +675,6 @@ struct TodayView: View {
         return Repository.lastRespDay(days: repo.days, todayKey: displayDay?.day ?? selectedDayKey)
     }
 
-    /// Pure carry-over selector behind `lastScoredRecoveryDay`, extracted so the gate + selection can be
-    /// unit-tested without a live view (mirrors `buildingHintCopy` / the Android `lastScoredRecoveryDay`).
-    /// Returns the freshest scored prior row to carry over, or nil. `days` is oldest→newest; the chosen
-    /// row is the last with a non-nil recovery that ISN'T today's (still-nil) key. nil unless: it's today,
-    /// today itself isn't scored, and we're not mid-calibration (calibration owns its own copy), so past
-    /// days / a scored today / a calibrating today all carry nothing and live behaviour is unchanged.
-    static func lastScoredRecoveryDay(days: [DailyMetric], selectedDayKey: String,
-                                      isToday: Bool, todayScored: Bool, isCalibrating: Bool) -> DailyMetric? {
-        guard isToday, !todayScored, !isCalibrating else { return nil }
-        // Defensive future-day guard (#547): the carry-over must NEVER select a day after today's key, or a
-        // stray future-dated row (a bad-clock strap that slipped past the ingest gate / pre-heal DB) would
-        // surface as "last night · 12 Jul". `selectedDayKey` is today's logical-day key here (isToday), and
-        // yyyy-MM-dd compares lexicographically, so `$0.day < selectedDayKey` keeps only genuine prior days.
-        // Belt-and-suspenders on top of the gate + one-time heal, cheap and never wrong.
-        return days.last(where: { $0.recovery != nil && $0.day < selectedDayKey })
-    }
 
     /// #817 - day-nav swipe/arrow clamp. Pure + unit-testable so the bounds can't drift between the
     /// swipe gesture, the chevrons and the date jump. `current` is the days-back offset (0 = today),
@@ -738,44 +719,16 @@ struct TodayView: View {
     /// navigable day. Both keys are "yyyy-MM-dd". Pure + unit-testable.
     static func maxDayOffset(earliestDayKey: String?, todayKey: String) -> Int {
         guard let earliestKey = earliestDayKey,
-              let earliest = dayKeyParser.date(from: earliestKey),
-              let today = dayKeyParser.date(from: todayKey) else { return 0 }
+              let earliest = TodayDisplay.dayKeyParser.date(from: earliestKey),
+              let today = TodayDisplay.dayKeyParser.date(from: todayKey) else { return 0 }
         let gap = Calendar.current.dateComponents([.day],
                                                   from: Calendar.current.startOfDay(for: earliest),
                                                   to: Calendar.current.startOfDay(for: today)).day ?? 0
         return max(0, gap)
     }
 
-    /// Carry-over recency cap (#779): the "Last night" framing only holds when the carried scored day is
-    /// within this many days of today. A weeks-old import is still carried so the recovery side isn't a bare
-    /// blank, but it is relabelled "Latest sleep · <date>" so a stale number is NEVER passed off as today's.
-    static let carryFreshnessDays = 2
 
-    /// True when the carried scored day is OLDER than the freshness cap (#779), which drives the "Latest
-    /// sleep" relabel. Pure + unit-testable. Both keys are "yyyy-MM-dd"; an unparseable key (or non-positive gap)
-    /// reads as fresh so we never over-claim staleness. `todayKey` is today's logical-day key (carry-over is
-    /// today-only). Mirror EXACTLY in Kotlin.
-    static func isCarryStale(priorDayKey: String, todayKey: String) -> Bool {
-        guard let prior = dayKeyParser.date(from: priorDayKey),
-              let today = dayKeyParser.date(from: todayKey) else { return false }
-        let days = Calendar.current.dateComponents([.day], from: prior, to: today).day ?? 0
-        return days > carryFreshnessDays
-    }
 
-    /// #977 — HONEST Rest resolution for the selected day. Today's own scored Rest wins; otherwise, ONLY on
-    /// today, tail-fall-back to the last scored night — but ONLY when that night is within the carry-freshness
-    /// window (`isCarryStale == false`). A live 5.0 whose sleep never scores (no overnight gravity ⇒ no
-    /// `sleep_performance` point ever written) used to pin Rest to a weeks-old scored night while Charge kept
-    /// advancing; gating the tail-fallback lets the Rest hero fall through to its No-Data/calibrating state
-    /// instead of freezing on a stale number. The legitimate morning carry of last night's Rest (before today
-    /// scores) is preserved unchanged. Pure + unit-testable. Mirror EXACTLY in Kotlin.
-    static func freshRestScore(todayValue: Double?, lastDay: String?, lastValue: Double?,
-                               isTodaySelected: Bool, todayKey: String) -> Double? {
-        if let v = todayValue { return v }
-        guard isTodaySelected, let lastDay, let lastValue,
-              !isCarryStale(priorDayKey: lastDay, todayKey: todayKey) else { return nil }
-        return lastValue
-    }
 
     /// #1164/#2012 — should today's Rest be MARKED provisional? When the strap has banked records not yet
     /// offloaded, the Rest score is computed from partial data and may change once the full night lands and
@@ -801,21 +754,11 @@ struct TodayView: View {
         return backfilling || historyPendingSync
     }
 
-    /// The carried recovery caption stamp, keyed on that scored day's own date and its recency. Within the
-    /// freshness cap it reads "Last night · <date>"; once the carried day is older than the cap (#779) it
-    /// reads "Latest sleep · <date>" so a weeks-old import is never surfaced as "Last night". Shared by every
-    /// carried recovery read-out so the prior-day provenance reads identically. Mirror EXACTLY in Kotlin.
-    static func carriedCaption(priorDayKey: String, todayKey: String) -> String {
-        let date = lastChargeDateFmt(priorDayKey)
-        return isCarryStale(priorDayKey: priorDayKey, todayKey: todayKey)
-            ? String(localized: "Latest sleep · \(date)")
-            : String(localized: "Last night · \(date)")
-    }
 
     /// Instance convenience over the pure `carriedCaption`. `selectedDayKey` is today's logical-day key in
     /// every carry-over context (the selector gates `isToday`), so it supplies the recency anchor.
     private func carriedCaption(_ prior: DailyMetric) -> String {
-        Self.carriedCaption(priorDayKey: prior.day, todayKey: selectedDayKey)
+        TodayRules.carriedCaption(priorDayKey: prior.day, todayKey: selectedDayKey)
     }
 
     /// The most recent SCORED Charge to carry over on TODAY (#543), the prior row's recovery value plus
@@ -856,19 +799,6 @@ struct TodayView: View {
         RecoveryScorer.skinTempRelative(deviationC: chargeBreakdownRow?.skinTempDevC)
     }
 
-    /// #205 (one-word readiness read kept on the hero: Push / Maintain / Rest). PURE mapping of the
-    /// existing `ReadinessEngine.Level` so the hero keeps a glanceable verdict even though the full
-    /// Readiness card folds into the Charge breakdown sheet (S4). `insufficient` returns nil (the hero then
-    /// shows no readiness word, matching the old card hiding itself). Mirror EXACTLY in Kotlin.
-    static func readinessWord(_ level: ReadinessEngine.Level) -> String? {
-        switch level {
-        case .primed:       return String(localized: "Push")
-        case .balanced:     return String(localized: "Maintain")
-        case .strained:     return String(localized: "Rest")
-        case .rundown:      return String(localized: "Rest")
-        case .insufficient: return nil
-        }
-    }
 
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
 
@@ -881,9 +811,9 @@ struct TodayView: View {
         MetricTileState.resolve(
             hasTodayValue: displayDay?.recovery != nil,
             calibratingNightsRemaining: recoveryCalibration.map { max(1, Baselines.minNightsSeed - $0) },
-            carriedDate: lastScoredRecoveryDay.map { Self.lastChargeDateFmt($0.day) },
+            carriedDate: lastScoredRecoveryDay.map { TodayRules.lastChargeDateFmt($0.day) },
             carriedStale: lastScoredRecoveryDay.map {
-                Self.isCarryStale(priorDayKey: $0.day, todayKey: selectedDayKey)
+                TodayRules.isCarryStale(priorDayKey: $0.day, todayKey: selectedDayKey)
             } ?? false)
     }
 
@@ -917,42 +847,6 @@ struct TodayView: View {
         return Self.todayScoreProviderLabel(sourceId: provider.sourceId, brand: provider.brand)
     }
 
-    /// PURE mapper (unit-testable), a raw resolver source id onto the spec's provenance labels, given
-    /// the strap's real `deviceId`. ANY NOOP-computed strap sibling (a "-noop"-suffixed id, not just the
-    /// active strap's) reads "On-device" — matching by suffix so a computed row from a non-active strap
-    /// can't fall through to `FusionSource.noopComputed`'s raw "NOOP" displayName; the imported strap source
-    /// (`deviceId`, normally "my-whoop") reads "Whoop"; the Apple-Health source reads "Apple Health".
-    /// Any other real source (Mi Band, Health Connect, nutrition) keeps its `FusionSource.displayName`
-    ///, still the genuine merge winner, never a blanket claim. Mirror EXACTLY in Kotlin.
-    static func provenanceDisplayLabel(rawSource: String, deviceId: String) -> String {
-        if rawSource.hasPrefix(vo2MaxAttributionPrefix) {
-            let raw = String(rawSource.dropFirst(vo2MaxAttributionPrefix.count))
-            let method = vo2MaxEstimatorDisplayName(Vo2MaxEstimator(rawValue: raw))
-            return "\(String(localized: "On-device")) · \(method)"
-        }
-        // #103/queue-11a follow-up: the Explorer's spo2 candidate-fallback rows (see
-        // `spo2CandidateAttributionSource`) must read "strap estimate (unverified)", the SAME copy every
-        // other candidate-fallback surface uses — never a device name, which would misrepresent an
-        // unvalidated estimate as a calibrated reading in this table's Source column.
-        if rawSource == spo2CandidateAttributionSource {
-            return String(localized: "strap estimate (unverified)")
-        }
-        if rawSource.hasSuffix("-noop") { return String(localized: "On-device") }
-        if rawSource == deviceId || rawSource == Repository.whoopSource { return Self.whoopBrandName }
-        if rawSource == Repository.appleHealthSource { return "Apple Health" }
-        // Localize the non-brand source names here rather than exposing the analytics layer's
-        // intentionally locale-free wire/display vocabulary on Home.
-        switch FusionSource(rawValue: rawSource) {
-        case .healthConnect: return "Health Connect"
-        case .xiaomiBand:    return "Mi Band"
-        case .nutritionCsv:  return String(localized: "Nutrition")
-        case .localCache:    return String(localized: "Cached")
-        case .whoopImport:   return Self.whoopBrandName
-        case .noopComputed:  return String(localized: "On-device")
-        case .appleHealth:   return "Apple Health"
-        case nil:            return rawSource
-        }
-    }
 
     /// The tint for a provenance badge, gold for Whoop, cyan for Apple Health, the positive status hue
     /// for on-device, matching the Data Sources footer so the same source reads the same colour on Today.
@@ -991,7 +885,7 @@ struct TodayView: View {
     /// provenance label so Whoop / on-device read identically to the footer.
     static func todayProvenanceChipLabel(rawSource: String, deviceId: String, appleHealthSource: String) -> String {
         if rawSource == appleHealthSource { return "Apple Watch" }
-        return provenanceDisplayLabel(rawSource: rawSource, deviceId: deviceId)
+        return TodayRules.provenanceDisplayLabel(rawSource: rawSource, deviceId: deviceId)
     }
 
     /// Today hero wording names the provider that supplied the score inputs, not where NOOP ran the math.
@@ -1011,9 +905,9 @@ struct TodayView: View {
         }
 
         if let brand = brand?.trimmingCharacters(in: .whitespacesAndNewlines), !brand.isEmpty {
-            return brand.caseInsensitiveCompare("WHOOP") == .orderedSame ? Self.whoopBrandName : brand
+            return brand.caseInsensitiveCompare("WHOOP") == .orderedSame ? TodayRules.whoopBrandName : brand
         }
-        if source == Repository.whoopSource { return Self.whoopBrandName }
+        if source == Repository.whoopSource { return TodayRules.whoopBrandName }
         switch FusionSource(rawValue: sourceId) {
         case .nutritionCsv: return String(localized: "Nutrition")
         case .localCache: return String(localized: "Cached")
@@ -1074,23 +968,6 @@ struct TodayView: View {
         return watchScoreState(metricKey) == .calibrating
     }
 
-    /// Parses a stored `yyyy-MM-dd` day key in the device-local zone (matching how DailyMetric.day
-    /// is written), local so a key never shifts a day under timezone conversion.
-    private static let dayKeyParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-    /// "d MMM" for a stored `yyyy-MM-dd` day key, used by the carried-over Charge caption (#543). Falls
-    /// back to the raw key if it can't be parsed so the caption is never empty.
-    private static func lastChargeDateFmt(_ dayKey: String) -> String {
-        guard let date = dayKeyParser.date(from: dayKey) else { return dayKey }
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("dMMM")
-        return f.string(from: date)
-    }
 
     /// On-device training-readiness synthesis (HRV / resting-HR / load). Read through the
     /// memoized cache so the full-history sort inside `evaluate` runs once per data change,
@@ -2301,7 +2178,7 @@ struct TodayView: View {
                 // S4 (#205): the one-word readiness read kept on the hero now the full Readiness card folded
                 // into the Charge-ring tap. Push / Maintain / Rest, derived from the existing Readiness
                 // level; hidden when there isn't enough history (nil word). Sits beside the confidence pill.
-                if let word = Self.readinessWord(readiness.level) {
+                if let word = TodayRules.readinessWord(readiness.level) {
                     readinessHeroPill(word)
                 }
                 recoveryStatePill(score: score)
@@ -4235,7 +4112,7 @@ struct TodayView: View {
                         .accessibilityLabel("Hide data source detail")
                         Divider().overlay(StrandPalette.hairline)
                         sourceRow(
-                            badge: Self.whoopBrandName,
+                            badge: TodayRules.whoopBrandName,
                             tint: StrandPalette.accent,
                             present: !repo.days.isEmpty,
                             detail: localizedCountPair(localizedDayCount(repo.days.count),
@@ -4950,7 +4827,7 @@ struct TodayView: View {
         // tail night is still fresh. #977: a live 5.0 whose sleep never scores used to pin Rest to the
         // weeks-old series tail forever; gate the tail-fallback on freshness so a stale tail falls through
         // to the No-Data state instead of freezing.
-        let restScoreLocal = Self.freshRestScore(
+        let restScoreLocal = TodayRules.freshRestScore(
             todayValue: restByDay[selectedDayKey], lastDay: restSeries.last?.day,
             lastValue: restSeries.last?.value, isTodaySelected: selectedDayOffset == 0,
             todayKey: selectedDayKey)
@@ -5082,7 +4959,7 @@ struct TodayView: View {
         // Sleep session overlapping the window. Uses `allSleepSessions` (BOTH the imported and the
         // on-device COMPUTED source), a Bluetooth-only user's sleep lives under the computed source,
         // so the imported-only `sleepSessions` returns nothing. Keep blocks that actually overlap the
-        // displayed window, then resolve the day's bridged MAIN-night span via `SleepView.mainNightSpan`
+        // displayed window, then resolve the day's bridged MAIN-night span via `SleepRules.mainNightSpan`
         // (offloaded to the Sleep tab hero and `AnalyticsEngine`'s daily total), not an ad hoc "longest
         // single block" pick — that could disagree with the Sleep tab and the Coupled view's bed→wake
         // read for a night stored as more than one block (#294). Drives the HR sleep band + the recovery
@@ -5090,7 +4967,7 @@ struct TodayView: View {
         let overlapping = await repo.allSleepSessions(days: selectedDayOffset + 2)
             .filter { $0.endTs > windowStart && $0.startTs < windowEndExclusive }
         let habitualMidsleepSecLocal = await repo.habitualMidsleepSec()
-        let sleepTodayLocal = SleepView.mainNightSpan(overlapping, habitualMidsleepSec: habitualMidsleepSecLocal)
+        let sleepTodayLocal = SleepRules.mainNightSpan(overlapping, habitualMidsleepSec: habitualMidsleepSecLocal)
             .map { span in
                 CachedSleepSession(startTs: span.start, endTs: span.end,
                                    efficiency: nil, restingHr: nil, avgHrv: nil, stagesJSON: nil)
@@ -5304,12 +5181,12 @@ struct TodayView: View {
     private func sleepSourceSubtitle(_ d: DailyMetric?) -> String? {
         guard let d, d.totalSleepMin != nil else { return nil }
         let source = repo.importedSleep[d.day] != nil
-            ? Self.whoopBrandName : String(localized: "On-device")
+            ? TodayRules.whoopBrandName : String(localized: "On-device")
         // At offset 0 the row IS last night; a navigated past day names its real date so the label never
         // over-claims "last night".
         let night = selectedDayOffset == 0
             ? String(localized: "last night")
-            : Self.lastChargeDateFmt(d.day)
+            : TodayRules.lastChargeDateFmt(d.day)
         return String(localized: "\(source) · \(night)")
     }
 
@@ -5440,52 +5317,7 @@ private struct TodayLoadKey: Equatable {
     let dayCycleMode: String
 }
 
-/// #849: an in-memory snapshot of everything `loadHistoryWide()` computes: the ~40 history-wide reads +
-/// the per-workout strap-HR derivation. Held on the long-lived `Repository` (NOT TodayView's `@State`),
-/// keyed by the `refreshSeq` it was built at, so a Today RE-MOUNT (TabView/module switch, or an
-/// Apple-Health import that recreates the view, both tear down `@State`) can RESTORE these values without
-/// re-running the heavy query pass. Restoring is a handful of in-memory assignments; the old code instead
-/// re-ran the full history-wide reload on every re-mount, which is the lag #849 reports returning to Today
-/// after an import. Built only after a real `loadHistoryWide()`; consumed when the seq still matches.
-struct TodayHistoryWideCache {
-    let sparks: [String: [Double]]
-    let stepsEstByDay: [String: Int]
-    let workouts: [WorkoutRow]
-    let appleDays: [AppleDaily]
-    let xiaomiDays: Int
-    let xiaomiSleeps: Int
-    let stressToday: Double?
-    let fitnessAgeToday: Double?
-    let vo2maxToday: Double?
-    let vitalityToday: Double?
-    // Hydration total/goal intentionally absent (#989): mutations don't bump refreshSeq, so a cached
-    // value could restore stale. TodayView re-reads hydration live on restore instead.
-}
 
-/// #849/#932: an in-memory snapshot of everything `loadDayScoped()` computes for ONE viewed day: the Rest
-/// score + its tile spark, the provenance winners, the selected day's 5-minute HR buckets, the day's step
-/// activity class, the live Effort, the pinned chart axis and the overlapping sleep band. Held on the
-/// long-lived `Repository` (NOT TodayView's `@State`), keyed by the (`refreshSeq`, viewed-day key) it was
-/// built at, so a Today RE-MOUNT with unchanged data (macOS cold-mounts the screen on every sidebar switch)
-/// can RESTORE these values without re-running the heavy `hrBuckets`/`hrSamples` reads, 170k+ HR rows/day
-/// on a big library, the measured #932 frame degradation. The day key half of the pair is what makes day
-/// navigation safe: another day's snapshot can never be served because its key differs. Built only after a
-/// real `loadDayScoped()`; consumed when BOTH the seq AND the day key still match (see
-/// `Repository.todayDayScopedLoadedSeq` / `todayDayScopedLoadedDayKey`).
-struct TodayDayScopedCache {
-    let restSpark: [Double]
-    let restScore: Double?
-    let provenanceByMetric: [String: String]
-    let providerByMetric: [String: ScoreInputProvider]
-    let hrPoints: [TrendPoint]
-    let stepActivityClassToday: Int?
-    let liveTodayStrain: Double?
-    let hrAxis: ClosedRange<Date>
-    let sleepToday: CachedSleepSession?
-    /// When the snapshot was banked. TODAY hits are age-gated on this (`todayCacheMaxAge`): live banking
-    /// does not bump `refreshSeq`, so an unbounded today snapshot would drift behind the 1Hz stream.
-    let bankedAt: Date
-}
 
 // MARK: - Live-observing leaf subviews (scroll-stutter isolation)
 //
@@ -5494,55 +5326,6 @@ struct TodayDayScopedCache {
 // ~1 Hz publish re-renders only the affected dot / note / row, never the rings, scene, sparklines,
 // HR chart or cards. They render byte-for-byte what the inline code did before the extraction.
 
-/// #245: the sync-status state used by the Devices screen's larger sync card, resolved once from
-/// `LiveState`. THREE states mean the ABSENCE of active syncing reads as "caught up", not
-/// "missing indicator" (the real #245 confusion): actively offloading → `⟳ N`; idle with a known
-/// last-sync → `✓ Xm`; a 5/MG whose history sync is experimental (live-connected, no completed offload
-/// yet) → `✓ live`. `.hidden` only on a true cold start (the building-scores note owns that case). Twin
-/// of Android `SyncStatusChip`.
-enum SyncChipState: Equatable {
-    /// #689/#815 follow-up: `pagesBehind` is the strap's GET_DATA_RANGE ring backlog, sampled once at
-    /// connect (`LiveState.pagesBehindAtConnect`) and never re-polled, so the copy reports it "at
-    /// connect" rather than as a live figure. nil when no reply has landed this session, when the frame
-    /// did not decode, AND when the backlog is zero: a chip that is actively syncing while claiming
-    /// "0 pages behind" contradicts itself, and a zero sample carries nothing a reader can act on.
-    /// `resolve` applies that rule so both platforms drop the same case. Twin of Android
-    /// `SyncChipState.Syncing`.
-    case syncing(chunks: Int, pagesBehind: Int?)
-    case synced(agoText: String)
-    case experimentalLive
-    case hidden
-
-    @MainActor
-    static func resolve(live: LiveState) -> SyncChipState {
-        if live.backfilling {
-            // The zero rule above. Negative cannot come off the wire (the decoder returns a ring delta),
-            // but the bound reads the same either way. Android spells this `?.takeIf { it > 0 }`.
-            return .syncing(chunks: live.syncChunksThisSession,
-                            pagesBehind: live.pagesBehindAtConnect.flatMap { $0 > 0 ? $0 : nil })
-        }
-        if let ts = live.lastSyncedAt { return .synced(agoText: shortAgo(ts)) }
-        if live.historySyncExperimental { return .experimentalLive }
-        return .hidden
-    }
-
-    /// Compact relative age for the status card ("<1m" / "Nm" / "Nh" / "Nd") — deliberately terse.
-    ///
-    /// EVERY branch must read correctly with a trailing "ago", because that is the only way this value is
-    /// ever consumed (`DevicesView` wraps it in "Synced %@ ago" and "Strap history synced %@ ago"). The
-    /// sub-minute branch used to return the word "now", which produced the user-visible "Synced now ago"
-    /// for the first minute after any sync (#1472). "<1m" composes; it also needs no catalog entry, being
-    /// digits and symbols in every language.
-    private static func shortAgo(_ ts: TimeInterval) -> String {
-        let secs = max(0, Int(Date().timeIntervalSince1970 - ts))
-        if secs < 60 { return "<1m" }
-        let mins = secs / 60
-        if mins < 60 { return "\(mins)m" }
-        let hrs = mins / 60
-        if hrs < 24 { return "\(hrs)h" }
-        return "\(hrs / 24)d"
-    }
-}
 
 /// The compact 36pt recording-status light in the iOS top bar, a colour-coded dot (green recording,
 /// amber last-synced, red not recording, accent for experimental 5.0 history). Taps to Devices. Owns

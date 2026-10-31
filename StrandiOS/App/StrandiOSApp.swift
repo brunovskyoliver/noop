@@ -29,7 +29,7 @@ struct StrandiOSApp: App {
     /// double-tap handler. See `LiftSessionController`.
     @StateObject private var liftSession: LiftSessionController
     @Environment(\.scenePhase) private var scenePhase
-    /// Chart data-colour style (Titanium / Classic throwback). Re-colours gauges + charts.
+    /// Chart data-colour style (Titanium / throwback). Re-colours gauges + charts.
     @AppStorage(ChartStyle.storageKey) private var chartStyleRaw = ChartStyle.titanium.rawValue
     /// Chrome accent colour (mint / WHOOP blue / custom). Chrome only — never the data colour worlds.
     @AppStorage(AccentColor.storageKey) private var accentRaw = AccentColor.mint.rawValue
@@ -517,6 +517,7 @@ private struct iOSRootView: View {
     /// automatic What's New sheet. It becomes true only when no sheet is due or its dismissal completes.
     @State private var automaticLaunchSheetResolved = false
 
+    @ViewBuilder
     var body: some View {
         #if DEBUG
         // DEBUG-only: `--demo-screen <name>` renders one screen full-bleed (gates bypassed) so a
@@ -525,16 +526,17 @@ private struct iOSRootView: View {
         if let demo = DemoScreens.requested {
             // Inherit the app appearance (set via the Theme picker, or `-theme.appearance light|dark`
             // in the launch arguments) so demo/marketing shots can be taken in either scheme.
-            return AnyView(
-                NavigationStack {
-                    demo
-                        .background(BroopBackground())
-                        .navigationBarTitleDisplayMode(.inline)
-                }
-            )
+            NavigationStack {
+                demo
+                    .background(BroopBackground())
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        } else {
+            shell
         }
+        #else
+        shell
         #endif
-        return AnyView(shell)
     }
 
     private var shell: some View {

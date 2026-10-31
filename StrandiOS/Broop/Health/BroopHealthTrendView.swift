@@ -5,7 +5,7 @@ import StrandDesign
 import WhoopStore
 
 /// Broop Trend View (`.metric(key:source:)`), the WHOOP trend template for every `MetricCatalog` metric.
-/// Rebuilt from the classic `MetricDetailView`: the same loads (explorer series + per-day provenance, the
+/// Rebuilt from the `MetricDetailView`: the same loads (explorer series + per-day provenance, the
 /// steps calendar projection, the SpO₂ candidate fill, the skin-temperature lead rule, the VO₂max estimator
 /// attribution), the same range gating and auto-widen, the same statistics and correlation scan. What is
 /// new is presentation only: the metric switcher, the W | M | 6M control with paging back through
@@ -82,7 +82,7 @@ struct BroopHealthTrendView: View {
         return Int(b.timeIntervalSince(a) / 86_400)
     }
 
-    /// The classic #943 gate: a longer range unlocks once history exceeds the range below it.
+    /// the #943 gate: a longer range unlocks once history exceeds the range below it.
     private func isUnlocked(_ r: ExploreRange) -> Bool {
         guard loaded, !series.isEmpty else { return true }
         switch r {
@@ -116,7 +116,7 @@ struct BroopHealthTrendView: View {
         return MetricDetailSteps.presentation(readings: series, range: r, anchorDay: page == 0 ? nil : end).series
     }
 
-    /// Selected range, widened (on the latest window only) when it holds nothing — the classic rule.
+    /// Selected range, widened (on the latest window only) when it holds nothing — the rule.
     private var effective: ExploreRange {
         guard !series.isEmpty, page == 0 else { return coerced }
         let candidates = isSteps ? MetricDetailSteps.widening(from: coerced) : coerced.widening
@@ -579,7 +579,7 @@ struct BroopHealthTrendView: View {
         }
     }
 
-    // MARK: Load (classic MetricDetailView.load, phase 1 then phase 2)
+    // MARK: Load (MetricDetailView.load, phase 1 then phase 2)
 
     private func load() async {
         let m = metric

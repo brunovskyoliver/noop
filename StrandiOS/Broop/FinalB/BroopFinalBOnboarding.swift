@@ -7,17 +7,17 @@ import StrandDesign
 /// The Broop face of `OnboardingWizard`, styled after WHOOP's onboarding: dark canvas, back chevron,
 /// a grey illustration over a large sentence-case title, and a white capsule pinned at the bottom.
 ///
-/// Same twelve steps in the same order as the classic wizard, doing the same things: the scan and
+/// Same twelve steps in the same order as the wizard, doing the same things: the scan and
 /// disconnect calls on `AppModel`, the `selectedWhoopModel` choice, the profile fields bound straight to
 /// `ProfileStore` and the unit prefs, the WHOOP / Apple Health importers, the one notification
-/// permission request on leaving the Notifications step, and the appearance pref. It only calls
+/// permission request on leaving the Notifications step. It only calls
 /// `onFinished()`; the caller owns what finishing stores (`noop.onboarded`).
 struct BroopFinalBOnboardingWizard: View {
     var onFinished: () -> Void
 
     // Mirrors `OnboardingWizard.Step` one for one.
     fileprivate enum Step: Int, CaseIterable {
-        case welcome, what, expectations, bluetooth, wear, scan, bonded, profile, importData, notifications, appearance, done
+        case welcome, what, expectations, bluetooth, wear, scan, bonded, profile, importData, notifications, done
         var isFirst: Bool { self == .welcome }
         var isLast: Bool { self == .done }
     }
@@ -26,7 +26,7 @@ struct BroopFinalBOnboardingWizard: View {
     /// The Scan step's "Don't see it?" card, lifted here so the top bar's HELP pill can open it.
     @State private var scanHelpOpen = false
 
-    // Like the classic root, this view does not observe the fast-moving live objects; the steps that
+    // Like the root, this view does not observe the fast-moving live objects; the steps that
     // need them do, and a hidden watcher handles the bond transition.
     var body: some View {
         ZStack {
@@ -66,7 +66,6 @@ struct BroopFinalBOnboardingWizard: View {
         case .profile: BroopFinalBProfileStep()
         case .importData: BroopFinalBImportStep()
         case .notifications: BroopFinalBNotificationsStep()
-        case .appearance: BroopFinalBAppearanceStep()
         case .done: BroopFinalBDoneStep()
         }
     }
@@ -127,7 +126,7 @@ struct BroopFinalBOnboardingWizard: View {
         if step.isLast { onFinished() } else { advance() }
     }
 
-    /// Same as the classic wizard: leaving Notifications is the one point onboarding asks the OS for
+    /// Same as the wizard: leaving Notifications is the one point onboarding asks the OS for
     /// notification permission, only when not yet determined, and it advances once the dialog closes.
     private func advance() {
         guard step != .notifications else {
@@ -266,7 +265,7 @@ private struct BroopFinalBExpectationsStep: View {
                         BroopFinalBOnbInfoRow(symbol: e.icon, title: e.title, message: e.body)
                         BroopHairline()
                     }
-                    // The iPhone-only reality, as the classic wizard states it.
+                    // The iPhone-only reality, as the wizard states it.
                     BroopFinalBOnbInfoRow(
                         symbol: "iphone.gen3",
                         title: String(localized: "Installed outside the App Store"),
@@ -311,7 +310,7 @@ private struct BroopFinalBWearStep: View {
 }
 
 /// WHOOP's "SEARCHING FOR STRAP..." page: caps status, grey hint, a large visual, and the pairing
-/// controls below. Same actions as the classic Scan step.
+/// controls below. Same actions as the Scan step.
 private struct BroopFinalBScanStep: View {
     @Binding var showHelp: Bool
     @EnvironmentObject private var model: AppModel
@@ -422,7 +421,7 @@ private struct BroopFinalBScanStep: View {
         scanning = true
         showHelp = false
         model.scan(model: modelToScan)
-        // Same calm beat as the classic step before the "can't find it" card appears.
+        // Same calm beat as the step before the "can't find it" card appears.
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
             if !live.bonded {
                 scanning = false
@@ -587,7 +586,7 @@ private struct BroopFinalBBondedStep: View {
 }
 
 /// WHOOP's name page carries caps labels over dark fields; the profile step uses the same fields, bound
-/// straight to `ProfileStore` and the unit prefs exactly as the classic step is.
+/// straight to `ProfileStore` and the unit prefs exactly as the step is.
 private struct BroopFinalBProfileStep: View {
     @EnvironmentObject private var profile: ProfileStore
 
@@ -641,7 +640,7 @@ private struct BroopFinalBProfileStep: View {
                         raw == UnitSystem.metric.rawValue ? String(localized: "Kilometres") : String(localized: "Miles")
                     }
                 }
-                // Same ranges and steps as the classic steppers.
+                // Same ranges and steps as the steppers.
                 field(String(localized: "Weight")) {
                     stepperField(value: UnitFormatter.massFromKilograms(profile.weightKg, system: unitSystem),
                                  binding: $profile.weightKg, range: 30...250, step: 0.5)
@@ -708,7 +707,7 @@ private struct BroopFinalBImportStep: View {
                     ProgressView().controlSize(.small).tint(BroopPalette.textPrimary)
                         .frame(maxWidth: .infinity)
                 }
-                // Styled off the typed failure flag, as the classic step does.
+                // Styled off the typed failure flag, as the step does.
                 if let summary = lastSummary {
                     Text(verbatim: summary)
                         .font(BroopType.medium(14))
@@ -773,7 +772,7 @@ private struct BroopFinalBImportStep: View {
 
     private enum ImportTarget {
         case whoop, appleHealth
-        // iOS offers only concrete file types (#179), as the classic step does.
+        // iOS offers only concrete file types (#179), as the step does.
         var allowedContentTypes: [UTType] {
             switch self {
             case .whoop: return [.zip]
@@ -798,29 +797,6 @@ private struct BroopFinalBNotificationsStep: View {
                 }
                 BroopFinalBOnbCheckline(text: String(localized: "Strain nudges and your smart alarm tap your wrist the moment they fire."))
                 BroopFinalBOnbCheckline(text: String(localized: "It all stays on your strap and \(Platform.deviceNounPhrase): no account, no cloud."))
-            }
-        }
-    }
-}
-
-/// The classic appearance choice, kept so the pref is still set during onboarding. Broop itself is
-/// always dark, so the page says the choice applies to the classic design.
-private struct BroopFinalBAppearanceStep: View {
-    @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
-    private var binding: Binding<AppearanceMode> {
-        Binding(get: { AppearanceMode(rawValue: appearanceRaw) ?? .system },
-                set: { appearanceRaw = $0.rawValue })
-    }
-
-    var body: some View {
-        BroopFinalBPage(symbol: "circle.lefthalf.filled", title: String(localized: "Make it yours"),
-                        subtitle: String(localized: "Broop always uses its dark look. Pick how the classic design looks if you switch to it. You can change this any time in Settings → Appearance."),
-                        centered: true) {
-            VStack(alignment: .leading, spacing: 14) {
-                BroopFinalBOnbFieldLabel(text: String(localized: "Classic appearance"))
-                BroopFinalBOnbSegmented(options: AppearanceMode.allCases, selection: binding) { $0.label }
-                BroopFootnote(text: String(localized: "System follows your \(Platform.deviceNoun)'s light or dark setting."))
-                    .padding(.horizontal, 4)
             }
         }
     }

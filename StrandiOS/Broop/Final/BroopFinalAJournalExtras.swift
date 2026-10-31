@@ -3,8 +3,8 @@ import SwiftUI
 import Combine
 
 // The two "More to log" pages under the Journal, rebuilt in Broop form: Caffeine and the Mood check-in.
-// Both keep the classic logic and stores (`CaffeineLogStore`, `CaffeineDecay`, `MoodStore`, `Repository`) and
-// the classic copy; only the layout is new.
+// Both keep the logic and stores (`CaffeineLogStore`, `CaffeineDecay`, `MoodStore`, `Repository`) and
+// the copy; only the layout is new.
 
 // MARK: - Caffeine
 
@@ -278,7 +278,7 @@ struct BroopFinalACaffeinePage: View {
 // MARK: - Mood
 
 /// Mood check-in: five faces for today (one row per local day, edits overwrite), then the gated lines on which
-/// body signals move with mood (`MindSection.insightLines`, the classic rule) and the standing footnote.
+/// body signals move with mood (`MindSection.insightLines`, the rule) and the standing footnote.
 struct BroopFinalAMoodPage: View {
     @EnvironmentObject private var repo: Repository
     @State private var todayMood: Int?

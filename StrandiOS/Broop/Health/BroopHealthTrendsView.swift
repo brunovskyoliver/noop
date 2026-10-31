@@ -8,7 +8,7 @@ import WhoopStore
 /// Broop Trends (`.trends`): WHOOP's My Dashboard as a trends overview. Rebuilt from the classic
 /// `TrendsView`: the week-in-review digest with week browsing and a shareable recap, a dashboard row per
 /// headline metric (latest vs. the 30 days before it, each opening its Trend View), the long-horizon
-/// training load, the Charge calendar and the PDF trends report. The classic Charge hero and HRV / RHR /
+/// training load, the Charge calendar and the PDF trends report. the Charge hero and HRV / RHR /
 /// Effort small multiples live on as those metrics' Trend Views, which carry the same range control.
 struct BroopHealthTrendsView: View {
     @EnvironmentObject private var repo: Repository

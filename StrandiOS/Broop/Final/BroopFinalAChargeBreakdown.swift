@@ -83,7 +83,7 @@ struct BroopFinalAChargeBreakdown: View {
     }
 }
 
-/// CALIBRATING / EST. / REL. as a small tag, the classic tier words from `ChargeBreakdownFormat`.
+/// CALIBRATING / EST. / REL. as a small tag, the tier words from `ChargeBreakdownFormat`.
 struct BroopFinalAConfidenceTag: View {
     let confidence: ScoreConfidence
 

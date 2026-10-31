@@ -3,7 +3,7 @@ import SwiftUI
 
 // Settings pages rebuilt in Broop form: Storage, About Apple Watch data and the Apple Watch setup sheet.
 // Same model calls (`AppModel.storageReport` / `cleanUpStorage`, `HealthKitBridge.requestAuthorization`) and
-// the classic copy (the watch capability table is `AppleWatchAboutView.metrics` itself).
+// the copy (the watch capability table is `AppleWatchAboutView.metrics` itself).
 
 // MARK: - Storage
 
@@ -65,7 +65,7 @@ struct BroopFinalAStoragePage: View {
                 if let note { BroopCaps(note, size: 9, color: BroopPalette.warning) }
             }
             Spacer()
-            Text(verbatim: bytes.map(StorageView.format) ?? "—")
+            Text(verbatim: bytes.map(StorageFormat.format) ?? "—")
                 .font(BroopType.number(18))
                 .foregroundStyle(BroopPalette.textPrimary)
         }
@@ -79,7 +79,7 @@ struct BroopFinalAStoragePage: View {
         return BroopAccountSection(title: String(localized: "Clean up")) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(reclaimable > 0
-                     ? "There's about \(StorageView.format(reclaimable)) of leftover import scratch space to reclaim. This never removes your imported data."
+                     ? "There's about \(StorageFormat.format(reclaimable)) of leftover import scratch space to reclaim. This never removes your imported data."
                      : "Nothing to reclaim right now. NOOP already cleans up import scratch space automatically.")
                     .font(BroopType.regular(14))
                     .foregroundStyle(BroopAccountStyle.caption)
@@ -109,7 +109,7 @@ struct BroopFinalAStoragePage: View {
         let r = await model.cleanUpStorage()
         let freed = max(0, before - (r.inbox + r.importTemp))
         report = r
-        lastCleanedSummary = freed > 0 ? String(localized: "Reclaimed \(StorageView.format(freed)).") : String(localized: "Already clean.")
+        lastCleanedSummary = freed > 0 ? String(localized: "Reclaimed \(StorageFormat.format(freed)).") : String(localized: "Already clean.")
         cleaning = false
     }
 }

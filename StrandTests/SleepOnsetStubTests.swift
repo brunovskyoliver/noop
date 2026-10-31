@@ -26,36 +26,36 @@ final class SleepOnsetStubTests: XCTestCase {
 
     /// A brief, all-awake leading block (15 min, 0 asleep) IS a spurious pre-onset stub.
     func testBriefAllAwakeIsStub() {
-        XCTAssertTrue(SleepView.isPreOnsetAwakeStub(spanMin: 15, asleepMin: 0))
+        XCTAssertTrue(SleepRules.isPreOnsetAwakeStub(spanMin: 15, asleepMin: 0))
     }
 
     /// A short block that already holds real sleep (12 min span, 8 asleep) is NOT a stub — it's sleep.
     func testShortButAsleepIsNotStub() {
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 12, asleepMin: 8))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 12, asleepMin: 8))
     }
 
     /// THE #736 SHAPE: a LONG all-awake pre-sleep block (the reporter's 21:41 → 00:27, ~2h45m, 0 asleep) IS a
     /// spurious stub — a multi-hour lie-in before sleep is not part of the night, so it must drop off the
     /// displayed bedtime. The tight old cap missed this; the sleepless test is what keeps it safe.
     func testLongAllAwakePreSleepBlockIsStub() {
-        XCTAssertTrue(SleepView.isPreOnsetAwakeStub(spanMin: 165, asleepMin: 0))
+        XCTAssertTrue(SleepRules.isPreOnsetAwakeStub(spanMin: 165, asleepMin: 0))
     }
 
     /// A truly absurd all-day awake block (> cap) is NOT silently swallowed — the cap is the only guard left.
     func testBeyondCapIsNotStub() {
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: SleepView.preOnsetStubMaxMin + 1, asleepMin: 0))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: SleepRules.preOnsetStubMaxMin + 1, asleepMin: 0))
     }
 
     /// Boundary: exactly at both thresholds (cap span, 3 asleep) still counts as a stub (inclusive <=).
     func testAtThresholdsIsStub() {
-        XCTAssertTrue(SleepView.isPreOnsetAwakeStub(spanMin: SleepView.preOnsetStubMaxMin,
-                                                    asleepMin: SleepView.preOnsetStubAsleepMaxMin))
+        XCTAssertTrue(SleepRules.isPreOnsetAwakeStub(spanMin: SleepRules.preOnsetStubMaxMin,
+                                                    asleepMin: SleepRules.preOnsetStubAsleepMaxMin))
     }
 
     /// Just over the asleep threshold (4 min asleep) is real sleep, not a stub.
     func testJustOverAsleepThresholdIsNotStub() {
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 10,
-                                                     asleepMin: SleepView.preOnsetStubAsleepMaxMin + 1))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 10,
+                                                     asleepMin: SleepRules.preOnsetStubAsleepMaxMin + 1))
     }
 
     /// #259: a leading fragment carrying SOME sleep (over the 3-min sleepless cap) but MINOR relative to the
@@ -64,15 +64,15 @@ final class SleepOnsetStubTests: XCTestCase {
     /// callers stay byte-identical.
     func testMinorRelativeLeadingFragmentIsStub() {
         // 30 min span, 10 asleep; main block asleep 400 -> 10 < 0.15*400 = 60 -> spurious.
-        XCTAssertTrue(SleepView.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10, refAsleepMin: 400))
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10))
+        XCTAssertTrue(SleepRules.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10, refAsleepMin: 400))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10))
     }
 
     /// #259 guard: a substantial earlier sleep (comparable to the main block) is a genuine biphasic first
     /// sleep and is NEVER dropped, even with a reference size.
     func testSubstantialBiphasicFragmentIsNotStubEvenWithRef() {
         // 90 asleep vs main block 240 -> 90 >= 0.15*240 = 36 -> kept.
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 100, asleepMin: 90, refAsleepMin: 240))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 100, asleepMin: 90, refAsleepMin: 240))
     }
 
     /// #259 GOLDEN at the walk level: a minor leading SLEEP fragment (10 asleep, over the old 3-min cap but
@@ -152,20 +152,20 @@ final class SleepOnsetStubTests: XCTestCase {
     /// The per-fragment rule: a real 34-min sleep episode beside a 340-min main is NOT a stub, even though
     /// it is under 15% of the main (the old relative test's flaw for long nights). The floor is what keeps it.
     func testRealFirstSleepFragmentIsNotStub() {
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 66.8, asleepMin: 34, refAsleepMin: 340))
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 66.8, asleepMin: 34, refAsleepMin: 340))
     }
 
     /// Floor boundary: a fragment carrying at least `preOnsetStubMinorAsleepFloorMin` asleep minutes is a
     /// real sleep episode and never a spurious lead, whatever the main block's size.
     func testAtMinorAsleepFloorIsNotStub() {
-        XCTAssertFalse(SleepView.isPreOnsetAwakeStub(spanMin: 40,
-                                                     asleepMin: SleepView.preOnsetStubMinorAsleepFloorMin,
+        XCTAssertFalse(SleepRules.isPreOnsetAwakeStub(spanMin: 40,
+                                                     asleepMin: SleepRules.preOnsetStubMinorAsleepFloorMin,
                                                      refAsleepMin: 1000))
     }
 
     /// The floor does NOT reopen #736/#259: a tiny stray sleep lead (10 asleep, under the floor AND under
     /// 15% of a big main) is still a spurious lead, so those goldens above stay green.
     func testTinyStrayLeadStillStubUnderFloor() {
-        XCTAssertTrue(SleepView.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10, refAsleepMin: 400))
+        XCTAssertTrue(SleepRules.isPreOnsetAwakeStub(spanMin: 30, asleepMin: 10, refAsleepMin: 400))
     }
 }

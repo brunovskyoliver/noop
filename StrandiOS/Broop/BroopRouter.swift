@@ -8,8 +8,8 @@ import StrandDesign
 /// views: `BroopOverviewScreens` (sleep and score deep dives), `BroopActivityScreens` (workouts, live,
 /// strength, breathing), `BroopHealthScreens` (health monitor, stress, trends, metric pages),
 /// `BroopInsightsScreens` (journal, insights, coach, alarms) and `BroopAccountScreens` (settings,
-/// devices, data, integrations). Classic `TabRoute` pushes made from inside any screen land here too, so
-/// nothing reachable from the Broop shell falls back to the classic interface by accident.
+/// devices, data, integrations). `TabRoute` pushes made from inside any screen land here too, so
+/// nothing reachable from the Broop shell falls back to the interface by accident.
 enum BroopScreen: Hashable, Identifiable {
     // Overview
     case sleep, fullDayChart, coupled
@@ -121,7 +121,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Registers every value route a Broop stack can push: `BroopScreen`, classic `TabRoute`, the score
+    /// Registers every value route a Broop stack can push: `BroopScreen`, `TabRoute`, the score
     /// deep dives (`BroopRoute`) and the Account sub-pages (`BroopAccountRoute`). Apply once to the root
     /// content of each stack (a double registration double-pushes) and nowhere else.
     ///
@@ -141,9 +141,9 @@ extension View {
             .navigationDestination(for: BroopAccountRoute.self) { BroopAccountRouteView(route: $0) }
     }
 
-    /// Chrome for a classic screen shown inside a Broop stack: the Broop background, a visible inline
-    /// bar with a back button, and the classic accent.
-    func broopClassicScreen() -> some View {
+    /// Chrome for a screen shown inside a Broop stack: the Broop background, a visible inline
+    /// bar with a back button, and the accent.
+    func broopHostedScreen() -> some View {
         self
             .background(BroopBackground())
             .navigationBarTitleDisplayMode(.inline)

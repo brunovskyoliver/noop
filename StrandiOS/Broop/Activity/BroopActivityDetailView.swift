@@ -7,7 +7,7 @@ import StrandImport
 import WhoopStore
 
 /// The row actions a detail screen can offer, supplied by the list that owns the reload and the sheets.
-/// Which ones apply follows the classic row menu: detected bouts relabel / edit / dismiss, manual rows
+/// Which ones apply follows the row menu: detected bouts relabel / edit / dismiss, manual rows
 /// edit / delete, imported history duplicates as manual and is otherwise read-only.
 struct BroopActivityRowActions {
     var edit: (WorkoutRow) -> Void
@@ -41,7 +41,7 @@ struct BroopActivityRowActions {
     }
 }
 
-/// WHOOP's activity detail over the classic `WorkoutDetailView` data: the session Effort, the heart-rate
+/// WHOOP's activity detail over the `WorkoutDetailView` data: the session Effort, the heart-rate
 /// curve across the session, the zone split (imported WHOOP percentages when the row has them, else the
 /// strap's own heart rate binned into the wearer's zones), key statistics, heart-rate recovery, and the
 /// recorded GPS route with its GPX / FIT export.
@@ -268,7 +268,7 @@ struct BroopActivityDetailView: View {
         }
     }
 
-    /// The classic #18 rule: the row's Avg HR was edited away from what the recorded trace implies.
+    /// the #18 rule: the row's Avg HR was edited away from what the recorded trace implies.
     private func editedAverage(traceMean: Double) -> Bool {
         guard let avg = row.avgHr, row.strain != nil || row.zonesJSON != nil else { return false }
         return abs(Double(avg) - traceMean) > 3
@@ -499,7 +499,7 @@ struct BroopActivityDetailView: View {
         }
     }
 
-    // MARK: Load (the classic WorkoutDetailView load, unchanged)
+    // MARK: Load (the WorkoutDetailView load, unchanged)
 
     private func load() async {
         let routePoints: [RouteMath.LatLng] = {

@@ -9,10 +9,10 @@ import WhoopStore
 /// a faint grid, the live number, a big seconds countdown with a progress bar, the instruction, and the
 /// action pinned at the bottom.
 ///
-/// Behaviour is the classic `HRVSnapshotView`'s: a 60-second capture on the monotonic clock (the
+/// Behaviour is the `HRVSnapshotView`'s: a 60-second capture on the monotonic clock (the
 /// countdown and the ingest cutoff both derive from it), every R-R interval in the window kept, a running
-/// RMSSD while capturing, then `HRVSnapshotView.analyzeCapture` (the over-count gate, the spot cleaning
-/// and the Test Centre trace) and `HRVSnapshotView.persist` (key "hrv_snapshot", source "manual-hrv").
+/// RMSSD while capturing, then `HRVSnapshotRules.analyzeCapture` (the over-count gate, the spot cleaning
+/// and the Test Centre trace) and `HRVSnapshotRules.persist` (key "hrv_snapshot", source "manual-hrv").
 /// The capture lives in an object so the sheet observes the capture, not the strap.
 @MainActor
 final class BroopFinalBHRVCapture: ObservableObject {
@@ -20,7 +20,7 @@ final class BroopFinalBHRVCapture: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var beats = 0
-    @Published private(set) var secondsRemaining = HRVSnapshotView.captureSeconds
+    @Published private(set) var secondsRemaining = HRVSnapshotRules.captureSeconds
     @Published private(set) var runningRMSSD: Double?
     @Published private(set) var result: HRVAnalyzer.HRVResult?
     @Published private(set) var saved = false
@@ -36,7 +36,7 @@ final class BroopFinalBHRVCapture: ObservableObject {
         switch phase {
         case .idle: return 0
         case .capturing:
-            return Double(HRVSnapshotView.captureSeconds - secondsRemaining) / Double(HRVSnapshotView.captureSeconds)
+            return Double(HRVSnapshotRules.captureSeconds - secondsRemaining) / Double(HRVSnapshotRules.captureSeconds)
         case .done: return 1
         }
     }
@@ -46,7 +46,7 @@ final class BroopFinalBHRVCapture: ObservableObject {
         captureStart = ContinuousClock().now
         buffer.removeAll()
         beats = 0
-        secondsRemaining = HRVSnapshotView.captureSeconds
+        secondsRemaining = HRVSnapshotRules.captureSeconds
         runningRMSSD = nil
         result = nil
         saved = false
@@ -60,12 +60,12 @@ final class BroopFinalBHRVCapture: ObservableObject {
         ticker = nil
         phase = .idle
         captureStart = nil
-        secondsRemaining = HRVSnapshotView.captureSeconds
+        secondsRemaining = HRVSnapshotRules.captureSeconds
         runningRMSSD = nil
         ScreenIdle.keepAwake(false)
     }
 
-    /// The sheet went away: stop the clock and release the screen, as the classic `onDisappear` does.
+    /// The sheet went away: stop the clock and release the screen, as the `onDisappear` does.
     func release() {
         ticker = nil
         if phase == .capturing { cancel() }
@@ -81,16 +81,16 @@ final class BroopFinalBHRVCapture: ObservableObject {
     /// A late timer fire jumps to the right remaining value instead of stretching the window.
     private func tick() {
         guard phase == .capturing, let ms = elapsedMs() else { return }
-        secondsRemaining = HRVSnapshotView.remainingSeconds(elapsedMs: ms)
+        secondsRemaining = HRVSnapshotRules.remainingSeconds(elapsedMs: ms)
         if secondsRemaining == 0 { finish() }
     }
 
     private func finish() {
         ticker = nil
         ScreenIdle.keepAwake(false)
-        let captureMs = elapsedMs() ?? HRVSnapshotView.captureSeconds * 1000
+        let captureMs = elapsedMs() ?? HRVSnapshotRules.captureSeconds * 1000
         captureStart = nil
-        result = HRVSnapshotView.analyzeCapture(rawRR: buffer, captureMs: captureMs) { [traceLog] line in
+        result = HRVSnapshotRules.analyzeCapture(rawRR: buffer, captureMs: captureMs) { [traceLog] line in
             traceLog?(line)
         }
         phase = .done
@@ -98,7 +98,7 @@ final class BroopFinalBHRVCapture: ObservableObject {
 
     func ingest(_ rr: [Int]) {
         guard phase == .capturing, !rr.isEmpty,
-              let ms = elapsedMs(), HRVSnapshotView.captureWindowOpen(elapsedMs: ms) else { return }
+              let ms = elapsedMs(), HRVSnapshotRules.captureWindowOpen(elapsedMs: ms) else { return }
         buffer.append(contentsOf: rr)
         beats = buffer.count
         runningRMSSD = HRVAnalyzer.rmssdRaw(buffer.map(Double.init))
@@ -108,7 +108,7 @@ final class BroopFinalBHRVCapture: ObservableObject {
         guard let rmssd = result?.rmssd, !saved else { return }
         saved = true                        // optimistic: the write is local and idempotent
         Task { [weak self] in
-            if !(await HRVSnapshotView.persist(rmssd: rmssd, repo: repo)) { self?.saved = false }
+            if !(await HRVSnapshotRules.persist(rmssd: rmssd, repo: repo)) { self?.saved = false }
         }
     }
 }
@@ -286,10 +286,10 @@ struct BroopFinalBHRVSnapshotView: View {
                                     text: String(localized: "Not enough clean beats. Sit still and try again. \(result.nClean) of \(result.nInput) beats survived filtering (need \(HRVAnalyzer.minBeats))."))
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    tile(String(localized: "RMSSD"), HRVSnapshotView.format(result.rmssd, "%.0f"), "ms")
-                    tile(String(localized: "SDNN"), HRVSnapshotView.format(result.sdnn, "%.0f"), "ms")
+                    tile(String(localized: "RMSSD"), HRVSnapshotRules.format(result.rmssd, "%.0f"), "ms")
+                    tile(String(localized: "SDNN"), HRVSnapshotRules.format(result.sdnn, "%.0f"), "ms")
                     tile(String(localized: "Mean HR"),
-                         HRVSnapshotView.format(HRVSnapshotView.meanHR(meanNN: result.meanNN), "%.0f"), "bpm")
+                         HRVSnapshotRules.format(HRVSnapshotRules.meanHR(meanNN: result.meanNN), "%.0f"), "bpm")
                     tile(String(localized: "Beats"), "\(result.nClean)", String(localized: "used"))
                 }
             }

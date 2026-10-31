@@ -4,7 +4,7 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-/// Live Sessions (silent guardian) in Broop's style, over the classic `LiveSessionView` behaviour: one
+/// Live Sessions (silent guardian) in Broop's style, over the `LiveSessionView` behaviour: one
 /// `LiveSessionRunner` per presentation, a ring coloured by the engine's position (in band, below, above,
 /// grey when stale), a thin outer arc for time held in band, a long-press to reveal the smoothed bpm, the
 /// one Charge sentence that fades after six seconds, End, and the summary. Every value is the engine's.

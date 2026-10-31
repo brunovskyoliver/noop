@@ -15,6 +15,10 @@ import AppKit
 /// evening reminder — and we say plainly why there's no wake alarm, rather than promising one we
 /// can't keep.
 struct SmartAlarmView: View {
+    // #34: consecutive times the strap reported back a DIFFERENT alarm time than we sent (set in
+    // FrameRouter). ≥2 = the strap is persistently refusing the alarm (a corrupted clock/alarm register),
+    // which the strapRejectedCard surfaces with reset guidance. @AppStorage so it updates live.
+    @AppStorage("alarm.rejectStreak") var alarmRejectStreak = 0
     // #766: this is now the ONE alarm surface. The strap's silent firmware wake-alarm used to live in a
     // separate card over in Automations, which let users conflate it with the wind-down reminder; it's
     // moved here so every wake/wind-down control sits together. Needs the model (to arm/disarm the strap
@@ -35,12 +39,6 @@ struct SmartAlarmView: View {
     @State private var perDayOn = WindDownNudge.hasPerDayOverrides
     @State private var overrides: [Int: Int] = WindDownNudge.perDayWakeOverrides
 
-    // #34: consecutive times the strap reported back a DIFFERENT alarm time than we sent (set in
-    // FrameRouter). ≥2 = the strap is persistently refusing the alarm (a corrupted clock/alarm register),
-    // which the strapRejectedCard surfaces with reset guidance. @AppStorage so it updates live.
-    @AppStorage("alarm.rejectStreak") private var alarmRejectStreak = 0
-    /// Calendar weekday numbers laid out Monday-first (Mon…Sun → 2,3,4,5,6,7,1), matching AutomationsView.
-    private static let weekdayOrder = [2, 3, 4, 5, 6, 7, 1]
 
     var body: some View {
         // #766: retitled to "Alarms" because it now holds BOTH the strap's silent wake-alarm and the
@@ -88,7 +86,7 @@ struct SmartAlarmView: View {
                 Text("Tonight").strandOverline()
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     heroTime(label: "Wind down",
-                             time: windDownOn ? timeLabel(Self.minuteOfDay(windDownTonight.fireDate)) : "—",
+                             time: windDownOn ? timeLabel(AlarmRules.minuteOfDay(windDownTonight.fireDate)) : "—",
                              tint: StrandPalette.restColor)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 13, weight: .semibold))
@@ -98,7 +96,7 @@ struct SmartAlarmView: View {
                     // when it will ring (the plan and the reminder both work back from it), else the usual
                     // wake time, which wakes nobody. The arrow stays an arithmetic pair either way.
                     heroTime(label: windDownTonight.fromAlarm ? "Strap alarm" : "Usual wake",
-                             time: timeLabel(Self.minuteOfDay(windDownTonight.wakeDate)),
+                             time: timeLabel(AlarmRules.minuteOfDay(windDownTonight.wakeDate)),
                              tint: StrandPalette.restBright)
                     Spacer(minLength: 0)
                 }
@@ -392,8 +390,8 @@ struct SmartAlarmView: View {
                             .accessibilityLabel("Your usual wake time")
                     }
                     Text(windDownTonight.fromAlarm
-                         ? "Tonight your strap alarm sets the wake, so you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate)))."
-                         : "Tonight you'll be reminded around \(timeLabel(Self.minuteOfDay(windDownTonight.fireDate))).")
+                         ? "Tonight your strap alarm sets the wake, so you'll be reminded around \(timeLabel(AlarmRules.minuteOfDay(windDownTonight.fireDate)))."
+                         : "Tonight you'll be reminded around \(timeLabel(AlarmRules.minuteOfDay(windDownTonight.fireDate))).")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                     if let plan = model.tonightPlan, !plan.target.reachable {
@@ -456,7 +454,7 @@ struct SmartAlarmView: View {
 
         if perDayOn {
             VStack(spacing: 8) {
-                ForEach(Self.weekdayOrder, id: \.self) { weekday in
+                ForEach(AlarmRules.weekdayOrder, id: \.self) { weekday in
                     weekdayOverrideRow(weekday)
                 }
             }
@@ -688,10 +686,6 @@ struct SmartAlarmView: View {
     /// Tonight's wind-down reminder, the value the scheduler fires (`AppModel.windDownTonight`).
     private var windDownTonight: WindDownNudge.Tonight { model.windDownTonight() }
 
-    static func minuteOfDay(_ date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
 
     private func timeLabel(_ minutes: Int) -> String {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)
@@ -702,20 +696,20 @@ struct SmartAlarmView: View {
     private var alarmWeekdayPicker: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                ForEach(Self.weekdayOrder, id: \.self) { dow in
-                    let selected = Self.alarmWeekdayIsSelected(dow, in: behavior.smartAlarmWeekdays)
+                ForEach(AlarmRules.weekdayOrder, id: \.self) { dow in
+                    let selected = AlarmRules.alarmWeekdayIsSelected(dow, in: behavior.smartAlarmWeekdays)
                     Text(Self.alarmWeekdayInitial(dow))
                         .font(StrandFont.caption)
                         .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
                         .frame(width: 30, height: 30)
                         .background(selected ? StrandPalette.accent : StrandPalette.surfaceInset, in: Circle())
                         .contentShape(Circle())
-                        .onTapGesture { behavior.smartAlarmWeekdays = Self.alarmToggledWeekday(dow, in: behavior.smartAlarmWeekdays) }
+                        .onTapGesture { behavior.smartAlarmWeekdays = AlarmRules.alarmToggledWeekday(dow, in: behavior.smartAlarmWeekdays) }
                         .accessibilityLabel(Self.weekdayName(dow))
                         .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
-            Text(Self.alarmWeekdaySummary(behavior.smartAlarmWeekdays))
+            Text(AlarmRules.alarmWeekdaySummary(behavior.smartAlarmWeekdays))
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textTertiary)
         }
@@ -742,53 +736,15 @@ struct SmartAlarmView: View {
     // to the originals in AutomationsView (only renamed with an `alarm` prefix to avoid colliding with
     // this view's full-name `weekdayName`).
 
-    /// A day reads as "on" when the set is empty (= every day) or explicitly contains it.
-    nonisolated static func alarmWeekdayIsSelected(_ dow: Int, in days: Set<Int>) -> Bool {
-        days.isEmpty || days.contains(dow)
-    }
 
-    /// Toggle one weekday, normalising "every day" at both ends so the empty set always means every day.
-    nonisolated static func alarmToggledWeekday(_ dow: Int, in days: Set<Int>) -> Set<Int> {
-        var next: Set<Int>
-        if days.isEmpty {
-            next = Set(1...7)
-            next.remove(dow)
-        } else if days.contains(dow) {
-            next = days
-            next.remove(dow)
-        } else {
-            next = days
-            next.insert(dow)
-        }
-        return next.count == 7 ? [] : next
-    }
 
-    /// Human-readable summary of the selection.
-    nonisolated static func alarmWeekdaySummary(_ days: Set<Int>) -> String {
-        if days.isEmpty || days.count == 7 { return String(localized: "Every day") }
-        if days == Set(2...6) { return String(localized: "Weekdays") }
-        if days == Set([1, 7]) { return String(localized: "Weekends") }
-        return weekdayOrder.filter { days.contains($0) }.map { alarmWeekdayShort($0) }.joined(separator: ", ")
-    }
 
     /// One-letter day chip. Derived from the localized short name so the initials follow the
     /// language (and Tue/Thu or Sat/Sun never share a single collision-prone key). English output
     /// is byte-identical to the old hardcoded initials.
     private static func alarmWeekdayInitial(_ dow: Int) -> String {
-        let short = alarmWeekdayShort(dow)
+        let short = AlarmRules.alarmWeekdayShort(dow)
         return short == "?" ? "?" : String(short.prefix(1))
     }
 
-    nonisolated private static func alarmWeekdayShort(_ dow: Int) -> String {
-        switch dow {
-        case 1: return String(localized: "Sun")
-        case 2: return String(localized: "Mon")
-        case 3: return String(localized: "Tue")
-        case 4: return String(localized: "Wed")
-        case 5: return String(localized: "Thu")
-        case 6: return String(localized: "Fri")
-        case 7: return String(localized: "Sat")
-        default: return "?"
-        }
-    }
 }

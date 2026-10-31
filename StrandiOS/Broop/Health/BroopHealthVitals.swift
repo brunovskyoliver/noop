@@ -4,7 +4,7 @@ import StrandAnalytics
 import StrandDesign
 
 /// The vital signs every Broop Health surface shows, resolved once through `BodyVitalSigns` with the
-/// same inputs the classic Health screen and `BroopStore` pass (unit prefs, the #1118 HRV over-count
+/// same inputs the Health screen and `BroopStore` pass (unit prefs, the #1118 HRV over-count
 /// flags and the default-off SpO₂ candidate). `core` is exactly `BroopVitals.readings`, so the Home tile,
 /// the Health tab strip and the Health Monitor grid count the same five metrics.
 struct BroopHealthVitalSet {
@@ -99,7 +99,7 @@ extension BodyVitalReading {
         }
     }
 
-    /// The same words as the classic tile caption's state (which yardstick judged the value).
+    /// The same words as the tile caption's state (which yardstick judged the value).
     var broopStateText: String {
         if key == "spo2raw" {
             return banding.band == .noData ? String(localized: "No data") : String(localized: "Uncalibrated")

@@ -37,9 +37,6 @@ struct HRVSnapshotView: View {
         case done           // analysis complete — showing the result
     }
 
-    /// Length of a capture in seconds. Long enough to collect ≥minBeats clean intervals at a resting
-    /// rate (≈60 beats at 60 bpm) with headroom for ectopic/range rejection.
-    static let captureSeconds = 60
 
     // MARK: - State
 
@@ -48,7 +45,7 @@ struct HRVSnapshotView: View {
     /// Every R-R interval (ms) collected during the active capture window — uncapped on purpose; the
     /// analyzer wants the whole window.
     @State private var captureBuffer: [Int] = []
-    @State private var secondsRemaining = HRVSnapshotView.captureSeconds
+    @State private var secondsRemaining = HRVSnapshotRules.captureSeconds
 
     /// Monotonic start of the active capture — the single time base for the countdown display, the
     /// ingest cutoff, and the finish deadline. Nil outside a capture.
@@ -199,7 +196,7 @@ struct HRVSnapshotView: View {
     private var captureFraction: CGFloat {
         switch phase {
         case .idle:      return 0
-        case .capturing: return CGFloat(Self.captureSeconds - secondsRemaining) / CGFloat(Self.captureSeconds)
+        case .capturing: return CGFloat(HRVSnapshotRules.captureSeconds - secondsRemaining) / CGFloat(HRVSnapshotRules.captureSeconds)
         case .done:      return 1
         }
     }
@@ -310,9 +307,9 @@ struct HRVSnapshotView: View {
                     }
                 } else {
                     HStack(spacing: NoopMetrics.gap) {
-                        metricTile("RMSSD", Self.format(result.rmssd, "%.0f"), "ms", StrandPalette.metricPurple)
-                        metricTile("SDNN", Self.format(result.sdnn, "%.0f"), "ms", StrandPalette.restBright)
-                        metricTile(String(localized: "Mean HR"), Self.format(Self.meanHR(meanNN: result.meanNN), "%.0f"), "bpm", StrandPalette.metricRose)
+                        metricTile("RMSSD", HRVSnapshotRules.format(result.rmssd, "%.0f"), "ms", StrandPalette.metricPurple)
+                        metricTile("SDNN", HRVSnapshotRules.format(result.sdnn, "%.0f"), "ms", StrandPalette.restBright)
+                        metricTile(String(localized: "Mean HR"), HRVSnapshotRules.format(HRVSnapshotRules.meanHR(meanNN: result.meanNN), "%.0f"), "bpm", StrandPalette.metricRose)
                         metricTile(String(localized: "Beats"), "\(result.nClean)", String(localized: "used"), StrandPalette.metricCyan)
                     }
                 }
@@ -391,7 +388,7 @@ struct HRVSnapshotView: View {
         captureStart = ContinuousClock().now
         phase = .capturing
         captureBuffer.removeAll()
-        secondsRemaining = Self.captureSeconds
+        secondsRemaining = HRVSnapshotRules.captureSeconds
         runningRMSSD = nil
         result = nil
         saved = false
@@ -401,7 +398,7 @@ struct HRVSnapshotView: View {
     private func cancel() {
         phase = .idle
         captureStart = nil
-        secondsRemaining = Self.captureSeconds
+        secondsRemaining = HRVSnapshotRules.captureSeconds
         runningRMSSD = nil
         ScreenIdle.keepAwake(false)
     }
@@ -417,7 +414,7 @@ struct HRVSnapshotView: View {
     /// remaining value instead of stretching the window (the old per-callback decrement did).
     private func tick() {
         guard let ms = captureElapsedMs() else { return }
-        secondsRemaining = Self.remainingSeconds(elapsedMs: ms)
+        secondsRemaining = HRVSnapshotRules.remainingSeconds(elapsedMs: ms)
         if secondsRemaining == 0 {
             finish()
         }
@@ -426,41 +423,14 @@ struct HRVSnapshotView: View {
     /// End the capture and run the full cleaning analysis over everything collected.
     private func finish() {
         ScreenIdle.keepAwake(false)
-        let captureMs = captureElapsedMs() ?? Self.captureSeconds * 1000
+        let captureMs = captureElapsedMs() ?? HRVSnapshotRules.captureSeconds * 1000
         captureStart = nil
-        result = Self.analyzeCapture(rawRR: captureBuffer, captureMs: captureMs) { line in
+        result = HRVSnapshotRules.analyzeCapture(rawRR: captureBuffer, captureMs: captureMs) { line in
             live.append(log: line, domain: .hrv)
         }
         phase = .done
     }
 
-    /// The finish-time analysis over a completed capture, shared with the Broop sheet so both run the
-    /// same gates. A capture whose collected beat time exceeds the wall clock it ran for held duplicated
-    /// beats (e.g. overlapping live sources) and is refused rather than published.
-    ///
-    /// HRV & Autonomic test mode (Group G): when the mode is on, the cleaning trace (nInput / nClean /
-    /// rejected fraction, the range + Malik ectopic counts, the minBeats + spot gates, RMSSD/SDNN/meanNN)
-    /// goes to `traceLog` tagged `.hrv`. analyzeTrace returns the SAME HRVResult `analyze` would (it
-    /// reuses analyze verbatim), so the headline RMSSD is byte-identical with the trace on or off. Zero
-    /// cost when off: the gate is one UserDefaults bool read and analyzeTrace is never called.
-    @MainActor
-    static func analyzeCapture(rawRR: [Int], captureMs: Int,
-                               traceLog: (String) -> Void) -> HRVAnalyzer.HRVResult {
-        let raw = rawRR.map(Double.init)
-        if HRVAnalyzer.spotCaptureOverCounted(beatTimeMs: raw.reduce(0, +),
-                                              captureMs: Double(captureMs)) {
-            return HRVAnalyzer.HRVResult(rmssd: nil, sdnn: nil, meanNN: nil, pnn50: nil,
-                                         nInput: raw.count, nClean: 0)
-        }
-        if TestCentre.active(.hrv) {
-            let (traced, lines) = HRVAnalyzer.analyzeTrace(
-                rawRR: raw, maxRejectedFraction: HRVAnalyzer.defaultSpotMaxRejectedFraction, path: "spot")
-            for line in lines { traceLog(line) }
-            return traced
-        }
-        return HRVAnalyzer.analyze(rawRR: raw,
-                                   maxRejectedFraction: HRVAnalyzer.defaultSpotMaxRejectedFraction)
-    }
 
     // MARK: - Live R-R ingest (mirrors BreathingView)
 
@@ -468,7 +438,7 @@ struct HRVSnapshotView: View {
     /// running RMSSD indicator. The published `rr` is the latest set of intervals.
     private func ingest(_ rr: [Int]) {
         guard phase == .capturing, !rr.isEmpty,
-              let ms = captureElapsedMs(), Self.captureWindowOpen(elapsedMs: ms) else { return }
+              let ms = captureElapsedMs(), HRVSnapshotRules.captureWindowOpen(elapsedMs: ms) else { return }
         captureBuffer.append(contentsOf: rr)
         runningRMSSD = HRVAnalyzer.rmssdRaw(captureBuffer.map(Double.init))
     }
@@ -482,59 +452,15 @@ struct HRVSnapshotView: View {
         guard let rmssd = result.rmssd else { return }
         saved = true                    // optimistic — the write is local + idempotent
         Task {
-            if !(await Self.persist(rmssd: rmssd, repo: model.repo)) { saved = false }
+            if !(await HRVSnapshotRules.persist(rmssd: rmssd, repo: model.repo)) { saved = false }
         }
     }
 
-    /// Bank one snapshot RMSSD under today's day and refresh the repository. Returns false when the
-    /// store is unavailable or the write fails. Shared with the Broop sheet so both write the same row.
-    static func persist(rmssd: Double, repo: Repository) async -> Bool {
-        let day = Repository.dayString(Date())
-        let point = MetricPoint(day: day, key: HRVSnapshot.metricKey, value: rmssd)
-        guard let store = await repo.storeHandle() else { return false }
-        do {
-            try await store.upsertMetricSeries([point], deviceId: HRVSnapshot.sourceId)
-            await repo.refresh()
-            return true
-        } catch {
-            return false
-        }
-    }
 
     // MARK: - Pure formatting helpers (shared with the tests)
 
-    static func format(_ value: Double?, _ fmt: String) -> String {
-        guard let value else { return "—" }
-        return String(format: fmt, value)
-    }
 
-    /// Mean heart rate (bpm) from the mean NN interval (ms): 60000 / meanNN. nil when meanNN is missing
-    /// or non-positive.
-    static func meanHR(meanNN: Double?) -> Double? {
-        guard let meanNN, meanNN > 0 else { return nil }
-        return 60_000.0 / meanNN
-    }
 
-    /// Whole seconds left for a monotonic elapsed time, never negative. Mirrors Android
-    /// `remainingCaptureSeconds`.
-    static func remainingSeconds(elapsedMs: Int) -> Int {
-        max(0, captureSeconds - elapsedMs / 1000)
-    }
 
-    /// The ingest gate: intervals on or after the 60-second deadline stay out, however late the
-    /// countdown timer fires. Mirrors Android `captureWindowOpen`.
-    static func captureWindowOpen(elapsedMs: Int) -> Bool {
-        elapsedMs < captureSeconds * 1000
-    }
 }
 
-/// Snapshot-write constants — the metric-series key + source id the manual HRV reading banks under.
-/// Kept as a tiny namespace so the source id ("manual-hrv") and key ("hrv_snapshot") are single-sourced
-/// and match the Android side value-for-value.
-enum HRVSnapshot {
-    /// Generic metric-series key for a manual HRV reading.
-    static let metricKey = "hrv_snapshot"
-    /// Source id this manual reading is stored under — its own source so it sits beside WHOOP / Apple
-    /// for the per-source explorer, exactly like the other manual/imported sources.
-    static let sourceId = "manual-hrv"
-}

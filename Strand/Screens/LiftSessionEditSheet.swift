@@ -111,7 +111,7 @@ struct LiftSessionEditSheet: View {
                     .foregroundStyle(StrandPalette.textPrimary)
                 HStack(spacing: 8) {
                     Text("Set").strandOverline()
-                        .frame(width: LiftSessionView.setColumnWidth, alignment: .center)
+                        .frame(width: LiftSessionRules.setColumnWidth, alignment: .center)
                     Text(weightHeading).strandOverline().frame(maxWidth: .infinity, alignment: .leading)
                     Text("Reps").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
                     Text("RPE").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
@@ -135,7 +135,7 @@ struct LiftSessionEditSheet: View {
                 Text(warmup ? String(localized: "W") : "\(position + 1)")
                     .font(StrandFont.captionNumber)
                     .foregroundStyle(warmup ? StrandPalette.metricAmber : StrandPalette.textSecondary)
-                    .frame(width: LiftSessionView.setColumnWidth, alignment: .center)
+                    .frame(width: LiftSessionRules.setColumnWidth, alignment: .center)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

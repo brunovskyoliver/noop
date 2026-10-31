@@ -76,7 +76,7 @@ struct StorageView: View {
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(reclaimable > 0
-                     ? "There's about \(Self.format(reclaimable)) of leftover import scratch space to reclaim. This never removes your imported data."
+                     ? "There's about \(StorageFormat.format(reclaimable)) of leftover import scratch space to reclaim. This never removes your imported data."
                      : "Nothing to reclaim right now. NOOP already cleans up import scratch space automatically.")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
@@ -131,7 +131,7 @@ struct StorageView: View {
                 }
             }
             Spacer(minLength: 8)
-            Text(bytes.map(Self.format) ?? "—")
+            Text(bytes.map(StorageFormat.format) ?? "—")
                 .font(StrandFont.bodyNumber)
                 .foregroundStyle(StrandPalette.textSecondary)
         }
@@ -154,15 +154,8 @@ struct StorageView: View {
         let after = r.inbox + r.importTemp
         let freed = max(0, before - after)
         report = r
-        lastCleanedSummary = freed > 0 ? String(localized: "Reclaimed \(Self.format(freed)).") : String(localized: "Already clean.")
+        lastCleanedSummary = freed > 0 ? String(localized: "Reclaimed \(StorageFormat.format(freed)).") : String(localized: "Already clean.")
         cleaning = false
     }
 
-    /// Human byte size, decimal (matches iOS Settings' "Documents & Data" presentation).
-    static func format(_ bytes: Int64) -> String {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        f.allowedUnits = [.useKB, .useMB, .useGB]
-        return f.string(fromByteCount: bytes)
-    }
 }

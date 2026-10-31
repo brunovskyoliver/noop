@@ -6,7 +6,7 @@ import WhoopStore
 
 // Start Activity: the pre-start screen (activity type, live heart-rate disc, START ACTIVITY) and the
 // in-activity screen (elapsed band, Effort ring, heart rate with the zone bar, averages, pause / discard /
-// end). The session itself is `AppModel`'s manual workout, exactly as the classic Live Workout screen
+// end). The session itself is `AppModel`'s manual workout, exactly as the Live Workout screen
 // drives it; nothing here scores or stores anything of its own.
 //
 // Live values change every second, so no screen-level view here observes `AppModel` or `LiveState`.
@@ -188,7 +188,7 @@ struct BroopActivityHRDisc: View {
 
 // MARK: - In activity
 
-/// The in-activity screen. Behaviour follows the classic `LiveWorkoutView`: the realtime stream is armed
+/// The in-activity screen. Behaviour follows the `LiveWorkoutView`: the realtime stream is armed
 /// while it is up, the screen can be held awake, End and Delete both confirm, and the screen closes by
 /// itself when the workout ends elsewhere.
 struct BroopActivityLiveView: View {
@@ -329,7 +329,7 @@ private struct BroopActivityElapsedBand: View {
         .background((paused ? BroopActivityPalette.chip : BroopActivityPalette.liveBand).ignoresSafeArea(edges: .top))
     }
 
-    /// HH:MM:SS, WHOOP's live timer form, from the same pause-aware elapsed the classic clock reads.
+    /// HH:MM:SS, WHOOP's live timer form, from the same pause-aware elapsed the clock reads.
     static func clock(_ seconds: TimeInterval) -> String {
         let t = max(0, Int(seconds))
         return String(format: "%02d:%02d:%02d", t / 3600, (t % 3600) / 60, t % 60)
@@ -414,7 +414,7 @@ private struct BroopActivityLiveAverages: View {
     }
 }
 
-/// Live GPS distance and pace, shown only once the recorder has an accepted fix (classic gate).
+/// Live GPS distance and pace, shown only once the recorder has an accepted fix (gate).
 private struct BroopActivityDistanceRow: View {
     @EnvironmentObject private var model: AppModel
     var body: some View { BroopActivityDistanceLeaf(recorder: model.gpsRecorder) }

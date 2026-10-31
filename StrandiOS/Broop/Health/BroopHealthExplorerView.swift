@@ -4,7 +4,7 @@ import StrandDesign
 import StrandAnalytics
 
 /// Broop Metric Explorer (`.metricExplorer`): every catalog metric grouped by pillar, each opening its
-/// Trend View, with the Deep Timeline on top. Rebuilt from the classic `MetricExplorerView`, including its
+/// Trend View, with the Deep Timeline on top. Rebuilt from the `MetricExplorerView`, including its
 /// cheap non-empty probe that marks metrics with no data.
 struct BroopHealthExplorerView: View {
     @EnvironmentObject private var repo: Repository

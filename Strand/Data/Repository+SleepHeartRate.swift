@@ -20,7 +20,7 @@ enum SleepHeartRateWindows {
 
     nonisolated static func primary(sessions: [CachedSleepSession], habitual: Int?) -> [Night] {
         SleepModel.navDays(navSessions: sessions).compactMap { blocks in
-            let group = SleepView.mainNightGroup(blocks, habitualMidsleepSec: habitual)
+            let group = SleepRules.mainNightGroup(blocks, habitualMidsleepSec: habitual)
             guard let start = group.map(\.effectiveStartTs).min(), let end = group.map(\.endTs).max(), end > start else { return nil }
             return Night(day: Repository.localDayKey(Date(timeIntervalSince1970: Double(end))), start: start, end: end)
         }.sorted { $0.start < $1.start }

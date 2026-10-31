@@ -270,14 +270,6 @@ struct LiftSessionView: View {
         .padding(.horizontal, 8)
     }
 
-    /// Width of the set-number column, shared by the heading and every row so the number sits
-    /// directly under its label.
-    ///
-    /// 34, not 26. `strandOverline` renders ALL-CAPS with +1.4 tracking, and at 26 the heading wrapped
-    /// mid-word — a real session photographed it reading "SE / T" over two lines. The headings are
-    /// also `lineLimit(1)` with a scale floor: this row is four short labels across a phone width in
-    /// ten languages, and a wrapped heading breaks the column alignment for every row beneath it.
-    static let setColumnWidth: CGFloat = 34
 
     /// Width of the trailing tick column. Mirrored by a clear spacer in the heading row so the four
     /// labels sit over the four things they name.
@@ -286,7 +278,7 @@ struct LiftSessionView: View {
     private var columnHeadings: some View {
         HStack(spacing: 8) {
             Text("Set").strandOverline()
-                .frame(width: Self.setColumnWidth, alignment: .center)
+                .frame(width: LiftSessionRules.setColumnWidth, alignment: .center)
             Text(weightHeading).strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Text("Reps").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Text("RPE").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
@@ -319,7 +311,7 @@ struct LiftSessionView: View {
                                      ? StrandPalette.metricAmber
                                      : (isWorking ? StrandPalette.textPrimary
                                                   : StrandPalette.textSecondary))
-                    .frame(width: Self.setColumnWidth, alignment: .center)
+                    .frame(width: LiftSessionRules.setColumnWidth, alignment: .center)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -835,7 +827,7 @@ struct LiftSessionView: View {
 
         let row = LiftSessionRow(
             id: sessionId, deviceId: repo.deviceId,
-            startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
+            startTs: engine.startTs, endTs: endTs, sport: LiftSessionRules.sport,
             programId: session.programId,
             // Snapshot the name: renaming or deleting the program never rewrites this session.
             programName: session.programName,
@@ -866,7 +858,7 @@ struct LiftSessionView: View {
         // HR-derived strain fill and delete/merge. `strain` stays nil deliberately: the engine fills
         // it from the heart rate the strap MEASURED, never from typed sets and reps.
         let workout = WorkoutRow(
-            startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
+            startTs: engine.startTs, endTs: endTs, sport: LiftSessionRules.sport,
             source: "manual", durationS: Double(max(0, endTs - engine.startTs)),
             energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
             distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
@@ -911,7 +903,4 @@ struct LiftSessionView: View {
         _ = try? await store.replaceLiftProgramItems(programId: programId, items: edited)
     }
 
-    /// The sport every logged session is filed under — the same token the Hevy/Liftosaur importer
-    /// uses, so a typed session and an imported one land in one bucket with one icon.
-    static let sport = "Strength Training"
 }

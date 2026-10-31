@@ -1,8 +1,8 @@
 #if os(iOS)
 import SwiftUI
 
-/// "How your scores work" in Broop's look: the classic `ScoringGuideView`'s copy (same localized strings)
-/// on Broop cards, with a thin dial per score in its Broop colour instead of the classic glow rings.
+/// "How your scores work" in Broop's look: the `ScoringGuideView`'s copy (same localized strings)
+/// on Broop cards, with a thin dial per score in its Broop colour instead of the glow rings.
 /// Opened from the (i) on every deep dive and from About. Presented as a sheet; it brings its own stack.
 struct BroopOverviewScoreGuide: View {
     var initialSection: ScoreSection? = nil

@@ -7,7 +7,7 @@ import WhoopProtocol
 import WhoopStore
 import OuraProtocol
 
-/// Which device is live, resolved the way the classic Live console resolves it.
+/// Which device is live, resolved the way the Live console resolves it.
 @MainActor
 enum BroopActivityLiveDevice {
     static func name(_ model: AppModel) -> String {
@@ -37,7 +37,7 @@ enum BroopActivityLiveDevice {
     }
 }
 
-/// Live heart rate, in WHOOP's Health Monitor style, over everything the classic Live console does:
+/// Live heart rate, in WHOOP's Health Monitor style, over everything the Live console does:
 /// connection state and guidance, scan / buzz / disconnect (or the ring reconnect), the strap picker, live
 /// physiology (R-R, rolling RMSSD, frames and events), the signal-trust tiles, the workout session
 /// controls (start, pause, open, end, HRV reading), device management and the strap log with its export
@@ -87,12 +87,12 @@ struct BroopActivityLiveHRView: View {
         }
         .sheet(isPresented: $hrvSheet) {
             BroopFinalBHRVSnapshotView(onClose: { hrvSheet = false },
-                                       source: LiveView.hrvSnapshotSource(for: WhoopModel(rawValue: selectedModelRaw) ?? .whoop4))
+                                       source: LiveRules.hrvSnapshotSource(for: WhoopModel(rawValue: selectedModelRaw) ?? .whoop4))
         }
     }
 }
 
-/// The classic console's session edges: arm the realtime stream on appear (when a strap is actively
+/// the console's session edges: arm the realtime stream on appear (when a strap is actively
 /// connected), release it on disappear, re-arm on a fresh bond or connection without taking another
 /// reference, open the live workout the moment one starts, and honour "Return to workout".
 private struct LiveLifecycle: View {
@@ -329,7 +329,7 @@ private struct LiveRingButton: View {
 }
 
 /// The connection pill, the mode badge, a SYNCING badge during an offload, and device / battery / worn /
-/// last-sync figures. Wording and colours follow the classic console header.
+/// last-sync figures. Wording and colours follow the console header.
 private struct LiveConnectionCard: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var live: LiveState
@@ -405,8 +405,8 @@ private struct LiveStandardNote: View {
     }
 }
 
-/// The classic `LiveView.shouldShowStandardHRNote` rule.
-private func BroopActivityLiveView_standardNote(_ note: String?) -> Bool { LiveView.shouldShowStandardHRNote(note) }
+/// the `LiveRules.shouldShowStandardHRNote` rule.
+private func BroopActivityLiveView_standardNote(_ note: String?) -> Bool { LiveRules.shouldShowStandardHRNote(note) }
 
 // MARK: - Session
 
@@ -505,7 +505,7 @@ private struct LiveSessionCard: View {
 
 // MARK: - Signal
 
-/// The classic Signal Trust tiles as Health Monitor cards: heart rate, R-R intervals, connection, history
+/// the Signal Trust tiles as Health Monitor cards: heart rate, R-R intervals, connection, history
 /// sync, battery and wear state, each with its value and a status chip.
 private struct LiveSignalGrid: View {
     @EnvironmentObject private var model: AppModel
@@ -767,7 +767,7 @@ private struct LiveDevicesRow: View {
     }
 }
 
-/// The strap log (newest 300 lines), Copy / Save with the same diagnostic header the classic export
+/// The strap log (newest 300 lines), Copy / Save with the same diagnostic header the export
 /// writes, and the Test Centre link.
 private struct LiveLogCard: View {
     @EnvironmentObject private var live: LiveState

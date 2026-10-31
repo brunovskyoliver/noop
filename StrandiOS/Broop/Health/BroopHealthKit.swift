@@ -4,7 +4,7 @@ import StrandDesign
 
 // Shared building blocks for the Broop Health group (Health tab, Health Monitor, Stress, trends, Lab Book,
 // Rhythm, Hydration, Compare). Presentation only: every number these draw is handed in by a screen that
-// read it through the same Repository / engine path its classic counterpart uses.
+// read it through the same Repository / engine path its counterpart uses.
 
 /// Colours sampled from the WHOOP Health, Stress and Trend View references (notes C and D).
 enum BroopHealthPalette {

@@ -14,6 +14,14 @@ import StrandDesign
 /// sheet), and a sheet is the one presentation that behaves the same in all three without depending on
 /// an enclosing NavigationStack.
 struct CoachSettingsView: View {
+    private var scaffoldSky: AnyView? {
+        #if os(macOS)
+        liquidScaffoldSky()
+        #else
+        nil
+        #endif
+    }
+
     @EnvironmentObject var coach: AICoachEngine
     @Environment(\.dismiss) private var dismiss
 
@@ -39,7 +47,7 @@ struct CoachSettingsView: View {
         // with no way out. (#2206 is the same mistake in the other direction.)
         ScreenScaffold(title: "Coach settings",
                        subtitle: "What the coach may read, how it is told to answer, and when it writes to you.",
-                       topBackground: liquidScaffoldSky(),
+                       topBackground: scaffoldSky,
                        trailing: {
                            Button("Done") { dismiss() }
                                .buttonStyle(.plain)

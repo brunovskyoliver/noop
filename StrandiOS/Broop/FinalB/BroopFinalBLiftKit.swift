@@ -6,7 +6,7 @@ import WhoopStore
 
 // Shared pieces for the Strength Trainer sheets (program builder, exercise editor, spreadsheet import,
 // past session, set editor, add exercise). Presentation only: persistence and every rule stay in the
-// classic helpers (`LiftExerciseVocabulary`, `LiftSessionEditSheet.changes`, `LiftMetrics`, ...).
+// helpers (`LiftExerciseVocabulary`, `LiftSessionEditSheet.changes`, `LiftMetrics`, ...).
 
 extension View {
     /// Chrome for a Strength Trainer sheet that owns a `NavigationStack`: the caps title in the system
@@ -195,7 +195,7 @@ struct BroopFinalBExerciseSuggestion: View {
     }
 }
 
-/// The muscle classification, WHOOP's "Exercise Tags" look over the classic rules: a primary muscle
+/// The muscle classification, WHOOP's "Exercise Tags" look over the rules: a primary muscle
 /// (a direct set) from a dropdown card, and the muscles it also works (half a set each) as chips. A
 /// primary is never also a secondary.
 struct BroopFinalBMusclePicker: View {

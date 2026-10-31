@@ -4,7 +4,7 @@ import StrandAnalytics
 
 // What Moves You: the lag-aware ranked mover feed and the alcohol / caffeine dose-response, drawn in WHOOP's
 // Journal Insights language (signed percent + diverging bar per behaviour, a behaviour-detail sheet) and a
-// report-style dose card. Data: the classic `InsightsHubViewModel` (EffectRanker + DoseResponseEngine).
+// report-style dose card. Data: the `InsightsHubViewModel` (EffectRanker + DoseResponseEngine).
 
 struct BroopInsightsHubView: View {
     typealias Outcome = InsightsHubViewModel.Outcome
@@ -46,12 +46,12 @@ struct BroopInsightsHubView: View {
         .sheet(item: Binding(get: { detail.map { BroopInsightsEffectBox(effect: $0.effect, sentence: $0.sentence()) } },
                              set: { if $0 == nil { detail = nil } })) { box in
             BroopInsightsBehaviorDetail(effect: box.effect,
-                                        outcome: InsightsView.Outcome(rawValue: outcome.rawValue) ?? .recovery,
+                                        outcome: InsightsRules.Outcome(rawValue: outcome.rawValue) ?? .recovery,
                                         sentence: box.sentence)
         }
     }
 
-    private var classic: InsightsView.Outcome { InsightsView.Outcome(rawValue: outcome.rawValue) ?? .recovery }
+    private var rulesOutcome: InsightsRules.Outcome { InsightsRules.Outcome(rawValue: outcome.rawValue) ?? .recovery }
 
     @ViewBuilder private var movers: some View {
         if model.ranked.isEmpty {
@@ -71,16 +71,16 @@ struct BroopInsightsHubView: View {
 
     private func moverCard(_ r: RankedEffect, scale: Double) -> some View {
         let e = r.effect
-        let tint = BroopInsightsImpactView.tint(e, outcome: classic)
+        let tint = BroopInsightsImpactView.tint(e, outcome: rulesOutcome)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 BroopCaps(r.behavior, size: 12).lineLimit(2).multilineTextAlignment(.leading)
                 Spacer(minLength: 10)
-                Text(verbatim: e.pctChange.map(BroopInsightsFormat.signedPercent) ?? BroopInsightsImpactModel.formatDelta(e.delta, outcome: classic))
+                Text(verbatim: e.pctChange.map(BroopInsightsFormat.signedPercent) ?? BroopInsightsImpactModel.formatDelta(e.delta, outcome: rulesOutcome))
                     .font(BroopType.number(21))
                     .foregroundStyle(e.significant ? tint : BroopPalette.textSecondary)
             }
-            BroopInsightsImpactBar(fraction: BroopInsightsImpactView.goodness(e, outcome: classic) / scale, color: tint)
+            BroopInsightsImpactBar(fraction: BroopInsightsImpactView.goodness(e, outcome: rulesOutcome) / scale, color: tint)
             HStack(spacing: 8) {
                 BroopInsightsChip(text: r.leadLagText, color: BroopPalette.rest)
                 BroopInsightsChip(text: Self.confidenceWord(r.confidence), color: Self.confidenceColor(r.confidence))

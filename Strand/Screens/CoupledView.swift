@@ -75,7 +75,7 @@ struct CoupledView: View {
     /// calibrating gate, so a cold-start install could carry a value Today refuses. Reported on Android,
     /// but the defect was identical here: the twins agreed with each other and were both wrong.
     private var carriedRecoveryDay: DailyMetric? {
-        TodayView.lastScoredRecoveryDay(
+        TodayRules.lastScoredRecoveryDay(
             days: repo.days, selectedDayKey: todayKey,
             isToday: true,   // the Coupled view has no day selector; it is always today
             todayScored: day?.recovery != nil,
@@ -234,7 +234,7 @@ struct CoupledView: View {
                 .font(StrandFont.overline)
                 .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(sampled)
-            if let word = TodayView.readinessWord(readinessLevel) {
+            if let word = TodayRules.readinessWord(readinessLevel) {
                 readinessPill(word)
                     .padding(.top, 2)
             }
@@ -248,7 +248,7 @@ struct CoupledView: View {
     @ViewBuilder
     private var heroCaption: some View {
         if isCarryingRecovery, let prior = carriedRecoveryDay {
-            Text(TodayView.carriedCaption(priorDayKey: prior.day, todayKey: todayKey))
+            Text(TodayRules.carriedCaption(priorDayKey: prior.day, todayKey: todayKey))
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
         } else if recovery == nil, let banked = calibrationNights {
@@ -487,7 +487,7 @@ struct CoupledView: View {
     }
 
     /// Last night's bed → wake span, e.g. "23:41 – 07:23", from the day's bridged MAIN-night span
-    /// (`SleepView.mainNightSpan`, the SAME resolver the Sleep tab hero and the daily total use), only
+    /// (`SleepRules.mainNightSpan`, the SAME resolver the Sleep tab hero and the daily total use), only
     /// when that night actually touches today's window (a days-old import is not "last night"). Was
     /// previously the screen's own "freshest-ending session" pick, which could name a different block —
     /// and so a different span — than the Sleep tab and Today's HR graph for a night stored as more than
@@ -496,7 +496,7 @@ struct CoupledView: View {
         let dayStart = Calendar.current.startOfDay(for: Repository.logicalDay(Date()))
         let windowStart = Int(dayStart.timeIntervalSince1970)
         let candidates = repo.sleeps.filter { $0.endTs > windowStart }
-        guard let span = SleepView.mainNightSpan(candidates, habitualMidsleepSec: habitualMidsleepSec)
+        guard let span = SleepRules.mainNightSpan(candidates, habitualMidsleepSec: habitualMidsleepSec)
         else { return nil }
         return "\(clockString(span.start)) - \(clockString(span.end))"
     }

@@ -9,7 +9,7 @@ import WhoopStore
 
 /// The Healthspan figures (Broop Age, Pace of Aging, the nine age impacts, the weekly trend) from
 /// `Repository.healthspanSnapshot`, the one resolver the weekly store pass and the macOS Health section
-/// also use, plus the Fitness Age / VO₂max pair read as the classic `FitnessAgeSection` reads it.
+/// also use, plus the Fitness Age / VO₂max pair read as the `FitnessAgeSection` reads it.
 struct BroopHealthspanData {
     var snap = HealthspanSnapshot.empty
     var fitnessAge: Double?
@@ -571,7 +571,7 @@ struct BroopHealthspanView: View {
         .buttonStyle(BroopPressableStyle())
     }
 
-    /// The classic whole-phrase variants (bounded readings are stated as a direction only).
+    /// the whole-phrase variants (bounded readings are stated as a direction only).
     private func fitnessDeltaLine(years: Int, younger: Bool, bound: String) -> String {
         if bound == "≤" {
             if younger && years == 1 { return String(localized: "At least 1 year younger than your age") }

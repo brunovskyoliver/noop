@@ -6,14 +6,14 @@ import StrandDesign
 /// zone meter on the left; a live trace fading in from the left and ending on a dot at a dashed "now"
 /// line. Its own view so the ~1 Hz live stream re-renders only this subtree.
 ///
-/// The value is the classic Health hero's `displayHR` (spike-filtered median, then the reported value,
-/// then R-R derived) and the zone is the classic %HR-max band, so both screens read the same number.
+/// The value is the Health hero's `displayHR` (spike-filtered median, then the reported value,
+/// then R-R derived) and the zone is the %HR-max band, so both screens read the same number.
 struct BroopHealthLiveHeartRate: View {
     @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var profile: ProfileStore
 
-    /// Rolling 3-minute buffer, sampled on a fixed 1 Hz clock (the classic hero's #941 rule).
+    /// Rolling 3-minute buffer, sampled on a fixed 1 Hz clock (the hero's #941 rule).
     @State private var samples: [Double] = []
 
     private var displayHR: Int? {

@@ -8,7 +8,7 @@ import WhoopStore
 
 /// Broop More: the WHOOP More / Profile page. A profile header, then every screen as its own card row
 /// (thin outline icon, tracked caps label, optional grey line), grouped the way WHOOP groups its menu.
-/// Every destination the classic More list reached is still one tap away; the switch back to the classic
+/// Every destination the More list reached is still one tap away; the switch back to the classic
 /// interface now lives in Settings > App.
 struct BroopMoreView: View {
     @EnvironmentObject private var repo: Repository

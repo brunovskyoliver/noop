@@ -96,7 +96,7 @@ struct BroopHomeView: View {
         .onChange(of: router.requestedDestination) { _, dest in if dest != nil { showOutlook = false } }
     }
 
-    /// Horizontal swipe changes the day, like the classic Today.
+    /// Horizontal swipe changes the day, like the Today.
     private var daySwipe: some Gesture {
         DragGesture(minimumDistance: 24)
             .onEnded { v in
@@ -722,7 +722,7 @@ struct BroopLiveStrapStatus: View {
     @EnvironmentObject private var live: LiveState
 
     var body: some View {
-        let display = LiquidTodayView.StrapBatteryDisplay.resolve(
+        let display = TodayDisplay.StrapBatteryDisplay.resolve(
             activeIsWhoop: live.activeIsWhoop, connected: live.connected,
             batteryPct: live.batteryPct, charging: live.charging,
             ringPct: live.ouraBatteryPct, ringCharging: live.ouraWearState == .charging)

@@ -3,7 +3,7 @@ import SwiftUI
 import StrandDesign
 import WhoopStore
 
-/// WHOOP's workout builder over the classic `LiftProgramEditorSheet` rules: a name, an optional note and
+/// WHOOP's workout builder over the `LiftProgramEditorSheet` rules: a name, an optional note and
 /// an ordered list of exercise lines with their targets. Lines are drafts until SAVE WORKOUT writes the
 /// program and swaps its whole list through `replaceLiftProgramItems`. A session snapshots the program's
 /// name, so renaming or deleting a workout never rewrites history.
@@ -207,7 +207,7 @@ struct BroopFinalBLiftProgramEditor: View {
         return sets == 1 ? String(localized: "1 Set") : String(localized: "\(sets) Sets")
     }
 
-    /// "4 × 8 · 60 kg · max RPE 8 · 2:00 rest": only the parts that were filled in (classic wording).
+    /// "4 × 8 · 60 kg · max RPE 8 · 2:00 rest": only the parts that were filled in (wording).
     private func targetSummary(_ item: LiftProgramItemRow) -> String {
         var parts: [String] = []
         if let sets = item.targetSets {
@@ -233,7 +233,7 @@ struct BroopFinalBLiftProgramEditor: View {
         items[index] = saved
     }
 
-    // MARK: Load / save (as the classic editor)
+    // MARK: Load / save (as the editor)
 
     private func loadIfNeeded() async {
         guard !loaded else { return }
@@ -287,7 +287,7 @@ struct BroopFinalBLiftItemTarget: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-/// One exercise line, WHOOP's CUSTOM EXERCISE page over the classic `LiftProgramItemSheet` rules. Broop
+/// One exercise line, WHOOP's CUSTOM EXERCISE page over the `LiftProgramItemSheet` rules. Broop
 /// ships no exercise catalogue: the name is the user's own, remembered in `liftExercise` with the
 /// muscles given here, and offered back next time. Every target is optional.
 struct BroopFinalBLiftItemEditor: View {

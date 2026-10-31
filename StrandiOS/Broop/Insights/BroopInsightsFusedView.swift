@@ -3,7 +3,7 @@ import SwiftUI
 import StrandAnalytics
 
 // Your Data, Fused: the best-sourced value per metric with its provenance, drawn like a WHOOP statistics
-// list. Built by the same `AppModel.buildTodayFusedRecord()` the classic host calls; a conflict opens the
+// list. Built by the same `AppModel.buildTodayFusedRecord()` the host calls; a conflict opens the
 // side-by-side compare sheet. Nothing is merged or averaged here, only shown.
 
 struct BroopInsightsFusedView: View {

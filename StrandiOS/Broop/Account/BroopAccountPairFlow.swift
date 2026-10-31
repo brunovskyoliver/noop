@@ -6,11 +6,11 @@ import WhoopStore
 // MARK: - Pair a WHOOP
 
 /// WHOOP-style pairing for a WHOOP 4.0 or 5.0 / MG: choose the family, get it ready, SEARCHING FOR
-/// STRAP…, pick it, name it, done. It runs the classic Add-a-device wizard's WHOOP path call for call:
+/// STRAP…, pick it, name it, done. It runs the Add-a-device wizard's WHOOP path call for call:
 /// `model.presentWhoopScan(model:)`, `ble.discoveredWhoops`, `model.stopWhoopScan()`, the same
 /// `PairedDevice` shape and `model.registerDevice(_:makeActive:)` after the same make-active question.
 /// Every other device type (heart-rate straps, gym equipment, the experimental bands and the Oura
-/// adopt flow) opens the classic wizard under the Broop skin.
+/// adopt flow) opens the wizard under the Broop skin.
 struct BroopAccountPairFlow: View {
     let onClose: () -> Void
     @EnvironmentObject private var model: AppModel

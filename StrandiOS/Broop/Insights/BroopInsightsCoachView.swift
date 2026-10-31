@@ -5,7 +5,7 @@ import UIKit
 
 // Coach, as WHOOP Coach v6: a dark indigo canvas, coach replies as plain Markdown text with an action row
 // (copy / share / save to journal), user turns in right-aligned violet bubbles, white suggestion chips and a
-// "+" / gradient-bordered field / mic composer. Behaviour is the classic `CoachView`'s: the same
+// "+" / gradient-bordered field / mic composer. Behaviour is the `CoachView`'s: the same
 // `AICoachEngine` calls, the same first-open task order, the pending-prompt handoff, draft persistence,
 // on-device voice, key repair and provider setup. Coach settings and provider settings stay the classic
 // sheets (under the Broop skin), reached from the header menu.
@@ -84,7 +84,7 @@ struct BroopInsightsCoachView: View {
         } message: {
             Text("This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.")
         }
-        // Same single sequential task as the classic screen: restore, surface a stored brief, then the
+        // Same single sequential task as the screen: restore, surface a stored brief, then the
         // first-open brief only if the transcript is still empty.
         .task {
             await coach.loadPersistedMessagesIfNeeded()
@@ -527,7 +527,7 @@ struct BroopInsightsCoachView: View {
         Task { await coach.send(t) }
     }
 
-    /// K8: the reply saved as a journal note under "Coach advice", as the classic screen does.
+    /// K8: the reply saved as a journal note under "Coach advice", as the screen does.
     private func saveAdvice(_ message: ChatMessage) {
         let day = Repository.localDayKey(Date())
         Task {
@@ -565,7 +565,7 @@ struct BroopInsightsCoachBackground: View {
 // MARK: - Setup
 
 /// Connect a provider: provider, server URL + key header (custom), model with refresh / custom id, API key.
-/// Same engine calls as the classic setup card.
+/// Same engine calls as the setup card.
 struct BroopInsightsCoachSetup: View {
     @EnvironmentObject private var coach: AICoachEngine
     @State private var keyDraft = ""

@@ -4,17 +4,17 @@ import SwiftUI
 import StrandAnalytics
 import StrandDesign
 
-/// Broop Compare (`.compare`), rebuilt from the classic `CompareView`: pick two to four catalog metrics,
+/// Broop Compare (`.compare`), rebuilt from the `CompareView`: pick two to four catalog metrics,
 /// read them on one min–max normalized overlay (press and drag for each metric's real value on that day),
-/// then every pair's Pearson r with the classic restrained wording. Same loads (`resolvedSeries`), same
-/// per-series widening, and the same persisted window and selection keys as the classic screen.
+/// then every pair's Pearson r with the restrained wording. Same loads (`resolvedSeries`), same
+/// per-series widening, and the same persisted window and selection keys as the screen.
 struct BroopHealthCompareView: View {
     @EnvironmentObject private var repo: Repository
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     @AppStorage("compare.rangeRaw") private var savedRangeRaw = CompareRange.year.rawValue
     @AppStorage("compare.selectedIds") private var savedSelectedIds = ""
 
-    @State private var selected: [MetricDescriptor] = CompareView.initialSelection()
+    @State private var selected: [MetricDescriptor] = CompareRules.initialSelection()
     @State private var full: [String: [(day: String, value: Double)]] = [:]
     @State private var loaded = false
     @State private var scrubDate: Date?
@@ -311,7 +311,7 @@ struct BroopHealthCompareView: View {
         .accessibilityElement(children: .combine)
     }
 
-    // The classic insight language.
+    // the insight language.
     private func sentence(_ p: Pair) -> String {
         let head = String(localized: "\(p.a.metric.title) ↔ \(p.b.metric.title): r = \(signedR(p.r)) (\(strength(p.r)) \(direction(p.r))) over \(p.n) shared days.")
         guard abs(p.r) >= 0.3 else { return String(localized: "\(head) No clear relationship. They move largely independently.") }

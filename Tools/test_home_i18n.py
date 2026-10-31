@@ -465,7 +465,7 @@ class HomeLocalizationTest(unittest.TestCase):
         self.assertEqual([], missing, "Missing Apple Home catalog translations:\n" + "\n".join(missing))
 
     def test_apple_skin_temp_dynamic_copy_uses_swift_interpolation(self) -> None:
-        source = (ROOT / "Strand/Screens/SkinTempCardsView.swift").read_text(encoding="utf-8")
+        source = (ROOT / "Strand/Data/SkinTempCardsSupport.swift").read_text(encoding="utf-8")
         for argument in ("hours", "signals", "reasons"):
             self.assertIn(
                 rf"\({argument})",
@@ -477,7 +477,8 @@ class HomeLocalizationTest(unittest.TestCase):
         source = (ROOT / "Strand/Screens/TodayView.swift").read_text(encoding="utf-8")
         catalog = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")
         self.assertEqual("WHOOP", catalog["strings"]["Whoop"]["localizations"]["pt-PT"]["stringUnit"]["value"])
-        self.assertIn('private static let whoopBrandName = "WHOOP"', source)
+        rules = (ROOT / "Strand/Data/TodayRules.swift").read_text(encoding="utf-8")
+        self.assertIn('static let whoopBrandName = "WHOOP"', rules)
 
         tint_start = source.index("private func provenanceTint")
         tint_end = source.index("// MARK: Apple Watch provenance", tint_start)
@@ -504,7 +505,10 @@ class HomeLocalizationTest(unittest.TestCase):
         app_model = (ROOT / "Strand/App/AppModel.swift").read_text(encoding="utf-8")
         illness = (ROOT / "Packages/StrandAnalytics/Sources/StrandAnalytics/IllnessSignalEngine.swift").read_text(encoding="utf-8")
         readiness = (ROOT / "Packages/StrandAnalytics/Sources/StrandAnalytics/ReadinessEngine.swift").read_text(encoding="utf-8")
-        today = (ROOT / "Strand/Screens/TodayView.swift").read_text(encoding="utf-8")
+        today = "\n".join(
+            (ROOT / path).read_text(encoding="utf-8")
+            for path in ("Strand/Screens/TodayView.swift", "Strand/Data/TodayRules.swift", "Strand/Data/TodayDisplay.swift")
+        )
 
         self.assertIn("public enum Message", illness)
         self.assertIn('suppressedBy.append("a hard or late workout")', illness)
@@ -524,7 +528,7 @@ class HomeLocalizationTest(unittest.TestCase):
         self.assertNotIn("if let evidence = s.evidence", today)
         self.assertNotIn("LocalizedStringKey(s.detail)", today)
 
-        self.assertIn("badge: Self.whoopBrandName", today)
+        self.assertIn("badge: TodayRules.whoopBrandName", today)
         self.assertIn('case .nutritionCsv: return String(localized: "Nutrition")', today)
         self.assertIn('case .localCache: return String(localized: "Cached")', today)
 

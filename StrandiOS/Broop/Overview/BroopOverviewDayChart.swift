@@ -6,7 +6,7 @@ import WhoopStore
 /// The whole-day timeline in WHOOP's day heart-rate style: the selected day's sleep, Charge and Effort
 /// across the top, then the metric line over the full day with the night banded, a Charge marker at wake
 /// and an Effort marker at the latest reading. Pinch to zoom, drag to pan (up to two days back), hold to
-/// read. Reads come from `Repository.timelineSeries`, as the classic Deep Timeline's do.
+/// read. Reads come from `Repository.timelineSeries`, as the Deep Timeline's do.
 struct BroopOverviewDayChartScreen: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
@@ -312,7 +312,7 @@ struct BroopOverviewDayChartScreen: View {
         loading = false
     }
 
-    /// The main night's band and each workout's glyph, scoped exactly as the classic timeline scopes them.
+    /// The main night's band and each workout's glyph, scoped exactly as the timeline scopes them.
     private func reloadAnnotations() async {
         let daysBack = max(0, Int(Date().timeIntervalSince(dayStart) / 86_400)) + 2
         let sleeps: [OverviewHRChart.SleepSpan] = await repo.allSleepSessions(days: daysBack).map { s in

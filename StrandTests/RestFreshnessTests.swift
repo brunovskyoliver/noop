@@ -17,12 +17,12 @@ final class RestFreshnessTests: XCTestCase {
     func testTodaysOwnRow_wins_regardlessOfTail() {
         // Today's own scored Rest is shown even when a (fresher or staler) tail exists.
         XCTAssertEqual(
-            TodayView.freshRestScore(todayValue: 71, lastDay: "2026-06-18", lastValue: 93,
+            TodayRules.freshRestScore(todayValue: 71, lastDay: "2026-06-18", lastValue: 93,
                                      isTodaySelected: true, todayKey: todayKey),
             71)
         // …and even with a stale tail present.
         XCTAssertEqual(
-            TodayView.freshRestScore(todayValue: 71, lastDay: "2026-06-07", lastValue: 93,
+            TodayRules.freshRestScore(todayValue: 71, lastDay: "2026-06-07", lastValue: 93,
                                      isTodaySelected: true, todayKey: todayKey),
             71)
     }
@@ -31,7 +31,7 @@ final class RestFreshnessTests: XCTestCase {
         // No today row + a FRESH last-scored night (yesterday) → tail-fallback carries last night's Rest.
         // Unchanged (legitimate) morning-carry behaviour.
         XCTAssertEqual(
-            TodayView.freshRestScore(todayValue: nil, lastDay: "2026-06-18", lastValue: 88,
+            TodayRules.freshRestScore(todayValue: nil, lastDay: "2026-06-18", lastValue: 88,
                                      isTodaySelected: true, todayKey: todayKey),
             88)
     }
@@ -40,21 +40,21 @@ final class RestFreshnessTests: XCTestCase {
         // No today row + a STALE last-scored night (12 days ago) → NO tail-fallback. This is the frozen-93
         // case: it now reads honestly as no data (nil), so the Rest hero shows its No-Data/calibrating state.
         XCTAssertNil(
-            TodayView.freshRestScore(todayValue: nil, lastDay: "2026-06-07", lastValue: 93,
+            TodayRules.freshRestScore(todayValue: nil, lastDay: "2026-06-07", lastValue: 93,
                                      isTodaySelected: true, todayKey: todayKey))
     }
 
     func testPastDaySelected_neverTailFalls() {
         // A navigated PAST day with no row shows nothing rather than borrowing the newest value.
         XCTAssertNil(
-            TodayView.freshRestScore(todayValue: nil, lastDay: "2026-06-18", lastValue: 88,
+            TodayRules.freshRestScore(todayValue: nil, lastDay: "2026-06-18", lastValue: 88,
                                      isTodaySelected: false, todayKey: todayKey))
     }
 
     func testNoTailAtAll_readsNoData() {
         // Cold start: no today row and no scored night anywhere → no number, no fabrication.
         XCTAssertNil(
-            TodayView.freshRestScore(todayValue: nil, lastDay: nil, lastValue: nil,
+            TodayRules.freshRestScore(todayValue: nil, lastDay: nil, lastValue: nil,
                                      isTodaySelected: true, todayKey: todayKey))
     }
 

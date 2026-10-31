@@ -5,7 +5,7 @@ import StrandDesign
 import StrandImport
 import WhoopStore
 
-/// Build workouts from a spreadsheet, over the classic `LiftProgramImportSheet` rules: the file is
+/// Build workouts from a spreadsheet, over the `LiftProgramImportSheet` rules: the file is
 /// parsed and shown back as what it WILL create (workouts, their exercises, every warning), and nothing
 /// is written until IMPORT is tapped. Same size limit, same accepted types, same writes.
 struct BroopFinalBLiftImportSheet: View {
@@ -148,7 +148,7 @@ struct BroopFinalBLiftImportSheet: View {
         }
     }
 
-    /// "3 x 10 · 50 kg · RPE ≤8 · 90s", skipping blanks (the classic preview's wording).
+    /// "3 x 10 · 50 kg · RPE ≤8 · 90s", skipping blanks (the preview's wording).
     private func summary(_ line: ImportedProgramLine) -> String {
         var parts: [String] = []
         if let sets = line.targetSets, let reps = line.targetReps { parts.append("\(sets) x \(reps)") }

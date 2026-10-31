@@ -6,7 +6,7 @@ import StrandAnalytics
 /// session. Two big time tiles (ASLEEP / WOKE) with a wheel under the one being edited, the time in bed
 /// between them, a white SAVE capsule and a quiet red delete.
 ///
-/// Behaviour is the classic `SleepTimeEditor`'s, through the same pure `SleepEditGuard` rules:
+/// Behaviour is the `SleepTimeEditor`'s, through the same pure `SleepEditGuard` rules:
 /// - the start is bounded to the past, and a start seeded in the future is clamped to now (#940);
 /// - a time-only roll of the start that lands in the future, or at/after the night's wake, snaps back a day
 ///   (`autoCorrectedBed`, guard 1);

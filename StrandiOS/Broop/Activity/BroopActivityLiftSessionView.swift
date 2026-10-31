@@ -8,7 +8,7 @@ import WhoopStore
 /// the active set or the rest, heart rate with the zone bar, the current exercise) and EXERCISES (every
 /// set of every exercise, editable, startable in any order). All state lives in `LiftSessionController`,
 /// so swiping the sheet away minimises the session to the bar and the clock, the strap gesture and the
-/// buzzes keep running. Finishing and saving follow the classic `LiftSessionView` exactly.
+/// buzzes keep running. Finishing and saving follow the `LiftSessionView` exactly.
 struct BroopActivityLiftSessionView: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var session: LiftSessionController
@@ -357,7 +357,7 @@ struct BroopActivityLiftSessionView: View {
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(BroopActivityPalette.inputBorder, lineWidth: 1))
     }
 
-    // MARK: Values (the classic sheet's bindings: typed text is held while a field is focused, and
+    // MARK: Values (the sheet's bindings: typed text is held while a field is focused, and
     // every keystroke still lands in the controller and on disk)
 
     private func display(_ kg: Double) -> String { LiftFormat.trim(LiftFormat.display(fromKilograms: kg, system: unitSystem)) }
@@ -659,7 +659,7 @@ struct BroopActivityLiftFinishSheet: View {
             return
         }
         let row = LiftSessionRow(id: sessionId, deviceId: repo.deviceId, startTs: engine.startTs, endTs: endTs,
-                                 sport: LiftSessionView.sport, programId: session.programId, programName: session.programName,
+                                 sport: LiftSessionRules.sport, programId: session.programId, programName: session.programName,
                                  sessionRpe: LiftFormat.number(rpeText), note: session.programName)
         _ = try? await store.upsertLiftSessions([row])
         let rows = finished.enumerated().map { ord, s -> LiftSetRow in
@@ -672,7 +672,7 @@ struct BroopActivityLiftFinishSheet: View {
         }
         _ = try? await store.upsertLiftSets(rows)
         await writeProgram(store: store, plan: engine.plan, sets: finished)
-        let workout = WorkoutRow(startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport, source: "manual",
+        let workout = WorkoutRow(startTs: engine.startTs, endTs: endTs, sport: LiftSessionRules.sport, source: "manual",
                                  durationS: Double(max(0, endTs - engine.startTs)), energyKcal: nil, avgHr: nil, maxHr: nil,
                                  strain: nil, distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
         await repo.saveManualWorkout(workout)

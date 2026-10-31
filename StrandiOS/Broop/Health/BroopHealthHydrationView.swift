@@ -4,7 +4,7 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-/// Broop Hydration (`.hydration`), rebuilt from the classic `HydrationView`: today's total against the
+/// Broop Hydration (`.hydration`), rebuilt from the `HydrationView`: today's total against the
 /// effort-adjusted goal as a thin ring, quick log (sip / cup / bottle / custom size), today's drinks with
 /// edit and delete, water imported from Apple Health, and the last seven days. Every read and write goes
 /// through the same Repository calls.

@@ -4,7 +4,7 @@ import StrandAnalytics
 
 // The v5 skin-temperature suite on the Broop Health tab: the illness heads-up, the body-clock estimate and the
 // opt-in cycle awareness (with its opt-in card). Each renders its engine's result verbatim, worded through
-// `SkinTempCopy` / `BodyClockCard` exactly as the classic cards word it; only the drawing is Broop's.
+// `SkinTempCopy` / `BodyClockCard` exactly as the cards word it; only the drawing is Broop's.
 
 // MARK: - Phase colours
 
@@ -36,7 +36,7 @@ enum BroopFinalACyclePhase {
         }
     }
 
-    /// "~day 18–22", always a range, the classic wording.
+    /// "~day 18–22", always a range, the wording.
     static func dayRange(_ r: CyclePhaseEngine.Result) -> String? {
         guard let lo = r.cycleDayLow, let hi = r.cycleDayHigh else { return nil }
         return lo == hi ? String(localized: "~day \(lo)") : String(localized: "~day \(lo)-\(hi)")
@@ -48,7 +48,7 @@ private let broopFinalAAwarenessLine = String(localized: "For awareness only. No
 // MARK: - Illness heads-up
 
 /// The illness heads-up: amber when raised or already unwell, calm otherwise. The host mounts it only for a
-/// non-quiet level, as the classic card.
+/// non-quiet level, as the card.
 struct BroopFinalAHeadsUpCard: View {
     let result: IllnessSignalEngine.Result
     var distance: IllnessDistance.Result? = nil

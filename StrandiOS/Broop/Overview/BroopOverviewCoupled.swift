@@ -4,7 +4,7 @@ import StrandAnalytics
 import StrandDesign
 import WhoopStore
 
-/// The coupled one-glance day read (classic `CoupledView`) in Broop form: today's Recovery ring with the
+/// The coupled one-glance day read (`CoupledView`) in Broop form: today's Recovery ring with the
 /// readiness word, Day Strain on the 0–21 axis with its optimal band, calories and workouts, and last
 /// night's sleep performance with slept vs needed. Every value is resolved exactly as `CoupledView`
 /// resolves it (same helpers, same carry and calibration rules), so the two never disagree.
@@ -24,7 +24,7 @@ struct BroopOverviewCoupledScreen: View {
     }
 
     private var carried: DailyMetric? {
-        TodayView.lastScoredRecoveryDay(days: repo.days, selectedDayKey: todayKey, isToday: true,
+        TodayRules.lastScoredRecoveryDay(days: repo.days, selectedDayKey: todayKey, isToday: true,
                                         todayScored: day?.recovery != nil, isCalibrating: calibrationNights != nil)
     }
 
@@ -51,7 +51,7 @@ struct BroopOverviewCoupledScreen: View {
 
     private var bedWake: String? {
         let start = Int(Calendar.current.startOfDay(for: Repository.logicalDay(Date())).timeIntervalSince1970)
-        guard let span = SleepView.mainNightSpan(repo.sleeps.filter { $0.endTs > start }, habitualMidsleepSec: habitual)
+        guard let span = SleepRules.mainNightSpan(repo.sleeps.filter { $0.endTs > start }, habitualMidsleepSec: habitual)
         else { return nil }
         return "\(Night.clockString(span.start)) – \(Night.clockString(span.end))"
     }
@@ -102,13 +102,13 @@ struct BroopOverviewCoupledScreen: View {
                                   valueText: recovery.map { BroopFormat.whole($0) }, unit: "%",
                                   label: [String(localized: "Recovery")], diameter: 220, lineWidth: 11)
                 .opacity(isCarrying ? 0.85 : 1)
-            if let word = TodayView.readinessWord(readiness) {
+            if let word = TodayRules.readinessWord(readiness) {
                 BroopCaps(word, size: 11, color: tint)
                     .padding(.horizontal, 14).frame(height: 28)
                     .background(Capsule().fill(tint.opacity(0.14)))
             }
             if isCarrying, let prior = carried {
-                Text(verbatim: TodayView.carriedCaption(priorDayKey: prior.day, todayKey: todayKey))
+                Text(verbatim: TodayRules.carriedCaption(priorDayKey: prior.day, todayKey: todayKey))
                     .font(BroopType.medium(12.5)).foregroundStyle(BroopPalette.textSecondary)
             } else if recovery == nil, let banked = calibrationNights {
                 Text(verbatim: ChargeBreakdownFormat.calibrationProgress(banked: banked, seed: Baselines.minNightsSeed))
@@ -133,7 +133,7 @@ struct BroopOverviewCoupledScreen: View {
     }
 
     private var strainCard: some View {
-        // The one strain-target resolver (Home, the classic Coupled read and the live coach read it too).
+        // The one strain-target resolver (Home, the Coupled read and the live coach read it too).
         let target = BroopOverviewEffortTarget(strainContext.band(charge: day?.recovery, isToday: true), effortMax: 21)
         return BroopOverviewCard {
             VStack(alignment: .leading, spacing: 16) {

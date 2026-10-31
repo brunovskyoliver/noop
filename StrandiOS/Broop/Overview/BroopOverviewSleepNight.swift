@@ -367,7 +367,7 @@ struct BroopOverviewNightCard: View {
             .frame(width: 1)
     }
 
-    /// Largest-remainder whole percentages, the same apportionment the classic rows print.
+    /// Largest-remainder whole percentages, the same apportionment the rows print.
     private func sharePercent(_ stage: SleepStage, _ s: Stages) -> Int {
         guard let p = StagePercentages.wholePercentages([s.awake, s.light, s.deep, s.rem]) else { return 0 }
         switch stage {

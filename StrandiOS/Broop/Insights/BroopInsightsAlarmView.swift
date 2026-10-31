@@ -70,7 +70,7 @@ struct BroopInsightsAlarmView: View {
             Text("Turn on notifications for NOOP in Settings to get your wind-down reminder.")
         }
         .task(id: repo.refreshSeq) { await model.refreshTonightPlan() }
-        // The arming triggers, exactly the classic card's: any change to the alarm's on / time / weekdays
+        // The arming triggers, exactly the card's: any change to the alarm's on / time / weekdays
         // re-arms (or disarms) through the one AppModel path.
         .onChange(of: behavior.smartAlarmEnabled) { _, _ in model.applySmartAlarm(); replan() }
         .onChange(of: behavior.smartAlarmMinutes) { _, _ in model.applySmartAlarm(); replan() }
@@ -384,9 +384,9 @@ struct BroopInsightsAlarmView: View {
             BroopCaps(String(localized: "Repeat"), size: 10, color: BroopPalette.textSecondary)
             HStack(spacing: 0) {
                 ForEach(Self.weekdayOrder, id: \.self) { dow in
-                    let on = SmartAlarmView.alarmWeekdayIsSelected(dow, in: behavior.smartAlarmWeekdays)
+                    let on = AlarmRules.alarmWeekdayIsSelected(dow, in: behavior.smartAlarmWeekdays)
                     Button {
-                        behavior.smartAlarmWeekdays = SmartAlarmView.alarmToggledWeekday(dow, in: behavior.smartAlarmWeekdays)
+                        behavior.smartAlarmWeekdays = AlarmRules.alarmToggledWeekday(dow, in: behavior.smartAlarmWeekdays)
                     } label: {
                         Text(verbatim: String(Self.weekdayShort(dow).prefix(1)))
                             .font(BroopType.demi(14))
@@ -400,7 +400,7 @@ struct BroopInsightsAlarmView: View {
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
-            Text(verbatim: SmartAlarmView.alarmWeekdaySummary(behavior.smartAlarmWeekdays))
+            Text(verbatim: AlarmRules.alarmWeekdaySummary(behavior.smartAlarmWeekdays))
                 .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
         }
     }
@@ -417,7 +417,7 @@ struct BroopInsightsAlarmView: View {
             panelText(String(localized: "Armed on the strap itself with the experimental 5/MG command. A strap-driven wake is still unconfirmed on 5/MG on our side (confirmed only on WHOOP 4.0), so keep a backup alarm for anything you truly can't miss."))
         } else {
             panelText(String(localized: "Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss."))
-            // #1706: ask the strap what it has stored. Unconditional, as on the classic screen.
+            // #1706: ask the strap what it has stored. Unconditional, as on the screen.
             BroopInsightsOutlineButton(title: String(localized: "Check what the strap has stored")) { model.ble.getStrapAlarm() }
             panelText(String(localized: "The answer from the strap appears in your strap log and debug export, with the raw bytes it replied with."),
                       color: BroopPalette.textTertiary)
@@ -485,7 +485,7 @@ struct BroopInsightsAlarmView: View {
                         .accessibilityLabel(Text("Your usual wake time"))
                 }
                 let tonight = model.windDownTonight()
-                let at = Self.hhmm(SmartAlarmView.minuteOfDay(tonight.fireDate))
+                let at = Self.hhmm(AlarmRules.minuteOfDay(tonight.fireDate))
                 panelText(String(localized: "The nudge fires \(WindDownNudge.offsetText(tonight.offsetMin)) before this: tonight's planned time in bed plus a \(WindDownNudge.leadMinutes) min lead."),
                           color: BroopPalette.textBody)
                 panelText(tonight.fromAlarm

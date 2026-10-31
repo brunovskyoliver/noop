@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 import StrandDesign
 
-/// The classic `IntervalTimerView` timer in an object: work / rest / rounds, the 1 Hz tick, strap buzzes
+/// the `IntervalTimerView` timer in an object: work / rest / rounds, the 1 Hz tick, strap buzzes
 /// (triple into work, single into rest, 3-2-1 ticks, a long finish) and the iPhone haptic cues.
 @MainActor
 final class BroopActivityIntervalEngine: ObservableObject {

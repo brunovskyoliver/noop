@@ -32,7 +32,7 @@ Strand/
 │   ├── Data/                   # Repository, importers, profile, notification settings
 │   ├── Screens/                # SwiftUI screens (Today, Sleep, Trends, MetricExplorer, …)
 │   ├── MenuBar/                # MenuBarExtra content
-│   ├── System/                 # MacActions (lock screen, run Shortcut), ProjectInfo
+│   ├── System/                 # MacActions (lock screen, run Shortcut)
 │   └── Resources/              # Info.plist, Strand.entitlements, Assets.xcassets (AppIcon)
 ├── StrandTests/                # macOS app unit tests
 ├── StrandiOS/                  # iOS SwiftUI app shell (product name: NOOPiOS)

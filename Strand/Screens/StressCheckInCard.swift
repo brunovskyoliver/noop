@@ -1,3 +1,5 @@
+import StrandAnalytics
+import Foundation
 import SwiftUI
 import Combine
 import StrandDesign
@@ -101,5 +103,18 @@ struct StressCheckInCard: View {
         guard let fast = nudge.fastRMSSD, let base = nudge.baselineRMSSD, base > 0 else { return nil }
         return String(format: String(localized: "RMSSD %.0f ms now vs your ~%.0f ms baseline (estimate from PPG-derived R-R)."),
                       fast, base)
+    }
+}
+
+struct StressNudgeCenterKey: EnvironmentKey {
+    static let defaultValue: StressNudgeCenter? = nil
+}
+
+extension EnvironmentValues {
+    /// The shared L3 nudge center. Wave 3 sets this (`.environment(\.stressNudgeCenter, model.stressNudge)`)
+    /// from the same instance its BLEManager hook posts to; nil → BreathingView uses a local fallback.
+    var stressNudgeCenter: StressNudgeCenter? {
+        get { self[StressNudgeCenterKey.self] }
+        set { self[StressNudgeCenterKey.self] = newValue }
     }
 }

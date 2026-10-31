@@ -244,19 +244,19 @@ struct StageDetailView: View {
     private func stageStagingIsLowConfidence(_ night: Night) -> Bool {
         let s = night.stages
         guard let effPct = efficiencyPct(night) else { return false }
-        return SleepView.isStagingLowConfidence(
+        return SleepRules.isStagingLowConfidence(
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
 
     /// True when this night earns the "May be incomplete" caveat: staged on SPARSE motion coverage AND
-    /// actually reading short (#345). `SleepView.stageSparseNoteApplies` carries the reasoning and is the
+    /// actually reading short (#345). `SleepRules.stageSparseNoteApplies` carries the reasoning and is the
     /// single place the rule lives. Reads the day's REAL stored blocks (each carries the day's value), never
     /// the synthetic merged `session`; a nil flag (imported / pre-migration night) is never flagged.
     private func stageShowsIncompleteNote(_ night: Night) -> Bool {
         // Same shared gate as `SleepView.stageShowsIncompleteNote`, for the same reason this host already
         // borrows `isStagingLowConfidence` and `mainNightGroup`: the two screens render the same night and
         // must not disagree about whether it earns the caveat.
-        SleepView.stageSparseNoteApplies(
+        SleepRules.stageSparseNoteApplies(
             stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true },
             asleepMin: night.stages.asleep)
     }
@@ -266,7 +266,7 @@ struct StageDetailView: View {
     /// `SleepView.stageCoverage(_:)` — this host renders the same night and must not reach a different
     /// verdict about it. Mirror in Kotlin.
     private func stageCoverage(_ night: Night) -> Double? {
-        let group = SleepView.mainNightGroup(night.sourceBlocks,
+        let group = SleepRules.mainNightGroup(night.sourceBlocks,
                                              habitualMidsleepSec: night.habitualMidsleepSec)
         return HypnogramCoverage.groupFraction(group.isEmpty ? night.sourceBlocks : group)
     }

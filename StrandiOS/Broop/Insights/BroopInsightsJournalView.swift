@@ -4,7 +4,7 @@ import WhoopStore
 
 // The Broop Journal: WHOOP's daily question list (date strip, "What happened on …?", ✕ / ✓ answer squares,
 // blue quantity capsules, CUSTOMIZE JOURNAL sheet) over NOOP's native journal. Every read and write goes
-// through the same Repository calls the classic `JournalLogCard` uses, under the native journal source, so
+// through the same Repository calls the `JournalLogCard` uses, under the native journal source, so
 // imported history is never touched and a logged day lines up with a WHOOP export.
 
 /// The selected day's answers plus the catalog inputs. Loads off the view body, one day at a time.
@@ -46,7 +46,7 @@ struct BroopInsightsJournalView: View {
     @StateObject private var catalog = JournalCatalogStore()
     @StateObject private var model = BroopInsightsJournalModel()
 
-    /// -1 = tomorrow, 0 = today, 1 = yesterday … 6 days ago. The same bounded window as the classic card
+    /// -1 = tomorrow, 0 = today, 1 = yesterday … 6 days ago. The same bounded window as the card
     /// (#656): journal answers feed the effect engine, so unbounded backfill would distort it.
     @State private var dayOffset = 0
     @State private var currentDayKey = Repository.localDayKey(Date())
@@ -56,7 +56,7 @@ struct BroopInsightsJournalView: View {
     /// Numeric answer being edited (drives the entry alert).
     @State private var editingNumeric: JournalCatalogItem?
     @State private var numericDraft = ""
-    /// Collapsed groups, shared with the classic card's key so both surfaces agree.
+    /// Collapsed groups, shared with the card's key so both surfaces agree.
     @AppStorage("journal.collapsedGroups") private var collapsedGroupsRaw = ""
 
     static let dayOffsets: [Int] = Array((-1...6).reversed())
@@ -495,7 +495,7 @@ struct BroopInsightsJournalBackground: View {
 
 /// CUSTOMIZE JOURNAL: category tabs, every behaviour with a checkbox (tracked or hidden), custom items with
 /// rename / regroup / retype / delete, and an "add your own" field. All edits go through `JournalCatalogStore`,
-/// the classic card's store, so the stored key never changes on a rename and history stays joined.
+/// the card's store, so the stored key never changes on a rename and history stays joined.
 struct BroopInsightsJournalCustomizeSheet: View {
     @ObservedObject var catalog: JournalCatalogStore
     let importedQuestions: [String]

@@ -98,8 +98,7 @@ internal object BroopNavigation {
         "appleHealth" to "apple_health", "miBand" to "mi_band", "dataSources" to "data_sources",
         "backupSync" to "backup_sync", "shortcutsExport" to "shortcuts_export", "noopLimitations" to "noop_limitations",
         "automations" to "automations", "siriShortcuts" to "android_shortcuts", "powerSaving" to "power_saving",
-        "testCentre" to "test_centre", "classicToday" to "classic_today",
-    )
+        "testCentre" to "test_centre",     )
 
     fun ownsRoute(route: String): Boolean = route in routes || routes.any { pattern ->
         pattern.contains('{') && pattern.substringBefore('{') == route.substringBeforeLast('/') + "/"

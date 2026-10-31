@@ -7,7 +7,7 @@ import WhoopStore
 /// Everything the Broop screens show for one selected day, resolved in one pass by `BroopStore.reload`.
 ///
 /// The reads mirror `LiquidTodayView.load()` call for call (same repository queries, same carry rules,
-/// same helpers), so Broop and the classic Today can never disagree about a number. Where Liquid keeps a
+/// same helpers), so Broop and the Today can never disagree about a number. Where Liquid keeps a
 /// resolution private, the static helper it delegates to is called instead.
 struct BroopSnapshot {
     var dayKey: String
@@ -16,15 +16,15 @@ struct BroopSnapshot {
 
     /// Charge 0–100 (nil = nothing honest to show) and how it was resolved (scored / carried / calibrating).
     var charge: Double?
-    var chargeDisplay: LiquidTodayView.ChargeDisplay
+    var chargeDisplay: TodayDisplay.ChargeDisplay
     /// Rest 0–100.
     var rest: Double?
     /// The day key the Rest score (and every sleep figure and the night) belongs to. Equal to `dayKey`
-    /// unless today's Rest is the classic morning carry of an earlier night (`TodayView.freshRestScore`),
+    /// unless today's Rest is the morning carry of an earlier night (`TodayRules.freshRestScore`),
     /// in which case it is that night's day, so the dial, the sleep row and the contributors describe
     /// the same night.
     var restDayKey: String
-    /// "Last night · Mon 28" when `restDayKey` is an earlier day (the classic carry caption), else nil.
+    /// "Last night · Mon 28" when `restDayKey` is an earlier day (the carry caption), else nil.
     var restCarryCaption: String?
     /// Effort on the wearer's chosen display scale (0–21 or 0–100).
     var effort: Double?
@@ -45,7 +45,7 @@ struct BroopSnapshot {
     var activeKcal: Double?
 
     var stress: StressModel?
-    /// Vital signs from `BodyVitalSigns` — the classic Health screen's resolver and inputs.
+    /// Vital signs from `BodyVitalSigns` — the Health screen's resolver and inputs.
     var vitals: [BodyVitalReading]
 
     /// Statistics against the previous 30 days, per score.
@@ -117,13 +117,13 @@ final class BroopStore: ObservableObject {
     }
 
     func maxOffset(repo: Repository) -> Int {
-        LiquidTodayView.maxDayOffset(earliestDayKey: repo.freshness.earliestDay,
+        TodayDisplay.maxDayOffset(earliestDayKey: repo.freshness.earliestDay,
                                      todayKey: Repository.logicalDayKey(Date()))
     }
 
     /// +1 = one day older, -1 = one day newer.
     func step(_ delta: Int, repo: Repository) {
-        let next = LiquidTodayView.clampedDayOffset(current: dayOffset, delta: delta, maxOffset: maxOffset(repo: repo))
+        let next = TodayDisplay.clampedDayOffset(current: dayOffset, delta: delta, maxOffset: maxOffset(repo: repo))
         guard next != dayOffset else { return }
         dayOffset = next
     }
@@ -163,10 +163,10 @@ final class BroopStore: ObservableObject {
             ? RecoveryScorer.calibrationNights(nightlyHrv: days.map(\.avgHrv), dayKeys: days.map(\.day),
                                                hasRecovery: day?.recovery != nil)
             : nil
-        let prior = TodayView.lastScoredRecoveryDay(days: days, selectedDayKey: tkey, isToday: isToday,
+        let prior = TodayRules.lastScoredRecoveryDay(days: days, selectedDayKey: tkey, isToday: isToday,
                                                     todayScored: day?.recovery != nil,
                                                     isCalibrating: calNights != nil)
-        s.chargeDisplay = LiquidTodayView.ChargeDisplay.resolve(todayRecovery: day?.recovery, priorScored: prior,
+        s.chargeDisplay = TodayDisplay.ChargeDisplay.resolve(todayRecovery: day?.recovery, priorScored: prior,
                                                                 calibrationNights: calNights, todayKey: tkey)
         s.charge = s.chargeDisplay.pct
         s.readiness = ReadinessEngine.evaluate(days: days, today: day?.day)
@@ -225,7 +225,7 @@ final class BroopStore: ObservableObject {
         async let overCountA = repo.exploreSeries(key: "hrv_rr_overcount", source: "my-whoop", days: 14)
         async let spo2CandA = repo.exploreSeries(key: "spo2_candidate", source: "my-whoop", days: 14)
         // Only the few days around the selected one: the night is grouped by the day it ENDS on.
-        async let sessionsA = repo.allSleepSessions(days: offset + 3 + TodayView.carryFreshnessDays)
+        async let sessionsA = repo.allSleepSessions(days: offset + 3 + TodayRules.carryFreshnessDays)
 
         let restSeries = await restSeriesA
         let stressStored = await stressA
@@ -240,20 +240,20 @@ final class BroopStore: ObservableObject {
         guard !Task.isCancelled else { return }
 
         let restByDay = Dictionary(restSeries.map { ($0.day, $0.value) }, uniquingKeysWith: { _, b in b })
-        s.rest = TodayView.freshRestScore(todayValue: restByDay[key], lastDay: restSeries.last?.day,
+        s.rest = TodayRules.freshRestScore(todayValue: restByDay[key], lastDay: restSeries.last?.day,
                                           lastValue: restSeries.last?.value, isTodaySelected: isToday, todayKey: key)
         // One night behind every sleep readout: when the Rest shown is a carry, the night, the sleep row
         // and the contributors come from the carried night's day, not from an empty today.
         if restByDay[key] == nil, s.rest != nil, let carriedDay = restSeries.last?.day, carriedDay != key {
             s.restDayKey = carriedDay
-            s.restCarryCaption = TodayView.carriedCaption(priorDayKey: carriedDay, todayKey: key)
+            s.restCarryCaption = TodayRules.carriedCaption(priorDayKey: carriedDay, todayKey: key)
         }
         let sleepKey = s.restDayKey
         let sleepDay: DailyMetric? = sleepKey == key ? day : days.last(where: { $0.day == sleepKey })
 
         s.stress = await CancellableAnalysis.run { StressModel(days: days, stored: stressStored) }
 
-        // Vitals through the SAME resolver and inputs as the classic Health screen.
+        // Vitals through the SAME resolver and inputs as the Health screen.
         let hrvOverCountByDay = Dictionary(overCount.map { ($0.day, $0.value) }, uniquingKeysWith: { a, _ in a })
         let spo2CandidateByDay = PuffinExperiment.spo2CandidateDisplayEnabled
             ? Dictionary(spo2Cand.map { ($0.day, $0.value) }, uniquingKeysWith: { a, _ in a }) : [:]
@@ -269,7 +269,7 @@ final class BroopStore: ObservableObject {
         s.activeKcal = activity.activeKcal?.value
 
         // Sleep: the main night that ended on the selected day (SleepView's resolution) — drawn as the
-        // stages chart only. Every sleep FIGURE comes from the day row, as on the classic Today, so the
+        // stages chart only. Every sleep FIGURE comes from the day row, as on the Today, so the
         // numbers on one screen never come from two sources.
         if habitualMidsleep == nil { habitualMidsleep = .some(await repo.habitualMidsleepSec()) }
         let habitual = habitualMidsleep ?? nil
@@ -353,7 +353,7 @@ final class BroopStore: ObservableObject {
             }
         }
         // Hours vs needed and consistency through SleepModel's own series builders, fed only the rows up to
-        // the selected day, so the value is the one the classic Sleep tiles show for that night.
+        // the selected day, so the value is the one the Sleep tiles show for that night.
         if let asleep, asleep > 0, let need = s.needMinutes, need > 0 { s.hoursVsNeededPct = asleep / need * 100 }
         // Rest v2: the parts the score actually used, as the analysis pass stored them (the export's own
         // need still wins where it carried one, exactly as the Sleep tiles resolve it).

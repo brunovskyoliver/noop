@@ -5,7 +5,7 @@ import StrandAnalytics
 import WhoopStore
 
 // Shared building blocks for the Activity group (workouts, live heart rate, strength, breathing,
-// intervals). Presentation only: every number comes from the same models the classic screens read.
+// intervals). Presentation only: every number comes from the same models the screens read.
 
 /// Colours this group needs that the shared Broop palette does not carry: WHOOP's heart-rate zone set
 /// (bright for bars and labels, muted for the inactive live zone bar) and the mint of Strength Trainer.

@@ -3,10 +3,10 @@ import SwiftUI
 import StrandDesign
 import WhoopStore
 
-/// WHOOP's ADD ACTIVITY / EDIT ACTIVITY sheet over the classic `ManualWorkoutSheet` rules: the same
+/// WHOOP's ADD ACTIVITY / EDIT ACTIVITY sheet over the `ManualWorkoutSheet` rules: the same
 /// inputs (sport, start, end, duration, distance, average HR, calories), validated by the same
 /// `WorkoutSource.buildManualRowFromSpan`, and carrying captured fields over with
-/// `WorkoutSource.preservingCaptured`, so an edit here and an edit on the classic sheet store the same row.
+/// `WorkoutSource.preservingCaptured`, so an edit here and an edit on the sheet store the same row.
 struct BroopActivityEditSheet: View {
     let editing: WorkoutRow?
     /// True for "Duplicate as manual": the form is pre-filled from `editing` but saving is a pure add.
@@ -39,7 +39,7 @@ struct BroopActivityEditSheet: View {
         self.onSave = onSave
         let e = editing
         _sport = State(initialValue: e.map { WorkoutSource.editableSport($0.sport) } ?? "")
-        // A fresh add opens on a valid 45-minute session ending now, as the classic sheet does.
+        // A fresh add opens on a valid 45-minute session ending now, as the sheet does.
         let now = Date()
         _start = State(initialValue: e.map { Date(timeIntervalSince1970: TimeInterval($0.startTs)) } ?? now.addingTimeInterval(-45 * 60))
         _end = State(initialValue: e.map { Date(timeIntervalSince1970: TimeInterval($0.endTs)) } ?? now)
@@ -206,7 +206,7 @@ struct BroopActivityEditSheet: View {
         .frame(minHeight: 52)
     }
 
-    // MARK: Rules (the classic ManualWorkoutSheet's, verbatim)
+    // MARK: Rules (the ManualWorkoutSheet's, verbatim)
 
     private var startBinding: Binding<Date> {
         Binding(get: { start }, set: { picked in

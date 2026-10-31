@@ -13,12 +13,12 @@ struct BroopActivityDetailTarget: Hashable {
     func hash(into h: inout Hasher) { h.combine(id) }
 }
 
-/// Activities: every session, WHOOP-style, over the classic `WorkoutsView` model. The log tab lists
+/// Activities: every session, WHOOP-style, over the `WorkoutsView` model. The log tab lists
 /// sessions by day with the range, sport, source and search filters, the Current / Archived split and
-/// multi-select merge and delete. The insights tab carries the classic summaries: typical Effort, totals,
+/// multi-select merge and delete. The insights tab carries the summaries: typical Effort, totals,
 /// the active-calorie heatmap, the per-sport breakdown, imported HR zones and the heart-rate recovery
 /// trend. Adding, editing, relabelling, dismissing, deleting and duplicating a session go through the
-/// same `Repository` calls the classic screen makes.
+/// same `Repository` calls the screen makes.
 struct BroopActivityListView: View {
     @EnvironmentObject private var repo: Repository
     @EnvironmentObject private var profile: ProfileStore
@@ -70,10 +70,10 @@ struct BroopActivityListView: View {
     @State private var tab: Tab = .log
     @State private var allRows: [WorkoutRow] = []
     @State private var loaded = false
-    @State private var loadedWindowDays: Int? = WorkoutsView.firstPaintWindowDays
+    @State private var loadedWindowDays: Int? = WorkoutRules.firstPaintWindowDays
     @State private var range: Range = .all
     @State private var seededRange = false
-    @State private var scope: WorkoutsView.Scope = .current
+    @State private var scope: WorkoutRules.Scope = .current
     @State private var sportFilter: String?
     @State private var sourceFilter: WorkoutSource?
     @State private var searchText = ""
@@ -108,7 +108,7 @@ struct BroopActivityListView: View {
     var body: some View {
         let resolved = effectiveRange
         let unscoped = sessions(for: resolved)
-        let rows = WorkoutsView.scopedRows(unscoped, scope: scope)
+        let rows = WorkoutRules.scopedRows(unscoped, scope: scope)
         let trendRows = recoveryTrendRows(from: unscoped)
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -331,7 +331,7 @@ struct BroopActivityListView: View {
     private func logTab(rows: [WorkoutRow]) -> some View {
         filterBar.padding(.top, 14)
         HStack(spacing: 18) {
-            ForEach(WorkoutsView.Scope.allCases) { s in
+            ForEach(WorkoutRules.Scope.allCases) { s in
                 Button { withAnimation(.snappy) { scope = s } } label: {
                     BroopCaps(s == .current ? String(localized: "Recent 10") : String(localized: "Archived"), size: 10.5,
                               color: scope == s ? BroopPalette.textPrimary : BroopPalette.textSecondary)
@@ -762,7 +762,7 @@ struct BroopActivityListView: View {
         .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius).fill(BroopPalette.card))
     }
 
-    // MARK: Data (the classic WorkoutsView rules)
+    // MARK: Data (the WorkoutsView rules)
 
     private func sessions(for r: Range) -> [WorkoutRow] {
         let windowed: [WorkoutRow]
@@ -833,7 +833,7 @@ struct BroopActivityListView: View {
     }
 
     private func showPostLogNote(_ sport: String) async {
-        let costs = InsightsView.computeActivityCosts(workouts: allRows, days: repo.days)
+        let costs = InsightsRules.computeActivityCosts(workouts: allRows, days: repo.days)
         guard let match = costs.first(where: { $0.sport == sport }) else { postLogNote = nil; return }
         let sentence = match.sentence()
         withAnimation(.easeOut(duration: 0.2)) { postLogNote = sentence }
@@ -843,7 +843,7 @@ struct BroopActivityListView: View {
 
     /// A detected-workout notification lands here through `router.pendingWorkout`: find the row that
     /// OVERLAPS the notified span (re-detection drifts boundaries), preferring a detected row, then open
-    /// its detail or edit sheet. Same rule as the classic screen.
+    /// its detail or edit sheet. Same rule as the screen.
     private func consumePendingRoute() {
         guard let pending = router.pendingWorkout, loaded else { return }
         let overlapping = allRows.filter { $0.startTs < pending.endTs && pending.startTs < $0.endTs }
@@ -874,7 +874,7 @@ private struct BroopActivityStartControl: View {
     }
 }
 
-/// The auto-detected workout suggestion (classic `AutoWorkoutCard` behaviour), when the opt-in
+/// The auto-detected workout suggestion (`AutoWorkoutCard` behaviour), when the opt-in
 /// "Auto-detect workouts" toggle is on: Save creates the workout, Not a workout dismisses it for good.
 struct BroopActivityDetectedCard: View {
     @EnvironmentObject private var repo: Repository

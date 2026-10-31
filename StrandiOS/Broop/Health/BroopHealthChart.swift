@@ -153,7 +153,7 @@ struct BroopHealthTrendChart: View {
 }
 
 /// W | M | 6M plus a caps menu for the other trailing windows (2W, 3W, 3M, 1Y, ALL), so every range the
-/// classic control offered stays one tap away without crowding WHOOP's three-way switch.
+/// control offered stays one tap away without crowding WHOOP's three-way switch.
 struct BroopHealthRangePicker: View {
     @Binding var selection: ExploreRange
     var isEnabled: (ExploreRange) -> Bool = { _ in true }

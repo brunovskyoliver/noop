@@ -76,7 +76,7 @@ extension AppModel {
     nonisolated static func mainNightStarts(navDays: [[CachedSleepSession]],
                                             habitualMidsleepSec: Int?) -> [CachedSleepSession] {
         navDays.compactMap { blocks in
-            SleepView.mainNightGroup(blocks, habitualMidsleepSec: habitualMidsleepSec)
+            SleepRules.mainNightGroup(blocks, habitualMidsleepSec: habitualMidsleepSec)
                 .min { $0.effectiveStartTs < $1.effectiveStartTs }
         }
     }

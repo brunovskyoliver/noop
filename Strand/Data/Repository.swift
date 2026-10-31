@@ -604,7 +604,7 @@ final class Repository: ObservableObject {
     /// day exists but isn't scored yet, and the old `days.last(where: recovery != nil)` still pointed at
     /// yesterday's scored row, so the widget/wrist/Live Activity showed the older day while Today had moved
     /// on. The `$0.day < carriedKey` bound (`carriedKey` = today's own key) mirrors
-    /// `TodayView.lastScoredRecoveryDay` + its #547 future-day guard, so a stale or stray future-dated
+    /// `TodayRules.lastScoredRecoveryDay` + its #547 future-day guard, so a stale or stray future-dated
     /// scored row can never re-surface AS today.
     nonisolated static func widgetAnchor(days: [DailyMetric], logicalKey: String, localKey: String) -> DailyMetric? {
         let todayRow = resolveToday(days: days, logicalKey: logicalKey, localKey: localKey)
@@ -2453,7 +2453,7 @@ final class Repository: ObservableObject {
     ///  2. the COMPUTED metricSeries under `computedDeviceId` , for keys written there but absent from
     ///     the DailyMetric columns (notably `sleep_performance`, IntelligenceEngine's Rest composite);
     ///  3. the merged daily metrics (`self.days`, imported ∪ computed) for keys with a DailyMetric
-    ///     column , the same key→column map InsightsView.dailyOutcome / Android's dailyPick use,
+    ///     column , the same key→column map InsightsRules.dailyOutcome / Android's dailyPick use,
     ///     extended to the full daily column set.
     /// Any OTHER source (apple-health / nutrition-csv / noop-mood) reads only its own series, unchanged.
     /// #833/v7.7.2: `fullHistory` forces the full recordable epoch ("0000-01-01" ... "9999-12-31")
@@ -2562,7 +2562,7 @@ final class Repository: ObservableObject {
     private var exploreAllCache: (key: String, byMetricID: [String: [(day: String, value: Double)]])?
 
     /// The merged DailyMetric column backing an Explore metric key, for the days the imported/computed
-    /// metricSeries doesn't cover (strap-only WHOOP 5 users). Mirrors InsightsView.dailyOutcome and
+    /// metricSeries doesn't cover (strap-only WHOOP 5 users). Mirrors InsightsRules.dailyOutcome and
     /// Android's dailyPick, extended to every Explore "my-whoop" key that maps to a daily column.
     /// Also handles the Apple-compatible sleep aliases (asleep_min / deep_min / rem_min / core_min) the
     /// resolver may request when filling an Apple candidate from its daily columns. Keys with no daily

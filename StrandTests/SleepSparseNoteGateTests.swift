@@ -12,34 +12,34 @@ final class SleepSparseNoteGateTests: XCTestCase {
 
     func testALongNightNeverEarnsTheCaveatHoweverSparseItsMotion() {
         for hours in [8.0, 10.5, 12.0, 12.75] {
-            XCTAssertFalse(SleepView.stageSparseNoteApplies(stagingSparse: true,
+            XCTAssertFalse(SleepRules.stageSparseNoteApplies(stagingSparse: true,
                                                             asleepMin: hours * 60, needHours: need),
                            "a \(hours)h night cannot honestly be captioned as possibly reading short")
         }
     }
 
     func testAGenuinelyShortSparseNightStillWarns() {
-        XCTAssertTrue(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: 60, needHours: need))
-        XCTAssertTrue(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: 7.9 * 60, needHours: need))
+        XCTAssertTrue(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: 60, needHours: need))
+        XCTAssertTrue(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: 7.9 * 60, needHours: need))
     }
 
     func testANightThatStagedToNothingIsTheStrongestCaseNotAnExemption() {
-        XCTAssertTrue(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: 0, needHours: need))
+        XCTAssertTrue(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: 0, needHours: need))
     }
 
     func testSparseStaysNecessary() {
-        XCTAssertFalse(SleepView.stageSparseNoteApplies(stagingSparse: false, asleepMin: 60, needHours: need))
-        XCTAssertFalse(SleepView.stageSparseNoteApplies(stagingSparse: false, asleepMin: 0, needHours: need))
+        XCTAssertFalse(SleepRules.stageSparseNoteApplies(stagingSparse: false, asleepMin: 60, needHours: need))
+        XCTAssertFalse(SleepRules.stageSparseNoteApplies(stagingSparse: false, asleepMin: 0, needHours: need))
     }
 
     func testTheBoundaryIsTheNeedItself() {
-        XCTAssertTrue(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: need * 60 - 1, needHours: need))
-        XCTAssertFalse(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: need * 60, needHours: need))
+        XCTAssertTrue(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: need * 60 - 1, needHours: need))
+        XCTAssertFalse(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: need * 60, needHours: need))
     }
 
     func testTheDefaultNeedIsTheSharedEngineConstant() {
         // 8h by default, so a 7h sparse night warns and a 9h one does not, with no needHours passed.
-        XCTAssertTrue(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: 7 * 60))
-        XCTAssertFalse(SleepView.stageSparseNoteApplies(stagingSparse: true, asleepMin: 9 * 60))
+        XCTAssertTrue(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: 7 * 60))
+        XCTAssertFalse(SleepRules.stageSparseNoteApplies(stagingSparse: true, asleepMin: 9 * 60))
     }
 }

@@ -6,7 +6,7 @@ import StrandDesign
 // Intelligence: NOOP's own on-device Charge / Effort / Rest, shown the way WHOOP's performance reports read.
 // A forecast dial for tomorrow's Charge, the model explained as weighted bars, and a By Day list whose rows
 // open to "what shaped it". Every value comes from `IntelligenceEngine.results` and `RecoveryForecaster`,
-// exactly as the classic screen reads them.
+// exactly as the screen reads them.
 
 struct BroopInsightsIntelligenceView: View {
     @EnvironmentObject private var intelligence: IntelligenceEngine
@@ -53,7 +53,7 @@ struct BroopInsightsIntelligenceView: View {
 
     // MARK: Forecast
 
-    /// Same inputs as the classic screen: results are newest-first, the forecaster wants oldest-first.
+    /// Same inputs as the screen: results are newest-first, the forecaster wants oldest-first.
     private var forecast: RecoveryForecast? {
         let charge = intelligence.results.compactMap { $0.recovery }.reversed()
         let effort = intelligence.results.compactMap { $0.strain }.reversed()

@@ -13,7 +13,7 @@ import WhoopStore
 /// sleepless stub" branch (0 <= 3), and the shown bedtime jumped to the 1:29 main block. The #259
 /// real-sleep-episode floor (`preOnsetStubMinorAsleepFloorMin`) — added for this exact night — never
 /// engaged because its input was zeroed before the comparison. `SleepOnsetStubTests` pins the rule on
-/// PRE-COMPUTED minutes; these tests pin `SleepView.decodedAsleepMinutes`, the format-agnostic seam
+/// PRE-COMPUTED minutes; these tests pin `SleepRules.decodedAsleepMinutes`, the format-agnostic seam
 /// the onset walk now reads, using the night's REAL stored JSON.
 ///
 /// Android twin: SleepScreen's onset stub-test caller needs the same both-format decode.
@@ -42,26 +42,26 @@ final class SleepOnsetDecodeTests: XCTestCase {
     /// minutes. Before the fix the dict-only decode returned nil here and the caller substituted 0 —
     /// the zero that made a real 54-min first sleep read as a "sleepless" stub.
     func testSegmentArrayFormatDecodesRealAsleepMinutes() {
-        let asleep = SleepView.decodedAsleepMinutes(Self.fragmentStagesJSON,
+        let asleep = SleepRules.decodedAsleepMinutes(Self.fragmentStagesJSON,
                                                     effectiveStartTs: Self.fragmentEffectiveStartTs)
         XCTAssertEqual(asleep, 3236.0 / 60.0, accuracy: 0.01)
         // Above the #259 floor — the whole point: a real sleep episode must clear it.
-        XCTAssertGreaterThanOrEqual(asleep, SleepView.preOnsetStubMinorAsleepFloorMin)
+        XCTAssertGreaterThanOrEqual(asleep, SleepRules.preOnsetStubMinorAsleepFloorMin)
     }
 
     /// The imported dict-of-minutes format still decodes (asleep = light + deep + rem, awake excluded).
     func testDictFormatStillDecodes() {
-        let asleep = SleepView.decodedAsleepMinutes(#"{"light":200,"deep":80,"rem":60,"awake":30}"#,
+        let asleep = SleepRules.decodedAsleepMinutes(#"{"light":200,"deep":80,"rem":60,"awake":30}"#,
                                                     effectiveStartTs: 0)
         XCTAssertEqual(asleep, 340, accuracy: 0.001)
     }
 
     /// nil / empty / garbage stay 0 — the degenerate inputs keep the old behaviour.
     func testDegenerateInputsAreZero() {
-        XCTAssertEqual(SleepView.decodedAsleepMinutes(nil, effectiveStartTs: 0), 0)
-        XCTAssertEqual(SleepView.decodedAsleepMinutes("", effectiveStartTs: 0), 0)
-        XCTAssertEqual(SleepView.decodedAsleepMinutes("not json", effectiveStartTs: 0), 0)
-        XCTAssertEqual(SleepView.decodedAsleepMinutes("[]", effectiveStartTs: 0), 0)
+        XCTAssertEqual(SleepRules.decodedAsleepMinutes(nil, effectiveStartTs: 0), 0)
+        XCTAssertEqual(SleepRules.decodedAsleepMinutes("", effectiveStartTs: 0), 0)
+        XCTAssertEqual(SleepRules.decodedAsleepMinutes("not json", effectiveStartTs: 0), 0)
+        XCTAssertEqual(SleepRules.decodedAsleepMinutes("[]", effectiveStartTs: 0), 0)
     }
 
     /// The segment decode threads the #259 pre-onset trim: segments before `effectiveStartTs` don't
@@ -69,7 +69,7 @@ final class SleepOnsetDecodeTests: XCTestCase {
     func testSegmentDecodeTrimsPreOnset() {
         // One 10-min light segment, but the effective onset sits 5 min into it.
         let json = #"[{"start":1000,"end":1600,"stage":"light"}]"#
-        XCTAssertEqual(SleepView.decodedAsleepMinutes(json, effectiveStartTs: 1300), 5, accuracy: 0.001)
+        XCTAssertEqual(SleepRules.decodedAsleepMinutes(json, effectiveStartTs: 1300), 5, accuracy: 0.001)
     }
 
     // MARK: - The golden: the real night's onset comes from the 12:16 fragment

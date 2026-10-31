@@ -5,10 +5,10 @@ import StrandDesign
 import StrandImport
 import WhoopStore
 
-/// Broop Lab Book (`.labBook`), rebuilt from the classic `LabBookView`: markers grouped by category,
+/// Broop Lab Book (`.labBook`), rebuilt from the `LabBookView`: markers grouped by category,
 /// each opening its history with a descriptive trend and "compare with a signal", manual entry, the
 /// markers CSV / WHOOP biomarker import, delete, and the standing disclaimer. Reads and writes go through
-/// the same store calls. The add-reading form is the classic `MarkerEditorView` under the Broop skin.
+/// the same store calls. The add-reading form is the `MarkerEditorView` under the Broop skin.
 struct BroopHealthLabBookView: View {
     @EnvironmentObject private var repo: Repository
 
@@ -157,7 +157,7 @@ struct BroopHealthLabBookView: View {
     }
 
     static func name(_ key: String) -> String {
-        MarkerCatalog.definition(for: key)?.displayName ?? LabBookView.humanise(key)
+        MarkerCatalog.definition(for: key)?.displayName ?? LabBookRules.humanise(key)
     }
 
     static func valueLabel(_ row: LabMarkerRow?, key: String) -> String {
@@ -192,7 +192,7 @@ struct BroopHealthLabBookView: View {
         await load()
     }
 
-    // MARK: CSV import (classic importMarkersCsv)
+    // MARK: CSV import (importMarkersCsv)
 
     private func pickCsv() {
         Task {
@@ -284,7 +284,7 @@ struct BroopHealthSparkline: View {
 // MARK: - Marker detail
 
 /// One marker: its readings as a Trend View style chart, the descriptive trend sentence, the reference
-/// text from the user's own report, "compare with a signal" (the classic windowed-aggregate Pearson and
+/// text from the user's own report, "compare with a signal" (the windowed-aggregate Pearson and
 /// restrained copy), and the full history with delete.
 struct BroopHealthMarkerDetail: View {
     let markerKey: String
@@ -528,7 +528,7 @@ struct BroopHealthMarkerDetail: View {
     }
 }
 
-/// The full "About Lab Book" note (classic first-use disclaimer).
+/// The full "About Lab Book" note (first-use disclaimer).
 private struct BroopHealthLabAboutSheet: View {
     @Environment(\.dismiss) private var dismiss
 

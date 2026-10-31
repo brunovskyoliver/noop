@@ -6,7 +6,7 @@ import StrandDesign
 // MARK: - Automations
 
 /// The strap's inputs and haptic coaching, grouped the WHOOP way. Every switch binds the key or store the
-/// classic Automations screen binds and fires the same side effects (authorisation requests, re-evaluation).
+/// Automations screen binds and fires the same side effects (authorisation requests, re-evaluation).
 struct BroopAccountAutomationsView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var behavior: BehaviorStore

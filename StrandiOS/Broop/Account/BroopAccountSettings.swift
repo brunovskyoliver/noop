@@ -206,7 +206,7 @@ struct BroopAccountProfilePage: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Current and longest Charge streak (#569), the same StreakCalculator the classic card used.
+    /// Current and longest Charge streak (#569), the same StreakCalculator the card used.
     private var streakCard: some View {
         HStack(spacing: 0) {
             streakColumn(value: streak.current, label: String(localized: "Current streak"))
@@ -251,7 +251,7 @@ struct BroopAccountProfilePage: View {
         return String(localized: "Not calibrated")
     }
 
-    // Imperial steps in pounds / whole inches and stores the SI value, exactly as the classic fields do.
+    // Imperial steps in pounds / whole inches and stores the SI value, exactly as the fields do.
     @ViewBuilder private var weightField: some View {
         if imperial {
             let lb = Binding<Double>(
@@ -527,12 +527,6 @@ struct BroopAccountAppearancePage: View {
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
     @AppStorage("appIcon.alt") private var useNavyIcon = false
     @AppStorage(QuietMotionPrefs.enabledKey) private var quietMotion = false
-    @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
-    @AppStorage(SkyBehindCardsPrefs.enabledKey) private var skyBehindCards = true
-    @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
-    @ObservedObject private var backgroundStore = BackgroundImageStore.shared
-    @State private var backgroundPickerItem: PhotosPickerItem?
-    @State private var showBackgroundFileImporter = false
     @State private var iconError: String?
 
     var body: some View {
@@ -566,65 +560,18 @@ struct BroopAccountAppearancePage: View {
                     ])
                 }
             }
-            BroopAccountSection(title: String(localized: "Motion & backdrop")) {
+            BroopAccountSection(title: String(localized: "Motion")) {
                 BroopAccountGroup {
                     BroopAccountToggle(title: String(localized: "Reduce motion in NOOP"),
                                        detail: String(localized: "Holds the liquid gauges, the sky and the tilt response still, and turns off the motion sensor that drives them. Saves battery. Low Power Mode and the system Reduce Motion setting already do this."),
                                        isOn: $quietMotion)
-                    BroopAccountToggle(title: String(localized: "Day-cycle background"),
-                                       detail: String(localized: "Shows a soft sunrise, day, dusk and night scene behind the Today screen. Turn it off for a plain dark canvas. Your cards stay exactly as readable."),
-                                       isOn: $showDayCycleBackground)
-                    BroopAccountToggle(title: String(localized: "Sky behind cards"),
-                                       detail: String(localized: "Extends the sky behind the whole Today screen, so lowering Card transparency lets it show through every card. Needs the day-cycle background on."),
-                                       isOn: $skyBehindCards, enabled: showDayCycleBackground)
-                    BroopAccountToggle(title: String(localized: "Transparent cards"),
-                                       detail: String(localized: "Let the background show through every card. Tune how much just below."),
-                                       isOn: Binding(
-                                           get: { cardOpacityPercent < 100 },
-                                           set: { on in cardOpacityPercent = on ? (cardOpacityPercent >= 100 ? 70 : cardOpacityPercent) : 100 }))
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Card transparency").font(BroopType.demi(15.5)).foregroundStyle(BroopPalette.textPrimary)
-                            Spacer()
-                            Text(verbatim: "\(100 - cardOpacityPercent)%")
-                                .font(BroopType.number(16)).foregroundStyle(BroopPalette.teal)
-                        }
-                        Slider(value: Binding(get: { Double(100 - cardOpacityPercent) },
-                                              set: { cardOpacityPercent = 100 - Int($0.rounded()) }),
-                               in: 0...100, step: 1)
-                            .tint(BroopPalette.teal)
-                        Text("How see-through the cards (Heart Rate, Key Metrics, Recovery Vitals, …) are. Left = solid, right = clear.")
-                            .font(BroopType.regular(13)).foregroundStyle(BroopAccountStyle.caption)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(16)
                 }
-            }
-            BroopAccountSection(title: String(localized: "Custom background"),
-                                footer: String(localized: "Optional. Use your own photo behind every tab, in place of the day-cycle sky. It stays on \(Platform.deviceNounPhrase) and is never uploaded. Pair it with Transparent cards above to let it show through.")) {
-                backgroundControls
             }
         }
         .broopAccountChrome(String(localized: "Appearance"))
         .onChange(of: appLanguageRaw) { _, value in AppLanguage.apply(value) }
         .onChange(of: clockFormatRaw) { _, _ in AppClock.invalidate() }
         .onChange(of: useNavyIcon) { _, value in applyAppIcon(value) }
-        .onChange(of: backgroundPickerItem) { _, newItem in
-            guard let newItem else { return }
-            Task {
-                let data = try? await newItem.loadTransferable(type: Data.self)
-                await MainActor.run {
-                    if let data { backgroundStore.setImage(from: data) }
-                    backgroundPickerItem = nil
-                }
-            }
-        }
-        .fileImporter(isPresented: $showBackgroundFileImporter, allowedContentTypes: [.image]) { result in
-            guard case .success(let url) = result else { return }
-            let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url) { backgroundStore.setImage(from: data) }
-        }
         .alert("Couldn't change the app icon", isPresented: Binding(get: { iconError != nil }, set: { if !$0 { iconError = nil } })) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -632,72 +579,7 @@ struct BroopAccountAppearancePage: View {
         }
     }
 
-    @ViewBuilder private var backgroundControls: some View {
-        let hasImage = backgroundStore.hasImage
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                PhotosPicker(selection: $backgroundPickerItem, matching: .images) {
-                    BroopCaps(hasImage ? String(localized: "Replace from Photos") : String(localized: "Choose from Photos"), size: 11)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Capsule().strokeBorder(Color.white.opacity(0.5), lineWidth: 1.2))
-                }
-                Button { showBackgroundFileImporter = true } label: {
-                    BroopCaps(String(localized: "Browse files"), size: 11)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Capsule().strokeBorder(Color.white.opacity(0.5), lineWidth: 1.2))
-                }
-                .buttonStyle(BroopPressableStyle())
-            }
-            if hasImage {
-                if !backgroundStore.recents.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        BroopCaps(String(localized: "Recent"), size: 10, color: BroopAccountStyle.caption)
-                        HStack(spacing: 10) {
-                            ForEach(backgroundStore.recents.indices, id: \.self) { index in
-                                recentThumb(index: index)
-                            }
-                        }
-                    }
-                }
-                BroopAccountGroup {
-                    BroopAccountToggle(title: String(localized: "Show custom background"), isOn: $backgroundStore.enabled)
-                    BroopAccountPicker(title: String(localized: "Scaling"),
-                                       selection: Binding(get: { backgroundStore.fillMode },
-                                                          set: { backgroundStore.setFillMode($0) }),
-                                       options: BackgroundFillMode.allCases.map { ($0, $0.label) })
-                    BroopAccountButtonRow(title: String(localized: "Remove image"), titleColor: BroopAccountStyle.danger,
-                                          showsChevron: false) {
-                        backgroundStore.clearImage()
-                    }
-                }
-            }
-        }
-    }
-
-    private func recentThumb(index: Int) -> some View {
-        let active = index == 0
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        return Button { backgroundStore.applyRecent(index) } label: {
-            VStack(spacing: 4) {
-                Group {
-                    if backgroundStore.thumbnails.indices.contains(index), let thumb = backgroundStore.thumbnails[index] {
-                        thumb.resizable().scaledToFill()
-                    } else {
-                        BroopAccountStyle.field
-                    }
-                }
-                .frame(width: 64, height: 64)
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(active ? BroopPalette.teal : BroopPalette.hairline, lineWidth: active ? 2 : 1))
-                Text(verbatim: backgroundStore.recents[index].fillMode.label)
-                    .font(BroopType.medium(11))
-                    .foregroundStyle(active ? BroopPalette.teal : BroopAccountStyle.caption)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Same as the classic control: skip no-op requests, revert the picker if iOS refuses.
+    /// Same as the control: skip no-op requests, revert the picker if iOS refuses.
     private func applyAppIcon(_ useNavy: Bool) {
         Task { @MainActor in
             let target = useNavy ? "AppIcon-Navy" : nil
@@ -714,7 +596,7 @@ struct BroopAccountAppearancePage: View {
 }
 
 extension BroopAccountFormat {
-    /// sRGB `#RRGGBB` for the custom accent colour, matching the classic bridge.
+    /// sRGB `#RRGGBB` for the custom accent colour, matching the bridge.
     static func hex(_ color: Color) -> String? {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         guard UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }

@@ -284,7 +284,7 @@ struct BroopHealthRhythmView: View {
     private func fmt(_ v: Double?, _ f: String) -> String { v.map { String(format: f, $0) } ?? "–" }
     private func percent(_ v: Double?) -> String { v.map { String(format: "%.0f%%", $0 * 100) } ?? "–" }
 
-    // MARK: Load (classic RhythmHost.load)
+    // MARK: Load (RhythmHost.load)
 
     private func load() async {
         guard let lastSleep = (await repo.allSleepSessions(days: 14)).last else { return }
@@ -315,7 +315,7 @@ struct BroopHealthRhythmView: View {
             beatsAreBanked: RhythmScreener.nightBeatsAreBanked(rrMs: rrRows.map { Double($0.rrMs) }, tsSec: rrRows.map { $0.ts }))
     }
 
-    /// The classic stillness gate: normalised gravity-magnitude SD under ~3 %.
+    /// the stillness gate: normalised gravity-magnitude SD under ~3 %.
     private static func isStill(_ grav: [GravitySample]) -> Bool {
         guard grav.count >= 4 else { return false }
         let mags = grav.map { ($0.x * $0.x + $0.y * $0.y + $0.z * $0.z).squareRoot() }

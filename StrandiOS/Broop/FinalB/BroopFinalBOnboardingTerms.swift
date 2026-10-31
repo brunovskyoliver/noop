@@ -4,7 +4,7 @@ import SwiftUI
 /// The Broop face of `TermsGateView`, styled after WHOOP's "Privacy and Terms of Use" page: grey
 /// padlock, large title, grey lead-in, square white checkboxes, and a white capsule pinned at the bottom.
 ///
-/// Same clickwrap contract as the classic gate: the points and attestations are `Terms.points` /
+/// Same clickwrap contract as the gate: the points and attestations are `Terms.points` /
 /// `Terms.attestations` verbatim, every attestation starts unticked, and Accept stays disabled until all
 /// of them are ticked. The caller owns what accepting stores (`noop.acceptedTermsVersion`).
 struct BroopFinalBOnboardingTermsGate: View {

@@ -6,7 +6,7 @@ import WhoopStore
 
 // MARK: - Range windows
 
-/// W / M / 3M / 6M / 1Y / ALL, windowed relative to each series' latest point with the classic sparse
+/// W / M / 3M / 6M / 1Y / ALL, windowed relative to each series' latest point with the sparse
 /// auto-widen (AppleHealthView / XiaomiBandView): the selected window whenever it holds a point,
 /// otherwise the smallest larger one that does.
 enum BroopAccountRange: String, CaseIterable, Identifiable {
@@ -534,7 +534,7 @@ struct BroopAccountAppleHealthView: View {
         .task(id: AppleHealthLoadKey(seq: repo.refreshSeq, dayKey: Repository.localDayKey(Date()))) { await load(allowCache: true) }
     }
 
-    /// The same cached loader the classic Apple Health screen uses (`performAppleHealthLoad`).
+    /// The same cached loader the Apple Health screen uses (`performAppleHealthLoad`).
     private func load(allowCache: Bool) async {
         snapshot = await repo.performAppleHealthLoad(seriesKeys: Self.seriesKeys, allowCache: allowCache)
         loaded = true
@@ -542,7 +542,7 @@ struct BroopAccountAppleHealthView: View {
     }
 }
 
-/// Live HealthKit connection: the classic card's four states and its Enable / Sync now calls.
+/// Live HealthKit connection: the card's four states and its Enable / Sync now calls.
 private struct BroopAccountAppleHealthLiveCard: View {
     let reload: () async -> Void
     @EnvironmentObject private var health: HealthKitBridge

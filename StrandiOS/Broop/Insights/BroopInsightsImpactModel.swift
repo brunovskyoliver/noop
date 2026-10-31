@@ -6,10 +6,10 @@ import WhoopStore
 /// The Journal Insights data: the same load `InsightsView.load()` runs (journal yes/no days per behaviour,
 /// the four outcome series with the strap-only DailyMetric fallback, activity costs, metric relationships),
 /// ranked with the same `BehaviorInsights` / `CorrelationEngine` / `ActivityCostEngine` calls, so every
-/// number here equals the classic Insights screen's.
+/// number here equals the Insights screen's.
 @MainActor
 final class BroopInsightsImpactModel: ObservableObject {
-    typealias Outcome = InsightsView.Outcome
+    typealias Outcome = InsightsRules.Outcome
 
     struct Relationship: Identifiable {
         let id: String
@@ -55,7 +55,7 @@ final class BroopInsightsImpactModel: ObservableObject {
             byKey[key] = dict
             seriesMap[key] = dict.sorted { $0.key < $1.key }.map { (day: $0.key, value: $0.value) }
         }
-        let costs = InsightsView.computeActivityCosts(workouts: await repo.workoutRows(), days: mergedDays)
+        let costs = InsightsRules.computeActivityCosts(workouts: await repo.workoutRows(), days: mergedDays)
 
         behaviours = byBehaviour
         controls = controlsByBehaviour
@@ -74,7 +74,7 @@ final class BroopInsightsImpactModel: ObservableObject {
                                        outcomeByDay: outcomeByKey[o.key] ?? [:], outcome: o.outcomeName)
     }
 
-    /// Same mapping as `InsightsView.dailyOutcome`: sleep_performance has no daily column.
+    /// Same mapping as `InsightsRules.dailyOutcome`: sleep_performance has no daily column.
     private static func dailyOutcome(key: String, day d: DailyMetric) -> Double? {
         switch key {
         case "recovery": return d.recovery

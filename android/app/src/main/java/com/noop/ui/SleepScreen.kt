@@ -1703,7 +1703,7 @@ private fun OuraRawStagesNote() {
  * and [remMin] are minutes; [efficiency] is asleep/in-bed in [0,1]. Returns false for an unstaged or
  * zero-asleep night (no staging to doubt).
  *
- * Twin of Swift `SleepView.isStagingLowConfidence`. That one has carried "Mirror EXACTLY in Kotlin" since
+ * Twin of Swift `SleepRules.isStagingLowConfidence`. That one has carried "Mirror EXACTLY in Kotlin" since
  * #H9 and had no Kotlin mirror: an Android night with high efficiency and implausibly little deep+REM was
  * shown as fact while the same night warned on iPhone and Mac.
  *
@@ -1787,7 +1787,7 @@ internal fun anyBlockStagingSparse(blocks: List<SleepSession>): Boolean =
 
 /**
  * Pure #345 gate (unit-testable without a Composable) — whether the "May be incomplete" caveat applies.
- * Twin of Swift `SleepView.stageSparseNoteApplies`.
+ * Twin of Swift `SleepRules.stageSparseNoteApplies`.
  *
  * [stagingSparse] alone is NOT the question the note asks. It is a STAGING-MECHANISM verdict:
  * [SleepStager.isGravitySparse] returns true when the gravity span is short against the HR span OR when the

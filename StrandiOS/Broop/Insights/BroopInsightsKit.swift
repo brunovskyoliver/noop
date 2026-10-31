@@ -335,11 +335,11 @@ extension View {
     func broopInsightsField() -> some View { modifier(BroopInsightsFieldSurface()) }
 }
 
-// MARK: - Classic hosting
+// MARK: - hosting
 
-/// A classic card kept as-is (under the launch-time skin) inside a Broop page. Used only for niche
+/// A card kept as-is (under the launch-time skin) inside a Broop page. Used only for niche
 /// sub-features, each reached from a clearly labelled row.
-struct BroopInsightsClassicPage<Content: View>: View {
+struct BroopInsightsHostedPage<Content: View>: View {
     let title: String
     @ViewBuilder var content: Content
 

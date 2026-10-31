@@ -6,7 +6,7 @@ import WhoopStore
 
 /// The Rest deep dive and the Sleep screen in one: WHOOP's Sleep Performance ring with its four
 /// contributors, the coach read, Last Night's Sleep (heart rate, stages, restorative), naps, and every
-/// card of the classic Sleep screen in the wearer's saved order. The ring and the night come from the
+/// card of the Sleep screen in the wearer's saved order. The ring and the night come from the
 /// shared `BroopStore` snapshot, so they match the Home dial for the selected day.
 struct BroopOverviewSleepScreen: View {
     @EnvironmentObject private var repo: Repository
@@ -305,7 +305,7 @@ struct BroopOverviewSleepScreen: View {
         }
     }
 
-    /// The per-day merge winner, as the classic badge names it.
+    /// The per-day merge winner, as the badge names it.
     private func source(_ night: Night) -> String {
         let wakeDay = Repository.localDayKey(Date(timeIntervalSince1970: TimeInterval(night.session.endTs)))
         if repo.importedSleep[wakeDay] != nil { return String(localized: "Whoop") }
@@ -317,7 +317,7 @@ struct BroopOverviewSleepScreen: View {
     private func reasonText(_ night: Night) -> String? {
         guard let sel = SleepStageTotals.mainNightSelection(
             night.sourceBlocks.map { SleepStageTotals.NightBlock(session: $0) },
-            offsetSec: SleepView.tzOffsetSec, habitualMidsleepSec: night.habitualMidsleepSec) else { return nil }
+            offsetSec: SleepRules.tzOffsetSec, habitualMidsleepSec: night.habitualMidsleepSec) else { return nil }
         let dur = BroopFormat.duration(sel.asleepMinutes)
         switch sel.reason {
         case .onlyBlock: return String(localized: "This is your only sleep block today.")
@@ -327,21 +327,21 @@ struct BroopOverviewSleepScreen: View {
         }
     }
 
-    /// The classic screen's honesty notes, from the same gates.
+    /// the screen's honesty notes, from the same gates.
     @ViewBuilder
     private func notes(_ night: Night) -> some View {
         let s = night.stages
         let eff = night.session.efficiency.map { $0 <= 1 ? $0 * 100 : $0 }
             ?? (night.timeInBed > 0 ? min(100, s.asleep / night.timeInBed * 100) : nil)
-        if let eff, SleepView.isStagingLowConfidence(asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: eff / 100) {
+        if let eff, SleepRules.isStagingLowConfidence(asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: eff / 100) {
             BroopOverviewNote(chip: String(localized: "Low confidence"),
                               text: String(localized: "This night scored high efficiency but very little deep or REM, more likely a staging estimate miss than a real restorative shortfall. Read the split with care."))
         }
-        if SleepView.stageSparseNoteApplies(stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true }, asleepMin: s.asleep) {
+        if SleepRules.stageSparseNoteApplies(stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true }, asleepMin: s.asleep) {
             BroopOverviewNote(chip: String(localized: "May be incomplete"),
                               text: String(localized: "Your strap recorded little movement overnight, so this night may be under-detected and the sleep total can read short. Make sure the strap fully synced."))
         }
-        let group = SleepView.mainNightGroup(night.sourceBlocks, habitualMidsleepSec: night.habitualMidsleepSec)
+        let group = SleepRules.mainNightGroup(night.sourceBlocks, habitualMidsleepSec: night.habitualMidsleepSec)
         if let c = HypnogramCoverage.groupFraction(group.isEmpty ? night.sourceBlocks : group), c < HypnogramCoverage.minCoverage {
             BroopOverviewNote(chip: String(localized: "Partly recorded"),
                               text: String(localized: "Only \(Int((c * 100).rounded(.down)))% of this night's window has stage data. The stage totals cover only that part of the night."))
@@ -363,8 +363,8 @@ struct BroopOverviewSleepScreen: View {
         case .stages: EmptyView()
         case .bodyClock:
             if let night = snap?.night {
-                BroopFinalABodyClockSection(actualBedHour: SleepView.localClockHour(night.session.effectiveStartTs),
-                                            actualWakeHour: SleepView.localClockHour(night.session.endTs))
+                BroopFinalABodyClockSection(actualBedHour: SleepRules.localClockHour(night.session.effectiveStartTs),
+                                            actualWakeHour: SleepRules.localClockHour(night.session.endTs))
             }
         case .nightDetail: if let model { BroopOverviewSleepStatsCard(model: model) }
         case .sleepDebt: if let model { BroopOverviewDebtCard(ledger: model.sleepDebtLedger) }
@@ -426,7 +426,7 @@ struct BroopOverviewSleepScreen: View {
 
     // MARK: Loading
 
-    /// The classic Sleep model (stats, debt, typicals) from the same inputs SleepView builds it from.
+    /// the Sleep model (stats, debt, typicals) from the same inputs SleepView builds it from.
     private func loadModel() async {
         let sessions = await repo.allSleepSessions()
         let hab = await repo.habitualMidsleepSec()
@@ -480,7 +480,7 @@ struct BroopOverviewSleepEdit: Identifiable {
         detectedStartTs = bedTs; self.bedTs = bedTs; self.wakeTs = wakeTs; stagesJSON = nil; userEdited = true
     }
 
-    /// A 30-minute window an hour after the night's wake, as the classic Add Nap seeds it.
+    /// A 30-minute window an hour after the night's wake, as the Add Nap seeds it.
     static func napSeed(after night: Night) -> BroopOverviewSleepEdit {
         let anchor = night.session.endTs + 3_600
         return BroopOverviewSleepEdit(bedTs: anchor, wakeTs: anchor + 30 * 60)

@@ -5,8 +5,8 @@ import StrandAnalytics
 import WhoopStore
 
 /// "ADD A READING": the Lab Book entry sheet in Broop form. Step one picks a marker from `MarkerCatalog`
-/// (searchable, as the classic list) or starts a custom one; step two takes the value (with the mmol/L ↔ mg/dL
-/// switcher where the classic offers it), blood pressure as a systolic/diastolic pair, the date taken, a note
+/// (searchable, as the list) or starts a custom one; step two takes the value (with the mmol/L ↔ mg/dL
+/// switcher where the offers it), blood pressure as a systolic/diastolic pair, the date taken, a note
 /// and the user's own reference range. The draft rows are built exactly as `MarkerEditorView` builds them
 /// (`MarkerUnits` conversion to the canonical unit, `LabBookProjection` BP keys, `lab-book` manual source) and
 /// handed to the same `onSave`.

@@ -274,7 +274,7 @@ private struct BroopAccountDeviceContent: View {
 
     private struct ProbeItem { let title: String; let symbol: String; let action: () -> Void }
 
-    /// The classic card menu's probe entries, behind the same gates (DevicesContent in DevicesView).
+    /// the card menu's probe entries, behind the same gates (DevicesContent in DevicesView).
     private func probes(_ device: PairedDevice) -> [ProbeItem] {
         let probeGate = device.status == .active && live.connected
             && SourceCoordinator.isWhoop(device) && TestCentre.active(.connection)
@@ -873,7 +873,7 @@ private func presented(_ binding: Binding<PairedDevice?>) -> Binding<Bool> {
     Binding(get: { binding.wrappedValue != nil }, set: { if !$0 { binding.wrappedValue = nil } })
 }
 
-/// Registry dialogs with the classic Devices copy and the same registry / BLE calls.
+/// Registry dialogs with the Devices copy and the same registry / BLE calls.
 private struct BroopAccountDeviceDialogs: ViewModifier {
     @ObservedObject var registry: DeviceRegistry
     @Binding var state: BroopAccountDeviceDialogState
@@ -972,7 +972,7 @@ private struct RemoveDialogs: ViewModifier {
     }
 }
 
-/// The 4.0 reboot probe and the #592 battery probe (the other probes reuse the classic modifiers).
+/// The 4.0 reboot probe and the #592 battery probe (the other probes reuse the modifiers).
 private struct BroopAccountDeviceProbeDialogs: ViewModifier {
     @Binding var state: BroopAccountDeviceDialogState
     @EnvironmentObject private var model: AppModel

@@ -4,9 +4,9 @@ import SwiftUI
 import StrandDesign
 import StrandAnalytics
 
-/// The fixed-pace breathing trainer's session: the classic `BreathingView` state machine moved into an
+/// The fixed-pace breathing trainer's session: the `BreathingView` state machine moved into an
 /// object, so the screen observes the session and not the strap. Pacing, buzzes, audio cues, the R-R
-/// ingest, RMSSD and the outcome line are the classic logic, unchanged.
+/// ingest, RMSSD and the outcome line are the logic, unchanged.
 @MainActor
 final class BroopActivityBreatheEngine: ObservableObject {
     enum Pace: Hashable {
@@ -264,7 +264,7 @@ final class BroopActivityBreatheEngine: ObservableObject {
     }
 }
 
-/// Breathwork, WHOOP-style, over the classic `BreathingView`: BREATHE (the paced trainer), RESONANCE (the
+/// Breathwork, WHOOP-style, over the `BreathingView`: BREATHE (the paced trainer), RESONANCE (the
 /// find-your-pace sweep) and CALM ME (the below-heart-rate metronome), plus the stress check-in card.
 struct BroopActivityBreatheView: View {
     @Environment(\.dismiss) private var dismiss
@@ -546,7 +546,7 @@ final class BroopActivityBiofeedbackBox: ObservableObject {
 }
 
 /// Connects the engine to the strap without making the screen observe it: arms the realtime stream while
-/// Breathe is up (as the classic screen does), hands R-R packets to the engine, builds the controller.
+/// Breathe is up (as the screen does), hands R-R packets to the engine, builds the controller.
 private struct BroopActivityBreatheBinder: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var live: LiveState

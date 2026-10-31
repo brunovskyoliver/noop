@@ -30,8 +30,8 @@ struct BroopWiringDemoHost: View {
                         BroopOverviewPlannerCard()
                         CaffeineLogCard()
                         if let night = store.snapshot?.night {
-                            BroopFinalABodyClockSection(actualBedHour: SleepView.localClockHour(night.session.effectiveStartTs),
-                                                       actualWakeHour: SleepView.localClockHour(night.session.endTs))
+                            BroopFinalABodyClockSection(actualBedHour: SleepRules.localClockHour(night.session.effectiveStartTs),
+                                                       actualWakeHour: SleepRules.localClockHour(night.session.endTs))
                         }
                         Text(verbatim: bedtimeValues).font(BroopType.regular(BroopMetrics.page))
                     }
@@ -60,7 +60,7 @@ struct BroopWiringDemoHost: View {
                 let clock = BroopFinalABodyClockCard.clock
                 let bed = clock(Double(plan.target.bedMinute) / 60)
                 let wake = clock(Double(plan.wakeMinute) / 60)
-                let nudge = clock(Double(SmartAlarmView.minuteOfDay(model.windDownTonight().fireDate)) / 60)
+                let nudge = clock(Double(AlarmRules.minuteOfDay(model.windDownTonight().fireDate)) / 60)
                 let cut = clock(Double(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: plan.target.bedMinute)) / 60)
                 var values = "Shared plan: \(bed)–\(wake)\nWind-down reminder: \(nudge)\nCaffeine cutoff: \(cut)\n"
                 if let phase = model.circadianPhase, phase.confidence != .unreadable,
