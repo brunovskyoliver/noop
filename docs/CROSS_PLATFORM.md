@@ -1,28 +1,27 @@
-# Cross-platform architecture — macOS, iOS & Android
+# Cross-platform architecture — iOS & Android
 
-NOOP ships three clients. They look different and are written in two languages, but they implement the
+NOOP ships two clients. They look different and are written in two languages, but they implement the
 **same on-device pipeline**: read a WHOOP strap over BLE → decode the protocol → persist locally →
 score recovery/strain/sleep → render. This doc is the map of **what's shared, what's mirrored, and how
 to add a feature that should land on more than one of them** — so a new capability is built once
-(conceptually) and ported deliberately, not reinvented three times with drift.
+(conceptually) and ported deliberately, not reinvented twice with drift.
 
 > New to the codebase? Pair this with [`ARCHITECTURE.md`](ARCHITECTURE.md) (module map),
 > [`IOS.md`](IOS.md) (the iOS target + fold-in lessons) and [`ANDROID.md`](ANDROID.md).
 
-## The three clients
+## The two clients
 
 | Client | Language / UI | Code home | Shares with |
 |---|---|---|---|
-| **macOS** | Swift + SwiftUI/AppKit | `Strand/` (app) + `Packages/` | the reference implementation; shares the 5 Swift packages with iOS |
-| **iOS** | Swift + SwiftUI/UIKit/WidgetKit/HealthKit | `StrandiOS/` + most of `Strand/` + `Packages/` | **shares almost everything with macOS** at the source level (folded in v1.94, build-from-source) |
+| **iOS** | Swift + SwiftUI/UIKit/WidgetKit/HealthKit | `StrandiOS/` + `Strand/` + `Packages/` | the Swift packages and shared `Strand/` sources |
 | **Android** | Kotlin + Jetpack Compose | `android/` | a **hand-ported parity twin** of the Swift logic — no shared binary, mirrored value-for-value |
 
 ## Two sharing models, by language boundary
 
-### macOS ⇄ iOS — *real* shared source (the 5 Swift packages)
+### Swift packages — *real* shared source
 
 Everything platform-neutral lives in five SwiftPM packages under [`Packages/`](../Packages/), each
-declaring **both** `.macOS(.v13)` and `.iOS(.v16)`. Both app targets depend on them unchanged:
+declaring **both** `.macOS(.v13)` and `.iOS(.v16)`. The app target depends on them unchanged:
 
 - **`WhoopProtocol`** — BLE frame parsing, CRC, command/event/historical decode (the reverse-engineering core). *Never* imports CoreBluetooth or any UI framework; exposes GATT UUIDs as plain strings the app wraps in `CBUUID`.
 - **`WhoopStore`** — GRDB/SQLite persistence (decoded streams, daily/sleep/workout caches).
@@ -34,7 +33,7 @@ declaring **both** `.macOS(.v13)` and `.iOS(.v16)`. Both app targets depend on t
 iOS apps, it belongs in a package, behind a UI-framework-free API. The app targets hold only the
 SwiftUI screens + the platform service shims.
 
-### macOS/iOS ⇄ Android — *parity*, not shared code
+### iOS ⇄ Android — *parity*, not shared code
 
 Android is a separate Kotlin reimplementation. There is no Kotlin Multiplatform / shared binary — the
 protocol decode, the analytics, and the scoring are **hand-ported from the Swift packages and kept in
@@ -51,22 +50,9 @@ it honest:
 - **The changelog is mirrored byte-for-byte.** `Strand/System/AppChangelog.swift`,
   `android/.../ui/AppChangelog.kt` and `CHANGELOG.md` tell the same story; releases ship in lockstep.
 
-## The `Platform.swift` shim (macOS vs iOS UI frameworks)
+## The `Platform.swift` shim
 
-Where macOS and iOS differ only in the *UI framework* (AppKit vs UIKit), don't fork the call site —
-route it through [`Strand/System/Platform.swift`](../Strand/System/Platform.swift):
-
-```swift
-PlatformImage              // NSImage on macOS, UIImage on iOS
-Image(platformImage:)      // build a SwiftUI Image from either
-PlatformPasteboard.copy(_) // NSPasteboard / UIPasteboard
-PlatformOpen.url(_)        // NSWorkspace.open / UIApplication.open  (@MainActor)
-```
-
-For genuinely platform-*specific* behaviour (no shared abstraction makes sense), use `#if os(macOS)` /
-`#if os(iOS)` (or `#if canImport(AppKit)` / `#elseif canImport(UIKit)`), and exclude wholly-macOS files
-from the iOS target in `project.yml`. The enumerated macOS-only surface and how each piece was handled
-is in [`IOS.md` → "Lessons from the fold-in"](IOS.md).
+[`Strand/System/Platform.swift`](../Strand/System/Platform.swift) wraps UIKit image, pasteboard and URL-open calls. Packages under `Packages/` keep their `canImport` guards so they still build on macOS for `swift test`.
 
 ## Adding a feature across clients — the playbook
 
@@ -75,14 +61,14 @@ is in [`IOS.md` → "Lessons from the fold-in"](IOS.md).
    widget, a permission flow)? Then it's per-client.
 2. **Swift first (it's the reference).** Put neutral logic in the right package with a small, pure,
    **unit-tested** API (scalars in/out beats passing app types around — it keeps the helper out of the
-   WhoopStore/app module graph and trivially testable). Wire it into the macOS app and the iOS app
+   WhoopStore/app module graph and trivially testable). Wire it into the iOS app
    (usually the same call — they share the screens).
 3. **Mirror to Kotlin.** Reimplement the pure helper in `android/.../analytics` (or the matching pkg),
    matching formulas/constants exactly, with the **same** unit-test cases.
-4. **UI per client.** SwiftUI screen (shared macOS+iOS, guarded where frameworks differ) + a Compose
+4. **UI per client.** SwiftUI screen + a Compose
    screen on Android, each built from its design system (`StrandDesign` / `NoopType`+`Palette`).
 5. **Mirror the changelog** in all three surfaces; **bump all version surfaces** in lockstep (see
-   [`BUILD.md`](BUILD.md) / the release process). Verify: `swift test` (packages) + the macOS/iOS
+   [`BUILD.md`](BUILD.md) / the release process). Verify: `swift test` (packages) + the iOS
    `app-build` CI + `:app:testFullDebugUnitTest` (Android).
 
 Worked examples from recent releases: **#137** (workout re-score) — a pure `ManualWorkoutRescore`
@@ -94,7 +80,7 @@ shared model + per-client edit UI. Each is "one idea, ported deliberately."
 
 - **No KMP / shared binary with Android** — see the parity rationale above.
 - **Android reimplements the design system** (Compose) rather than sharing `StrandDesign` (SwiftUI).
-- **Platform-only features stay platform-only:** macOS menu-bar extra / screen-lock / Shortcuts;
+- **Platform-only features stay platform-only:** iOS Shortcuts;
   iOS WidgetKit + Live Activity + two-way HealthKit; Android home-screen widget + Health Connect.
   These are *front doors* to the same shared core, not duplicated logic.
 

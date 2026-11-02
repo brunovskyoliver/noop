@@ -34,8 +34,8 @@ Licensing: by opening a PR you agree your contribution is under the repo's
 ## Architecture at a glance
 
 Core logic lives in **cross-platform Swift packages**; each platform is a thin app layer over them.
-The **macOS app is the reference implementation**; **Android is a full shipped app**; **iOS is a
-build-from-source target** folded into the same repo.
+There are two apps: **iOS** (build-from-source / sideload) and **Android**. The macOS and watchOS apps
+were removed; packages keep `.macOS` as a declared platform only so `swift test` runs on a Mac host.
 
 | Layer | Path | What lives here |
 |---|---|---|
@@ -44,8 +44,9 @@ build-from-source target** folded into the same repo.
 | Analytics (pure) | `Packages/StrandAnalytics` | HRV / recovery / strain / sleep / correlation math. Database-free. |
 | Import | `Packages/StrandImport` | WHOOP CSV + Apple Health importers. |
 | Design system | `Packages/StrandDesign` | SwiftUI palette / components / charts. |
-| macOS + shared app | `Strand/` (scheme **Strand**, product `NOOP`, macOS 13+) | `BLE/` (CoreBluetooth), `Collect/`, `Data/` (Repository), `Screens/`, `App/` (`RootView`/`ContentView` = sidebar shell). Shared with iOS where a file isn't macOS-only. |
-| iOS-only app | `StrandiOS/` (scheme **NOOPiOS**, iOS 17+), `StrandiOSShared/`, `StrandiOSWidgets/`, `NOOPWatch*` | `StrandiOSApp` (@main), `RootTabView` (the Broop tab shell — no macOS analogue), iOS widgets, watch app. |
+| Shared iOS app code | `Strand/` | `BLE/` (CoreBluetooth), `Collect/`, `Data/` (Repository), `Screens/`, `App/`. Swift module name `Strand`. |
+| iOS app | `StrandiOS/` (scheme **NOOPiOS**, iOS 17+), `StrandiOSShared/`, `StrandiOSWidgets/` | `StrandiOSApp` (@main), `RootTabView` (the Broop tab shell), widgets, Live Activity. |
+| Tests | `StrandTests/` (target **NOOPiOSTests**, iOS 27 simulator) | Unit tests hosted by the iPhone app. |
 | Android app | `android/` (Kotlin, Compose, Room; flavors `Full`/`Demo`) | `com.noop.{ble,collect,data,ingest,analytics,protocol,ui,widget,…}` — mirrors the Swift layering with its own reimplementations. |
 
 `project.yml` is the **XcodeGen source of truth**; `Strand.xcodeproj/` is generated — never hand-edit
@@ -115,33 +116,28 @@ cd android && ./gradlew testFullDebugUnitTest              # add --tests "com.no
 # After a branch switch, ALWAYS: --no-build-cache --rerun-tasks. Gradle can otherwise serve
 # generated sources (Room/KSP) from the previous branch and fail classes you never touched.
 cd android && ./gradlew compileFullDebugKotlin             # compile the whole app module
-# iPhone app alone, from project.ios.yml (no macOS app, Watch app or widgets):
+# iPhone app, from project.yml (generates Strand.xcodeproj):
 Tools/ios.sh build     # prints the .app path to install on a simulator
-Tools/ios.sh test      # StrandTests hosted by the iPhone app; screens only macOS compiles are excluded
-# macOS app (needs Xcode on macOS):
-xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+Tools/ios.sh test      # NOOPiOSTests hosted by the iPhone app on an iOS 27 simulator
 ```
 
 ### What each CI job covers — and the gaps
 | Workflow | Covers | Runner | Default state |
 |---|---|---|---|
 | `swift-packages.yml` | TWO jobs. `test`: `swift test` over **`Packages/**`** (WhoopProtocol, WhoopStore, StrandAnalytics, StrandImport, StrandDesign, NoopLocalAccess). `tools`: `swift build` + `swift test` over **`Tools/SleepBench`, `Tools/SleepPSG`, `Tools/Backfill`** — Backfill has no test target, so it is build-only. Path-filtered to those directories. | macos-15 | **active** |
-| `app-build.yml` | Builds the **app targets** (`Strand` macOS + `NOOPiOS` iOS) **and runs `StrandTests`** on the macOS/`Strand` leg only — the iOS leg is compile-only. iOS leg needs **macos-26** (iOS 26 SDK / `glassEffect`). | macos-15 / macos-26 | **active** — auto-runs on PRs touching its paths (`Strand/**`, `StrandTests/**`, `StrandiOS*/**`, `NOOPWatch*/**`, `Packages/**`, `project.yml`). NO push trigger, so a direct commit to `main` needs a manual dispatch. |
+| `app-build.yml` | Builds `NOOPiOS` and compiles `NOOPiOSTests` (`build-for-testing`). It does **not run** them: they need an iOS 27 simulator and the runner has up to 26.5. | macos-26 | **active** — auto-runs on PRs touching its paths (`Strand/**`, `StrandTests/**`, `StrandiOS*/**`, `Packages/**`, `project.yml`). NO push trigger, so a direct commit to `main` needs a manual dispatch. |
 | `android.yml` | `assembleFullDebug` + `testFullDebugUnitTest` | ubuntu | **active**, path-filtered to `android/**` |
 | `source-hygiene.yml` | Doc comments that bind to nothing (`Tools/doc_comment_lint.py`) | ubuntu | **active** |
 | `i18n-coverage.yml` | Diff-scoped translation gate (`Tools/i18n_audit.py --ci`) | ubuntu | **active** |
 | `tools-python.yml` | `unittest discover` over `Tools/` and `Tools/linux-capture` | ubuntu | **active**, NO path filter. The core `Tools/` suites assert on product source (`test_home_i18n.py` reads `TodayScreen.kt`, `AppModel.swift`, the xcstrings catalogues), so no path list describes its inputs. Runs on every PR and every push to `main`. |
 | `tools-python-windows.yml` | The `Tools/linux-capture` tests a second time, under legacy Windows console encodings | windows | **active**, path-filtered to `Tools/linux-capture/**`. Those tests read nothing outside their own package, and the runner bills at twice a Linux minute. |
 | `prune-stale-branches.yml` | Deletes branches whose PR merged or closed unmerged | ubuntu | **active**, weekly + dispatch |
-| `fork-testing-build.yml` / `fork-release.yml` | Staging / release builds (apk + mac + ios) | — | on dispatch |
+| `fork-testing-build.yml` / `fork-release.yml` | Staging / release builds (apk + ios) | — | on dispatch |
 
 **The trap:** `swift-packages` does **NOT** compile the app targets. App-target Swift under
-`Strand/`, `StrandiOS/`, `StrandiOSShared/`, `StrandiOSWidgets/` and the watch targets is validated by
-**`app-build.yml`**, which runs automatically on relevant PRs and runs `StrandTests` on its macOS leg.
-When changing app-target Swift, build locally with `xcodebuild … build` or verify that both Apple
-build checks passed on the current PR head. A green package suite alone is not app-build evidence.
-The workflow has no push trigger; a direct non-release commit to `main` needs an on-demand dispatch.
+`Strand/`, `StrandiOS/`, `StrandiOSShared/` and `StrandiOSWidgets/` is compiled by **`app-build.yml`**,
+and `StrandTests` runs only under `Tools/ios.sh test` on a Mac with Xcode 27. When changing app-target
+Swift, run that locally. A green package suite alone is not app-build evidence.
 
 ### Local walls (things that will *not* build where you expect)
 - **On Linux:** `WhoopProtocol` / `OuraProtocol` (pure) build & test with a bare toolchain. The
@@ -151,10 +147,9 @@ The workflow has no push trigger; a direct non-release commit to `main` needs an
   needs SwiftUI and is macOS-only. Android JVM unit tests **do** run on Linux.
   **None of this is CI-enforced** — `swift-packages.yml` is macOS-only, so Linux support is honour-system
   and a change can break it silently.
-- **App targets** (`Strand`, `NOOPiOS`) need **Xcode on macOS**; `StrandTests` runs only under
-  `xcodebuild … test` on macOS — locally, or via `app-build.yml`, which does run it on the `Strand` leg.
-  The workflow runs automatically on relevant PRs; verify its macOS test step passed on the current
-  head. Writing app-target tests is not the same as having run them.
+- **The app target** (`NOOPiOS`) needs **Xcode on macOS**; `StrandTests` runs only under
+  `Tools/ios.sh test`, because CI has no iOS 27 simulator. Writing app-target tests is not the same as
+  having run them.
 - **BLE behavior cannot be CI- or Linux-tested.** Anything on the CoreBluetooth / offload / live-HR
   path (`Strand/BLE`, `Strand/Collect`, Android `com.noop.ble`) must be **validated on a real strap**;
   compile-success proves nothing about connection behavior. Say what you tested on hardware.
@@ -258,12 +253,10 @@ The workflow has no push trigger; a direct non-release commit to `main` needs an
 
 ## iOS / Android specifics worth knowing
 
-- **iOS is `NOOPiOS`**, not `Strand`. `ContentView`/`RootView` (the macOS sidebar) and the classic screens listed
-  in `project.yml` are excluded from iOS; the iOS shell is `RootTabView`, in the Broop interface. A file shared with macOS (`TodayView`, `Repository`, analytics)
-  must keep compiling for **both** — check the `Strand` (macOS) build too when you edit shared files.
+- **iOS is `NOOPiOS`**; its shell is `RootTabView`, in the Broop interface.
 - **Android** is Compose + Room, flavors `Full` (real) and `Demo`. Profile/prefs live in
   SharedPreferences; the DB is Room. UI state uses a `mutate {}` recomposition-counter idiom in places.
-- iOS/macOS deployment targets: macOS 13.0, iOS 17.0 (see `project.yml`).
+- iOS deployment target: 17.0; `NOOPiOSTests`: 27.0 (see `project.yml`).
 
 ## PR & commit conventions
 

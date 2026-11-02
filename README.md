@@ -6,10 +6,10 @@
 
 <p align="center"><b>Your strap. Your data. Your machine. Offline, on-device, no cloud.</b></p>
 
-<p align="center"><sub>Now in the all-new <b>Liquid Metal</b> design: one living look across iPhone, Android and Mac.</sub></p>
+<p align="center"><sub>Now in the all-new <b>Liquid Metal</b> design: one living look across iPhone and Android.</sub></p>
 
 <p align="center">
-  <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Android%20%C2%B7%20iOS-E8B84B?style=flat-square">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Android%20%C2%B7%20iOS-E8B84B?style=flat-square">
   <img alt="Local first" src="https://img.shields.io/badge/local-first-E8B84B?style=flat-square">
   <img alt="Account free" src="https://img.shields.io/badge/account-free-C8902F?style=flat-square">
   <img alt="WHOOP 4 and 5" src="https://img.shields.io/badge/works%20with-WHOOP%204.0%20%26%205.0-6B737B?style=flat-square">
@@ -34,7 +34,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ryanbr/noop/releases/latest"><img src="docs/assets/hero-v8.jpg" alt="NOOP in the new Liquid Metal design, on iPhone, Mac and Android" width="820"></a>
+  <a href="https://github.com/ryanbr/noop/releases/latest"><img src="docs/assets/hero-v8.jpg" alt="NOOP in the new Liquid Metal design, on iPhone and Android" width="820"></a>
 </p>
 
 <p align="center">
@@ -59,23 +59,8 @@ Pre-built apps you can run right now:
 
 | Platform | Build | Notes |
 |---|---|---|
-| **macOS** | `NOOP.app` (see [Releases](https://github.com/ryanbr/noop/releases)) | Apple Silicon + Intel. Drag to Applications. Not notarized — see **First launch on macOS** below. _(A Homebrew cask isn't currently published for this fork — grab the `.app` from Releases.)_ |
 | **Android** | `NOOP-full.apk` (see [Releases](https://github.com/ryanbr/noop/releases)) | The full app. `minSdk 26` (Android 8+). Sideload — enable "install unknown apps". Blocked by Play Protect? See **Installing on Android** below. |
 | **iOS** | **AltStore / SideStore source** (recommended — one-tap install + auto-updates): add `https://raw.githubusercontent.com/ryanbr/noop/main/altstore-source.json` as a source. Or a **direct** [`NOOP-vX-ios.ipa`](https://github.com/ryanbr/noop/releases) download. | The `.ipa` is unsigned; **you** sign it on your iPhone with your own free Apple ID (no App Store, no developer account — NOOP stays anonymous). Re-signs every 7 days (AltStore/SideStore automates it). See [docs/IOS.md](docs/IOS.md). Or build from source in Xcode. |
-
-> **First launch on macOS.** NOOP is **not notarized** by Apple — notarization needs a paid Apple
-> Developer ID tied to a real identity, which doesn't fit an anonymous, free project. The app *is*
-> sandboxed and ad-hoc code-signed, and the full source is here to inspect. Because it isn't notarized,
-> macOS Gatekeeper blocks it on first open (you may see *"damaged"* or *"unverified developer"* — that's
-> the download quarantine flag, not real damage). To open it, do one of these **once**:
->
-> - **Terminal (most reliable):** drag `NOOP.app` to Applications, then run
->   `xattr -dr com.apple.quarantine /Applications/NOOP.app` and open NOOP normally.
-> - **No Terminal:** double-click NOOP (it'll be blocked), then open **System Settings → Privacy &
->   Security**, scroll to the bottom, and click **"Open Anyway"** next to NOOP. (On macOS 14 and
->   earlier you can also right-click the app → **Open**.)
->
-> Prefer to avoid this entirely? Build from source — see [Quickstart](#quickstart-macos).
 
 > **Installing on Android (Play Protect blocked it?).** NOOP isn't on the Play Store — it's an
 > **unsigned, source-available APK** you sideload, because the project is anonymous and has no paid
@@ -133,7 +118,7 @@ from **their own device**, on a machine **they** control.
 - [Features](#features)
 - [Platform status](#platform-status)
 - [Architecture](#architecture)
-- [Quickstart (macOS)](#quickstart-macos)
+- [Quickstart (iOS)](#quickstart-ios)
 - [How your data flows](#how-your-data-flows)
 - [Privacy](#privacy)
 - [Attribution](#attribution)
@@ -168,10 +153,7 @@ that premise:
 
 ## Features
 
-The macOS reference app organizes everything behind a single sidebar
-(`Strand/App/RootView.swift`). Each item below is a real screen in
-`Strand/Screens/`. The same feature set ships on macOS, Android, and iOS via the
-shared cross-platform code.
+The same feature set ships on iOS and Android.
 
 | Screen | What it does |
 |---|---|
@@ -191,34 +173,12 @@ shared cross-platform code.
 | **Mind** | A quick **daily mood check-in** that correlates how you feel against your own recovery, sleep and HRV over time — so you can see what actually moves your mood. On-device and **non-clinical**: a self-reflection log, not a mental-health assessment. |
 | **Apple Health** | Browse and reconcile data imported from your Apple Health export. |
 | **Data Sources** | One-tap import of a WHOOP CSV export, an Apple Health export, or a **nutrition CSV** (Cronometer / MacroFactor), plus live-strap status. "Bring your history in once, then it's yours." |
-| **Notifications** | Configure local notifications and thresholds (`Strand/Data/NotificationSettingsStore.swift`). |
-| **Automations** | Turn the strap's physical inputs and live biometrics into Mac actions — all on-device (see below). |
+| **Notifications** | Configure local notifications and thresholds . |
 | **Coach** | An optional **AI Coach** you can ask about your data in plain language. It is off until you add your own key — Anthropic, OpenAI, or any OpenAI-compatible endpoint including a local/self-hosted model (Ollama, LM Studio) — and it sends only a short text summary of recent metrics plus your question, never raw streams or identifiers. With a local model the conversation never leaves your machine. Available on macOS, Android, and iOS. See [`docs/PRIVACY_SECURITY.md`](docs/PRIVACY_SECURITY.md). |
 | **Settings** | Profile, preferences, **step calibration** (tune the stride/step estimate to your own walking), unit choices, the in-app **What's new** changelog, and an opt-in **Experimental** section (WHOOP 5/MG protocol probes). On **iOS**, also **Export for Shortcuts** — a HealthKit-free path that hands your metrics to Apple Health via the Shortcuts app. |
 
-There is also a **menu-bar extra** (`Strand/MenuBar/MenuBarContent.swift`) with a
-glanceable live HR readout and a compact popover, a first-run **onboarding wizard**
-that sets expectations (independent/experimental, WHOOP 4.0 vs 5/MG, on-device only),
-and an in-app **"What's new"** changelog shown after each update.
-
-### Automations (on-device)
-
-`Strand/Screens/AutomationsView.swift` + `Strand/System/MacActions.swift`:
-
-- **Double-tap → Mac action.** Double-tap the strap to lock the Mac, buzz back to
-  confirm, mark a moment, do nothing, or run any macOS **Shortcut** by name (via
-  the `shortcuts://` URL scheme, so it's sandbox-friendly).
-- **Wear & presence.** Lock the Mac (or run a Shortcut) the moment the strap
-  leaves your wrist; run a Shortcut when it goes back on. *(macOS reserves true
-  auto-**unlock** for Apple Watch — NOOP can lock, not unlock.)*
-- **Haptic coaching.** HR-zone coaching and an experimental resting-stress nudge —
-  the strap buzzes so you don't have to watch a screen.
-- **Inactivity reminder.** An optional gentle wrist buzz after you've been sitting
-  still too long — your idle threshold, your active hours, a re-nudge cooldown,
-  respects quiet hours, **off by default**.
-- **Smart alarm.** Arms the strap's own **firmware** alarm to buzz at your wake
-  time (still fires if the Mac is asleep or NOOP is closed), with an optional
-  light-sleep wake window when the Mac stays awake and connected.
+There is also a first-run **onboarding wizard** that sets expectations (independent/experimental,
+WHOOP 4.0 vs 5/MG, on-device only), and an in-app **"What's new"** changelog shown after each update.
 
 ---
 
@@ -238,7 +198,6 @@ import required.
 
 | Platform | Status |
 |---|---|
-| **macOS** | ✅ Full app (`Strand/`, SwiftUI, macOS 13+). Pairs over BLE, offloads the strap's history, and scores recovery / strain / sleep on-device. The complete feature set above runs here. |
 | **Android** | ✅ Full app (`android/`, Jetpack Compose, Android 8+). Pairs over BLE, persists and scores on-device, and imports WHOOP / Apple Health / Health Connect. Grab the APK from [Releases](https://github.com/ryanbr/noop/releases). |
 | **iOS** | 📲 **Direct download**: an unsigned `.ipa` you sideload with AltStore/SideStore — it signs on your iPhone with your *own* free Apple ID, so there's an anonymous install path with no App Store / developer account (see [docs/IOS.md](docs/IOS.md)). Also still builds from source in Xcode. Shares the cross-platform Swift packages, so scoring matches macOS. Newer and less battle-tested than macOS/Android — live BLE on a real iPhone is still being validated; Apple Health + Live Activity widgets can be limited under a free signing identity. |
 
@@ -289,7 +248,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 >    couple of attempts.
 >
 > **Only one device at a time.** Because the strap holds a single bond, don't leave it connected to your
-> phone *and* your Mac (or the WHOOP app) at once — live heart rate will still show on all of them
+> phone *and* another device (or the WHOOP app) at once — live heart rate will still show on all of them
 > (that rides the bond-free standard profile), but **none** of them will have the real encrypted bond.
 > If HR streams fine yet **buzz, alarm, double-tap and history don't work**, that's the tell: the strap
 > isn't truly bonded to this device. Free it from everything else, then pair here.
@@ -321,12 +280,6 @@ true beat-to-beat intervals.
 > **Not affiliated with Oura.** Independent interoperability work with hardware you own. "Oura" is
 > used only to identify that hardware. NOOP does not use, decompile, or redistribute any Oura app
 > code, and does not bypass any login, paywall, or DRM.
-
-**⚠️ macOS pairing needs a factory-reset ring.** Pairing an Oura ring that is still Bluetooth-bonded
-to a phone (i.e. its only prior bond is with the official Oura app) reproducibly hangs on macOS —
-`connect()` is issued cleanly and no CoreBluetooth callback ever arrives. Factory-resetting the ring
-from the official Oura app first, then pairing with NOOP on macOS, works. Documented in
-[`docs/OURA_PROTOCOL.md` §3.8](docs/OURA_PROTOCOL.md).
 
 | Input / output | Status |
 |---|---|
@@ -384,12 +337,14 @@ needs a little data before everything fills in:
 
 ## Architecture
 
-The repository is split into platform-pure Swift packages plus a macOS app target.
-All packages declare both `.iOS(.v16)` and `.macOS(.v13)`; framework-specific UI is
-guarded with `#if canImport(UIKit)` / `#if canImport(AppKit)`.
+The repository is split into platform-pure Swift packages, an iOS app and an Android app.
+Packages also declare `.macOS(.v13)` so `swift test` runs on a Mac host; there is no macOS app.
 
 ```
-Strand/                  macOS SwiftUI reference app (this is what you build)
+Strand/                  shared iOS app code (BLE, collection, data, screens)
+StrandiOS/               iOS app shell and Broop interface
+StrandiOSWidgets/        widgets and Live Activity
+android/                 Android app
 Packages/
   WhoopProtocol/         BLE frame parsing, CRC, command/event/packet decode
   OuraProtocol/          clean-room Oura ring BLE protocol (framing, auth, decoders, driver)
@@ -476,37 +431,20 @@ Palette, typography, motion, and reusable components/charts (`RecoveryRing`,
 
 ---
 
-## Quickstart (macOS)
+## Quickstart (iOS)
 
-**Requirements:** macOS 13+, Xcode 15+ (Swift 5.9), and a Mac with Bluetooth. To
-pair live, you need your own WHOOP strap; to just explore, you can import a CSV /
-Apple Health export instead.
-
-The Xcode project is generated from [`project.yml`](project.yml) with
-[XcodeGen](https://github.com/yonaskolb/XcodeGen).
+**Requirements:** a Mac with Xcode 27. To pair live, you need your own strap and an iPhone; to just
+explore, you can import a CSV / Apple Health export instead. The Xcode project is generated from
+[`project.yml`](project.yml) with [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
-# 1. Clone
-git clone <your-fork-url> NOOP
-cd NOOP
-
-# 2. (Re)generate the Xcode project from project.yml
-brew install xcodegen   # if you don't have it
-xcodegen generate
-
-# 3. Open and run
-open Strand.xcodeproj
-# Select the "Strand" scheme → Run (⌘R). The built app is named NOOP.
+brew install xcodegen
+Tools/ios.sh build   # generates Strand.xcodeproj, builds for the simulator, prints the .app path
+Tools/ios.sh test    # NOOPiOSTests on a local simulator (iOS 27, default "iPhone 18 Pro")
 ```
 
-Notes:
-
-- Bundle id `com.noopapp.noop`, product name **NOOP**, sandboxed with the
-  Bluetooth and user-selected-files entitlements.
-- Swift Package Manager resolves the only third-party dependencies automatically:
-  **GRDB.swift** (SQLite) and **ZIPFoundation** (export unzip).
-- Run the tests from Xcode (the `StrandTests` target + each package's test target),
-  or per-package with `swift test` inside `Packages/<Name>/`.
+Signing for a real iPhone is in [`docs/IOS.md`](docs/IOS.md). Android is in
+[`android/README.md`](android/README.md).
 
 To explore without an Xcode project, the packages build on their own:
 

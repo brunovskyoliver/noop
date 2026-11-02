@@ -535,15 +535,6 @@ of history. On-device and approximate — informational only, **not** a diagnosi
 
 ---
 
-## Menu-bar item
-
-NOOP lives in the macOS menu bar (`MenuBarContent.swift`). The label is a zone-tinted heart dot
-plus the live HR (or "—" when not streaming). Clicking it opens a compact popover: a Charge
-ring, the live heart rate, battery / resting HR / HRV, and quick actions to start/stop the live
-feed, refresh battery, scan/reconnect, or disconnect.
-
----
-
 ## Support
 
 **Sidebar: Support · always available. NOOP is free and always will be.**
