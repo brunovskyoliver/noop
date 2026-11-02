@@ -124,7 +124,7 @@ enum RescoreBackgroundPolicy {
     /// 11:25 deferred every offload until the app was next opened: 19 hours, with no score for the night
     /// in between. Pacing (`backgroundRestPerWorkSecond`) is what keeps a background attempt under the CPU
     /// limit now, so this only needs to stop a retry on every offload, not forever.
-    static let interruptedRetryCooldownSeconds: Double = 30 * 60
+    static let interruptedRetryCooldownSeconds: Double = 60 * 60
 
     /// The least time between the starts of two backgrounded offload re-scores.
     ///

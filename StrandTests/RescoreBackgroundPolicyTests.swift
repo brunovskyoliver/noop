@@ -59,7 +59,7 @@ final class RescoreBackgroundPolicyTests: XCTestCase {
         guard case .deferToBackgroundTask(let reason) = decide(attemptedSecondsAgo: 9 * 60) else {
             return XCTFail("expected an offload 9 min after the last pass to defer")
         }
-        XCTAssertEqual(reason, "the last pass started 9 min ago; a backgrounded offload re-scores at most every 30 min")
+        XCTAssertEqual(reason, "the last pass started 9 min ago; a backgrounded offload re-scores at most every 60 min")
         XCTAssertTrue(isDeferred(decide(attemptedSecondsAgo: 0)))
         XCTAssertTrue(isDeferred(decide(attemptedSecondsAgo: spacing - 1)))
         XCTAssertEqual(decide(attemptedSecondsAgo: spacing), .run)
