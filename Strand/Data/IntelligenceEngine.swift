@@ -1075,8 +1075,15 @@ final class IntelligenceEngine: ObservableObject {
         // which the local read never found (Toronto/UTC-4 report).
         let dayWindows = LocalDayWindows(referenceInstant: Date(timeIntervalSince1970: Double(now)))
         let todayDate = dayWindows.localDate(of: dayWindows.referenceInstant)
-        let analysisDays = dayWindows.backwardRun(endingAt: todayDate, count: maxDays)
         let nowLocalMidnight = Int(dayWindows.startOfDay(containing: dayWindows.referenceInstant).timeIntervalSince1970)
+        // Days below the retention floor have no raw data left. A full-history pass reaching them would
+        // find too few samples and evict their good scores, so every pass stops at the floor. A failed read
+        // aborts instead of guessing: an unclamped pass is the one outcome that can lose scores.
+        let rawFloor: Int?
+        do { rawFloor = try await store.rawDataFloor() } catch { return }
+        let maxDays = RawRetention.scorableDayCount(maxDays: maxDays, todayStart: nowLocalMidnight,
+                                                    lookbackSeconds: StreamReadCap.lookbackSeconds, floorTs: rawFloor)
+        let analysisDays = dayWindows.backwardRun(endingAt: todayDate, count: maxDays)
 
         // ── Learned habitual midsleep (#547) ──────────────────────────────────
         // Compute the user's habitual midsleep ONCE per run from the trailing sleep history so the
@@ -2903,11 +2910,11 @@ final class IntelligenceEngine: ObservableObject {
         // Idempotent: re-upserts the same (computedId, day, "steps_est") rows. Inert until there's a
         // calibration , a single-source / no-phone user sees no estimate until they set a manual `k`.
         //
-        // Calibration window: a generous 60 days (not just the 7 the weekly engines use) so enough
+        // Calibration window: 28 days, inside what raw retention keeps (not just the 7 the weekly engines use) so enough
         // both-have days accumulate to fit. Reference steps = the apple-health daily `steps` value
         // (the same source the dashboard's `steps` metric reads, Repository.swift). Motion = the
         // [localMidnight, +24h) gravity volume, the same calendar-day window the daily totals use.
-        let stepsCalDays = 60
+        let stepsCalDays = 28
         let calibrationDays = dayWindows.backwardRun(endingAt: todayDate, count: stepsCalDays)
         let calOldest = calibrationDays.first?.date.key ?? newestDay
         // ── FIX 2 (main-actor jank): hoist the 60-day steps-calibration STORE READS off the main actor ──

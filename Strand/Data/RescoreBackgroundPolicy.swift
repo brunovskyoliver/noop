@@ -134,6 +134,7 @@ enum RescoreBackgroundPolicy {
     /// 30 minutes apart, the same offloads cost ~250 CPU-s, and a backgrounded score trails its data by
     /// at most the spacing plus one offload interval. The work is moved, not dropped: the deferral records
     /// the debt, which the first offload past the spacing, the processing task or the next foreground
-    /// settles, and a foregrounded pass is never spaced.
-    static let backgroundSpacingSeconds: Double = 30 * 60
+    /// settles, and a foregrounded pass is never spaced. Widened to 60 minutes after a phone log showed
+    /// 62 of 82 background passes in 19.5 h spending their whole 20 s budget without finishing.
+    static let backgroundSpacingSeconds: Double = 60 * 60
 }

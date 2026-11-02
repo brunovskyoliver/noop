@@ -204,8 +204,8 @@ extension WhoopStore {
                 SELECT
                   (SELECT COUNT(*) FROM hrSample) AS hc,
                   (SELECT COALESCE(MAX(ts), 0) FROM hrSample) AS hm,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) AS p,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) AS r,
+                  (SELECT COUNT(*) FROM ppgHrSample) AS p,
+                  (SELECT COUNT(*) FROM rrInterval) AS r,
                   (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 5
                      AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w5,
                   (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 7
@@ -215,13 +215,13 @@ extension WhoopStore {
                   (SELECT COALESCE(GROUP_CONCAT(identity, ';'), '') FROM
                     (SELECT QUOTE(id) || ':' || QUOTE(brand) || ':' || QUOTE(model) || ':' || QUOTE(status) AS identity
                      FROM pairedDevice ORDER BY id)) AS registry,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM respSample) AS x,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM gravitySample) AS g,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM sleepStateSample) AS s,
+                  (SELECT COUNT(*) FROM respSample) AS x,
+                  (SELECT COUNT(*) FROM gravitySample) AS g,
+                  (SELECT COUNT(*) FROM sleepStateSample) AS s,
                   (SELECT COALESCE(MAX(rowid), 0) FROM event) AS e,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM spo2Sample) AS o,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) AS t,
-                  (SELECT COALESCE(MAX(rowid), 0) FROM stepSample) AS z
+                  (SELECT COUNT(*) FROM spo2Sample) AS o,
+                  (SELECT COUNT(*) FROM skinTempSample) AS t,
+                  (SELECT COUNT(*) FROM stepSample) AS z
                 """) else { return "" }
             let hc: Int = row["hc"], hm: Int = row["hm"]
             let keys = ["p", "r", "x", "g", "s", "e", "o", "t", "z"]

@@ -115,6 +115,8 @@ public actor WhoopStore {
             try db.execute(sql: "PRAGMA cache_size = -16000")     // ~16 MB page cache
             try db.execute(sql: "PRAGMA mmap_size = 268435456")   // 256 MB memory-mapped I/O
             try db.execute(sql: "PRAGMA temp_store = MEMORY")
+            // A big transaction grows the WAL; without a limit the file keeps that size afterwards.
+            try db.execute(sql: "PRAGMA journal_size_limit = 67108864")
         }
         config.busyMode = .timeout(5)
         let pool = try await StoreOpenGate.shared.openAndMigrate(path: path, configuration: config)

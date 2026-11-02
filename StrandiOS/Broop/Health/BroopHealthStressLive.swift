@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import UIKit
 import Combine
 import StrandAnalytics
 import StrandDesign
@@ -72,6 +73,8 @@ final class BroopHealthStressLive: ObservableObject {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
                 guard let self else { return }
+                // The loop outlives backgrounding while the strap keeps the process awake.
+                guard UIApplication.shared.applicationState == .active else { continue }
                 self.tick(live: live)
             }
         }

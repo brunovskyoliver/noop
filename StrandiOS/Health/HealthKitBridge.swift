@@ -40,8 +40,13 @@ final class HealthKitBridge: ObservableObject {
     /// `healthd` above iOS's CPU limit (7 `cpu_resource` reports overnight) and the phone in the "Serious"
     /// thermal state, which throttled the whole UI. A call inside the interval schedules ONE trailing pass
     /// for when it expires, so the newest data still reaches Health, at most this late.
-    private static let minWriteBackInterval: TimeInterval = 20 * 60
-    private var lastWriteBackAt: Date?
+    private static let minWriteBackInterval: TimeInterval = 60 * 60
+    private static let lastWriteBackKey = "health.lastWriteBackAt"
+    /// Persisted: a relaunch is routine in the background and must not reset the throttle.
+    private var lastWriteBackAt: Date? {
+        get { UserDefaults.standard.object(forKey: Self.lastWriteBackKey) as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: Self.lastWriteBackKey) }
+    }
     private var trailingWriteBack: Task<Void, Never>?
     /// A call coalesced into a running pass asked to skip the throttle, so the follow-up pass does too.
     private var writeBackPendingImmediate = false

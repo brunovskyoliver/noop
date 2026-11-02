@@ -84,7 +84,7 @@ final class RescoreBackgroundPolicyTests: XCTestCase {
 
     /// The shipped spacing; pinned so a change is deliberate.
     func testTheShippedSpacing() {
-        XCTAssertEqual(RescoreBackgroundPolicy.backgroundSpacingSeconds, 30 * 60)
+        XCTAssertEqual(RescoreBackgroundPolicy.backgroundSpacingSeconds, 60 * 60)
     }
 
     // MARK: - The livelock

@@ -1,5 +1,6 @@
 #if os(iOS)
 import SwiftUI
+import UIKit
 import StrandDesign
 
 /// The HEART RATE hero of the Health tab and Health Monitor: caps label, heart, big BPM, zone line and
@@ -72,7 +73,9 @@ struct BroopHealthLiveHeartRate: View {
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard let v = displayHR, (30...220).contains(v) else { continue }
+                // A task outlives backgrounding while the strap keeps the process awake.
+                guard UIApplication.shared.applicationState == .active,
+                      let v = displayHR, (30...220).contains(v) else { continue }
                 samples.append(Double(v))
                 if samples.count > 180 { samples.removeFirst(samples.count - 180) }
             }

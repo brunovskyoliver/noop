@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 import WhoopStore
 import WhoopProtocol
 import StrandAnalytics
@@ -784,6 +785,24 @@ final class Repository: ObservableObject {
 
     /// In-flight open, so concurrent first-callers share ONE open instead of each opening their own.
     private var storeOpenTask: Task<WhoopStore?, Never>?
+
+    /// Trim and compact the store. Off the main actor by virtue of the store being its own actor.
+    func runStorageMaintenance(compact: Bool, shouldContinue: @escaping @Sendable () -> Bool = { true }) async {
+        guard let store = await ensureStore() else { return }
+        try? await store.runStorageMaintenance(now: Int(Date().timeIntervalSince1970), compact: compact,
+                                               shouldContinue: shouldContinue)
+        UserDefaults.standard.set(Date(), forKey: Self.lastStorageMaintenanceKey)
+    }
+
+    /// Daily trim when the app opens. The one-off rebuild waits for a charger, here or in the background task.
+    func runStorageMaintenanceIfDue() async {
+        let last = UserDefaults.standard.object(forKey: Self.lastStorageMaintenanceKey) as? Date
+        if let last, Date().timeIntervalSince(last) < 86_400 { return }
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let charging = [.charging, .full].contains(UIDevice.current.batteryState)
+        await runStorageMaintenance(compact: charging)
+    }
+    private static let lastStorageMaintenanceKey = "storage.lastMaintenanceAt"
 
     private func ensureStore() async -> WhoopStore? {
         if let store { return store }
