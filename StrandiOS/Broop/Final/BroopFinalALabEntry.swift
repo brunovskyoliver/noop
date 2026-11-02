@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandImport
 import StrandAnalytics
@@ -398,4 +397,3 @@ struct BroopFinalALabEntrySheet: View {
         }
     }
 }
-#endif

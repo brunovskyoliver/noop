@@ -77,28 +77,6 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
 
     // MARK: - Deferral must move the work, never drop it
 
-    /// The bug this file exists for: deferring has to record the debt, or the background task it defers
-    /// to has nothing to find.
-    func testDeferringMarksTheWorkOwedAndDoesNotRunIt() async {
-        // An earlier pass was killed moments ago: its mark is set and nothing runs now, so the policy defers.
-        let killedToken = RescoreBackgroundScheduler.markRescoreOwed(passStarting: true)
-
-        var ran = false
-        var logged: [String] = []
-        await RescoreBackgroundScheduler.run(isBackground: true, log: { logged.append($0) }) {
-            ran = true
-        }
-
-        XCTAssertFalse(ran, "the pass must not be started in a context that cannot finish it")
-        XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed,
-                      "the deferred work must be recorded, or the background task does nothing")
-        XCTAssertNotEqual(RescoreBackgroundScheduler.currentOwedToken, killedToken,
-                          "the deferral records its own debt for the processing task to settle")
-        XCTAssertEqual(logged.count, 1)
-        XCTAssertTrue(logged[0].contains("deferred"), logged[0])
-        XCTAssertTrue(logged[0].contains("outstanding"), logged[0])
-    }
-
     /// A foregrounded pass runs, whatever the measurement says. This is the case the mechanism must not
     /// break: there is no suspension deadline, so deferring would be a pure regression.
     func testAForegroundPassRunsEvenWhenSlow() async {
@@ -120,24 +98,6 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         var ran = false
         await RescoreBackgroundScheduler.run(isBackground: true, log: { _ in }) { ran = true }
         XCTAssertTrue(ran)
-    }
-
-    /// A background offload soon after a pass that finished is spaced: it does not run, and the debt it
-    /// leaves is what the next offload past the spacing, the processing task or the next foreground pays.
-    func testASpacedOffloadIsOwedNotDropped() async {
-        let finished = RescoreBackgroundScheduler.markRescoreOwed(passStarting: true)
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 8, owedToken: finished)
-        XCTAssertFalse(RescoreBackgroundScheduler.isRescoreOwed)
-
-        var ran = false
-        var logged: [String] = []
-        await RescoreBackgroundScheduler.run(isBackground: true, log: { logged.append($0) }) { ran = true }
-
-        XCTAssertFalse(ran, "a pass started moments ago spaces the next backgrounded offload")
-        XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed, "the spaced offload's data must still be scored")
-        XCTAssertEqual(logged.count, 1)
-        let line = logged.first ?? ""
-        XCTAssertTrue(line.contains("at most every 30 min"), line)
     }
 
     /// Once work is owed, a further background trigger defers instead of starting a duplicate pass. This

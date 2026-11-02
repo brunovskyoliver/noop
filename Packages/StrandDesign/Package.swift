@@ -8,7 +8,7 @@ let package = Package(
     // String(localized:) in the package passes `bundle: .module` so lookups hit that catalog instead of
     // silently falling back to the host app's main bundle (where package-only keys do not exist).
     defaultLocalization: "en",
-    platforms: [.macOS(.v13), .iOS(.v16), .watchOS(.v10)],
+    platforms: [.macOS(.v13), .iOS(.v16)],
     products: [.library(name: "StrandDesign", targets: ["StrandDesign"])],
     dependencies: [],
     targets: [

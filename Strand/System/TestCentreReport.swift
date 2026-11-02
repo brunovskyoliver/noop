@@ -111,11 +111,7 @@ final class TestCentreReport: ObservableObject {
         guard var p = pending else { return }
         p.gate.confirm()
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        #if os(iOS)
         let platform = "iOS"
-        #else
-        let platform = "macOS"
-        #endif
         let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
         // Launched (#646/#651): TestReportFlow.run is now async since it awaits FileExport.exportBundle's
         // off-main zip build.

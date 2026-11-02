@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import ActivityKit
 
@@ -29,4 +28,3 @@ public struct NOOPActivityAttributes: ActivityAttributes {
         self.title = title
     }
 }
-#endif

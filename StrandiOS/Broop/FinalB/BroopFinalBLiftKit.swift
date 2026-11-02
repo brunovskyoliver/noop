@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 import StrandDesign
@@ -298,4 +297,3 @@ extension View {
         }
     }
 }
-#endif

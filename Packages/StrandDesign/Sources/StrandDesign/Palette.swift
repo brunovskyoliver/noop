@@ -48,12 +48,7 @@ public extension Color {
         // `lightComponents` would be unused on that platform and warn. A pair that is always read as a
         // whole has no such half.
         let components = (light: Color.sRGBComponents(hex: light), dark: Color.sRGBComponents(hex: dark))
-        #if os(watchOS)
-        // watchOS has no UITraitCollection / dynamic-provider UIColor, and our watch app is effectively
-        // always dark, so a token resolves straight to its dark hex. No per-scheme plumbing on the wrist.
-        self.init(.sRGB, red: components.dark.r, green: components.dark.g,
-                  blue: components.dark.b, opacity: components.dark.a)
-        #elseif canImport(UIKit)
+        #if canImport(UIKit)
         self.init(UIColor { trait in
             let c = trait.userInterfaceStyle == .dark ? components.dark : components.light
             return UIColor(red: CGFloat(c.r), green: CGFloat(c.g), blue: CGFloat(c.b), alpha: CGFloat(c.a))
@@ -545,10 +540,7 @@ enum ColorComponentCache {
     /// A small integer identifying the current resolved appearance (light vs dark), matching the trait
     /// that `UIColor(color)` / `NSColor(color)` resolves against at this call site.
     private static var appearanceToken: Int {
-        #if os(watchOS)
-        // No UITraitCollection on watchOS; the watch app is always dark, so the cache key is constant.
-        return 1
-        #elseif canImport(UIKit)
+        #if canImport(UIKit)
         return UITraitCollection.current.userInterfaceStyle == .dark ? 1 : 0
         #elseif canImport(AppKit)
         let match = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua])

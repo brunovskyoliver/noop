@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -307,4 +306,3 @@ struct BroopHealthAmountSheet: View {
         .buttonRepeatBehavior(.enabled)
     }
 }
-#endif

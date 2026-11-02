@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -513,4 +512,3 @@ struct BroopOverviewStagesVsTypical: View {
         }
     }
 }
-#endif

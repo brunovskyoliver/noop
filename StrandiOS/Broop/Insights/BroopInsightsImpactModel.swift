@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import WhoopStore
@@ -216,4 +215,3 @@ final class BroopInsightsImpactModel: ObservableObject {
         }
     }
 }
-#endif

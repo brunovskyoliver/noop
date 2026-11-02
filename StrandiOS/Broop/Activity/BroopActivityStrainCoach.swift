@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import WhoopStore
@@ -151,4 +150,3 @@ struct BroopActivityStrainCoach: View {
         before = (start, live ?? 0)
     }
 }
-#endif

@@ -6,9 +6,7 @@ import Foundation
 import Combine
 import AuthenticationServices
 import WhoopStore
-#if os(iOS)
 import UIKit
-#endif
 
 /// Drives the Data Sources "Connect Oura" card: connect (OAuth) → one-time backfill → honest summary →
 /// disconnect. @MainActor so all @Published mutations are main-thread; the network/backfill hops off-main.
@@ -94,9 +92,7 @@ final class OuraConnectModel: ObservableObject {
     /// auto-lock mid-import suspends the app and freezes the run with no error. Always reset on exit.
     private func setBusy(_ b: Bool) {
         busy = b
-        #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = b
-        #endif
     }
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian)

@@ -4,12 +4,8 @@ import WhoopProtocol
 import WhoopStore
 import StrandAnalytics
 // #78/#747 hole-4: the one-shot bond-loop salvage probe listens for the app-foreground notification,
-// which lives in UIKit on iOS and AppKit on macOS (see installForegroundSalvageProbe).
-#if os(iOS)
+// which lives in UIKit (see installForegroundSalvageProbe).
 import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 
 /// Detects a marginal Bluetooth radio that can't sustain the WHOOP 4 R10/R11 raw realtime stream
 /// (#80). On a flaky radio (2016 Mac / OpenCore) the link dies the *instant* NOOP arms that
@@ -1381,16 +1377,11 @@ public final class BLEManager: NSObject, ObservableObject {
         // whole change removes. `seedLastSyncFromActiveStrap` fills it from the ACTIVE strap once the
         // registry exists (bootstrapStore); a blank moment is honest, another strap's timestamp is not.
         // Restore identifier + background-capable central (foundation for M3 state restoration).
-        #if os(iOS)
         // iOS background state preservation/restoration: the restore identifier is what makes
         // CoreBluetooth relaunch the app into the background and deliver willRestoreState after
         // a suspend-then-jettison. Without it, willRestoreState is never called.
         central = CBCentralManager(delegate: self, queue: .main,
                                    options: [CBCentralManagerOptionRestoreIdentifierKey: BLEManager.restoreID])
-        #else
-        // Strand (macOS desktop): no state-restoration identifier (iOS background feature).
-        central = CBCentralManager(delegate: self, queue: .main)
-        #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
         router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
         router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
@@ -1596,13 +1587,8 @@ public final class BLEManager: NSObject, ObservableObject {
         // registry exists (bootstrapStore); a blank moment is honest, another strap's timestamp is not.
         // Restore identifier + background-capable central (mirrors the production initializer
         // so a restored manager matches by identifier; only exercised by tests/previews).
-        #if os(iOS)
         central = CBCentralManager(delegate: self, queue: .main,
                                    options: [CBCentralManagerOptionRestoreIdentifierKey: BLEManager.restoreID])
-        #else
-        // Strand (macOS desktop): no state-restoration identifier (iOS background feature).
-        central = CBCentralManager(delegate: self, queue: .main)
-        #endif
         // Strap-as-clock: an incoming EVENT packet kicks a rate-limited catch-up sync.
         router.onSyncTrigger = { [weak self] in self?.requestSync(.strap) }
         router.onStrapSerial = { [weak self] serial in self?.noteHarvardSerial(serial) }   // #1193
@@ -1758,7 +1744,6 @@ public final class BLEManager: NSObject, ObservableObject {
             central.connect(p, options: nil)
             return
         }
-        #if os(iOS)
         // Off-screen, a scan is the wrong tool: iOS throttles background scanning so hard that a field log
         // showed eight minutes of alternating 5.0/4.0 scans finding nothing, then the strap discovered eight
         // seconds after the app came to the foreground — twice. A targeted connect to the last strap is what
@@ -1773,7 +1758,6 @@ public final class BLEManager: NSObject, ObservableObject {
             central.connect(p, options: nil)
             return
         }
-        #endif
         startScan(for: model, allowFallback: true)
     }
 
@@ -1988,18 +1972,12 @@ public final class BLEManager: NSObject, ObservableObject {
     /// init; self-contained here so the probe needs no per-target scene wiring. iOS and macOS only (the
     /// watch never builds this file).
     private func installForegroundSalvageProbe() {
-        #if os(iOS) || os(macOS)
-        #if os(iOS)
         let name = UIApplication.didBecomeActiveNotification
-        #else
-        let name = NSApplication.didBecomeActiveNotification
-        #endif
         foregroundSalvageObserver = NotificationCenter.default.addObserver(
             forName: name, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.salvageProbeIfBondLoopPaused() }
         }
-        #endif
     }
 
     // MARK: Multi-WHOOP (additive — inert on the single-WHOOP path)
@@ -4233,11 +4211,7 @@ public final class BLEManager: NSObject, ObservableObject {
         }
         // Platform exception: this hardware investigation is explicitly scoped to macOS.
         // Keep iOS and Android's established plans until the additional reads are verified there.
-        #if os(macOS)
-        let flagKeys = DeviceConfigReadProbe.knownFlagKeys(for: selectedModel.deviceFamily)
-        #else
         let flagKeys = Whoop5Config.enableR22Sequence.map(\.name)
-        #endif
         deviceConfigReport = DeviceConfigReadProbeReport(
             family: selectedModel.deviceFamily,
             // Include names observed on the strap without changing the R22 write sequence.
@@ -5945,11 +5919,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // #295: an unsigned/ad-hoc build's code identity changes on every release, so a Bluetooth
         // toggle that already reads "on" from a PRIOR build's grant may not carry over — the
         // message needs to tell the user to re-toggle it, not just check that it's on.
-        #if os(macOS)
-        state.lastSyncError = "NOOP isn't allowed to use Bluetooth. Open System Settings → Privacy & Security → Bluetooth — if NOOP is already listed there, toggle it off and back on (a new NOOP build needs a fresh grant), then quit and reopen NOOP."
-        #else
         state.lastSyncError = "NOOP isn't allowed to use Bluetooth. Open iPhone Settings → NOOP → Bluetooth — if it's already on, toggle it off and back on, then quit and reopen NOOP."
-        #endif
         log("Bluetooth permission not granted (unauthorized) — cannot scan or connect")
         radioStateErrorShown = true
     }

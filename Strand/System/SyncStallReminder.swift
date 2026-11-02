@@ -1,8 +1,6 @@
 import Foundation
-#if os(iOS)
 import Combine
 import UserNotifications
-#endif
 
 /// A stale-sync reminder cannot attribute the silence to a force-quit, radio loss, or suspension.
 enum SyncStallPolicy {
@@ -24,7 +22,6 @@ enum SyncStallPolicy {
     }
 }
 
-#if os(iOS)
 /// Queued with iOS while the process is alive, so the reminder can fire after it stops.
 /// Successful offloads replace the deadline; heart-rate packets and app opens do not reset it.
 @MainActor
@@ -131,4 +128,3 @@ final class SyncStallReminder {
         }
     }
 }
-#endif

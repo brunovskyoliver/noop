@@ -5,9 +5,7 @@ import WhoopStore
 import StrandAnalytics
 import StrandImport
 import OuraProtocol
-#if os(iOS)
 import UserNotifications
-#endif
 
 /// Data source currently running an import from the Data Sources screen.
 enum DataSourceImportKind {
@@ -713,7 +711,6 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent()
     }
 
-    #if os(iOS)
     /// Push freshly-offloaded data to Apple Health, set by `StrandiOSApp` (#1021).
     ///
     /// A closure rather than a direct reference because `HealthKitBridge` owns iOS-only HealthKit state
@@ -724,7 +721,6 @@ final class AppModel: ObservableObject {
     /// Runs after each pass that can score last night (post-offload, deferred re-score, user sync). Set by
     /// `StrandiOSApp` for the wake brief (`CoachBriefScheduler.deliverOnWakeIfDue`).
     var afterScoring: (() async -> Void)?
-    #endif
 
     /// Settle a re-score that is owed (#1538) — one an earlier attempt started and was killed partway
     /// through, or one a background trigger deferred rather than start where it could not finish.
@@ -755,7 +751,6 @@ final class AppModel: ObservableObject {
         await intelligence.analyzeRecent(skipIfUnchanged: fromCompletedPass,
                                          triggerLabel: fromCompletedPass ? "resume-gated" : "resume-forced")
         guard !Task.isCancelled else { return }
-        #if os(iOS)
         // The deferred pass is the one that finally produces today's score, and it runs with no UI
         // attached — so publish the snapshot here too, for the same reason the post-offload path does.
         await WidgetSnapshot.publish(from: self)
@@ -766,7 +761,6 @@ final class AppModel: ObservableObject {
         // write would wait past the end of the background task that runs this.
         await healthWriteBack?(true)
         await afterScoring?()
-        #endif
     }
 
     func startUserSync() {
@@ -798,12 +792,10 @@ final class AppModel: ObservableObject {
             guard !Task.isCancelled else { return false }
             await self.intelligence.analyzeRecent(skipIfUnchanged: true)
             guard !Task.isCancelled else { return false }
-            #if os(iOS)
             await self.healthWriteBack?(true)
             await WidgetSnapshot.publish(from: self)
             // Not awaited: the sync sheet should not wait on the model writing the brief.
             Task { await self.afterScoring?() }
-            #endif
             return !RescoreBackgroundScheduler.isRescoreOwed
         }
     }
@@ -867,7 +859,6 @@ final class AppModel: ObservableObject {
         // foreground pass is never deferred.
         await intelligence.analyzeRecent(skipIfUnchanged: true)
         await refreshV5Signals()
-        #if os(iOS)
         // #980: a strap backfill routinely completes while the app is BACKGROUNDED (it runs as a
         // bluetooth-central, so it stays alive to receive the offload). The only other widget-publish
         // sites are gated on scenePhase == .active, so a background sync would rescore today's data but
@@ -882,7 +873,6 @@ final class AppModel: ObservableObject {
         // strap offloads every few minutes (see `HealthKitBridge.minWriteBackInterval`).
         await healthWriteBack?(false)
         await afterScoring?()
-        #endif
     }
 
     /// Fold a fresh reading into the smoothing window and republish a stable bpm.
@@ -1376,7 +1366,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    #if os(iOS)
     /// Materialize Apple Health as a device and update the source that feeds Today.
     /// Only replaces the seeded WHOOP row while it is still a placeholder with no strap and no data;
     /// a physical or user-selected source always keeps priority.
@@ -1417,7 +1406,6 @@ final class AppModel: ObservableObject {
             await repo.refresh()
         }
     }
-    #endif
 
     // MARK: - Oura adopt (factory-reset-and-adopt)
 
@@ -1613,21 +1601,17 @@ final class AppModel: ObservableObject {
     /// `BLEManager.maybeBuzzInactivity` fires its buzz (see crossLaneNotes). `minutes` = the seated bout
     /// length the detector reported. No-op on macOS and when wrist alerts are off.
     static func postInactivity(minutes: Int) {
-        #if os(iOS)
         let body = minutes > 0
             ? String(localized: "You've been seated for about \(minutes) min. Time to move.")
             : String(localized: "Time to move. You've been seated a while.")
         postWristAlert(identifier: "inactivity-nudge", title: String(localized: "Move reminder"), body: body)
-        #endif
     }
 
     /// Post the local notification mirroring the smart-alarm wake buzz. Called from the
     /// `onSmartAlarmFired` hook. No-op on macOS and when wrist alerts are off.
     static func postSmartAlarm() {
-        #if os(iOS)
         postWristAlert(identifier: "smart-alarm-wake", title: String(localized: "Smart alarm"),
                        body: String(localized: "Good morning. Your smart alarm just woke you."))
-        #endif
     }
 
     /// Post (or hand to the OS for `fireAt`) the hourly stand reminder. Called by
@@ -1635,14 +1619,11 @@ final class AppModel: ObservableObject {
     /// scheduled at :20 for :50 can't know what the next half hour brings. No-op on macOS and when wrist
     /// alerts are off.
     static func postStandReminder(goal: Int, at fireAt: Date?) {
-        #if os(iOS)
         postWristAlert(identifier: StandReminderNotifier.requestId, title: String(localized: "Time to stand"),
                        body: String(localized: "Under \(goal) min on your feet this hour. Stand up and move for a few minutes to earn it."),
                        at: fireAt, categoryId: StandReminderNotifier.categoryId)
-        #endif
     }
 
-    #if os(iOS)
     /// Shared post path: gate on the wrist-alerts master, then deliver only if the OS already authorized
     /// notifications (no second system prompt , BatteryNotifier-style status-only check). A fresh
     /// identifier per category means a new alert replaces the old one rather than stacking. `fireAt`
@@ -1663,7 +1644,6 @@ final class AppModel: ObservableObject {
             center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
     }
-    #endif
 
     /// Stable identifier base for the smart-alarm BACKUP wake notification(s). The every-day case uses
     /// this id directly; the per-weekday case fans out to "<base>-d<weekday>" so a re-arm replaces by id
@@ -1703,7 +1683,6 @@ final class AppModel: ObservableObject {
     static func scheduleSmartAlarmBackupNotification(minutes: Int, weekdays: Set<Int>,
                                                      overrides: [Int: Int] = [:],
                                                      log: ((String) -> Void)? = nil) {
-        #if os(iOS)
         let center = UNUserNotificationCenter.current()
         // Always clear BOTH the single and the per-day ids so switching modes (or editing the weekday set)
         // never leaves an orphaned trigger or double-fires.
@@ -1781,15 +1760,12 @@ final class AppModel: ObservableObject {
                 log?("Smart alarm: backup notification NOT scheduled (notifications not authorized)")
             }
         }
-        #endif
     }
 
     /// Cancel the smart-alarm backup wake notification(s). Called on disarm. No-op on macOS.
     static func cancelSmartAlarmBackupNotification() {
-        #if os(iOS)
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: smartAlarmBackupIds)
-        #endif
     }
 
     /// Arm (or clear) the strap's firmware alarm from the smart-alarm settings. The firmware alarm
@@ -1951,9 +1927,6 @@ final class AppModel: ObservableObject {
         case .none: break
         case .lockScreen:
             if !MacActions.lockScreen() {
-                #if os(macOS)
-                MacActions.runShortcut("Lock Screen")   // login.framework unavailable , fall back to a Shortcut
-                #endif
                 // iOS can't lock the device and .lockScreen isn't selectable there, so no stray Shortcut launch.
             }
         case .buzzBack: buzz(loops: 1)
@@ -2016,12 +1989,6 @@ final class AppModel: ObservableObject {
         if worn {
             if !behavior.wristOnShortcut.isEmpty { MacActions.runShortcut(behavior.wristOnShortcut) }
         } else {
-            #if os(macOS)
-            // Auto-lock on wrist-off is a macOS-only affordance (the toggle is hidden on iOS, where a
-            // third-party app can't lock the device). Guarding it here also stops a stray "Lock Screen"
-            // Shortcut launch for any iOS user who toggled this on before it was gated off iPhone.
-            if behavior.autoLockOnWristOff, !MacActions.lockScreen() { MacActions.runShortcut("Lock Screen") }
-            #endif
             if !behavior.wristOffShortcut.isEmpty { MacActions.runShortcut(behavior.wristOffShortcut) }
         }
     }
@@ -2505,7 +2472,6 @@ final class AppModel: ObservableObject {
     /// Runs off the main actor (nonisolated) so copying a large export never blocks the UI; the
     /// caller holds the security scope (process-wide) for the duration.
     nonisolated static func materializeForImport(_ picked: URL) async throws -> ImportFile {
-        #if os(iOS)
         let ext = picked.pathExtension.isEmpty ? "dat" : picked.pathExtension
         let dst = NoopScratch.file("import-\(UUID().uuidString)")
             .appendingPathExtension(ext)
@@ -2525,9 +2491,6 @@ final class AppModel: ObservableObject {
         // The picked URL is the picker's own `asCopy:true` duplicate in Documents/Inbox; pass it
         // through so cleanup() can reclaim it (it's the original of `dst`, not a user file).
         return ImportFile(url: dst, temp: dst, inboxOriginal: picked)
-        #else
-        return ImportFile(url: picked, temp: nil)
-        #endif
     }
 
     /// One-shot launch sweep of `Documents/Inbox/`: deletes any stale `asCopy:true` picker drops a
@@ -2535,7 +2498,6 @@ final class AppModel: ObservableObject {
     /// safe , `Inbox` only ever holds picker hand-offs, never user data. Skips files newer than 60 s so
     /// it can't race an import that's mid-flight at launch.
     nonisolated static func purgeImportInbox() {
-        #if os(iOS)
         let fm = FileManager.default
         guard let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let inbox = docs.appendingPathComponent("Inbox")
@@ -2548,7 +2510,6 @@ final class AppModel: ObservableObject {
             if let modified, modified > cutoff { continue }   // leave an in-flight hand-off alone
             try? fm.removeItem(at: item)
         }
-        #endif
     }
 
     func importWhoop(url: URL) {
@@ -2668,13 +2629,9 @@ final class AppModel: ObservableObject {
 
     /// Total bytes in `Documents/Inbox/` (the picker's `asCopy:true` drops). 0 on macOS / when absent.
     nonisolated static func inboxSizeBytes() -> Int64 {
-        #if os(iOS)
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         else { return 0 }
         return directorySizeBytes(docs.appendingPathComponent("Inbox"))
-        #else
-        return 0
-        #endif
     }
 
     /// Total bytes of NOOP's own temp scratch: its owned folder, plus the flat scratch earlier builds

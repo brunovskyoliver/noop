@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -248,4 +247,3 @@ struct BroopInsightsDoseCard: View {
         return "\(sign)\(body)\(card.outcomeSuffix)"
     }
 }
-#endif

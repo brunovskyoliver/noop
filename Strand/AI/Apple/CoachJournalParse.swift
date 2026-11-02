@@ -164,7 +164,7 @@ enum CoachJournalParse {
 
     #if canImport(FoundationModels)
     /// The answer's shape: a list of entries, each naming one of `choices` by its display name.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     static func schema(choices: [Choice]) throws -> GenerationSchema {
         var names: [String] = []
         for c in choices where !names.contains(c.display) { names.append(c.display) }
@@ -184,7 +184,7 @@ enum CoachJournalParse {
         return try GenerationSchema(root: root, dependencies: [])
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     static func rawEntries(_ content: GeneratedContent) -> [RawEntry] {
         guard let entries = try? content.value([GeneratedContent].self, forProperty: "entries") else { return [] }
         return entries.compactMap { e in

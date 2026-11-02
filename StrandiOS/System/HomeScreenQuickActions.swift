@@ -1,4 +1,3 @@
-#if os(iOS)
 import StrandAnalytics
 import SwiftUI
 import UIKit
@@ -172,4 +171,3 @@ final class HomeScreenQuickActionSceneDelegate: NSObject, UIWindowSceneDelegate,
         pendingAction = nil
     }
 }
-#endif

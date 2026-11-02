@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -742,4 +741,3 @@ struct BroopActivityLiftBar: View {
         }
     }
 }
-#endif

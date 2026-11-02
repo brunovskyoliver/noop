@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -147,4 +146,3 @@ struct BroopHealthJetLagView: View {
         String(format: "UTC%@%02d:%02d", minute < 0 ? "−" : "+", abs(minute) / 60, abs(minute) % 60)
     }
 }
-#endif

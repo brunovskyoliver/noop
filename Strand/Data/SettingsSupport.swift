@@ -61,19 +61,13 @@ struct StepsCalibrationSheet: View {
                 }
                 .padding(20)
             }
-            #if os(iOS)
             // #697/#horizontal-swipe parity, see ScreenScaffold.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            #endif
             Divider().overlay(StrandPalette.hairline)
             footerBar
         }
-        #if os(macOS)
-        .frame(width: 560, height: 680)
-        #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .noopSheetPresentation(largeFirst: true)
-        #endif
         .background(StrandPalette.surfaceBase)
         .task { await loadIfNeeded() }
     }

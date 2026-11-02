@@ -1,7 +1,7 @@
 import XCTest
 @testable import Strand
 
-/// #2430: the personal daytime-stress lens reaches Stress detail and both Apple Today layouts.
+/// #2430: the personal daytime-stress lens reaches the stress curve the widget publishes.
 ///
 /// The baseline math has package tests; this pins the app-target wiring that can otherwise compile
 /// while silently omitting the preference at one call site.
@@ -12,27 +12,11 @@ final class StressPersonalBaselineSurfaceTests: XCTestCase {
         return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
 
-    func testDetailAndTodayUseTheSameSelectedMode() throws {
-        let detail = try source("Strand/Screens/StressView.swift")
+    func testProducerMapsTheOneAnalysis() throws {
         let producer = try source("Strand/Data/StressDayCurve.swift")
-        let today = try source("Strand/Screens/TodayView.swift")
-        let liquidToday = try source("Strand/Liquid/LiquidTodayView.swift")
-
-        XCTAssertNotNil(detail.range(
-            of: #"DaytimeStressMode\.selected\([\s\S]*?personalBaseline:\s*PuffinExperiment\.stressPersonalBaselineEnabled"#,
-            options: .regularExpression
-        ))
-        XCTAssertNotNil(detail.range(
-            of: #"DaytimeStress\.analyze\([\s\S]*?mode:\s*mode,"#,
-            options: .regularExpression
-        ))
-        // One curve: the producer maps the analysis every other surface reads, and scores nothing itself.
         XCTAssertTrue(producer.contains("repo.stressToday(now: now)"))
         XCTAssertTrue(producer.contains("StressMonitor.curve("))
         XCTAssertFalse(producer.contains("DaytimeStress.analyze("))
-        for body in [today, liquidToday] {
-            XCTAssertTrue(body.contains("StressDayCurve.today(repo: repo)"))
-        }
     }
 
     func testWidgetPublisherUsesTheOneCurve() throws {

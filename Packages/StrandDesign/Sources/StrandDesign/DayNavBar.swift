@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // The watch app never shows the day navigator (no DatePicker(.graphical) / .popover on watchOS),
 // so this whole control is excluded there; iOS/macOS are unchanged.
 import SwiftUI
@@ -151,4 +150,3 @@ public struct DayNavBar: View {
     }
 
 }
-#endif

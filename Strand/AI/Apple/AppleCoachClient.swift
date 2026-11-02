@@ -83,7 +83,7 @@ final class AppleCoachClient {
     /// Load the on-device model ahead of the first question (the Coach screen appearing).
     func prewarm(inputs: AppleCoachRoutingInputs) {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *), AppleCoachRouting.route(inputs) == .onDevice, let source {
+        if #available(iOS 26.0, *), AppleCoachRouting.route(inputs) == .onDevice, let source {
             onDevice(source).prewarm(promptPrefix: nil)
         }
         #endif
@@ -104,7 +104,7 @@ final class AppleCoachClient {
     func respond(question: String, aboutDay: String? = nil, history: [ChatMessage], inputs: AppleCoachRoutingInputs,
                  stream: CoachStreamState) async -> AppleTurnResult {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(iOS 26.0, *) {
             var asked = question
             var dayFacts: String?
             if let day = aboutDay, let source {
@@ -127,7 +127,7 @@ final class AppleCoachClient {
     /// the stored brief then.
     func brief(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(iOS 26.0, *) {
             return await briefWithModel(inputs: inputs, day: day, dataKey: dataKey)
         }
         #endif
@@ -139,7 +139,7 @@ final class AppleCoachClient {
     /// the caller shows the fixed chips then.
     func followUps(question: String, reply: String, inputs: AppleCoachRoutingInputs) async -> [String]? {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale {
+        if #available(iOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale {
             var instructions = CoachFollowUps.instructions
             if let language = CoachInstructions.languageLine(AppLanguage.activeLocale) { instructions += "\n\n" + language }
             let session = LanguageModelSession(model: .default, instructions: instructions)
@@ -155,7 +155,7 @@ final class AppleCoachClient {
     /// This evening's review (see `AppleCoachEveningPolicy`). Nil when neither model can serve it.
     func evening(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(iOS 26.0, *) {
             return await eveningWithModel(inputs: inputs, day: day, dataKey: dataKey)
         }
         #endif
@@ -165,7 +165,7 @@ final class AppleCoachClient {
     /// Journal proposals from what the person said; nil when the on-device model can't answer.
     func journal(transcript: String, choices: [CoachJournalParse.Choice], inputs: AppleCoachRoutingInputs) async -> [CoachJournalProposal]? {
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale, !choices.isEmpty {
+        if #available(iOS 26.0, *), inputs.onDevice == .available, inputs.onDeviceSupportsLocale, !choices.isEmpty {
             return await journalWithModel(transcript: transcript, choices: choices)
         }
         #endif
@@ -185,7 +185,7 @@ final class AppleCoachClient {
     /// Guided generation with no tools: the facts go in the prompt, the model writes a draft without
     /// numbers, and the number check runs on its prose. One retry, then values only. Errors hand over to
     /// Apple's servers once when `AppleCoachRecovery` allows it.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func guided<Draft: Generable>(inputs start: AppleCoachRoutingInputs, facts: String, prompt: String,
                                           generating: Draft.Type, prose: (Draft) -> String) async -> GuidedOutcome<Draft> {
         var inputs = start
@@ -195,7 +195,7 @@ final class AppleCoachClient {
         for _ in 0..<2 {
             guard route != .none else { return .unavailable }
             let session: LanguageModelSession
-            if route == .privateCloud, #available(iOS 27.0, macOS 27.0, *) {
+            if route == .privateCloud, #available(iOS 27.0, *) {
                 session = LanguageModelSession(model: PrivateCloudComputeLanguageModel(), instructions: instructions)
             } else {
                 session = LanguageModelSession(model: .default, instructions: instructions)
@@ -228,7 +228,7 @@ final class AppleCoachClient {
         return .unavailable
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func briefWithModel(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
         guard let source else { return nil }
         let facts = await source.todaySnapshot() + "\n" + (await source.sleepPlan())
@@ -247,7 +247,7 @@ final class AppleCoachClient {
         }
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func eveningWithModel(inputs: AppleCoachRoutingInputs, day: String, dataKey: String) async -> AppleCoachBrief? {
         guard let source else { return nil }
         let facts = [await source.todaySnapshot(), await source.sleepPlan(),
@@ -268,7 +268,7 @@ final class AppleCoachClient {
 
     /// Journal by voice (see `CoachJournalParse`). On-device only: it is the person's own words about their
     /// day. Throws nothing; nil when the model can't answer.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func journalWithModel(transcript: String, choices: [CoachJournalParse.Choice]) async -> [CoachJournalProposal]? {
         guard let schema = try? CoachJournalParse.schema(choices: choices) else { return nil }
         var instructions = CoachJournalParse.instructions
@@ -307,7 +307,7 @@ final class AppleCoachClient {
         }
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func respondWithModel(question: String, dayFacts: String? = nil, history: [ChatMessage], inputs start: AppleCoachRoutingInputs,
                                   stream: CoachStreamState) async -> AppleTurnResult {
         guard let source else { return .failed(AppleCoachRecovery.message(.other)) }
@@ -368,7 +368,7 @@ final class AppleCoachClient {
         return "Earlier in this conversation (context only): \(summary)\n\nQuestion: \(question)"
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func streamReply(_ session: LanguageModelSession, prompt: String, into stream: CoachStreamState) async throws -> String {
         var last = ""
         for try await snapshot in session.streamResponse(to: prompt, options: AppleCoachSessionFactory.factualOptions) {
@@ -379,7 +379,7 @@ final class AppleCoachClient {
     }
 
     /// Validate the reply's numbers; retry once with a stricter instruction; then fall back to the facts.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func checked(_ text: String, question: String, dayFacts: String? = nil, session: LanguageModelSession, route: AppleCoachRoute,
                          stream: CoachStreamState, source: any CoachFactsSource) async -> AppleTurnResult {
         let offDevice = route == .privateCloud
@@ -407,7 +407,7 @@ final class AppleCoachClient {
         return .factsOnly(facts.joined(separator: "\n\n"), offDevice: offDevice)
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func onDevice(_ source: any CoachFactsSource) -> LanguageModelSession {
         if let s = onDeviceSession as? LanguageModelSession { return s }
         let instructions = Self.instructions()
@@ -417,10 +417,10 @@ final class AppleCoachClient {
         return s
     }
 
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func cloud(_ source: any CoachFactsSource) -> LanguageModelSession {
         if let s = cloudSession as? LanguageModelSession { return s }
-        if #available(iOS 27.0, macOS 27.0, *) {
+        if #available(iOS 27.0, *) {
             let s = AppleCoachSessionFactory.privateCloud(instructions: Self.instructions(), source: source, log: log)
             cloudSession = s
             return s
@@ -430,12 +430,12 @@ final class AppleCoachClient {
     }
 
     /// Whether the on-device session is near its context limit: `tokenCount` on 26.4+, else the estimate.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func needsCondense(question: String) async -> Bool {
         guard let session = onDeviceSession as? LanguageModelSession else { return false }
         let model = SystemLanguageModel.default
         var used = CoachTokenBudget.estimate(latinCharacters: onDeviceChars) + Self.toolOverheadTokens
-        if #available(iOS 26.4, macOS 26.4, *), let counted = try? await model.tokenCount(for: session.transcript) {
+        if #available(iOS 26.4, *), let counted = try? await model.tokenCount(for: session.transcript) {
             used = counted
         }
         var size = model.contextSize
@@ -451,7 +451,7 @@ final class AppleCoachClient {
     /// Summarise the conversation with the on-device model in a separate session, drop the old session, and
     /// carry the summary into the next prompt. Sentences with digits are removed: the summary may name topics,
     /// never numbers the next turn's facts do not carry.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     private func condense(history: [ChatMessage]) async {
         let recent = history.suffix(8).map { m in
             (m.role == .user ? "Person: " : "Coach: ") + String(m.text.prefix(300))
@@ -465,11 +465,11 @@ final class AppleCoachClient {
     }
 
     /// Map either OS's error types onto `AppleCoachFailure`.
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     nonisolated static func failure(_ error: Error, route: AppleCoachRoute) -> AppleCoachFailure {
         // The app's tools never throw, so a tool-call error is the model's arguments failing to decode.
         if error is LanguageModelSession.ToolCallError { return .badToolCall }
-        if #available(iOS 27.0, macOS 27.0, *) {
+        if #available(iOS 27.0, *) {
             if let e = error as? LanguageModelError {
                 switch e {
                 case .contextSizeExceeded: return .contextTooLong

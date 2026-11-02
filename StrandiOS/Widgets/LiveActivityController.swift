@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import ActivityKit
 import Combine
@@ -268,4 +267,3 @@ final class LiveActivityController {
         isEnding = false
     }
 }
-#endif

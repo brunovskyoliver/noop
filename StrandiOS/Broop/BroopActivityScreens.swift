@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -114,4 +113,3 @@ struct BroopLiftSessionSheet: View {
 struct BroopLiftSessionBar: View {
     var body: some View { BroopActivityLiftBar() }
 }
-#endif

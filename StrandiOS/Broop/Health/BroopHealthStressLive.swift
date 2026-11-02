@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Combine
 import StrandAnalytics
@@ -278,4 +277,3 @@ struct BroopHealthStressSparkline: View {
         .accessibilityHidden(true)
     }
 }
-#endif

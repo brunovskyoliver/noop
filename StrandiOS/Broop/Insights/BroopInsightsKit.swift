@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 // Shared building blocks for the Insights group (Journal, Journal Insights, What Moves You, Intelligence,
@@ -408,4 +407,3 @@ enum BroopInsightsFormat {
         }
     }
 }
-#endif

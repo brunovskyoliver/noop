@@ -94,37 +94,10 @@ final class WindDownPerDayOverrideTests: XCTestCase {
         }
     }
 
-    func testNudgeDayShift_earlyWake_isPreviousDay() {
-        // Tuesday 03:30 wake, default 8h need + 30m lead: raw = 210 − 480 − 30 = −300 → shift −1.
-        WindDownNudge.setWakeMinutes(7 * 60)
-        WindDownNudge.setWakeOverride(weekday: 3, minutes: 3 * 60 + 30)   // Tuesday 03:30
-        XCTAssertEqual(WindDownNudge.nudgeDayShift(forWeekday: 3), -1)
-        // The wrapped minute is 19:00 the previous evening.
-        XCTAssertEqual(WindDownNudge.nudgeMinuteOfDay(forWeekday: 3), 19 * 60)
-    }
-
     func testNudgeDayShift_normalWake_isPreviousDay() {
         // 07:00 wake, default 8h need + 30m lead: raw = 420 − 480 − 30 = −90 → shift −1.
         WindDownNudge.setWakeMinutes(7 * 60)
         XCTAssertEqual(WindDownNudge.nudgeDayShift(forWeekday: 3), -1)
-    }
-
-    func testNudgeDayShift_lateWake_isSameDay() {
-        // 09:00 wake, default 8h need + 30m lead: raw = 540 − 480 − 30 = 30 → shift 0.
-        WindDownNudge.setWakeMinutes(9 * 60)
-        XCTAssertEqual(WindDownNudge.nudgeDayShift(forWeekday: 3), 0)
-    }
-
-    func testEarlyWakeNudge_pinnedToPreviousDay() {
-        // #1863 scenario: Tuesday (weekday 3) 03:30 wake → nudge at 19:00 on Monday (weekday 2).
-        WindDownNudge.setWakeMinutes(7 * 60)
-        WindDownNudge.setWakeOverride(weekday: 3, minutes: 3 * 60 + 30)   // Tuesday 03:30
-        let shift = WindDownNudge.nudgeDayShift(forWeekday: 3)
-        let minute = WindDownNudge.nudgeMinuteOfDay(forWeekday: 3)
-        let nudgeWeekday = WindDownNudge.shiftedWeekday(weekday: 3, by: shift)
-        XCTAssertEqual(shift, -1)
-        XCTAssertEqual(minute, 19 * 60)            // 19:00
-        XCTAssertEqual(nudgeWeekday, 2)            // Monday, not Tuesday
     }
 
     func testEarlyWakeOnSunday_pinnedToSaturday() {

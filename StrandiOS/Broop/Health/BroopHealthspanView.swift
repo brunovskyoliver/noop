@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Charts
 import StrandAnalytics
@@ -1038,4 +1037,3 @@ struct BroopHealthReadinessCard: View {
         }
     }
 }
-#endif

@@ -510,14 +510,12 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         // ~5 m between callbacks; TrackFilter still gates on accuracy + speed. Matches the cadence intent
         // of Android's 2 s / 0 m platform request (let the filter, not the platform, do the gating).
         manager.distanceFilter = 5
-        #if os(iOS)
         // Keep the route accruing while the screen is off, matching Android's foreground-service capture.
         // Safe only because the iOS target declares the `location` UIBackgroundMode (project.yml); setting
         // this without that mode would crash when updates start.
         manager.allowsBackgroundLocationUpdates = true
         manager.pausesLocationUpdatesAutomatically = false
         manager.activityType = .fitness
-        #endif
     }
 
     /// Begin recording a fresh route for a workout started at `startMs` (unix milliseconds). Requests

@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 // Shared pieces for the Broop launch gates (Terms, onboarding, What's New): the WHOOP-style
@@ -302,4 +301,3 @@ struct BroopFinalBOnbProgressTrack: View {
         .accessibilityHidden(true)
     }
 }
-#endif

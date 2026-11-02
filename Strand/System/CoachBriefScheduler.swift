@@ -1,9 +1,7 @@
 import Foundation
 import UserNotifications
-#if os(iOS)
 import BackgroundTasks
 import WidgetKit
-#endif
 
 /// PRD-K5: a user-scheduled, LOCAL notification that delivers a one-line morning coaching brief,
 /// generated on-device via the user's already-configured Coach provider, at a chosen time each day.
@@ -92,9 +90,7 @@ enum CoachBriefScheduler {
             guard !ids.isEmpty else { return }
             centre.removePendingNotificationRequests(withIdentifiers: ids)
         }
-        #if os(iOS)
         publishToWidget(nil)
-        #endif
     }
 
     /// Whether the daily brief should run. Both gates, so the brief's own default-off flag keeps its
@@ -126,7 +122,6 @@ enum CoachBriefScheduler {
 
     // MARK: - K10: Widget-facing API (App Group, iOS only)
 
-    #if os(iOS)
     /// Publish (or clear) the brief into the App Group so the widget extension can read it. Called
     /// from `catchUpIfDue` / `generateNow` after a successful generation, and from `setEnabled(false)`
     /// to clear the widget when the user turns the feature off.
@@ -144,7 +139,6 @@ enum CoachBriefScheduler {
         // `kind` property (see CoachBriefWidget.swift in StrandiOSWidgets).
         WidgetCenter.shared.reloadTimelines(ofKind: Self.widgetKind)
     }
-    #endif
 
     /// The WidgetKit kind string for the coach-brief widget. Must match the `kind` property on
     /// `CoachBriefWidget` in `StrandiOSWidgets/`. Declared here so `publishToWidget` can reload
@@ -166,9 +160,7 @@ enum CoachBriefScheduler {
         guard on else {
             UserDefaults.standard.set(false, forKey: K.enabled)
             cancel()
-            #if os(iOS)
             publishToWidget(nil)  // K10: clear the widget when the feature is turned off
-            #endif
             completion?(.off)
             return
         }
@@ -300,9 +292,7 @@ enum CoachBriefScheduler {
         UserDefaults.standard.set(dayKey(now), forKey: K.lastRun)
         UserDefaults.standard.set(text, forKey: K.storedBrief)
         UserDefaults.standard.set(true, forKey: K.hasUnconsumed)
-        #if os(iOS)
         publishToWidget(text)  // K10: mirror into the App Group for the widget
-        #endif
     }
 
     // MARK: - On waking (iOS)
@@ -410,38 +400,16 @@ enum CoachBriefScheduler {
     /// (Re)arm the next occurrence. macOS uses a foreground `DispatchSourceTimer`; iOS submits a
     /// background-refresh request. Both target the next wall-clock occurrence of `timeMinutes`.
     private static func scheduleNext(generateBrief: @escaping () async -> String?) {
-        #if os(macOS)
-        macTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        let delay = secondsToNextOccurrence(timeMinutes)
-        timer.schedule(deadline: .now() + delay)
-        timer.setEventHandler {
-            Task { @MainActor in
-                guard isEnabled else { return }
-                _ = await catchUpIfDue(generateBrief: generateBrief)
-                scheduleNext(generateBrief: generateBrief)
-            }
-        }
-        timer.resume()
-        macTimer = timer
-        #elseif os(iOS)
         submitBackgroundRequest()
-        #endif
     }
 
     /// Cancel any armed schedule.
     private static func cancel() {
-        #if os(macOS)
-        macTimer?.cancel()
-        macTimer = nil
-        #elseif os(iOS)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: bgTaskIdentifier)
-        #endif
     }
 
     // MARK: - iOS background task plumbing
 
-    #if os(iOS)
     /// iOS BGTask identifier, derived from the running bundle id so it tracks `BUNDLE_ID_PREFIX` and
     /// matches the iOS target's `BGTaskSchedulerPermittedIdentifiers` (Info.plist / project.yml).
     static let bgTaskIdentifier = (Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".coachbrief"
@@ -498,5 +466,4 @@ enum CoachBriefScheduler {
             logBackgroundFailure?("coach brief: background request refused (\(error.localizedDescription))")
         }
     }
-    #endif
 }

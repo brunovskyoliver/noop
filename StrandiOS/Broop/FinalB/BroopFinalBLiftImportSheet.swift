@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
 import StrandDesign
@@ -226,4 +225,3 @@ struct BroopFinalBLiftImportSheet: View {
         dismiss()
     }
 }
-#endif

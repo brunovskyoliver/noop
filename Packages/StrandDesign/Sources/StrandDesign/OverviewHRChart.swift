@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // OverviewHRChart is a Swift Charts view with .onContinuousHover / MagnificationGesture pan-zoom
 // (none available on watchOS); the watch never shows it, so the whole file is excluded there.
 import SwiftUI
@@ -778,5 +777,4 @@ private struct ZoomPanModifier: ViewModifier {
     .background(StrandPalette.surfaceBase)
     .preferredColorScheme(.dark)
 }
-#endif
 #endif

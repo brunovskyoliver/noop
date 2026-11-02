@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
 import UserNotifications
@@ -821,4 +820,3 @@ private struct BroopFinalBDoneStep: View {
         .onAppear { withAnimation(.easeOut(duration: 0.5)) { appear = true } }
     }
 }
-#endif

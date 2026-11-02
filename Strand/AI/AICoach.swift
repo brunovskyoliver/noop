@@ -289,11 +289,7 @@ final class AICoachEngine: ObservableObject {
     /// Whether this build offers the Apple Intelligence backend. iOS only: the tools read the Broop
     /// screens' resolvers, which the macOS app does not carry.
     static var appleBackendOffered: Bool {
-        #if os(iOS)
         return true
-        #else
-        return false
-        #endif
     }
 
     /// True when replies come from Apple Intelligence rather than a cloud provider.

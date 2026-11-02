@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import UserNotifications
@@ -10,9 +9,6 @@ struct StrandiOSApp: App {
     @UIApplicationDelegateAdaptor(HomeScreenQuickActionAppDelegate.self) private var appDelegate
     @StateObject private var model: AppModel
     @StateObject private var health: HealthKitBridge
-    /// The phone→watch link. Built + activated here so the watch app actually receives snapshots on a
-    /// real device; without an owner that pushes it, the watch only ever shows placeholder data.
-    @StateObject private var watch: WatchSessionBridge
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
     @StateObject private var router: NavRouter
@@ -204,17 +200,12 @@ struct StrandiOSApp: App {
         model.healthWriteBack = { [weak bridge] immediate in
             _ = await bridge?.writeBackAfterNewData(immediate: immediate)
         }
-        let watch = WatchSessionBridge()
-        _watch = StateObject(wrappedValue: watch)
         // After a pass scores new data, in the background too, where nothing else would: rebuild tonight's
-        // plan (its sleep need moves with last night, and the wind-down reminder is timed from it), push the
-        // watch (the bridge self-throttles), send the wake brief, and write the evening review ahead of its
-        // reminder. The brief reads last night through Home's own loader, so it is the same night Home shows.
-        model.afterScoring = { [weak model, weak watch] in
+        // plan (its sleep need moves with last night, and the wind-down reminder is timed from it), send the
+        // wake brief, and write the evening review ahead of its reminder. The brief reads last night through Home's own loader, so it is the same night Home shows.
+        model.afterScoring = { [weak model] in
             guard let model else { return }
             await model.refreshTonightPlan()
-            watch?.activate()  // idempotent; a background launch may not have built the scene that activates it
-            await watch?.pushLatest(from: model)
             await CoachBriefScheduler.deliverOnWakeIfDue(
                 nightEnd: {
                     let store = BroopStore()
@@ -331,10 +322,6 @@ struct StrandiOSApp: App {
                 .onReceive(model.repo.$refreshSeq.dropFirst()) { _ in
                     guard scenePhase == .active else { return }
                     Task { await WidgetSnapshot.publish(from: model) }
-                    // The watch rides the same active-only hook because the bridge now SELF-THROTTLES
-                    // (30-minute spacing + headline-change dedup, both must pass, see WatchSessionBridge),
-                    // so a refresh storm can't burn the ~50/day complication transfer budget.
-                    Task { await watch.pushLatest(from: model) }
                 }
                 // #114: strap battery % and connection are LIVE (model.live), not repo-cache, so they never
                 // bump refreshSeq — the widget's battery would otherwise never move while the app is open
@@ -385,14 +372,6 @@ struct StrandiOSApp: App {
                 } message: {
                     healthImportAlertMessage
                 }
-                // Bring the watch link up once at launch (WCSession ignores a redundant activate), then
-                // push the first snapshot so a watch that's already on-wrist gets current scores without
-                // waiting for the next foreground. activate() is idempotent + a no-op where WC isn't
-                // supported, so this is safe on every device/simulator combination.
-                .task {
-                    watch.activate()
-                    await watch.pushLatest(from: model)
-                }
         }
         // HealthKit authorization is intentionally NOT requested on launch. The system permission
         // dialog without prior in-app rationale violates Apple HIG / App Review guidance — the user
@@ -427,8 +406,8 @@ struct StrandiOSApp: App {
                 //
                 // Its OWN task, deliberately. This pass is minutes long on the installs that need it —
                 // that is the whole reason it was deferred — and the sequential block below owns Health
-                // sync, the widget snapshot and the watch push. Awaiting it there would leave the widget
-                // and the watch showing stale numbers for the entire re-score every time the app is
+                // sync and the widget snapshot. Awaiting it there would leave the widget
+                // showing stale numbers for the entire re-score every time the app is
                 // opened, which is a worse regression than the bug being fixed. `analyzeRecent`
                 // serialises itself, so overlapping with the sync this foreground also kicks off is safe.
                 Task { await model.runDeferredRescoreIfOwed() }
@@ -444,10 +423,6 @@ struct StrandiOSApp: App {
                         }
                     )
                     await WidgetSnapshot.publish(from: model)
-                    // Push the wrist on the SAME refresh as the Home-screen widget so the watch, the
-                    // widget and Today never disagree about which day they describe. Without this the
-                    // watch only ever holds placeholder data on a real device.
-                    await watch.pushLatest(from: model)
                 }
             } else if phase == .background {
                 SyncStallReminder.shared.refresh()
@@ -670,6 +645,5 @@ enum DemoScreens {
         }
     }
 }
-#endif
 #endif
 

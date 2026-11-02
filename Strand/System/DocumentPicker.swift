@@ -1,4 +1,3 @@
-#if os(iOS)
 import UIKit
 import UniformTypeIdentifiers
 
@@ -167,7 +166,6 @@ enum DocumentPicker {
     }
 }
 
-#endif
 
 import Foundation
 

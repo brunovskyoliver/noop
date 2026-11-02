@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import StrandAnalytics
 
@@ -57,4 +56,3 @@ enum BroopMethodText {
         String(localized: "Steps come from Apple Health, or from the strap's motion when Health has none.")
     }
 }
-#endif

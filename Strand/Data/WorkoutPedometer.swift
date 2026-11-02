@@ -1,7 +1,5 @@
 import Foundation
-#if os(iOS)
 import CoreMotion
-#endif
 
 /// One-shot HISTORICAL phone step count for a finished workout window `[start, end]` (#398).
 ///
@@ -12,7 +10,6 @@ import CoreMotion
 /// steps. `nil` always means "no phone steps" (unavailable / not authorized / query failed), never a
 /// fabricated zero.
 enum WorkoutPedometer {
-    #if os(iOS)
     private static let pedometer = CMPedometer()
 
     /// The phone's step count between two unix-second bounds, or `nil` when steps can't be counted, Motion
@@ -32,8 +29,4 @@ enum WorkoutPedometer {
             }
         }
     }
-    #else
-    /// macOS has no pedometer — steps come from the strap counter only.
-    static func steps(fromSec: Int, toSec: Int) async -> Int? { nil }
-    #endif
 }

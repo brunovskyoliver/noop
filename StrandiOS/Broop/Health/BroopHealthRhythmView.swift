@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -332,4 +331,3 @@ struct BroopHealthRhythmView: View {
         return (try? csv.write(to: url, atomically: true, encoding: .utf8)) != nil ? url : nil
     }
 }
-#endif

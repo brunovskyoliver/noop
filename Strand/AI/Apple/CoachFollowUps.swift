@@ -62,7 +62,7 @@ enum CoachFollowUps {
 }
 
 #if canImport(FoundationModels)
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 struct CoachFollowUpDraft {
     @Guide(description: "Three short follow-up questions the person might ask next, each at most eight words, no numbers",

@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // StrainGauge uses .onContinuousHover + ChartHover tooltips (unavailable on watchOS); the watch
 // uses GlowRing instead, so the whole view is excluded there. iOS/macOS unchanged.
 import SwiftUI
@@ -152,5 +151,4 @@ public struct StrainGauge: View {
     .background(StrandPalette.surfaceBase)
     .preferredColorScheme(.dark)
 }
-#endif
 #endif

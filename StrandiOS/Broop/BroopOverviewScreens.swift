@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -15,4 +14,3 @@ struct BroopOverviewScreens: View {
         }
     }
 }
-#endif

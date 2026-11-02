@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandDesign
@@ -950,4 +949,3 @@ struct BroopActivityDetectedCard: View {
         candidates.removeAll { $0 == w }
     }
 }
-#endif

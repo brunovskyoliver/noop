@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import ActivityKit
 
@@ -54,4 +53,3 @@ public struct LiftActivityAttributes: ActivityAttributes {
     /// travels in `ContentState`.
     public init() {}
 }
-#endif

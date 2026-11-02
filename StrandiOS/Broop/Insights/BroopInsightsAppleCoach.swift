@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 
@@ -201,9 +200,7 @@ struct BroopInsightsCoachSettingsSheet: View {
         .buttonStyle(.plain)
     }
 }
-#endif
 
-#if os(iOS)
 /// Home's Coach brief: the model's headline and a sentence per metric, each beside the metric's value from
 /// the app's resolvers (`CoachFactsSource.briefValue`), so the numbers on the card never come from the model.
 /// Written when the app comes to the foreground, at most once a day and again after new data. The only view
@@ -305,9 +302,7 @@ struct BroopInsightsCoachBriefCard: View {
         return out
     }
 }
-#endif
 
-#if os(iOS)
 /// About Coach: where it runs, what leaves the phone and when, what it can and can't do, and that it is not
 /// medical advice. Reached from Coach settings and the Coach menu.
 struct BroopInsightsCoachInfoSheet: View {
@@ -349,4 +344,3 @@ struct BroopInsightsCoachInfoSheet: View {
         }
     }
 }
-#endif

@@ -30,7 +30,7 @@ final class CoachToolLog: @unchecked Sendable {
 }
 
 /// The metric whitelist as the model sees it: a closed enum, never a free string.
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 enum CoachMetricChoice {
     case charge, rest, effort, hrv, restingHeartRate, sleepDuration, sleepDebt, stress, energy, steps
@@ -51,7 +51,7 @@ enum CoachMetricChoice {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 struct CoachTodaySnapshotTool: Tool {
     let name = "todaySnapshot"
     let description = "Today's Charge, Rest, Effort and its target, Energy, stress, HRV readiness, sleep debt and body-signal heads-up."
@@ -68,7 +68,7 @@ struct CoachTodaySnapshotTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 struct CoachMetricTrendTool: Tool {
     let name = "metricTrend"
     let description = "Average, lowest, highest and direction of one metric over the last 7, 30 or 90 days."
@@ -90,7 +90,7 @@ struct CoachMetricTrendTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 struct CoachSleepPlanTool: Tool {
     let name = "sleepPlan"
     let description = "Tonight's planned bedtime, wake time and sleep need, whether it is reachable, and any jet-lag step for today."
@@ -107,7 +107,7 @@ struct CoachSleepPlanTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 struct CoachExplainMetricTool: Tool {
     let name = "explainMetric"
     let description = "How the app computes a metric, in the app's own words."
@@ -127,7 +127,7 @@ struct CoachExplainMetricTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 struct CoachRecentNotesTool: Tool {
     let name = "recentNotes"
     let description = "The person's journal tags and short notes from recent days, as quoted data."
@@ -147,7 +147,7 @@ struct CoachRecentNotesTool: Tool {
     }
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 enum AppleCoachSessionFactory {
 
     static func tools(source: any CoachFactsSource, log: CoachToolLog) -> [any Tool] {
@@ -164,7 +164,7 @@ enum AppleCoachSessionFactory {
     }
 
     /// The Private Cloud Compute session: the same tools and instructions on Apple's servers (27+).
-    @available(iOS 27.0, macOS 27.0, *)
+    @available(iOS 27.0, *)
     static func privateCloud(instructions: String, source: any CoachFactsSource, log: CoachToolLog) -> LanguageModelSession {
         LanguageModelSession(model: PrivateCloudComputeLanguageModel(), tools: tools(source: source, log: log),
                              instructions: instructions)

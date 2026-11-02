@@ -1,10 +1,8 @@
 import Combine
 import Foundation
 import OSLog
-#if os(iOS)
 import BackgroundTasks
 import UIKit
-#endif
 
 /// A finite catch-up requested by a person. Automatic Bluetooth sync does not use this controller.
 @MainActor
@@ -40,7 +38,6 @@ final class SyncCatchUpTask: ObservableObject {
             guard let self, self.requestID == id else { return }
             self.cancel(message: "Catch-up paused. Saved history is kept; remaining work can resume later.")
         }
-        #if os(iOS)
         if #available(iOS 26.0, *), UIApplication.shared.applicationState == .active {
             if !registered {
                 registered = BGTaskScheduler.shared.register(
@@ -73,7 +70,6 @@ final class SyncCatchUpTask: ObservableObject {
             requiresForeground = true
             status = "Background catch-up unavailable; keep NOOP open to finish."
         }
-        #endif
         launch(id: id, extended: false)
     }
 
@@ -84,9 +80,7 @@ final class SyncCatchUpTask: ObservableObject {
     private func cancel(message: String) {
         guard isRunning else { return }
         worker?.cancel()
-        #if os(iOS)
         if let requestID { BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: requestID) }
-        #endif
         finish(success: false, message: message)
     }
 
@@ -120,7 +114,6 @@ final class SyncCatchUpTask: ObservableObject {
         status = message
     }
 
-    #if os(iOS)
     @available(iOS 26.0, *)
     private func attach(_ task: BGContinuedProcessingTask) {
         guard let id = requestID else {
@@ -151,5 +144,4 @@ final class SyncCatchUpTask: ObservableObject {
         }
         launch(id: id, extended: true)
     }
-    #endif
 }

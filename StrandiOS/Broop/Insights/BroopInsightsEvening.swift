@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -511,4 +510,3 @@ struct BroopInsightsCoachEveningCard: View {
         return out
     }
 }
-#endif

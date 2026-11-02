@@ -1,4 +1,3 @@
-#if os(iOS)
 import Combine
 import SwiftUI
 import StrandDesign
@@ -409,4 +408,3 @@ private struct BroopFinalBHRVLiveBPM: View {
         .accessibilityElement(children: .combine)
     }
 }
-#endif

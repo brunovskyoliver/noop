@@ -18,14 +18,10 @@ func weeklyDigestShortDate(_ ymd: String) -> String {
 extension View {
     @ViewBuilder
     func digestScalePopoverAdaptation() -> some View {
-        #if os(iOS)
         if #available(iOS 16.4, *) {
             presentationCompactAdaptation(.popover)
         } else {
             self
         }
-        #else
-        self
-        #endif
     }
 }

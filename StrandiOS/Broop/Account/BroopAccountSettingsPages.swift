@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 import StrandAnalytics
@@ -784,4 +783,3 @@ struct BroopAccountAboutPage: View {
             : String(localized: "This sideloaded build expires in \(days) days. Re-sign to keep it running.")
     }
 }
-#endif

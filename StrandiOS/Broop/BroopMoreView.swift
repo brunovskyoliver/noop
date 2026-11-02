@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -224,4 +223,3 @@ struct BroopAccountIntegrationsView: View {
         .broopAccountChrome(String(localized: "Integrations"))
     }
 }
-#endif

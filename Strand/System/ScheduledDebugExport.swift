@@ -1,7 +1,5 @@
 import Foundation
-#if os(iOS)
 import BackgroundTasks
-#endif
 
 /// The DAILY scheduled debug auto-export (#510 — maddognik) for Apple, in PARITY with Android's
 /// `DebugExportScheduler`.
@@ -191,32 +189,12 @@ enum ScheduledDebugExport {
     /// (Re)arm the next occurrence. macOS uses a foreground `DispatchSourceTimer`; iOS submits a
     /// background-refresh request. Both target the next wall-clock occurrence of `timeMinutes`.
     private static func scheduleNext() {
-        #if os(macOS)
-        macTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        let delay = secondsToNextOccurrence(timeMinutes)
-        timer.schedule(deadline: .now() + delay)
-        timer.setEventHandler {
-            guard isEnabled else { return }
-            _ = performExport(markDay: true)
-            // Re-arm for the following day (the timer is one-shot so a clock change can't drift it).
-            scheduleNext()
-        }
-        timer.resume()
-        macTimer = timer
-        #elseif os(iOS)
         submitBackgroundRequest()
-        #endif
     }
 
     /// Cancel any armed schedule.
     private static func cancel() {
-        #if os(macOS)
-        macTimer?.cancel()
-        macTimer = nil
-        #elseif os(iOS)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: bgTaskIdentifier)
-        #endif
     }
 
     /// If today's drop is due (we're at/after the chosen time and haven't written today), write it once.
@@ -299,7 +277,6 @@ enum ScheduledDebugExport {
 
     // MARK: - iOS background task plumbing
 
-    #if os(iOS)
     /// Register the BGTask handler. MUST be called from the app's launch (before launch finishes) AND the
     /// identifier MUST be listed in `BGTaskSchedulerPermittedIdentifiers` (Info.plist) for iOS to deliver
     /// the task. Both live in the iOS app target — call this from `StrandiOSApp.init()`. Safe to leave
@@ -360,5 +337,4 @@ enum ScheduledDebugExport {
         request.earliestBeginDate = Date(timeIntervalSinceNow: secondsToNextOccurrence(timeMinutes))
         try? BGTaskScheduler.shared.submit(request)
     }
-    #endif
 }

@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandDesign
@@ -561,4 +560,3 @@ struct BroopActivityHatch: View {
         }
     }
 }
-#endif

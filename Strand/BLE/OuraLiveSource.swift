@@ -8,11 +8,7 @@ import OuraProtocol
 import StrandAnalytics   // item 27: NightStandDown, the learned night band the all-day HR hold stands down for
 // The live-HR suspend listens for the screen going dark, which is a UIKit notification on iOS and an
 // NSWorkspace one on macOS (see installScreenStateObservers).
-#if os(iOS)
 import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
 
 /// The label a discovered ring is listed under: its advertised local name, or `fallback` when it did
 /// not advertise one.
@@ -1469,7 +1465,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.realStepsDump = feedsLive && !deviceId.isEmpty ? OuraRealStepsDump(deviceId: deviceId, log: log) : nil
         super.init()
         // Dedicated queue-less central -> callbacks arrive on the main queue, matching @MainActor.
-        #if os(iOS)
         // iOS state restoration (#1213): only the PERSISTENT live source (feedsLive, real deviceId) carries a
         // restore identifier, so CoreBluetooth relaunches the app into the background and delivers
         // willRestoreState after a suspend-then-jettison — without it an overnight Oura session dies with the
@@ -1482,10 +1477,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         } else {
             self.central = CBCentralManager(delegate: self, queue: nil)
         }
-        #else
-        // Strand (macOS desktop): no state-restoration identifier (iOS background feature).
-        self.central = CBCentralManager(delegate: self, queue: nil)
-        #endif
         installScreenStateObservers()
         seedScreenOffFromLaunchState()
     }
@@ -1493,9 +1484,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     deinit {
         for token in screenStateObservers {
             NotificationCenter.default.removeObserver(token)
-            #if os(macOS)
-            NSWorkspace.shared.notificationCenter.removeObserver(token)
-            #endif
         }
     }
 
@@ -1511,23 +1499,15 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// suspend when the screen the user would have to be looking at has gone dark.
     private func installScreenStateObservers() {
         guard feedsLive else { return }
-        #if os(iOS)
         let center = NotificationCenter.default
         let dark = UIApplication.didEnterBackgroundNotification
         let light = UIApplication.didBecomeActiveNotification
-        #elseif os(macOS)
-        let center = NSWorkspace.shared.notificationCenter
-        let dark = NSWorkspace.screensDidSleepNotification
-        let light = NSWorkspace.screensDidWakeNotification
-        #endif
-        #if os(iOS) || os(macOS)
         screenStateObservers.append(center.addObserver(forName: dark, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.handleScreenWentDark() }
         })
         screenStateObservers.append(center.addObserver(forName: light, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.handleScreenCameBack() }
         })
-        #endif
     }
 
     /// Close the hole the notifications leave: they are EDGES, and a process launched straight into the
@@ -1554,15 +1534,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// would seed a suspend on every ordinary launch. `.background` is the precise question — did this
     /// process start without ever coming to the foreground — and a background launch reports it.
     private static func screenIsDarkNow() -> Bool {
-        #if os(iOS)
         return UIApplication.shared.applicationState == .background
-        #elseif os(macOS)
-        // NSWorkspace publishes screen sleep only as a notification, so the current state comes from
-        // CoreGraphics instead (AppKit re-exports it). Same question the screensDidSleep observer answers.
-        return CGDisplayIsAsleep(CGMainDisplayID()) != 0
-        #else
-        return false
-        #endif
     }
 
     /// Start (never restart) the absence clock. Repeat notifications must not push the deadline out, or a

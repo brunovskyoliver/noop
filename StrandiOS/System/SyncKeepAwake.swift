@@ -1,4 +1,3 @@
-#if os(iOS)
 import Combine
 import Foundation
 
@@ -33,4 +32,3 @@ final class SyncKeepAwake {
             }
     }
 }
-#endif

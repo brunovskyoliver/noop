@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -163,4 +162,3 @@ extension View {
             .tint(BroopPalette.textPrimary)
     }
 }
-#endif

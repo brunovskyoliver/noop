@@ -1,4 +1,3 @@
-#if os(iOS)
 import BackgroundTasks
 import Foundation
 
@@ -76,4 +75,3 @@ enum StaleBatteryBackgroundScheduler {
         }
     }
 }
-#endif

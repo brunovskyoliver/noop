@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import AppIntents
 import StrandAnalytics
@@ -708,4 +707,3 @@ struct BroopAccountPowerSavingView: View {
         .onChange(of: lowRefreshEnabled) { _, _ in model.applyPowerSaving() }
     }
 }
-#endif

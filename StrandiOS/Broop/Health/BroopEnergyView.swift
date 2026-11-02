@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Charts
 import StrandAnalytics
@@ -402,4 +401,3 @@ struct BroopEnergyInfo: View {
         Text(verbatim: s).font(BroopType.regular(15)).fixedSize(horizontal: false, vertical: true)
     }
 }
-#endif

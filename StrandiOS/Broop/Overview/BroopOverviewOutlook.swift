@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -167,4 +166,3 @@ struct BroopOutlookSheet: View {
         return out
     }
 }
-#endif

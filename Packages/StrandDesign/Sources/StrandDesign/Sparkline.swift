@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // Sparkline uses .onContinuousHover + ChartHover helpers (unavailable on watchOS); the watch
 // doesn't draw sparklines, so the whole view is excluded there. iOS/macOS unchanged.
 import SwiftUI
@@ -228,5 +227,4 @@ private func sampleHR() -> [Double] {
     .background(NoopChromeSurface())
     .preferredColorScheme(.dark)
 }
-#endif
 #endif

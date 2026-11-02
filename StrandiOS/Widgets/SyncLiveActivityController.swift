@@ -1,4 +1,3 @@
-#if os(iOS)
 import ActivityKit
 import Combine
 import Foundation
@@ -189,4 +188,3 @@ final class SyncLiveActivityController {
         lastPushedChunks = -1
     }
 }
-#endif

@@ -65,7 +65,7 @@ enum AppleCoachBriefPolicy {
 
 #if canImport(FoundationModels)
 /// What the model writes: no numbers, only which metrics matter and a sentence about each.
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 struct CoachBriefDraft {
     @Guide(description: "A short, warm headline for today. No numbers.")
@@ -74,7 +74,7 @@ struct CoachBriefDraft {
     var points: [CoachBriefDraftPoint]
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 struct CoachBriefDraftPoint {
     @Guide(description: "Which metric")

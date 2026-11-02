@@ -1,12 +1,6 @@
 import Foundation
 import StrandAnalytics
-#if os(iOS)
 import UIKit
-#endif
-#if os(macOS)
-import AppKit
-import CoreVideo
-#endif
 
 // DisplayPerformanceMonitor.swift - the app-layer frame-time / hitch / memory monitor for the Display &
 // Performance test mode (Test Centre).
@@ -60,12 +54,7 @@ final class DisplayPerformanceMonitor {
     /// Peak resident footprint (MB) seen since start(), emitted on stop() and periodically.
     private var memoryPeakMB: Double = 0
 
-    #if os(iOS)
     private var displayLink: CADisplayLink?
-    #endif
-    #if os(macOS)
-    private var cvLink: CVDisplayLink?
-    #endif
 
     /// True only while a display link is live. The test asserts this is false when the mode is off.
     var isRunning: Bool { running }
@@ -85,26 +74,9 @@ final class DisplayPerformanceMonitor {
         emitDeviceMetrics()
         emitDataVolume()
 
-        #if os(iOS)
         let link = CADisplayLink(target: self, selector: #selector(onFrame(_:)))
         link.add(to: .main, forMode: .common)
         displayLink = link
-        #endif
-        #if os(macOS)
-        var link: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&link)
-        if let link {
-            // The CVDisplayLink callback fires on a private CV thread; hop to the main actor to fold the
-            // sample in, so all monitor state stays main-isolated like the iOS path.
-            CVDisplayLinkSetOutputHandler(link) { [weak self] _, inNow, _, _, _ in
-                let nowSeconds = Double(inNow.pointee.hostTime) / Double(machTimebaseHz())
-                Task { @MainActor in self?.foldFrame(timestamp: nowSeconds) }
-                return kCVReturnSuccess
-            }
-            CVDisplayLinkStart(link)
-            cvLink = link
-        }
-        #endif
     }
 
     /// Stop the monitor: tear the display link DOWN (so nothing keeps firing), flush a final partial
@@ -114,16 +86,8 @@ final class DisplayPerformanceMonitor {
         guard running else { return }
         running = false
 
-        #if os(iOS)
         displayLink?.invalidate()
         displayLink = nil
-        #endif
-        #if os(macOS)
-        if let link = cvLink {
-            CVDisplayLinkStop(link)
-        }
-        cvLink = nil
-        #endif
 
         // Flush whatever the last partial window holds, then the high-water mark.
         flushWindow()
@@ -132,11 +96,9 @@ final class DisplayPerformanceMonitor {
 
     // MARK: - Frame sampling
 
-    #if os(iOS)
     @objc private func onFrame(_ link: CADisplayLink) {
         foldFrame(timestamp: link.timestamp)
     }
-    #endif
 
     /// Fold one frame timestamp into the current window. The first frame seeds the previous-timestamp and
     /// is not counted (no duration yet). Once a window fills (`windowFrames`), it flushes a summary and
@@ -242,7 +204,6 @@ final class DisplayPerformanceMonitor {
     /// window's trait collection + safe-area insets + UIScreen; macOS reads the key NSWindow / NSScreen
     /// and degrades the iOS-only metrics (size class, Dynamic Type) to nil.
     static func readMetrics() -> DisplayMetrics {
-        #if os(iOS)
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }
@@ -262,29 +223,8 @@ final class DisplayPerformanceMonitor {
             dynamicType: contentSizeName(traits.preferredContentSizeCategory),
             orientation: portrait ? "portrait" : "landscape",
             theme: traits.userInterfaceStyle == .dark ? "dark" : "light")
-        #elseif os(macOS)
-        let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first
-        let screen = window?.screen ?? NSScreen.main
-        let size = window?.frame.size ?? screen?.frame.size ?? .zero
-        let scale = screen?.backingScaleFactor ?? 0
-        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        return DisplayMetrics(
-            horizontalSizeClass: nil, verticalSizeClass: nil,   // macOS has no size class
-            widthPt: Double(size.width), heightPt: Double(size.height), scale: Double(scale),
-            safeTop: 0, safeBottom: 0, safeLeading: 0, safeTrailing: 0,   // no notch insets on macOS
-            dynamicType: nil,                                  // no Dynamic Type on macOS
-            orientation: size.height >= size.width ? "portrait" : "landscape",
-            theme: dark ? "dark" : "light")
-        #else
-        return DisplayMetrics(
-            horizontalSizeClass: nil, verticalSizeClass: nil,
-            widthPt: 0, heightPt: 0, scale: 0,
-            safeTop: 0, safeBottom: 0, safeLeading: 0, safeTrailing: 0,
-            dynamicType: nil, orientation: "unknown", theme: "light")
-        #endif
     }
 
-    #if os(iOS)
     private static func sizeClassName(_ c: UIUserInterfaceSizeClass) -> String? {
         switch c {
         case .compact: return "compact"
@@ -312,17 +252,5 @@ final class DisplayPerformanceMonitor {
         default: return "L"
         }
     }
-    #endif
 }
 
-#if os(macOS)
-/// The mach timebase, cached, so the CVDisplayLink host-time (mach ticks) converts to seconds. Pure read
-/// of the timebase info; the ratio is constant for the process lifetime.
-private func machTimebaseHz() -> UInt64 {
-    var info = mach_timebase_info_data_t()
-    mach_timebase_info(&info)
-    // hostTime is in mach ticks; ticks * (numer/denom) = nanoseconds. ticks-per-second = 1e9 * denom/numer.
-    guard info.numer != 0 else { return 1_000_000_000 }
-    return UInt64(1_000_000_000) * UInt64(info.denom) / UInt64(info.numer)
-}
-#endif

@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandAnalytics
@@ -334,4 +333,3 @@ struct BroopHealthCompareView: View {
         abs(r) < 0.1 ? "" : (r >= 0 ? String(localized: "positive") : String(localized: "negative"))
     }
 }
-#endif

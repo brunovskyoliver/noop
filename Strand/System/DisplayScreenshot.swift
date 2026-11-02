@@ -1,10 +1,5 @@
 import Foundation
-#if os(iOS)
 import UIKit
-#endif
-#if os(macOS)
-import AppKit
-#endif
 
 // DisplayScreenshot.swift - captures the current screen as PNG bytes for the Display & Performance test
 // mode's export bundle (spec section: screenshot into the bundle).
@@ -22,10 +17,9 @@ enum DisplayScreenshot {
     static let bundleName = "screenshot.png"
 
     /// Capture the key window as PNG bytes, or nil if there is no window to capture / the render failed.
-    /// Called on the main thread (the Report button tap path), so it can touch UIKit / AppKit directly.
+    /// Called on the main thread (the Report button tap path), so it can touch UIKit directly.
     @MainActor
     static func capturePNG() -> Data? {
-        #if os(iOS)
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }
@@ -38,14 +32,5 @@ enum DisplayScreenshot {
             window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
         }
         return image.pngData()
-        #elseif os(macOS)
-        guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first,
-              let view = window.contentView,
-              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        return rep.representation(using: .png, properties: [:])
-        #else
-        return nil
-        #endif
     }
 }

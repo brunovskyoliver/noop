@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -283,4 +282,3 @@ struct BroopActivityEditSheet: View {
         dismiss()
     }
 }
-#endif

@@ -53,7 +53,7 @@ enum StressDayCurve {
         // UNION, and per source id rather than collapsed into one pair. A gate narrower than the read
         // it guards is worse than none: `hrSamples` below walks every raw source, so a witness that
         // summed those ids could hold steady while the window's composition changed under it. This is
-        // the witness `DaytimeStressMode` already gates on and the Kotlin producer's twin of it.
+        // the twin of the Kotlin producer's witness.
         //
         // An EMPTY string means there is no store yet, which a caller must read as "cannot tell"
         // rather than "unchanged": nil here is the same refusal the summed witness returned.

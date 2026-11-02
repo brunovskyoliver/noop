@@ -115,11 +115,9 @@ struct RawHistoryArchive {
         self.maxBytes = maxBytes
         self.perVersionFloor = perVersionFloor
         self.zeroPayloadFloor = zeroPayloadFloor
-        #if os(iOS)
         // Migrate an archive created by an older build while launch is normally foreground/unlocked.
         // The write path repeats this before every append so a first background write is covered too.
         try? prepareStorageForBackgroundAccess()
-        #endif
     }
 
     /// The archive file URL (does not create anything).
@@ -231,7 +229,6 @@ struct RawHistoryArchive {
     private func prepareStorageForBackgroundAccess() throws {
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
-        #if os(iOS)
         let protection: [FileAttributeKey: Any] = [
             .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication,
         ]
@@ -239,19 +236,16 @@ struct RawHistoryArchive {
         if fm.fileExists(atPath: fileURL.path) {
             try? fm.setAttributes(protection, ofItemAtPath: fileURL.path)
         }
-        #endif
     }
 
     /// Atomic replacement creates a NEW inode, so re-apply the file protection after every fresh write
     /// rather than relying on directory inheritance alone. Best-effort — the directory policy is the
     /// durable guarantee; this closes the window on the specific file.
     private func applyBackgroundProtectionToArchive() {
-        #if os(iOS)
         try? FileManager.default.setAttributes(
             [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
             ofItemAtPath: fileURL.path
         )
-        #endif
     }
 
     /// How one archived line is classified for retention: which version bucket it belongs to, and

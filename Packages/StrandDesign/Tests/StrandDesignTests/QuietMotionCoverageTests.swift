@@ -12,7 +12,7 @@ import XCTest
 /// It also pins that the gate keeps reading all three signals. Losing one half is invisible: the
 /// screen looks right in whichever mode still works.
 ///
-/// Runs in the package suite and StrandTests. The app workflow covers edits to every scanned UI root,
+/// Runs in the package suite. The app workflow covers edits to every scanned UI root,
 /// including app-only changes that do not trigger the package workflow.
 final class QuietMotionCoverageTests: XCTestCase {
 
@@ -23,8 +23,6 @@ final class QuietMotionCoverageTests: XCTestCase {
         "StrandiOSShared",
         "StrandiOSWidgets",
         "Packages/StrandDesign/Sources",
-        "NOOPWatch",
-        "NOOPWatchComplications",
     ]
 
     /// A loop that never settles: an indefinitely repeating implicit animation, or a per-frame

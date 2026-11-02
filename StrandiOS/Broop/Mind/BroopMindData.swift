@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import StrandAnalytics
 import WhoopStore
@@ -164,4 +163,3 @@ struct BroopMindData {
         return d
     }
 }
-#endif

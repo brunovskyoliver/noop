@@ -1,7 +1,5 @@
 import Foundation
-#if os(iOS)
 import BackgroundTasks
-#endif
 
 /// A bounded sync opportunity when iOS grants a refresh wake. Bluetooth events remain the
 /// primary wake source; neither this request nor a timer guarantees a delivery time.
@@ -43,7 +41,6 @@ enum StrapSyncBackgroundScheduler {
         return !Task.isCancelled && completed() ? .offloadCompleted : .incomplete
     }
 
-    #if os(iOS)
     static func register(expected: @escaping @MainActor () -> Bool,
                          log: @escaping @MainActor (String) -> Void,
                          operation: @escaping @MainActor () async -> Outcome) {
@@ -95,5 +92,4 @@ enum StrapSyncBackgroundScheduler {
             task.setTaskCompleted(success: success)
         }
     }
-    #endif
 }

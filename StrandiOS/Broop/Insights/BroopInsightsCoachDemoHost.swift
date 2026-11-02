@@ -1,4 +1,4 @@
-#if os(iOS) && DEBUG
+#if DEBUG
 import SwiftUI
 #if canImport(FoundationModels)
 import FoundationModels

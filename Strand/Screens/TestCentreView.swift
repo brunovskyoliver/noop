@@ -874,11 +874,7 @@ struct TestCentreView: View {
             let url = ScheduledDebugExport.runNow(captureURL: live.puffinCaptureURL)
             if let url {
                 infoTitle = String(localized: "Strap log exported")
-                #if os(iOS)
                 infoMessage = String(localized: "Saved \(url.lastPathComponent) to NOOP's folder in the Files app.")
-                #else
-                infoMessage = String(localized: "Saved \(url.lastPathComponent) to your Documents folder.")
-                #endif
             } else {
                 infoTitle = String(localized: "Export failed")
                 infoMessage = String(localized: "Couldn't write the strap log right now.")
@@ -1259,9 +1255,7 @@ private struct ReportReviewSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                     }
-                    #if os(iOS)
                     .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                    #endif
                     .frame(maxHeight: 360)
                 }
                 HStack(spacing: NoopMetrics.space3) {

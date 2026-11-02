@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -180,4 +179,3 @@ struct BroopHealthGrid: View {
         .accessibilityHidden(true)
     }
 }
-#endif

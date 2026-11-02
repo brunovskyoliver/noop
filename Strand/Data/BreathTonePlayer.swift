@@ -32,12 +32,10 @@ final class BreathTonePlayer: ObservableObject {
     /// Bring the engine and audio session up. Idempotent — safe to call on every appear.
     func activate() {
         guard !active else { return }
-#if os(iOS)
         // Ambient: obeys the silent switch and mixes politely with anything else playing.
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
         try? session.setActive(true, options: [])
-#endif
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
         guard let format else { return }
 
@@ -63,9 +61,7 @@ final class BreathTonePlayer: ObservableObject {
         engine.stop()
         engine.disconnectNodeOutput(player)
         engine.detach(player)
-#if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-#endif
         active = false
     }
 

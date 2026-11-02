@@ -196,10 +196,8 @@ struct AddDeviceWizard: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            #if os(iOS)
             // #697/#horizontal-swipe parity, see ScreenScaffold.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(StrandPalette.surfaceBase)
@@ -730,9 +728,7 @@ struct AddDeviceWizard: View {
             .font(StrandFont.body.monospaced())
             .foregroundStyle(StrandPalette.textPrimary)
             .autocorrectionDisabled(true)
-            #if os(iOS)
             .textInputAutocapitalization(.never)
-            #endif
             .padding(12)
             .background(StrandPalette.surfaceInset,
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))

@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -415,4 +414,3 @@ enum BroopAskCoach {
                          aboutDay: CoachAskAbout.dayKey(daysAgo: store.dayOffset, day: day), coach: coach)
     }
 }
-#endif

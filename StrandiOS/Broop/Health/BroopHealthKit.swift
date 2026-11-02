@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -538,4 +537,3 @@ enum BroopHealthFormat {
     /// "h:mm" for a count of minutes.
     static func hm(_ minutes: Double) -> String { BroopFormat.duration(minutes) }
 }
-#endif

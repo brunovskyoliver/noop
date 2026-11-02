@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -563,4 +562,3 @@ private struct BroopHealthLabAboutSheet: View {
         ]
     }
 }
-#endif

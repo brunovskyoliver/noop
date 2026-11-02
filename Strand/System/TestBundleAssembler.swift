@@ -169,15 +169,8 @@ enum TestBundleAssembler {
     /// App Store / TestFlight iOS install reads "App Store"; macOS and Android are fixed per flavour. We
     /// never fabricate: the iOS read derives from IOSDiagnostics.isSideloaded.
     private static func buildProvenance() -> TestBundleMeta.Build {
-        #if os(iOS)
         let sideloaded = IOSDiagnostics.capture().isSideloaded ?? true
         return TestBundleMeta.Build(channel: sideloaded ? "sideload" : "App Store", signed: !sideloaded)
-        #elseif os(macOS)
-        // The macOS build ships unsigned/un-notarized for anonymity (it's distributed via GitHub / brew).
-        return TestBundleMeta.Build(channel: "GitHub", signed: false)
-        #else
-        return TestBundleMeta.Build(channel: "GitHub", signed: false)
-        #endif
     }
 
     /// Gather the report files for `profile`, redact EVERY file, cap the bundle, then build and append
@@ -197,11 +190,7 @@ enum TestBundleAssembler {
                          storage: TestBundleMeta.Storage? = nil,
                          strapModel: String? = nil) -> [FileExport.BundleEntry] {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        #if os(iOS)
         let platform = "iOS"
-        #else
-        let platform = "macOS"
-        #endif
 
         // 0. The universal clock-drift line (RTC cluster #531/#767/#804/#812): rides EVERY export so a
         //    clock-broken strap self-diagnoses on a Sleep / Battery / any-mode report, not only in Connection

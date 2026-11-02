@@ -73,11 +73,7 @@ struct LiftSessionEditSheet: View {
                 footer
             }
         }
-        #if os(iOS)
         .presentationDragIndicator(.visible)
-        #else
-        .frame(width: 560, height: 780)
-        #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
         .dismissesKeyboardOnTap($focused)

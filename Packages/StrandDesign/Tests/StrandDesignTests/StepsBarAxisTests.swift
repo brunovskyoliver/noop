@@ -1,4 +1,3 @@
-#if !os(watchOS)
 import XCTest
 @testable import StrandDesign
 
@@ -18,4 +17,3 @@ final class StepsBarAxisTests: XCTestCase {
         XCTAssertEqual(TrendChart(points: [], valueRange: 40...80).plotYDomain, 40...80)
     }
 }
-#endif

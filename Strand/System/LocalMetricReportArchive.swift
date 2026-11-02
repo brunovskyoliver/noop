@@ -21,18 +21,12 @@ struct LocalMetricReportArchive: Sendable {
         let file = directory.appendingPathComponent("\(kind.rawValue)-\(end)-\(hash).json")
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
-        #if os(iOS)
         var localDirectory = directory
         var resourceValues = URLResourceValues()
         resourceValues.isExcludedFromBackup = true
         try localDirectory.setResourceValues(resourceValues)
-        #endif
         if !fm.fileExists(atPath: file.path) {
-            #if os(iOS)
             try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-            #else
-            try data.write(to: file, options: .atomic)
-            #endif
         }
         let files = try fm.contentsOfDirectory(at: directory,
                                                includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])

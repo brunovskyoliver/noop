@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandAnalytics
@@ -365,4 +364,3 @@ struct BroopHealthTrendsView: View {
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(BroopPalette.card))
     }
 }
-#endif

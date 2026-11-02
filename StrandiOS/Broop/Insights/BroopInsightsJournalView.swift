@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import WhoopStore
 
@@ -710,4 +709,3 @@ struct BroopInsightsJournalCustomizeSheet: View {
         .accessibilityValue(Text(on ? "Tracked" : "Not tracked"))
     }
 }
-#endif

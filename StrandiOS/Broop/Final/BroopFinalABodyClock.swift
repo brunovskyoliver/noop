@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -199,4 +198,3 @@ struct BroopFinalAClockDial: View {
                    style: StrokeStyle(lineWidth: width, lineCap: .butt, dash: dashed ? [5, 4] : []))
     }
 }
-#endif
