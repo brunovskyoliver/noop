@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -480,4 +479,3 @@ struct BroopFinalBLiftItemEditor: View {
         dismiss()
     }
 }
-#endif

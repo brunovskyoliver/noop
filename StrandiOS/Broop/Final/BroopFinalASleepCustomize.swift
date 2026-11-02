@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 /// "CUSTOMIZE SLEEP": the Broop sleep screen's card arrangement, laid out like WHOOP's Customize Dashboard
@@ -176,4 +175,3 @@ struct BroopFinalASleepCustomizeSheet: View {
         dismiss()
     }
 }
-#endif

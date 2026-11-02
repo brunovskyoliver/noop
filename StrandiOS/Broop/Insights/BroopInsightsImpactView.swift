@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -490,4 +489,3 @@ struct BroopInsightsBehaviorDetail: View {
         .padding(.vertical, 12)
     }
 }
-#endif

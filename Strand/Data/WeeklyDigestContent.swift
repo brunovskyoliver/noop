@@ -48,9 +48,7 @@ struct WeeklyDigestContent: View {
     /// and the Trends small-multiple instead of being stuck on "of 100". Charge/Rest stay 0–100.
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
-    #if os(iOS)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    #endif
 
     /// The three headline 0–100 scores shown as domain summaries.
     private static let scoreOrder: [WeeklyMetric] = [.charge, .effort, .rest]
@@ -109,20 +107,13 @@ struct WeeklyDigestContent: View {
 
     @ViewBuilder
     private var scoreRow: some View {
-        #if os(iOS)
         if compact {
             compactScoreRow
         } else {
             scoreGrid
         }
-        #else
-        // `compact` describes the embedded digest, not a compact desktop width.
-        // Keep macOS on its original adaptive, individually surfaced score cards.
-        scoreGrid
-        #endif
     }
 
-    #if os(iOS)
     @ViewBuilder
     private var compactScoreRow: some View {
         let summaries = Self.scoreOrder.compactMap { digest.summary($0) }
@@ -159,7 +150,6 @@ struct WeeklyDigestContent: View {
             }
         }
     }
-    #endif
 
     private var scoreGrid: some View {
         LazyVGrid(

@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandDesign
@@ -190,9 +189,7 @@ struct BroopHealthRangePicker: View {
         Binding(get: { selection }, set: { selection = $0 })
     }
 }
-#endif
 
-#if os(iOS)
 extension View {
     /// Press-and-hold, then drag, to scrub a chart. The short hold lets the page keep scrolling
     /// vertically through the chart; a plain zero-distance drag would swallow the scroll.
@@ -207,4 +204,3 @@ extension View {
         )
     }
 }
-#endif

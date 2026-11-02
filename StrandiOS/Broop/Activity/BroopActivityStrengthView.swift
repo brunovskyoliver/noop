@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -266,4 +265,3 @@ struct BroopActivityStrengthView: View {
         loaded = true
     }
 }
-#endif

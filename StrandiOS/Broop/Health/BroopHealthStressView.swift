@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Charts
 import StrandAnalytics
@@ -228,4 +227,3 @@ private struct BroopHealthStressArc: View, Animatable {
 }
 
 
-#endif

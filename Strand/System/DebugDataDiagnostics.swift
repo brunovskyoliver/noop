@@ -116,15 +116,12 @@ enum DebugDataDiagnostics {
                 + "(if you restored a backup, fully restart the app — #57)")
         }
         if restoreAt > 0 { lines.append("Last restore: \(relTime(now - restoreAt))") }
-        #if os(iOS)
         // What the home-screen widgets cost. Reported unconditionally, including the no-publish case,
         // because the absence of widget activity is itself the answer to a drain report.
         //
         // iOS only: `WidgetTelemetry` lives in StrandiOSShared, which project.yml deliberately keeps
         // OUT of the macOS application module. macOS has no home-screen widget to account for.
         lines.append(WidgetTelemetry.snapshot().render())
-        #endif
-        #if os(iOS)
         // #52: iOS Backup & Sync folder-picker health. When users report "won't let me pick a folder",
         // this pins the failure stage: "closed without a folder"/"never used" ⇒ no URL came back;
         // "picked" + a FAILED flag ⇒ a returned folder failed to bookmark HERE (our bug).
@@ -150,20 +147,6 @@ enum DebugDataDiagnostics {
             lines.append("             scoped-access \(scoped ? "ok" : "FAILED"), bookmark \(bmOk ? "ok" : "FAILED")")
         }
         lines.append("Backup mode:  \(FolderBackup.useInternalFolder ? "NOOP's own folder (#52 fallback)" : (FolderBackup.hasFolder ? "external folder" : "none chosen"))")
-        #endif
-        #if os(macOS)
-        // #278: macOS Backup & Sync restore-list health. When a user reports "restore shows no files",
-        // this pins whether a folder is even configured and whether its raw entries are being recognized
-        // as backups — a folder with real snapshots but 0 recognized (e.g. an undownloaded iCloud Drive
-        // placeholder, see `BackupSync.iCloudPlaceholderRealName`) looks very different from a genuinely
-        // empty folder, and neither was visible in a debug export before this.
-        if let health = FolderBackup.restoreListHealth() {
-            lines.append("Backup folder: \(health.isICloud ? "iCloud Drive" : "local")")
-            lines.append("Restore list: \(health.snapshots) snapshot(s) recognized of \(health.rawEntries) folder entries")
-        } else {
-            lines.append("Backup folder: none chosen")
-        }
-        #endif
         lines.append("Timezone:    \(tzLine())")
         return lines
     }

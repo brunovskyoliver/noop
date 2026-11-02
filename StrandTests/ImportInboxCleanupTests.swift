@@ -91,18 +91,7 @@ final class ImportInboxCleanupTests: XCTestCase {
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path),
                       "a just-written (in-flight) Inbox drop must be left alone")
-        #if os(iOS)
         XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path),
                        "a stale Inbox drop must be purged on launch (#590)")
-        #else
-        // StrandTests runs on the macOS scheme, so the branch above is the one we almost never execute.
-        // Assert the OTHER half rather than compiling the interesting case away: `purgeImportInbox()` is
-        // wholly `#if os(iOS)`, so off iOS the stale drop must SURVIVE. That makes the platform gate on
-        // the production function a tested property instead of an assumed one — drop the `#if` there and
-        // this run deletes a file out of the user's real Documents/Inbox, which is the accident worth
-        // catching. Without it the macOS run only ever confirmed that a no-op left `fresh` alone.
-        XCTAssertTrue(FileManager.default.fileExists(atPath: stale.path),
-                      "purgeImportInbox() is iOS-only; off iOS a stale Inbox drop must be left alone")
-        #endif
     }
 }

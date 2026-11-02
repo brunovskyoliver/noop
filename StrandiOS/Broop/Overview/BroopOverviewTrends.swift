@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandDesign
@@ -312,4 +311,3 @@ struct BroopOverviewTrendCard: View {
         history = pts
     }
 }
-#endif

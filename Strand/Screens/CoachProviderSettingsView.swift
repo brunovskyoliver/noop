@@ -29,10 +29,8 @@ struct CoachProviderSettingsView: View {
                     Section {
                         TextField("Server URL", text: $baseURL)
                             .autocorrectionDisabled()
-                            #if os(iOS)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
-                            #endif
                             .accessibilityIdentifier("coach.settings.url")
                         Picker("Key header", selection: $authHeader) {
                             ForEach(CustomAIAuthHeader.allCases) { header in
@@ -48,9 +46,7 @@ struct CoachProviderSettingsView: View {
                 Section("Model") {
                     TextField("Model ID", text: $model)
                         .autocorrectionDisabled()
-                        #if os(iOS)
                         .textInputAutocapitalization(.never)
-                        #endif
                         .accessibilityIdentifier("coach.settings.model")
                     if !coach.availableModels.isEmpty {
                         Menu("Choose a model") {
@@ -63,9 +59,7 @@ struct CoachProviderSettingsView: View {
                 Section {
                     SecureField(coach.hasProviderKey ? "Leave blank to keep the saved key" : "API key", text: $replacementKey)
                         .autocorrectionDisabled()
-                        #if os(iOS)
                         .textInputAutocapitalization(.never)
-                        #endif
                         .accessibilityLabel("API key")
                     if coach.provider == .custom && coach.hasProviderKey {
                         Toggle("Remove saved key", isOn: $removeKey)
@@ -109,8 +103,5 @@ struct CoachProviderSettingsView: View {
                 }
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 440, idealWidth: 480, minHeight: 520)
-        #endif
     }
 }

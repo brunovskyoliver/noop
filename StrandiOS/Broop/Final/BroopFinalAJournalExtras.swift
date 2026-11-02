@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Combine
 
@@ -422,4 +421,3 @@ struct BroopFinalAMoodPage: View {
         }
     }
 }
-#endif

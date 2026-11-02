@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import StrandAnalytics
 import WhoopStore
@@ -313,4 +312,3 @@ final class BroopInsightsCoachFacts: CoachFactsSource {
         }
     }
 }
-#endif

@@ -326,9 +326,7 @@ private struct BodyLocationProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                #if os(iOS)
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                #endif
             }
             HStack {
                 if !waiting {
@@ -371,9 +369,7 @@ private struct FeatureFlagProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                #if os(iOS)
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                #endif
             }
             HStack {
                 if !waiting {
@@ -452,9 +448,7 @@ private struct EcgProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                #if os(iOS)
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                #endif
             }
             HStack {
                 if !waiting {
@@ -497,9 +491,7 @@ private struct DeviceConfigProbeResultView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                #if os(iOS)
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                #endif
             }
             HStack {
                 if !waiting {

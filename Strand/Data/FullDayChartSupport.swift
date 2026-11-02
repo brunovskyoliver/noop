@@ -246,15 +246,6 @@ struct FullDayChartView: View {
             valueFormat: { format($0) },
             dateFormat: { Self.timeFmt.string(from: $0) }
         )
-        #if os(macOS)
-        // macOS has no pinch here, so wheel/trackpad scroll zooms about the cursor-agnostic centre.
-        // (DeepTimeline owns the scroll handler; the chart's own gesture covers drag-pan.)
-        .modifier(ScrollToZoomModifier(
-            current: { visibleWindow },
-            bounds: panBounds,   // #986: match the widened pan clamp
-            apply: { zoomDomain = $0 }
-        ))
-        #endif
     }
 
     // MARK: States
@@ -308,13 +299,9 @@ struct FullDayChartView: View {
         HStack(spacing: NoopMetrics.space2) {
             Image(systemName: zoomDomain == nil ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
                 .font(StrandFont.footnote.weight(.semibold))
-            #if os(macOS)
-            Text(zoomDomain == nil ? "Scroll to zoom · drag to pan" : "Zoomed in. Drag to pan")
-            #else
             // #979 spin-off: name the hold-to-scrub affordance — a hidden gesture nobody tries is a
             // feature that doesn't exist. (On the Mac the pointer hover is self-discovering.)
             Text(zoomDomain == nil ? "Pinch to zoom · drag to pan · hold to read" : "Zoomed in. Drag to pan · hold to read")
-            #endif
             Spacer()
             if zoomDomain != nil {
                 Button("Reset") { withAnimation(StrandMotion.interactive) { zoomDomain = nil } }

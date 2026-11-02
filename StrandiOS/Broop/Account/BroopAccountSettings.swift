@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 import PhotosUI
@@ -604,4 +603,3 @@ extension BroopAccountFormat {
         return String(format: "#%02X%02X%02X", Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
     }
 }
-#endif

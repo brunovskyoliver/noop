@@ -31,25 +31,19 @@ struct WhatsNewView: View {
                 }
                 .padding(20)
             }
-            #if os(iOS)
             // #697/#horizontal-swipe parity: every other screen (ScreenScaffold, Liquid Today) already
             // stops a vertical scroll from drifting/bouncing the screen left-right. This sheet runs its
             // own ScrollView and had never gotten the fix.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            #endif
             Divider().overlay(StrandPalette.hairline)
             footer
         }
         // A fixed 560×640 is right for the macOS sheet window, but on iPhone it's wider than the
         // screen, so the content (and the "Got it" button) ran off the right edge (#185). iOS fills
         // the presented sheet instead.
-        #if os(macOS)
-        .frame(width: 560, height: 640)
-        #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // A long changelog scroll → open full-height, with a grabber for swipe-to-dismiss.
         .noopSheetPresentation(largeFirst: true)
-        #endif
         .background(StrandPalette.surfaceBase)
     }
 

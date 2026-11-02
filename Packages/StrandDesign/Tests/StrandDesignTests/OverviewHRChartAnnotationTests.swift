@@ -1,4 +1,3 @@
-#if !os(watchOS)
 import XCTest
 import SwiftUI
 @testable import StrandDesign
@@ -84,4 +83,3 @@ final class OverviewHRChartAnnotationTests: XCTestCase {
         XCTAssertTrue(OverviewHRChart.workouts([], overlapping: day).isEmpty)
     }
 }
-#endif

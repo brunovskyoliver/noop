@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import AppIntents
 
@@ -155,4 +154,3 @@ struct NOOPShortcuts: AppShortcutsProvider {
                     systemImageName: "sparkles")
     }
 }
-#endif

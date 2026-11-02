@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -379,4 +378,3 @@ extension View {
             .preferredColorScheme(.dark)
     }
 }
-#endif

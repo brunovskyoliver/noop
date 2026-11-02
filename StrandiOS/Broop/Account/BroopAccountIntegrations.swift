@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Charts
 import StrandDesign
@@ -800,4 +799,3 @@ private struct BroopAccountHypnogramCard: View {
         .frame(maxWidth: .infinity)
     }
 }
-#endif

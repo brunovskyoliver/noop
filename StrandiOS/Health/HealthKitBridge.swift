@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import HealthKit
 import WhoopProtocol
@@ -2052,4 +2051,3 @@ final class HealthKitBridge: ObservableObject {
     nonisolated private static func dayString(_ date: Date) -> String { dayFormatter.string(from: date) }
     nonisolated private static func date(from day: String) -> Date? { dayFormatter.date(from: day) }
 }
-#endif

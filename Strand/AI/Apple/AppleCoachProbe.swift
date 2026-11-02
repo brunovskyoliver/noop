@@ -24,12 +24,12 @@ enum AppleCoachProbe {
         var i = AppleCoachRoutingInputs(onDevice: .osTooOld, onDeviceSupportsLocale: false, privateCloud: .osTooOld,
                                         privateCloudSupportsLocale: false, fallbackAllowed: fallbackAllowed)
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, macOS 26.0, *) {
+        if #available(iOS 26.0, *) {
             let model = SystemLanguageModel.default
             i.onDevice = onDeviceState(model.availability)
             i.onDeviceSupportsLocale = model.supportsLocale(locale)
-            if #available(iOS 27.0, macOS 27.0, *), !privateCloudInBuild { i.privateCloud = .unavailable }
-            if #available(iOS 27.0, macOS 27.0, *), privateCloudInBuild {
+            if #available(iOS 27.0, *), !privateCloudInBuild { i.privateCloud = .unavailable }
+            if #available(iOS 27.0, *), privateCloudInBuild {
                 let pcc = PrivateCloudComputeLanguageModel()
                 i.privateCloud = pcc.isAvailable ? .available : .unavailable
                 i.privateCloudSupportsLocale = pcc.isAvailable ? ((try? await pcc.supportsLocale(locale)) ?? false) : false
@@ -40,7 +40,7 @@ enum AppleCoachProbe {
     }
 
     #if canImport(FoundationModels)
-    @available(iOS 26.0, macOS 26.0, *)
+    @available(iOS 26.0, *)
     static func onDeviceState(_ a: SystemLanguageModel.Availability) -> AppleOnDeviceState {
         switch a {
         case .available: return .available

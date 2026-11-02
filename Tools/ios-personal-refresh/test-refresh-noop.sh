@@ -44,15 +44,14 @@ assert_equal() {
 
 assert_success 'main app profile matches' profile_matches_app_id 'TEAM123.com.example.noop'
 assert_success 'widget profile matches' profile_matches_app_id 'TEAM123.com.example.noop.widgets'
-assert_success 'watch profile matches' profile_matches_app_id 'TEAM123.com.example.noop.watch'
-assert_success 'watch complication profile matches' profile_matches_app_id 'TEAM123.com.example.noop.watch.complications'
+assert_failure 'a leftover watch profile does not match' profile_matches_app_id 'TEAM123.com.example.noop.watch'
 assert_failure 'another app profile does not match' profile_matches_app_id 'TEAM123.com.example.other'
 assert_failure 'another team does not match' profile_matches_app_id 'OTHER.com.example.noop'
 
-assert_success 'missing profiles require refresh' refresh_is_due 3 2000 1000 100
-assert_success 'profile inside refresh window requires refresh' refresh_is_due 4 1099 1000 100
-assert_failure 'profile outside refresh window does not require refresh' refresh_is_due 4 1101 1000 100
-assert_success 'pending installation retries despite fresh profiles' refresh_is_due 4 9999 1000 100 1
+assert_success 'missing profiles require refresh' refresh_is_due 1 2000 1000 100
+assert_success 'profile inside refresh window requires refresh' refresh_is_due 2 1099 1000 100
+assert_failure 'profile outside refresh window does not require refresh' refresh_is_due 2 1101 1000 100
+assert_success 'pending installation retries despite fresh profiles' refresh_is_due 2 9999 1000 100 1
 
 assert_equal 'ISO timestamp parsing is UTC-stable' '1789586787' "$(iso_to_epoch '2026-09-16T19:26:27Z')"
 
@@ -61,9 +60,7 @@ touch \
     "$NOOP_PROFILE_DIR_XCODE/main-old.mobileprovision" \
     "$NOOP_PROFILE_DIR_XCODE/main-new.mobileprovision" \
     "$NOOP_PROFILE_DIR_XCODE/widgets.mobileprovision" \
-    "$NOOP_PROFILE_DIR_XCODE/watch.mobileprovision" \
-    "$NOOP_PROFILE_DIR_LEGACY/main-duplicate.mobileprovision" \
-    "$NOOP_PROFILE_DIR_LEGACY/complications.mobileprovision"
+    "$NOOP_PROFILE_DIR_LEGACY/main-duplicate.mobileprovision"
 
 read_profile_field() {
     local profile_name="$(basename "$1")"
@@ -72,27 +69,24 @@ read_profile_field() {
         case "$profile_name" in
             main-*) printf '%s\n' 'TEAM123.com.example.noop' ;;
             widgets.*) printf '%s\n' 'TEAM123.com.example.noop.widgets' ;;
-            watch.*) printf '%s\n' 'TEAM123.com.example.noop.watch' ;;
-            complications.*) printf '%s\n' 'TEAM123.com.example.noop.watch.complications' ;;
         esac
     else
         case "$profile_name" in
             main-old.*) printf '%s\n' '2026-09-17T00:00:00Z' ;;
             main-new.*|main-duplicate.*) printf '%s\n' '2026-09-23T00:00:00Z' ;;
             widgets.*) printf '%s\n' '2026-09-22T00:00:00Z' ;;
-            watch.*) printf '%s\n' '2026-09-21T00:00:00Z' ;;
-            complications.*) printf '%s\n' '2026-09-20T00:00:00Z' ;;
         esac
     fi
 }
 
 find_profile_state
-assert_equal 'duplicates still produce four distinct profiles' '4' "$PROFILE_COUNT"
+assert_equal 'duplicates still produce two distinct profiles' '2' "$PROFILE_COUNT"
 assert_equal 'newest duplicate is selected and earliest distinct expiry wins' \
-    "$(iso_to_epoch '2026-09-20T00:00:00Z')" "$EARLIEST_EXPIRY_EPOCH"
-mv "$NOOP_PROFILE_DIR_XCODE/watch.mobileprovision" "${TEST_ROOT}/watch.disabled"
+    "$(iso_to_epoch '2026-09-22T00:00:00Z')" "$EARLIEST_EXPIRY_EPOCH"
+mv "$NOOP_PROFILE_DIR_XCODE/widgets.mobileprovision" "${TEST_ROOT}/widgets.disabled"
 find_profile_state
-assert_equal 'a missing required identifier reduces profile count' '3' "$PROFILE_COUNT"
+assert_equal 'a missing required identifier reduces profile count' '1' "$PROFILE_COUNT"
+mv "${TEST_ROOT}/widgets.disabled" "$NOOP_PROFILE_DIR_XCODE/widgets.mobileprovision"
 
 BACKUP_ROOT="${TEST_ROOT}/backup"
 archive_matching_profiles "$BACKUP_ROOT"
@@ -101,7 +95,7 @@ assert_equal 'archiving moves every NOOP profile aside' '0' "$PROFILE_COUNT"
 touch "$NOOP_PROFILE_DIR_XCODE/widgets.mobileprovision"
 restore_archived_profiles "$BACKUP_ROOT"
 find_profile_state
-assert_equal 'a failed renewal restores the archived profiles' '3' "$PROFILE_COUNT"
+assert_equal 'a failed renewal restores the archived profiles' '2' "$PROFILE_COUNT"
 assert_success 'a profile already present is not overwritten' \
     test -f "${BACKUP_ROOT}/xcode-userdata/widgets.mobileprovision"
 

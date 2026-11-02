@@ -1,4 +1,3 @@
-#if os(iOS)
 import Combine
 import SwiftUI
 import StrandDesign
@@ -244,4 +243,3 @@ private struct BroopActivityIntervalBondChip: View {
                           color: live.bonded ? BroopActivityPalette.mint : BroopPalette.warning)
     }
 }
-#endif

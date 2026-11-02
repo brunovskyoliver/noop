@@ -410,99 +410,13 @@ struct LiquidVessel: View {
     }
 }
 
-/// A horizontal liquid tube filled to `frac` (0...1).
-///
-/// `animated: false` poses it still and lets CoreAnimation cache the layer — the 8pt grid tubes
-/// and 12pt workout bar don't need a live 30fps Canvas each. Hero-adjacent tubes can stay live.
-struct LiquidTube: View {
-    let frac: Double
-    let tint: Color
-    var height: CGFloat = 14
-    var animated: Bool = true
-    var showsHighlight: Bool = true
-    var usesCleanFill: Bool = false
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var motion = NoopMotionState.shared
-    @State private var sim = LiquidSim(target: 0)
-
-    var body: some View {
-        if animated && !motion.poseStill(reduceMotion) { liveTube } else { staticTube }
-    }
-
-    private var liveTube: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { tl in
-            let now = liquidSeconds(tl.date)
-            Canvas { context, size in
-                sim.step(now: now, tilt: LiquidMotion.shared.tilt, target: frac)
-                LiquidRender.tube(context, size, sim, now: now, frac: max(0, min(1, frac)),
-                                  tint: tint, showsHighlight: showsHighlight,
-                                  usesCleanFill: usesCleanFill)
-            }
-            .drawingGroup()   // GPU, see LiquidVessel.gauge
-        }
-        .frame(height: height)
-        .onAppear { LiquidMotion.shared.acquire() }
-        .onDisappear { LiquidMotion.shared.release() }
-    }
-
-    private var staticTube: some View {
-        Canvas { context, size in
-            LiquidRender.tube(context, size, LiquidSim.posed(frac), now: 0,
-                              frac: max(0, min(1, frac)), tint: tint,
-                              showsHighlight: showsHighlight, usesCleanFill: usesCleanFill)
-        }
-        .frame(height: height)
-    }
-}
-
-/// The live heart-rate thread. `bpm` is the recent series (any length ≥ 2).
-struct LiquidThread: View {
-    let bpm: [Double]
-    /// Per-value line identity from `hrGapSegments`, or nil for a series known to be contiguous (#2082).
-    /// The live 1 Hz stream passes nil and is drawn exactly as before; the banked 5-minute fallback passes
-    /// ids so the hours a strap recorded nothing read as breaks rather than a climb across them.
-    var segments: [String]? = nil
-    var tint: Color = Color(.sRGB, red: 1, green: 107/255, blue: 129/255, opacity: 1)
-    var height: CGFloat = 96
-    var animated: Bool = true
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var motion = NoopMotionState.shared
-
-    var body: some View {
-        if animated && !motion.poseStill(reduceMotion) { liveThread } else { staticThread }
-    }
-
-    private var liveThread: some View {
-        // 60fps to flow smoothly on ProMotion; 30fps once iOS reports serious heat, where every frame here
-        // adds to the throttling that makes scrolling stutter (9% of the main thread on 2026-09-23 traces).
-        TimelineView(.animation(minimumInterval: ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue ? 1.0 / 30.0 : 1.0 / 60.0)) { tl in
-            let now = liquidSeconds(tl.date)
-            Canvas { context, size in
-                LiquidRender.thread(context, size, values: bpm, now: now, tint: tint, segments: segments)
-            }
-            .drawingGroup()   // GPU, see LiquidVessel.gauge
-        }
-        .frame(height: height)
-    }
-
-    /// One-shot render (no travelling glint / pulse) — used until first data load settles.
-    private var staticThread: some View {
-        Canvas { context, size in
-            LiquidRender.thread(context, size, values: bpm, now: 0, tint: tint, segments: segments)
-        }
-        .frame(height: height)
-    }
-}
-
 // MARK: - Shared liquid components (cross-platform: used by Today AND the other liquid screens on iOS + mac)
 
 extension View {
     /// A light selection/impact haptic, available only where `sensoryFeedback` is (iOS 17 / macOS 14);
     /// a no-op below that so the liquid primitives still compile on the macOS 13 deployment target.
     @ViewBuilder func liquidTapHaptic(trigger: some Equatable) -> some View {
-        if #available(iOS 17.0, macOS 14.0, *) {
+        if #available(iOS 17.0, *) {
             self.sensoryFeedback(.impact(weight: .light), trigger: trigger)
         } else {
             self
@@ -511,7 +425,7 @@ extension View {
 
     /// A selection tick (e.g. the WHOOP-style day change), guarded so it compiles on macOS 13.
     @ViewBuilder func liquidSelectionHaptic(trigger: some Equatable) -> some View {
-        if #available(iOS 17.0, macOS 14.0, *) {
+        if #available(iOS 17.0, *) {
             self.sensoryFeedback(.selection, trigger: trigger)
         } else {
             self
@@ -520,7 +434,7 @@ extension View {
 
     /// A firmer medium impact (e.g. the pull-to-refresh release), guarded for the macOS 13 target.
     @ViewBuilder func liquidMediumHaptic(trigger: some Equatable) -> some View {
-        if #available(iOS 17.0, macOS 14.0, *) {
+        if #available(iOS 17.0, *) {
             self.sensoryFeedback(.impact(weight: .medium), trigger: trigger)
         } else {
             self
@@ -563,65 +477,3 @@ struct CountUpNumber: View, Animatable {
 }
 
 // MARK: - LiquidScoreGauge — Home hero score instrument (shared)
-
-/// The liquid score gauge used on Today (`HeroScoreCell`): a `LiquidVessel` fill with a count-up centre
-/// read-out. Callers supply diameter/tint/scale; optional caption sits under the number (Sleep: "of 100").
-struct LiquidScoreGauge: View {
-    /// Matches `HeroScoreCell.vesselDiameter` — the Home hero trio size.
-    private static let homeHeroDiameter: CGFloat = 96
-
-    let score: Double?
-    let tint: Color
-    let diameter: CGFloat
-    let animated: Bool
-    /// The scale `score` is expressed on (100 for Charge/Rest, 21 for WHOOP Effort, etc.).
-    var maxValue: Double = 100
-    var decimals: Int = 0
-    /// Optional caption under the number (nil = Home hero: number only).
-    var captionText: String? = nil
-    var numberColor: Color = StrandPalette.textPrimary
-    var captionColor: Color = StrandPalette.textTertiary
-    /// Forwarded to `LiquidVessel` so a gauge inside a link still splashes AND still navigates (#1995).
-    var tapPassesThrough: Bool = false
-
-    @State private var shown: Double = 0
-
-    private var frac: Double? { score.map { max(0, min(1, $0 / maxValue)) } }
-    private var centerFont: Font { StrandFont.rounded(diameter * 26 / Self.homeHeroDiameter) }
-    private var captionFont: Font { StrandFont.rounded(diameter * 0.085, weight: .medium) }
-
-    var body: some View {
-        ZStack {
-            LiquidVessel(value: frac, tint: tint, animated: animated,
-                         tapPassesThrough: tapPassesThrough)
-                .frame(width: diameter, height: diameter)
-            VStack(spacing: captionText == nil ? 0 : 1) {
-                Group {
-                    if score != nil {
-                        CountUpNumber(value: shown, font: centerFont, decimals: decimals)
-                    } else {
-                        Text("–").font(centerFont)
-                    }
-                }
-                if let captionText {
-                    Text(captionText)
-                        .font(captionFont)
-                        .foregroundStyle(captionColor)
-                }
-            }
-            .foregroundStyle(numberColor)
-            .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .allowsHitTesting(false)
-        }
-        .frame(width: diameter, height: diameter)
-        .onAppear { rollTo(score) }
-        .onChangeCompat(of: score) { rollTo($0) }
-    }
-
-    private func rollTo(_ v: Double?) {
-        guard let v else { shown = 0; return }
-        withAnimation(.easeOut(duration: 0.9)) { shown = v }
-    }
-}

@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -122,4 +121,3 @@ struct BroopActivityTypePicker: View {
         .accessibilityLabel(Text(label ?? name))
     }
 }
-#endif

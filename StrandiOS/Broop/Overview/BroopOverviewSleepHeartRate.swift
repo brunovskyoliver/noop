@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import Charts
 import StrandAnalytics
@@ -112,4 +111,3 @@ struct BroopAccountSleepPage: View {
         .broopAccountChrome(String(localized: "Sleep"))
     }
 }
-#endif

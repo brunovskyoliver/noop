@@ -32,26 +32,14 @@ enum DataSourceImports {
             // (issue #179). iOS therefore offers only the concrete file types.
             switch self {
             case .whoop:
-                #if os(macOS)
-                return [.zip, .folder]
-                #else
                 return [.zip]
-                #endif
             case .appleHealth:
-                #if os(macOS)
-                return [.zip, .xml, .folder]
-                #else
                 return [.zip, .xml]
-                #endif
             case .xiaomi:
                 // The Mi Fitness sandbox is shared as a .zip (or, on macOS, an unzipped
                 // folder); the bare `<user_id>.db` is also accepted directly.
                 let db = UTType(filenameExtension: "db") ?? .data
-                #if os(macOS)
-                return [.zip, .folder, db]
-                #else
                 return [.zip, db]
-                #endif
             case .nutrition:
                 return [.commaSeparatedText, .plainText]
             case .lifting:
@@ -69,11 +57,7 @@ enum DataSourceImports {
             case .wearable:
                 // Oura is a single .json; Fitbit (Google Takeout) and Garmin (GDPR) are .zip bundles.
                 // On macOS an unzipped folder is also accepted. The importer sniffs the brand by content.
-                #if os(macOS)
-                return [.json, .zip, .folder, .data]
-                #else
                 return [.json, .zip, .data]
-                #endif
             }
         }
     }

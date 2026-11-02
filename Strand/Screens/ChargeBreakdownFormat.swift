@@ -221,31 +221,6 @@ enum ChargeBreakdownFormat {
     }
 }
 
-/// The same legacy R-R explanation on classic and Liquid Today.
-struct ChargeLegacyRRGapNote: View {
-    var body: some View {
-        NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "waveform.path.ecg")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(StrandPalette.chargeColor)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(ChargeBreakdownFormat.chargeLegacyRRGapTitle)
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text(ChargeBreakdownFormat.chargeLegacyRRGapDetail)
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(ChargeBreakdownFormat.chargeLegacyRRGapAccessibility)
-    }
-}
-
 // MARK: - A3: confidence dot + tier tag pill
 
 /// A small confidence dot + tier tag pill (CALIBRATING / EST. / REL.) surfaced on score tiles and the
@@ -446,44 +421,4 @@ struct SkinTempDeviationRow: View {
     .preferredColorScheme(.dark)
 }
 
-/// DEBUG-only screenshot host for `--demo-screen chargebreakdown`: renders the "What shaped it" Charge
-/// breakdown populated with deterministic demo drivers, exactly as it appears when the Today Charge ring is
-/// tapped (confidence/tier chip in the header, signed point rows, the relative skin-temp marker). Stripped
-/// from Release.
-struct ChargeBreakdownDemoHost: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: NoopMetrics.gap) {
-                    NoopCard(padding: 18, tint: StrandPalette.chargeColor) {
-                        ChargeBreakdownSection(
-                            drivers: [
-                                ChargeDriver(label: "Heart rate variability", deltaPoints: 9,
-                                             valueText: "78 ms", baselineText: "62 ms baseline",
-                                             verdict: "above baseline, supporting recovery"),
-                                ChargeDriver(label: "Resting heart rate", deltaPoints: 4,
-                                             valueText: "53 bpm", baselineText: "58 bpm baseline",
-                                             verdict: "below baseline, supporting recovery"),
-                                ChargeDriver(label: "Sleep quality", deltaPoints: 2,
-                                             valueText: "91%", baselineText: "",
-                                             verdict: "a strong night, supporting recovery"),
-                                ChargeDriver(label: "Respiratory rate", deltaPoints: 1,
-                                             valueText: "14.2 br/min", baselineText: "15.0 br/min baseline",
-                                             verdict: "below baseline, supporting recovery"),
-                                ChargeDriver(label: "Skin temperature", deltaPoints: -1,
-                                             valueText: "+0.4 C vs baseline", baselineText: "",
-                                             verdict: "warmer than baseline, limiting recovery"),
-                            ],
-                            confidence: .solid,
-                            skinTempRel: SkinTempRelative(deviationC: 0.4, tier: .warmer))
-                    }
-                }
-                .padding(NoopMetrics.screenPadding)
-            }
-            .background(StrandPalette.surfaceBase)
-            .navigationTitle("What shaped your Charge")
-        }
-        .preferredColorScheme(.dark)
-    }
-}
 #endif

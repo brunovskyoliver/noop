@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 import Combine
@@ -281,4 +280,3 @@ struct BroopHealthStressSparkline: View {
         .accessibilityHidden(true)
     }
 }
-#endif

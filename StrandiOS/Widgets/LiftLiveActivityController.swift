@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import ActivityKit
 import UIKit
@@ -204,4 +203,3 @@ final class LiftLiveActivityController {
         }
     }
 }
-#endif

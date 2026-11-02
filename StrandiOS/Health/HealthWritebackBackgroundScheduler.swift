@@ -1,4 +1,3 @@
-#if os(iOS)
 import BackgroundTasks
 import Foundation
 
@@ -71,4 +70,3 @@ enum HealthWritebackBackgroundScheduler {
         }
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -122,4 +121,3 @@ extension BodyVitalReading {
         return parts.joined(separator: " · ")
     }
 }
-#endif

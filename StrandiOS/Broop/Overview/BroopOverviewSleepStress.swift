@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 
 /// Rating for the Rest v2 "High Sleep Stress" contributor: the share of the main sleep in HIGH stress.
@@ -9,4 +8,3 @@ enum BroopOverviewSleepStressRating {
         pct < 5 ? .optimal : (pct < 15 ? .sufficient : .poor)
     }
 }
-#endif

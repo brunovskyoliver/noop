@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 /// Insights group: journal, insights, intelligence, fused record, coach and alarms.
@@ -17,4 +16,3 @@ struct BroopInsightsScreens: View {
         }
     }
 }
-#endif

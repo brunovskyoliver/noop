@@ -94,45 +94,4 @@ final class BodyClockDialLayoutTests: XCTestCase {
             XCTAssertLessThan(bed.to, night.from, "at rim \(rim) the bed overlaps the arc it marks")
         }
     }
-
-    /// The numerals must be a FIXED size, not a scaling one.
-    ///
-    /// The band they sit in has 3.5 pt of clearance to the ticks, and the dial's radii do not scale with
-    /// the reader's Dynamic Type setting. `StrandFont.caption` is a text STYLE and would grow at
-    /// accessibility sizes straight into the ticks, which is the collision this whole change removes.
-    func testTheHourNumeralsDoNotScaleWithDynamicType() throws {
-        let src = try Self.cardSource()
-        XCTAssertTrue(src.contains(".font(.system(size: 10, design: .rounded))"),
-                      "dial numerals need a fixed point size, not a Dynamic Type text style")
-        // CODE only. The first cut scanned the whole file, so the comment ABOVE the numerals, which
-        // names `StrandFont.caption` to explain why it is not used, failed the assertion that it is not
-        // used. An assertion whose scope is wider than the claim it makes will eventually be tripped by
-        // something describing the claim.
-        XCTAssertFalse(Self.codeLines(of: src).contains { $0.contains(".font(StrandFont.caption)") },
-                       "a text style in a fixed-radius canvas grows into the ticks at large text sizes")
-    }
-
-    /// Source lines with comment-only lines dropped, so prose about the rule cannot trip the rule.
-    private static func codeLines(of src: String) -> [String] {
-        src.split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-    }
-
-    private struct SourceNotReachable: Error, CustomStringConvertible {
-        let path: String
-        var description: String { "BodyClockDialCard.swift not reachable from \(path)" }
-    }
-
-    private static func cardSource(file: StaticString = #filePath) throws -> String {
-        var dir = URL(fileURLWithPath: "\(file)").deletingLastPathComponent()
-        for _ in 0..<4 {
-            let candidate = dir.appendingPathComponent("Strand/Screens/BodyClockDialCard.swift")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return try String(contentsOf: candidate, encoding: .utf8)
-            }
-            dir = dir.deletingLastPathComponent()
-        }
-        throw SourceNotReachable(path: "\(file)")
-    }
 }

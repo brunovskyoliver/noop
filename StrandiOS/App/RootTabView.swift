@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -204,4 +203,3 @@ extension View {
         }
     }
 }
-#endif

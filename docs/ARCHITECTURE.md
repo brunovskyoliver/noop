@@ -89,8 +89,7 @@ Strand/                         macOS SwiftUI app target (the reference implemen
 │   ├── Profile.swift           user profile (age/sex/body/HRmax)
 │   └── BehaviorStore.swift     toggles for automations/coaching
 ├── Screens/                    SwiftUI feature screens (Today, Live, Sleep, Trends…)
-├── MenuBar/                    glanceable menu-bar extra
-└── System/                     macOS integrations (lock screen, Shortcuts)
+└── System/                     platform integrations (Shortcuts, pasteboard)
 
 Packages/                       Cross-platform Swift packages (iOS 16+ / macOS 13+)
 ├── WhoopProtocol/              BLE frame parsing, CRC, command/event/packet decode
@@ -357,11 +356,8 @@ backfilled streams, or imported data interchangeably. **All derived values are a
 
 ## 10. Presentation (Strand app + StrandDesign)
 
-`StrandApp` (`@main`) builds a single `AppModel`, injects it plus `LiveState`, `Repository`,
-`ProfileStore`, and `BehaviorStore` into the environment, and presents a `WindowGroup` (dark, hidden
-title bar) alongside a glanceable `MenuBarExtra`. `RootView` is a `NavigationSplitView` whose sidebar
-is the `NavItem` enum (Today, Live, Breathe, Intervals, Explore, Compare, Insights, Sleep, Trends,
-Workouts, Health, Stress, Apple Health, Data Sources, Notifications, Automations, Settings, Support).
+`StrandiOSApp` (`@main`) builds a single `AppModel`, injects it into the environment, and presents
+`RootTabView`, the Broop tab shell. Widgets live in `StrandiOSWidgets/`.
 
 Screens bind to `Repository`'s published `days`/`sleeps` caches (refreshed on data change, not on the
 ~1 Hz stream) and render with `StrandDesign` components — `RecoveryRing`, `StrainGauge`, `Hypnogram`,

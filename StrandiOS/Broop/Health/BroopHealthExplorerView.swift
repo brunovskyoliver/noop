@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -99,4 +98,3 @@ struct BroopHealthExplorerView: View {
         .accessibilityElement(children: .combine)
     }
 }
-#endif

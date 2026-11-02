@@ -1,11 +1,7 @@
 import SwiftUI
 import Foundation
 import StrandDesign
-#if canImport(AppKit)
-import AppKit
-#elseif canImport(UIKit)
 import UIKit
-#endif
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
@@ -64,8 +60,7 @@ struct ProfileAvatarView: View {
 // MARK: - Avatar downscaling
 //
 // Shrinks a picked photo to a small square JPEG before it's persisted, so the UserDefaults blob
-// stays tiny (a full-res phone photo would be megabytes). Built on ImageIO/CoreGraphics, which are
-// identical across macOS and iOS — no UIKit/AppKit divergence in the resize path.
+// stays tiny (a full-res phone photo would be megabytes). Built on ImageIO/CoreGraphics.
 
 enum AvatarImage {
     /// Downscale `data` so its longest side is at most `maxDimension` points and re-encode as JPEG.

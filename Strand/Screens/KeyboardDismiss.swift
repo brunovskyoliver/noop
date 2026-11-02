@@ -1,7 +1,5 @@
 import SwiftUI
-#if os(iOS)
 import UIKit
-#endif
 
 // Tap outside a field to put the keyboard away.
 //
@@ -23,20 +21,14 @@ import UIKit
 extension View {
     /// Clear `focus` when the user taps anywhere in this view that isn't a field.
     func dismissesKeyboardOnTap<Value: Hashable>(_ focus: FocusState<Value?>.Binding) -> some View {
-        #if os(iOS)
         self
             .background(TapOutsideFields { focus.wrappedValue = nil })
             // Dragging the sheet also puts it away, which is the gesture most people reach for
             // first when a keyboard is covering what they want to read.
             .scrollDismissesKeyboard(.interactively)
-        #else
-        // macOS has a hardware keyboard and no on-screen one to dismiss.
-        self
-        #endif
     }
 }
 
-#if os(iOS)
 /// Reports taps that land in this screen but not in a text input.
 ///
 /// The recognizer is attached to the WINDOW, because SwiftUI gives a background view no reliable
@@ -121,4 +113,3 @@ private struct TapOutsideFields: UIViewRepresentable {
         }
     }
 }
-#endif

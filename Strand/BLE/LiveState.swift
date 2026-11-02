@@ -939,11 +939,7 @@ public final class LiveState: ObservableObject {
     /// manual share (this is a `static` so a background task needs no main-actor instance).
     nonisolated public static func scheduledExportText(extraHeaderLines: [String] = []) -> String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        #if os(iOS)
         let osName = "iOS"
-        #else
-        let osName = "macOS"
-        #endif
         var header = "NOOP strap log (scheduled export) — \(osName)\nApp: \(Self.appIdentityLine)\n\(osName): "
             + ProcessInfo.processInfo.operatingSystemVersionString + "\n"
         // #453: the BODY is scrubbed as it is appended, but these header lines come from the diagnostics
@@ -1183,21 +1179,15 @@ public final class LiveState: ObservableObject {
     /// owner couldn't find the log on Mac) build the SAME text. Call on the main thread (button taps).
     func exportableLogText(extraHeaderLines: [String] = []) -> String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        #if os(iOS)
         let osName = "iOS"
-        #else
-        let osName = "macOS"
-        #endif
         var header = "NOOP strap log - \(osName)\nApp: \(Self.appIdentityLine)\n\(osName): "
             + ProcessInfo.processInfo.operatingSystemVersionString + "\n"
-        #if os(iOS)
         let diagLines = IOSDiagnostics.capture().summaryLines()
         if !diagLines.isEmpty { header += diagLines.joined(separator: "\n") + "\n" }
         // #1578: what the Apple Health observer path cost this session. Silent unless it ran, so a log from
         // someone with Health off or unauthorized is unchanged.
         let healthLines = HealthSyncStats.summaryLines()
         if !healthLines.isEmpty { header += healthLines.joined(separator: "\n") + "\n" }
-        #endif
         // #453: the BODY is scrubbed as it is appended, but these header lines come from the diagnostics
         // block and never pass through that path - and they carry device ids, which embed a BLE address
         // for a re-added or second strap. Same redactor, so one export cannot be safe while the other leaks.

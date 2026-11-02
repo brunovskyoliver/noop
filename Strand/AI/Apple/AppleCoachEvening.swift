@@ -68,7 +68,7 @@ enum EveningReviewTiming {
 }
 
 #if canImport(FoundationModels)
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 struct CoachEveningDraft {
     @Guide(description: "A short, warm headline about how today went. No numbers.")
@@ -79,7 +79,7 @@ struct CoachEveningDraft {
     var tonight: String
 }
 
-@available(iOS 26.0, macOS 26.0, *)
+@available(iOS 26.0, *)
 @Generable
 struct CoachEveningDraftPoint {
     @Guide(description: "Which metric")

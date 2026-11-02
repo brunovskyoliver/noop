@@ -1,13 +1,8 @@
 import Foundation
 import ZIPFoundation
 
-#if canImport(AppKit)
-import AppKit
-import UniformTypeIdentifiers
-#elseif canImport(UIKit)
 import UIKit
 import UniformTypeIdentifiers
-#endif
 
 /// Cross-platform "save / share a file" helper.
 ///
@@ -44,13 +39,6 @@ enum FileExport {
     /// Write `text` to a file and let the user choose where it goes.
     @MainActor
     static func exportText(_ text: String, suggestedName: String) {
-        #if os(macOS)
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? text.write(to: url, atomically: true, encoding: .utf8)
-        #else
         // Write to a temp file FIRST and only present the share sheet if the file actually exists.
         // The previous `try?` swallowed write failures, then handed an empty/missing path to the
         // share sheet — the user saw a broken export with no error. Clean up the temp file after the
@@ -62,7 +50,6 @@ enum FileExport {
             return
         }
         present(activityItems: [url], cleanup: [url])
-        #endif
     }
 
     /// Let the user save / share an existing file at `src`. On macOS this copies to a chosen
@@ -71,20 +58,8 @@ enum FileExport {
     /// completion handler — only files we staged ourselves get cleaned up.
     @MainActor
     static func exportFile(at src: URL, suggestedName: String? = nil) {
-        #if os(macOS)
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName ?? src.lastPathComponent
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let dest = panel.url else { return }
-        let fm = FileManager.default
-        do {
-            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-            try fm.copyItem(at: src, to: dest)
-        } catch { /* best-effort */ }
-        #else
         guard FileManager.default.fileExists(atPath: src.path) else { return }
         present(activityItems: [src], cleanup: [])
-        #endif
     }
 
     /// Export an existing file AND a block of text together as a matched pair (#510, raw capture plus the
@@ -110,7 +85,6 @@ enum FileExport {
         await exportBundle(entries: entries, suggestedName: zipName)
     }
 
-    #if os(iOS)
     /// Present `UIActivityViewController` and, once it closes, best-effort remove the URLs in
     /// `cleanup` so staged exports don't accumulate in `temporaryDirectory` across runs.
     @MainActor
@@ -151,7 +125,6 @@ enum FileExport {
         }
         presenter.present(vc, animated: true)
     }
-    #endif
 
     // MARK: - Bundle export (Test Centre, spec section 5.1)
 
@@ -195,27 +168,7 @@ enum FileExport {
             zipData(entries: entries, baseName: base)
         }
         guard let staged = await stagingTask.value else { completion?(); return nil }
-        #if os(macOS)
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let dest = panel.url else {
-            try? FileManager.default.removeItem(at: staged)
-            return nil
-        }
-        let fm = FileManager.default
-        do {
-            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-            try fm.copyItem(at: staged, to: dest)
-        } catch {
-            try? fm.removeItem(at: staged)
-            return nil
-        }
-        try? fm.removeItem(at: staged)
-        return dest
-        #else
         present(activityItems: [staged], cleanup: [staged], completion: completion)
         return staged
-        #endif
     }
 }

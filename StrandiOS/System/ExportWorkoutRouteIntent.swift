@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import AppIntents
 import StrandImport
@@ -139,4 +138,3 @@ struct ExportWorkoutRouteIntent: AppIntent {
         return (startTs, String(parts[1]))
     }
 }
-#endif

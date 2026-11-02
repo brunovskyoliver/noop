@@ -1,4 +1,4 @@
-#if os(iOS) && DEBUG
+#if DEBUG
 import SwiftUI
 import StrandAnalytics
 

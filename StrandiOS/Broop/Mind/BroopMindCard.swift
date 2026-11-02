@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -44,4 +43,3 @@ struct BroopMindCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-#endif

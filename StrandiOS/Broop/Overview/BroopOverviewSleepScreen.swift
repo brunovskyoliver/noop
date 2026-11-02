@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -492,5 +491,4 @@ struct BroopOverviewSleepUndo {
     let start: Int
     let end: Int
 }
-#endif
 

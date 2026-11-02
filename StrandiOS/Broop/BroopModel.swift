@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -441,5 +440,4 @@ struct BroopDashboardItem: Identifiable {
 enum BroopRoute: Hashable {
     case score(BroopScore)
 }
-#endif
 

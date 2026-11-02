@@ -18,8 +18,8 @@ non-trivial PR.
 
 ## Quick start
 
-The codebase is reusable Swift packages (`Packages/`) plus a thin macOS app
-(`Strand/`) and a full Android app (`android/`). The fastest feedback loop is the
+The codebase is reusable Swift packages (`Packages/`) plus the iOS app
+(`Strand/`, `StrandiOS/`) and a full Android app (`android/`). The fastest feedback loop is the
 packages — they build and test on their own, no Xcode project and no strap needed.
 
 ### Swift packages
@@ -34,18 +34,15 @@ The five packages are `WhoopProtocol` (BLE framing / decode), `WhoopStore`
 `StrandImport` (WHOOP CSV + Apple Health importers), and `StrandDesign` (the
 SwiftUI design system).
 
-### macOS app
+### iOS app
 
 The Xcode project is generated from `project.yml` and is **not** committed.
 
 ```bash
 brew install xcodegen
-xcodegen generate         # regenerate after any project.yml or file add/remove
-open Strand.xcodeproj     # build and run from Xcode
+Tools/ios.sh build   # generates Strand.xcodeproj, builds for the simulator, prints the .app path
+Tools/ios.sh test    # NOOPiOSTests on a local simulator (iOS 27, default "iPhone 18 Pro")
 ```
-
-For a runnable, ad-hoc-signed `NOOP.app` without an Apple ID, see
-[`docs/BUILD.md`](docs/BUILD.md).
 
 ### Android app
 
@@ -91,13 +88,13 @@ names. That column is why this table exists:
 | `windows-capture` | **Tools Python CI (Windows)** (`tools-python-windows.yml`) | `Tools/linux-capture/**` |
 | `build-and-test` | **Android CI** (`android.yml`) | `android/**`, the protocol/store test resources, `Strand/Resources/Localizable.xcstrings` |
 | `test (…)`, `tools (…)` | **Swift Packages CI** (`swift-packages.yml`) | `Packages/**`, the `Tools/SleepBench`, `Tools/SleepPSG` and `Tools/Backfill` packages, `android/app/src/test/resources/**`, `Strand/Liquid/LiquidCore.swift` |
-| `build (Strand, …)`, `build (NOOPiOS, …)` | **App build** (`app-build.yml`) | `Strand/**`, `StrandTests/**`, `StrandiOS/**`, `StrandiOSShared/**`, `StrandiOSWidgets/**`, `NOOPWatch/**`, `NOOPWatchComplications/**`, `Packages/**`, `project.yml`, its own workflow file |
+| `build` | **App build** (`app-build.yml`) | `Strand/**`, `StrandTests/**`, `StrandiOS/**`, `StrandiOSShared/**`, `StrandiOSWidgets/**`, `Packages/**`, `project.yml`, its own workflow file |
 
 Read that as a worked example: an Android-only PR runs Android CI plus the three that always
 run, so a short list of checks does not mean little was checked.
 
-**App build** compiles both Apple app targets and runs `StrandTests` on its macOS leg;
-the iOS leg is compile-only. It is active on relevant PRs. Package checks alone do not
+**App build** compiles `NOOPiOS` and `NOOPiOSTests`. It cannot run the tests: they need an iOS 27
+simulator, which the runner lacks, so run `Tools/ios.sh test` locally. It is active on relevant PRs. Package checks alone do not
 validate app-target Swift: build locally or verify the Apple app checks passed on the
 current PR head. Android CI compiles Compose screens and runs Android unit tests.
 App build has no push trigger, so a direct non-release commit to `main` needs a manual

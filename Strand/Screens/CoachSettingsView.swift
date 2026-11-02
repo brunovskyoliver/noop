@@ -15,11 +15,7 @@ import StrandDesign
 /// an enclosing NavigationStack.
 struct CoachSettingsView: View {
     private var scaffoldSky: AnyView? {
-        #if os(macOS)
-        liquidScaffoldSky()
-        #else
         nil
-        #endif
     }
 
     @EnvironmentObject var coach: AICoachEngine

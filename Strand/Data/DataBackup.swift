@@ -1,9 +1,5 @@
 import Foundation
-#if canImport(AppKit)
-import AppKit
-#elseif canImport(UIKit)
 import UIKit
-#endif
 import SQLite3
 import UniformTypeIdentifiers
 import WhoopStore
@@ -85,35 +81,6 @@ enum DataBackup {
             return .failure(String(localized: "Couldn't safely export right now. Recent changes are still in the database's write-ahead log. Close any in-flight sync, then try again."))
         }
 
-        #if os(macOS)
-        let panel = NSSavePanel()
-        panel.title = String(localized: "Export NOOP backup")
-        panel.prompt = String(localized: "Export")
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = defaultBackupName()
-        panel.allowedContentTypes = backupContentTypes()
-        panel.isExtensionHidden = false
-
-        guard panel.runModal() == .OK, let dest = panel.url else { return .cancelled }
-
-        let scoped = dest.startAccessingSecurityScopedResource()
-        defer { if scoped { dest.stopAccessingSecurityScopedResource() } }
-
-        let fm = FileManager.default
-        do {
-            // NSSavePanel already handled the "replace existing?" confirmation; clear the target.
-            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
-            // Reading the whole SQLite and DEFLATE-compressing it is multi-second on a big library
-            // (and #1014 added a quick_check read of the whole file first); run it off the main
-            // actor so the UI never beach-balls. Only file paths cross the hop.
-            try await Task.detached(priority: .utility) {
-                try writeVerifiedBackupZip(dbURL: dbURL, to: dest, settingsJSON: currentSettingsJSON())
-            }.value
-            return exportOutcome(dest, dbURL: dbURL)
-        } catch {
-            return .failure(String(localized: "Export failed: \(error.localizedDescription)"))
-        }
-        #else
         let fm = FileManager.default
 
         // Stage the compressed backup in temp, then hand it to the share sheet.
@@ -129,7 +96,6 @@ enum DataBackup {
         }
         guard let dest = await DocumentPicker.export(staged) else { return .cancelled }
         return exportOutcome(dest, dbURL: dbURL)
-        #endif
     }
 
     /// #1014 defence-in-depth (export side): the export's failure when the LIVE database itself is
@@ -348,24 +314,9 @@ enum DataBackup {
         do { dbPath = try StorePaths.defaultDatabasePath() }
         catch { return .failure(String(localized: "Couldn't locate the NOOP database. \(error.localizedDescription)")) }
 
-        #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.title = String(localized: "Import NOOP backup")
-        panel.prompt = String(localized: "Import")
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = backupContentTypes()
-
-        guard panel.runModal() == .OK, let pickedSource = panel.url else { return .cancelled }
-
-        let scoped = pickedSource.startAccessingSecurityScopedResource()
-        defer { if scoped { pickedSource.stopAccessingSecurityScopedResource() } }
-        #else
         // iOS: pick the backup through the system document picker (asCopy gives us a readable local
         // copy in our temp dir, so no security-scoped bookkeeping is needed).
         guard let pickedSource = await DocumentPicker.importFile(backupContentTypes()) else { return .cancelled }
-        #endif
 
         // Hand the chosen file to the same hardened restore core the folder (Backup & Sync) path uses,
         // so the unzip / magic-byte / GRDB-origin / sidecar-snapshot / rollback logic lives in one place.

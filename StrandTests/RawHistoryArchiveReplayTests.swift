@@ -118,7 +118,6 @@ final class RawHistoryArchiveReplayTests: XCTestCase {
     /// `#if os(iOS)` wrapper deleted this from the macOS report entirely and the missing iOS coverage looked
     /// like no coverage at all. Skipping with a reason leaves a visible row instead. (@tigercraft4, #956)
     func testArchiveAndDirectoryUseBackgroundReadableProtection() throws {
-        #if os(iOS)
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("noop-protection-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -137,8 +136,5 @@ final class RawHistoryArchiveReplayTests: XCTestCase {
                       "Data protection attributes are not reported on this platform (iOS Simulator).")
         XCTAssertEqual(directoryProtection, expected)
         XCTAssertEqual(fileProtection, expected)
-        #else
-        throw XCTSkip("File Data Protection is iOS-only; StrandTests runs on the macOS scheme.")
-        #endif
     }
 }

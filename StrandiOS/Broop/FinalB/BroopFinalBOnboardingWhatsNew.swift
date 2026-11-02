@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 /// The Broop face of `WhatsNewView`: the same `AppChangelog` content (expectations first, then every
@@ -130,4 +129,3 @@ struct BroopFinalBOnboardingWhatsNew: View {
         return attributed
     }
 }
-#endif

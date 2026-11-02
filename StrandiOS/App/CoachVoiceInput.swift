@@ -1,10 +1,8 @@
 import Foundation
 import SwiftUI
 import os
-#if canImport(UIKit)
 import UIKit
 import Speech
-#endif
 
 /// K4: On-device speech-to-text wrapper for the Coach composer (iOS only).
 ///
@@ -34,16 +32,11 @@ final class CoachVoiceInput: ObservableObject {
 
     /// Whether voice input is available on this device + locale at all.
     static var isSupported: Bool {
-        #if canImport(UIKit)
         return SFSpeechRecognizer.authorizationStatus() != .restricted
             && SFSpeechRecognizer.self != nil
             && speechLocale != nil
-        #else
-        return false
-        #endif
     }
 
-    #if canImport(UIKit)
     /// Speech recognition and microphone authorization together, mapped to a simple enum the UI can switch
     /// on. Both grants are needed: with speech allowed and the microphone refused, every session is silent.
     var authorization: AuthorizationState {
@@ -56,9 +49,6 @@ final class CoachVoiceInput: ObservableObject {
         @unknown default: return .unavailable
         }
     }
-    #else
-    var authorization: AuthorizationState { .unavailable }
-    #endif
 
     /// Whether a recognition session is currently recording.
     @Published private(set) var isRecording: Bool = false
@@ -76,7 +66,6 @@ final class CoachVoiceInput: ObservableObject {
     /// available for en-GB"). `nil` when voice is fully available.
     @Published var statusMessage: String?
 
-    #if canImport(UIKit)
     /// The recognizer locale for the person's language and region (see `DictationLocale`).
     static var speechLocale: Locale? {
         let current = Locale.current
@@ -84,17 +73,12 @@ final class CoachVoiceInput: ObservableObject {
         return DictationLocale.pick(language: current.language.languageCode?.identifier,
                                     region: current.region?.identifier, supported: supported).map(Locale.init(identifier:))
     }
-    #endif
 
     /// On-device support for the current locale. If `false`, voice is disabled rather than
     /// falling back to server recognition (which would be raw-audio egress).
     private static var localeSupportsOnDevice: Bool {
-        #if canImport(UIKit)
         guard let locale = speechLocale, let recognizer = SFSpeechRecognizer(locale: locale) else { return false }
         return recognizer.supportsOnDeviceRecognition
-        #else
-        return false
-        #endif
     }
 
     /// True when voice can be used right now: supported, authorized, and locale supports on-device.
@@ -108,7 +92,6 @@ final class CoachVoiceInput: ObservableObject {
     /// Request Speech + Microphone authorization. Safe to call repeatedly; the system no-ops if
     /// already decided. `completion` fires on the main actor.
     func requestAuthorization(completion: @escaping (AuthorizationState) -> Void) {
-        #if canImport(UIKit)
         // Speech auth first; mic auth piggybacks on the same prompt flow but is a separate grant.
         SFSpeechRecognizer.requestAuthorization { speechStatus in
             Task { @MainActor in
@@ -124,9 +107,6 @@ final class CoachVoiceInput: ObservableObject {
                 }
             }
         }
-        #else
-        completion(.unavailable)
-        #endif
     }
 
     /// Begin a recognition session. `partial` is invoked on the main actor with the live transcript
@@ -134,7 +114,6 @@ final class CoachVoiceInput: ObservableObject {
     /// (an incoming call, Siri, a recognizer error), so what was said is not lost.
     /// No-op (calls `partial` with "") on macOS / unsupported locales.
     func startTranscribing(partial: @escaping (String) -> Void, ended: ((String) -> Void)? = nil) {
-        #if canImport(UIKit)
         guard canUseVoice else {
             statusMessage = Self.localeSupportsOnDevice
                 ? String(localized: "Voice input unavailable. Check microphone permission in Settings.")
@@ -146,16 +125,12 @@ final class CoachVoiceInput: ObservableObject {
         statusMessage = nil
         endedHandler = ended
         beginSession(partial: partial)
-        #else
-        partial("")
-        #endif
     }
 
     /// Stop the active session and return the finalized transcript via `completion` (main actor). The
     /// microphone stops at once; the completion waits briefly for the recognizer to finish the audio it
     /// already has, so the last words are not cut off.
     func stopTranscribing(completion: @escaping (String) -> Void) {
-        #if canImport(UIKit)
         guard isRecording else {
             completion(partialTranscript)
             return
@@ -169,24 +144,18 @@ final class CoachVoiceInput: ObservableObject {
             guard let self, self.sessionID == token else { return }
             self.finishSession(completion: nil)
         }
-        #else
-        completion("")
-        #endif
     }
 
     /// End any session now and release the microphone, delivering nothing. For a screen going away.
     func cancel() {
-        #if canImport(UIKit)
         guard isRecording || finishing != nil || audioEngine != nil else { return }
         finishing = nil
         endedHandler = nil
         finishSession(completion: nil)
-        #endif
     }
 
     // MARK: - Private (iOS only)
 
-    #if canImport(UIKit)
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -333,7 +302,6 @@ final class CoachVoiceInput: ObservableObject {
         endedHandler = nil
         deliver?(final)
     }
-    #endif
 
     /// Simplified authorization state the UI switches on (decoupled from SFSpeech symbols on macOS).
     enum AuthorizationState {

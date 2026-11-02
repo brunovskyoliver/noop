@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -231,4 +230,3 @@ struct BroopFinalASleepTimeEditor: View {
         }
     }
 }
-#endif

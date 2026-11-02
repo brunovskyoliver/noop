@@ -1,19 +1,11 @@
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
-#if canImport(MapKit)
 import MapKit
-#endif
 
-#if canImport(MapKit) && canImport(UIKit)
 import UIKit
 typealias RouteMapRepresentable = UIViewRepresentable
-#elseif canImport(MapKit) && canImport(AppKit)
-import AppKit
-typealias RouteMapRepresentable = NSViewRepresentable
-#endif
 
-#if canImport(MapKit)
 struct WorkoutRouteMap: RouteMapRepresentable {
     let points: [RouteMath.LatLng]
 
@@ -67,30 +59,13 @@ struct WorkoutRouteMap: RouteMapRepresentable {
         }
     }
 
-    #if canImport(UIKit)
     private var UIEdgeInsetsLikePadding: UIEdgeInsets { UIEdgeInsets(top: 24, left: 24, bottom: 24, right: 24) }
     func makeUIView(context: Context) -> MKMapView { makeMap(context: context) }
     func updateUIView(_ map: MKMapView, context: Context) { configure(map) }
-    #elseif canImport(AppKit)
-    private var UIEdgeInsetsLikePadding: NSEdgeInsets { NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24) }
-    func makeNSView(context: Context) -> MKMapView { makeMap(context: context) }
-    func updateNSView(_ map: MKMapView, context: Context) { configure(map) }
-    #endif
 }
 
 /// The route stroke colour as a platform colour (MapKit's renderer can't take a SwiftUI `Color`). A fixed
 /// Effort-amber so it reads in the same colour world as the rest of the screen on both platforms.
 enum RoutePlatformColor {
-    #if canImport(UIKit)
     static let effort = UIColor(red: 0.98, green: 0.62, blue: 0.16, alpha: 1.0)
-    #elseif canImport(AppKit)
-    static let effort = NSColor(red: 0.98, green: 0.62, blue: 0.16, alpha: 1.0)
-    #endif
 }
-#else
-/// Platforms without MapKit (none we ship, but keeps the type resolvable): no route map.
-struct WorkoutRouteMap: View {
-    let points: [RouteMath.LatLng]
-    var body: some View { Color.clear }
-}
-#endif

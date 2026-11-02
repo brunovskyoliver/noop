@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 /// The Broop face of `TermsGateView`, styled after WHOOP's "Privacy and Terms of Use" page: grey
@@ -101,4 +100,3 @@ struct BroopFinalBOnboardingTermsGate: View {
         .accessibilityValue(Text(checks[idx] ? "Checked" : "Unchecked"))
     }
 }
-#endif

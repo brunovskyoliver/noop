@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -627,4 +626,3 @@ struct BroopFinalBLiftSessionEditor: View {
         dismiss()
     }
 }
-#endif

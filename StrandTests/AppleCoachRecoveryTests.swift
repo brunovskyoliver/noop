@@ -69,7 +69,7 @@ final class AppleCoachRecoveryTests: XCTestCase {
 
     #if canImport(FoundationModels)
     func testErrorTypesOfBothOSVersionsMapToOneFailure() throws {
-        guard #available(macOS 27.0, *) else { throw XCTSkip("needs the macOS 27 error types") }
+        guard #available(*) else { throw XCTSkip("needs the macOS 27 error types") }
         let f = { (e: Error, r: AppleCoachRoute) in AppleCoachClient.failure(e, route: r) }
         XCTAssertEqual(f(LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "")), .onDevice), .contextTooLong)
         XCTAssertEqual(f(LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "")), .onDevice), .rateLimited)

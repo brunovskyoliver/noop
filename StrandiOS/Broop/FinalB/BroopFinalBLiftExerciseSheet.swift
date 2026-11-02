@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -108,4 +107,3 @@ struct BroopFinalBLiftExerciseSheet: View {
         dismiss()
     }
 }
-#endif

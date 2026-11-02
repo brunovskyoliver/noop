@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 // Settings pages rebuilt in Broop form: Storage, About Apple Watch data and the Apple Watch setup sheet.
@@ -372,4 +371,3 @@ struct BroopFinalAAppleWatchSetup: View {
                                    startPoint: .top, endPoint: .center).ignoresSafeArea())
     }
 }
-#endif

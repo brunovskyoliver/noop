@@ -14,7 +14,7 @@ readonly PROFILE_DIR_LEGACY="${NOOP_PROFILE_DIR_LEGACY:-${HOME}/Library/MobileDe
 readonly APP_PATH="${DERIVED_DATA_ROOT}/Build/Products/Release-iphoneos/NOOP.app"
 readonly LOCK_DIR="${STATE_ROOT}/refresh.lock"
 readonly PENDING_INSTALL_FILE="${STATE_ROOT}/install-pending"
-readonly -a EXPECTED_PROFILE_KINDS=('main' 'widgets' 'watch' 'complications')
+readonly -a EXPECTED_PROFILE_KINDS=('main' 'widgets')
 LOCK_ACQUIRED=0
 
 log() {
@@ -36,8 +36,6 @@ profile_kind_for_app_id() {
     case "$app_identifier" in
         "${TEAM_ID}.${BUNDLE_ID_PREFIX}.noop") printf '%s\n' 'main' ;;
         "${TEAM_ID}.${BUNDLE_ID_PREFIX}.noop.widgets") printf '%s\n' 'widgets' ;;
-        "${TEAM_ID}.${BUNDLE_ID_PREFIX}.noop.watch") printf '%s\n' 'watch' ;;
-        "${TEAM_ID}.${BUNDLE_ID_PREFIX}.noop.watch.complications") printf '%s\n' 'complications' ;;
         *)
             return 1
             ;;
@@ -65,8 +63,6 @@ find_profile_state() {
 
     PROFILE_MAIN_EXPIRY=0
     PROFILE_WIDGET_EXPIRY=0
-    PROFILE_WATCH_EXPIRY=0
-    PROFILE_COMPLICATION_EXPIRY=0
 
     for profile_dir in "$PROFILE_DIR_XCODE" "$PROFILE_DIR_LEGACY"; do
         [ -d "$profile_dir" ] || continue
@@ -83,12 +79,6 @@ find_profile_state() {
                 widgets)
                     [ "$expiry_epoch" -gt "$PROFILE_WIDGET_EXPIRY" ] && PROFILE_WIDGET_EXPIRY="$expiry_epoch"
                     ;;
-                watch)
-                    [ "$expiry_epoch" -gt "$PROFILE_WATCH_EXPIRY" ] && PROFILE_WATCH_EXPIRY="$expiry_epoch"
-                    ;;
-                complications)
-                    [ "$expiry_epoch" -gt "$PROFILE_COMPLICATION_EXPIRY" ] && PROFILE_COMPLICATION_EXPIRY="$expiry_epoch"
-                    ;;
             esac
         done
     done
@@ -97,9 +87,7 @@ find_profile_state() {
     EARLIEST_EXPIRY_EPOCH=0
     for expiry_epoch in \
         "$PROFILE_MAIN_EXPIRY" \
-        "$PROFILE_WIDGET_EXPIRY" \
-        "$PROFILE_WATCH_EXPIRY" \
-        "$PROFILE_COMPLICATION_EXPIRY"; do
+        "$PROFILE_WIDGET_EXPIRY"; do
         [ "$expiry_epoch" -gt 0 ] || continue
         PROFILE_COUNT=$((PROFILE_COUNT + 1))
         if [ "$EARLIEST_EXPIRY_EPOCH" -eq 0 ] || [ "$expiry_epoch" -lt "$EARLIEST_EXPIRY_EPOCH" ]; then

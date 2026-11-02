@@ -1,7 +1,5 @@
 import SwiftUI
-#if !os(watchOS)
-import Charts   // Swift Charts isn't used by the watch app; the ChartProxy shim below is watchOS-excluded.
-#endif
+import Charts
 
 // MARK: - iOS-17 / macOS-14 deprecation shims
 //
@@ -48,7 +46,6 @@ private extension View {
     }
 }
 
-#if !os(watchOS)
 public extension ChartProxy {
     /// macOS-13-safe plot rect: the optional `plotFrame` on iOS 17 / macOS 14, the
     /// deprecated non-optional `plotAreaFrame` otherwise. `.zero` on a nil anchor
@@ -62,4 +59,3 @@ public extension ChartProxy {
         }
     }
 }
-#endif

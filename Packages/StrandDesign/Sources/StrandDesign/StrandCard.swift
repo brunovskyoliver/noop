@@ -119,9 +119,7 @@ public struct StrandCardHover: ViewModifier {
             .offset(y: hovering ? -1 : 0)
             .animation(StrandMotion.interactive, value: hovering)
             // .onHover is unavailable on watchOS (no pointer); the watch never hovers a card.
-            #if !os(watchOS)
             .onHover { hovering = $0 }
-            #endif
     }
 }
 
@@ -208,7 +206,7 @@ public extension View {
     }
 }
 
-#if DEBUG && !os(watchOS)
+#if DEBUG
 #Preview("StrandCard") {
     VStack(spacing: 16) {
         StrandCard {

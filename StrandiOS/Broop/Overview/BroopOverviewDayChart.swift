@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -342,4 +341,3 @@ private struct BroopOverviewSyncedLabel: View {
         }
     }
 }
-#endif

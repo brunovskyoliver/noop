@@ -1,4 +1,3 @@
-#if os(iOS)
 import Combine
 import SwiftUI
 import StrandDesign
@@ -826,4 +825,3 @@ private struct BroopActivityCalmMode: View {
         }
     }
 }
-#endif

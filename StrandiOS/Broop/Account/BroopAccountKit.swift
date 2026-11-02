@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -644,4 +643,3 @@ struct BroopAccountTextSheet: View {
         .preferredColorScheme(.dark)
     }
 }
-#endif

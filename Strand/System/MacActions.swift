@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(AppKit)
-import AppKit
-#endif
 
 /// What a strap double-tap (or a wrist-off trigger) does on the Mac.
 enum MacActionKind: String, Codable, CaseIterable, Identifiable {
@@ -46,18 +43,7 @@ enum MacActions {
     /// so callers can fall back to a "Lock Screen" Shortcut.
     @discardableResult
     static func lockScreen() -> Bool {
-        #if os(macOS)
-        let path = "/System/Library/PrivateFrameworks/login.framework/login"
-        guard let handle = dlopen(path, RTLD_NOW) else { return false }
-        defer { dlclose(handle) }
-        guard let sym = dlsym(handle, "SACLockScreenImmediate") else { return false }
-        typealias LockFn = @convention(c) () -> Int32
-        let fn = unsafeBitCast(sym, to: LockFn.self)
-        _ = fn()
-        return true
-        #else
         return false   // a third-party app cannot lock an iPhone — callers fall back to a Shortcut
-        #endif
     }
 
     /// Run a Shortcut by name via the `shortcuts://` URL scheme. Anything the user can build in

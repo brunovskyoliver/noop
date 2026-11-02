@@ -1,12 +1,5 @@
 import Foundation
-#if os(iOS)
 import UIKit
-#endif
-#if os(macOS)
-import AppKit
-import IOKit.ps
-import Security
-#endif
 
 // MARK: - IOSDiagnostics
 //
@@ -32,7 +25,6 @@ struct IOSDiagnostics {
     /// callable from a view's computed property and a `View` stored-property default without each call
     /// site needing its own hop. On macOS this is a plain synchronous return.
     static func capture() -> IOSDiagnostics {
-        #if os(iOS)
         let (protectedData, backgroundRefresh): (Bool, String) = MainActor.assumeIsolated {
             (UIApplication.shared.isProtectedDataAvailable,
              Self.backgroundRefreshText(UIApplication.shared.backgroundRefreshStatus))
@@ -46,16 +38,6 @@ struct IOSDiagnostics {
             isSideloaded: Self.isSideloadedBuild(),
             sideloadExpiry: Self.provisioningExpiryDate()
         )
-        #elseif os(macOS)
-        return IOSDiagnostics(
-            osVersionString: ProcessInfo.processInfo.operatingSystemVersionString,
-            macOnAC: Self.isOnAC(),
-            macSigned: Self.isSignedAndNotarized(),
-            macSandboxed: Self.isAppSandboxed()
-        )
-        #else
-        return IOSDiagnostics()
-        #endif
     }
 
     // MARK: Fields (all optional so the struct is meaningful on macOS too)
@@ -136,7 +118,6 @@ struct IOSDiagnostics {
     /// A formatted, multi-line block describing the environment. Empty on macOS (the macOS strap-log
     /// header already carries OS + app version), so callers can append it unconditionally.
     func summaryLines() -> [String] {
-        #if os(iOS)
         var lines: [String] = []
         lines.append("Device: \(deviceModel ?? "unknown")")
         if let os = osVersionString { lines.append("iOS: \(os)") }
@@ -156,25 +137,10 @@ struct IOSDiagnostics {
             }
         }
         return lines
-        #elseif os(macOS)
-        var lines: [String] = []
-        if let os = osVersionString { lines.append("macOS: \(os)") }
-        if let ac = macOnAC { lines.append("Power: \(ac ? "AC (plugged in)" : "battery")") }
-        if let signed = macSigned {
-            lines.append("Signed / notarized: \(signed ? "yes" : "no (unsigned build, Gatekeeper bypass expected)")")
-        }
-        if let sb = macSandboxed {
-            lines.append("App Sandbox: \(sb ? "on (network entitlement gates the AI Coach)" : "off")")
-        }
-        return lines
-        #else
-        return []
-        #endif
     }
 
     // MARK: - iOS-only probes
 
-    #if os(iOS)
 
     /// The hardware model identifier (e.g. "iPhone16,2", "iPad14,1") via `uname` → `utsname.machine`.
     /// On the Simulator this returns the host arch (e.g. "arm64"); harmless for diagnostics.
@@ -231,45 +197,7 @@ struct IOSDiagnostics {
         return plist["ExpirationDate"] as? Date
     }
 
-    #endif
 
     // MARK: - macOS-only probes
 
-    #if os(macOS)
-
-    /// True when the Mac is drawing AC power. Best-effort via IOKit power sources; false on battery,
-    /// false if the state can't be read (degrade gracefully, never fabricate).
-    private static func isOnAC() -> Bool {
-        guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef]
-        else { return false }
-        for src in sources {
-            guard let desc = IOPSGetPowerSourceDescription(blob, src)?.takeUnretainedValue()
-                    as? [String: Any] else { continue }
-            if let state = desc[kIOPSPowerSourceStateKey] as? String {
-                return state == kIOPSACPowerValue
-            }
-        }
-        return false
-    }
-
-    /// Honest signing/notarization probe. NOOP's macOS build ships unsigned for anonymity, so this is
-    /// expected to be false; we report what is true rather than claim a state we can't verify.
-    private static func isSignedAndNotarized() -> Bool {
-        // No code signature on an unsigned build: validity fails, so we report a truthful "no".
-        return Bundle.main.executableURL.flatMap { url -> Bool? in
-            var staticCode: SecStaticCode?
-            guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess,
-                  let code = staticCode else { return false }
-            let status = SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: 0), nil)
-            return status == errSecSuccess
-        } ?? false
-    }
-
-    /// Whether the App Sandbox is active for this process (presence of the container env marker).
-    private static func isAppSandboxed() -> Bool {
-        ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
-    }
-
-    #endif
 }

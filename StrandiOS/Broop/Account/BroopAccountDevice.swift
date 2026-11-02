@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -1070,4 +1069,3 @@ struct BroopAccountStrapArt: View {
         }
     }
 }
-#endif

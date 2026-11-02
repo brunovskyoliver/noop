@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -129,4 +128,3 @@ struct BroopFinalADivergingBar: View {
         .frame(height: height + 6)
     }
 }
-#endif

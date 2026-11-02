@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 /// "How your scores work" in Broop's look: the `ScoringGuideView`'s copy (same localized strings)
@@ -129,4 +128,3 @@ struct BroopOverviewScoreGuide: View {
         .background(RoundedRectangle(cornerRadius: BroopMetrics.badgeRadius).fill(color.opacity(0.14)))
     }
 }
-#endif

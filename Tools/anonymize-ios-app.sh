@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # anonymize-ios-app.sh — scrub the building machine's home path out of an UNSIGNED iOS
-# .app (the twin of anonymize-macos-app.sh) before it is packaged into a sideloadable .ipa.
+# .app before it is packaged into a sideloadable .ipa.
 #
 # Why: Swift/clang bake source-file path literals (e.g. GRDB's `#file` defaults) into the
 # compiled binary; on a release build those include the *builder's* home directory — i.e.
 # your username. NOOP ships anonymously, so this must be stripped from every Mach-O in the
 # bundle (main executable, the widget .appex, embedded frameworks/dylibs).
 #
-# Unlike the macOS script this does NOT code-sign: the iOS .ipa is distributed UNSIGNED and
+# This does NOT code-sign: the iOS .ipa is distributed UNSIGNED and
 # the end user signs it on-device with their own free Apple ID (AltStore / SideStore /
 # Sideloadly). So no Apple Developer identity ever touches the project or the builder.
 #
@@ -16,8 +16,7 @@
 #         -derivedDataPath build/ios-dd CODE_SIGNING_ALLOWED=NO build
 #     Tools/anonymize-ios-app.sh build/ios-dd/Build/Products/Release-iphoneos/NOOP.app
 #
-# os.walk below recurses the WHOLE bundle, so the embedded watch app (NOOP.app/Watch/NOOPWatch.app)
-# and its complication .appex are scrubbed and residual-checked along with everything else.
+# os.walk below recurses the WHOLE bundle, so the widget .appex is scrubbed and residual-checked too.
 #
 # The replacement is the SAME byte length as the original path, so all Mach-O offsets stay
 # valid; only the read-only string section changes. The script reads $HOME at runtime and

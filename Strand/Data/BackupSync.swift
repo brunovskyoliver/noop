@@ -1,10 +1,6 @@
 import Foundation
-#if os(macOS)
-import AppKit
-#else
 import UIKit
 import UniformTypeIdentifiers
-#endif
 
 /// Backup & Sync (folder destination) - the Apple twin of the Android `BackupSync`. Writes the full
 /// `.noopbak` snapshot (the existing `DataBackup` format) into a user-chosen folder, on demand and as
@@ -254,22 +250,14 @@ enum FolderBackup {
     // MARK: - Security-scoped bookmark
 
     private static func bookmarkCreationOptions() -> URL.BookmarkCreationOptions {
-        #if os(macOS)
-        return [.withSecurityScope]
-        #else
         return []
-        #endif
     }
 
     private static func resolveFolder() -> URL? {
         if useInternalFolder { return internalFolderURL() }   // #52: no bookmark — our own sandbox folder
         guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
         var stale = false
-        #if os(macOS)
-        let opts: URL.BookmarkResolutionOptions = [.withSecurityScope]
-        #else
         let opts: URL.BookmarkResolutionOptions = []
-        #endif
         let url = try? URL(resolvingBookmarkData: data, options: opts, relativeTo: nil, bookmarkDataIsStale: &stale)
         // A stale bookmark still resolves; refresh it opportunistically so it keeps working next launch.
         if stale, let url { saveFolder(url) }
@@ -442,21 +430,6 @@ enum FolderBackup {
 
     // MARK: - Folder picker
 
-    #if os(macOS)
-    /// Present an `NSOpenPanel` to choose a directory; persists the bookmark. Returns the chosen URL.
-    @MainActor
-    static func pickFolder() -> URL? {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "Choose")
-        panel.message = String(localized: "Choose a folder for NOOP backups (for example a Google Drive or iCloud folder).")
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        saveFolder(url)
-        return url
-    }
-    #else
     /// Present a folder picker (`UIDocumentPicker`) and persist the bookmark. Returns the chosen URL.
     /// Starts in the previously-chosen folder when one resolves (else the picker falls back to our
     /// Documents) — part of the #1000a "Select button never enables" mitigation; see
@@ -467,5 +440,4 @@ enum FolderBackup {
         if let url { saveFolder(url) }
         return url
     }
-    #endif
 }

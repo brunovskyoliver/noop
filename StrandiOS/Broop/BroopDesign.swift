@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import UIKit
 
@@ -1014,4 +1013,3 @@ extension View {
     }
 }
 
-#endif

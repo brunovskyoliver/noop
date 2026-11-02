@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import StrandAnalytics
@@ -237,4 +236,3 @@ private struct BroopActivityGuardianSummary: View {
         return parts.joined(separator: " · ")
     }
 }
-#endif

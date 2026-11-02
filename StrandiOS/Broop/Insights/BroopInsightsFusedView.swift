@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 
@@ -198,4 +197,3 @@ struct BroopInsightsFusedCompare: View {
         .preferredColorScheme(.dark)
     }
 }
-#endif

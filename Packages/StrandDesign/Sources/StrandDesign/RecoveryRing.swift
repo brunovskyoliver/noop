@@ -21,7 +21,6 @@ import SwiftUI
 // "O" in NOOP. The arc geometry, gradient stroke, track and centre number live in
 // the shared `BevelGauge`; this view layers the wordmark + core dot on top.
 
-#if !os(watchOS)
 public struct RecoveryRing: View {
 
     /// Recovery score 0...100.
@@ -169,7 +168,6 @@ public struct RecoveryRing: View {
             .accessibilityHidden(true)
     }
 }
-#endif
 
 // MARK: - Arc Shape
 
@@ -201,7 +199,7 @@ public struct RecoveryArc: Shape {
     }
 }
 
-#if DEBUG && !os(watchOS)
+#if DEBUG
 #Preview("RecoveryRing — scores") {
     VStack(spacing: 16) {
         HStack(spacing: 28) {

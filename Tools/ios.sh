@@ -1,12 +1,12 @@
 #!/bin/zsh
-# Builds or tests the iPhone app alone, from project.ios.yml: no macOS app, Watch app or widgets.
+# Builds or tests the iPhone app with unsigned settings.
 #   Tools/ios.sh build     simulator build; prints the .app path for agent-device install
 #   Tools/ios.sh test      unit tests hosted by the iPhone app on a local simulator
 set -euo pipefail
 cd "${0:A:h}/.."
-xcodegen generate --spec project.ios.yml --quiet
+xcodegen generate --quiet
 dd=build/ios
-common=(-project BroopiOS.xcodeproj -scheme NOOPiOS -derivedDataPath "$dd"
+common=(-project Strand.xcodeproj -scheme NOOPiOS -derivedDataPath "$dd"
         CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO)
 case "${1:-build}" in
   build)

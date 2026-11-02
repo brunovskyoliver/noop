@@ -149,11 +149,10 @@ jobs:
             {
               # The beside-install claim is per-platform, not global: 749c94118 gave the iOS family the
               # PRODUCTION bundle id, so an iOS sideload REPLACES an installed official app and uses its
-              # data. Android (.staging via -PstagingRelease) and macOS (.noop.staging, kept per #39) do
-              # install beside. Saying "separate data" for all three told iOS users the opposite.
+              # data. Android (.staging via -PstagingRelease) does install beside. Saying "separate data" for
+              # both told iOS users the opposite.
               printf '\n---\n\n**Downloads:**\n'
               printf -- '- **Android** — `NOOP-android-v%s.apk` (`com.noop.whoop.staging`) — installs **beside** the official app, with its own data.\n' "$NEW"
-              printf -- '- **macOS** — `NOOP-macos-v%s.zip` (unzip, then right-click → Open) — installs **beside** the official app; on first launch it copies any data the official app already has, leaving the original untouched.\n' "$NEW"
               printf -- '- **iOS** — `NOOP-ios-unsigned-v%s.ipa` (AltStore / Sideloadly) — carries the **production** bundle id, so it **replaces** an installed official app and uses its data. Not a beside-install.\n' "$NEW"
             } >> "$BODY"
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$(git rev-parse HEAD)" \
@@ -193,73 +192,6 @@ jobs:
           gh release upload "${{ needs.bump.outputs.tag }}" "NOOP-android-v${VER}.apk" \
             --repo "$GITHUB_REPOSITORY" --clobber
 
-  macos:
-    needs: bump
-    runs-on: macos-15
-    timeout-minutes: 40
-    # Uploads the built .app zip to the release created by the `bump` job.
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          ref: ${{ needs.bump.outputs.sha }}
-      - name: Install XcodeGen
-        # Known unpinned-tooling gap (issue #657): Homebrew core doesn't keep old formula versions
-        # around, so `brew install xcodegen@<version>` / a version-pin syntax isn't available here —
-        # this always installs whatever xcodegen is current in homebrew-core on the runner image at
-        # run time. Left as a tracked gap rather than silently unaddressed.
-        run: brew install xcodegen
-      - name: Generate Xcode project
-        run: xcodegen generate
-      - name: Build NOOP.app (macOS, unsigned, universal)
-        # #51: 'platform=macOS' on an Apple-Silicon runner resolves to the host arch and thins the binary to
-        # arm64-only. That shipped an arm64-only app that won't launch on Intel Macs. Force a true universal
-        # build with the generic destination + explicit ARCHS/ONLY_ACTIVE_ARCH, which override whatever the
-        # configuration says and therefore keep holding after the switch below.
-        #
-        # #2393: Release, matching the iOS leg. macOS shipped Debug for no reason anyone chose — #51 was
-        # about architecture and said so, and "unchanged shipping behaviour" there meant that PR was not
-        # also changing the configuration. The artefact showed it: a 120 KB stub plus a 195 MB
-        # `.debug.dylib` and a `__preview.dylib`, against 53 MB for the same commit built Release. A
-        # reporter measured the shipped build costing a third to half a CPU core at idle, and unoptimised
-        # SwiftUI compounds a hot path that already ran every frame.
-        #
-        # What Release removes beyond the optimisation: `#if DEBUG` code, which here is previews, sample
-        # data and the `--demo-sync` screenshot harness (its own doc already says it is stripped from every
-        # Release build). The iOS artefact has shipped without all of that since it went Release, so this
-        # brings macOS into line rather than into new territory. Use a local Debug build for the harness.
-        run: >-
-          xcodebuild -scheme Strand -configuration Release
-          -destination 'generic/platform=macOS' ARCHS="x86_64 arm64" ONLY_ACTIVE_ARCH=NO
-          -derivedDataPath build/dd
-          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
-          build
-      - name: Verify universal binary
-        run: |
-          APP=$(find build/dd/Build/Products -maxdepth 3 -name '*.app' -type d | head -1)
-          EXE=$(find "$APP/Contents/MacOS" -maxdepth 1 -type f ! -name '*.dylib' | head -1)
-          echo "archs: $(lipo -archs "$EXE")"
-          { lipo -archs "$EXE" | grep -qw x86_64 && lipo -archs "$EXE" | grep -qw arm64; } \
-            || { echo "::error::macOS binary is not universal (expected x86_64 + arm64)"; exit 1; }
-      - name: Package + attach
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VER: ${{ needs.bump.outputs.ver }}
-        run: |
-          APP=$(find build/dd/Build/Products -maxdepth 3 -name '*.app' -type d | head -1)
-          test -n "$APP" || { echo ".app not found"; exit 1; }
-          # #429: ad-hoc sign the BUNDLE so it has a stable per-build code identity. macOS 26 (Tahoe) won't
-          # bind a Bluetooth TCC grant to an UNSIGNED bundle, so users wedge at CBManagerState .unauthorized
-          # even after a fresh `tccutil reset` + approve. `--sign -` gives a real cdhash-based designated
-          # requirement TCC can grant to. No --entitlements / --options runtime: stays non-sandboxed so BT
-          # goes through plain TCC + the Info.plist usage string. (cdhash still changes per build, so a
-          # future UPDATE still needs the re-toggle the in-app #429/#295 banner already describes.)
-          codesign --force --deep --sign - "$APP"
-          codesign -dvv "$APP" 2>&1 | grep -Ei 'identifier|signature|flags' || true
-          ditto -c -k --keepParent "$APP" "NOOP-macos-v${VER}.zip"
-          gh release upload "${{ needs.bump.outputs.tag }}" "NOOP-macos-v${VER}.zip" --repo "$GITHUB_REPOSITORY" --clobber
-
   ios:
     needs: bump
     # iOS 26 Liquid Glass (glassEffect) needs the iOS 26 SDK → Xcode 26 → macos-26.
@@ -289,14 +221,13 @@ jobs:
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
           build
-      - name: Package sideload .ipa (strip watch, preserve app/widget capabilities) + attach
+      - name: Package sideload .ipa (preserve app/widget capabilities) + attach
         env:
           GH_TOKEN: ${{ github.token }}
           VER: ${{ needs.bump.outputs.ver }}
         run: |
           APP=$(find build/dd/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)
           test -n "$APP" || { echo ".app (iphoneos) not found"; exit 1; }
-          rm -rf "$APP/Watch"
           # Keep NOOPWidgets.appex. It renders both the Home/Lock-Screen widgets AND the Live Activity;
           # deleting PlugIns still lets ActivityKit create an activity, but iOS can only show an empty
           # Dynamic Island shell because its renderer is gone.

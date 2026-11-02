@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import MarkdownUI
 import UIKit
@@ -776,4 +775,3 @@ extension Theme {
                 .padding(.vertical, 5).padding(.horizontal, 8)
         }
 }
-#endif

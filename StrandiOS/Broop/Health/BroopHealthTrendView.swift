@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -675,4 +674,3 @@ struct BroopHealthTrendView: View {
         recomputeCorrelations()
     }
 }
-#endif

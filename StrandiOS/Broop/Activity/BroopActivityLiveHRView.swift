@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandDesign
@@ -826,4 +825,3 @@ private struct LiveLogCard: View {
         .background(RoundedRectangle(cornerRadius: BroopMetrics.cardRadius).fill(BroopPalette.card))
     }
 }
-#endif

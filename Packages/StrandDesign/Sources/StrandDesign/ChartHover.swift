@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // These interactive charts are shown on iOS and macOS, but not watchOS.
 import SwiftUI
 #if os(iOS)
@@ -350,5 +349,4 @@ public struct PositionedTooltip: View {
     .background(StrandPalette.surfaceBase)
     .preferredColorScheme(.dark)
 }
-#endif
 #endif

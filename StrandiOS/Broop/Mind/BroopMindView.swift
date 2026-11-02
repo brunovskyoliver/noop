@@ -1,4 +1,3 @@
-#if os(iOS)
 import Charts
 import SwiftUI
 import StrandAnalytics
@@ -631,4 +630,3 @@ struct BroopMindCheckInChart: View {
         }
     }
 }
-#endif

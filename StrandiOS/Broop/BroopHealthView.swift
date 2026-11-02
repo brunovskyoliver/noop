@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -333,4 +332,3 @@ struct BroopHealthMiniBars: View {
         .accessibilityHidden(true)
     }
 }
-#endif

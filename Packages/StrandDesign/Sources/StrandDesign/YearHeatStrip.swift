@@ -1,4 +1,3 @@
-#if !os(watchOS)
 // YearHeatStrip uses .onContinuousHover + .help() tooltips (unavailable on watchOS); the watch
 // never shows the year heat strip, so the whole view is excluded there. iOS/macOS unchanged.
 import SwiftUI
@@ -335,5 +334,4 @@ private func sampleYear() -> [RecoveryDay] {
     .background(StrandPalette.surfaceBase)
     .preferredColorScheme(.dark)
 }
-#endif
 #endif

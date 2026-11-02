@@ -104,21 +104,15 @@ struct HowNoopWorksView: View {
                 }
                 .padding(20)
             }
-            #if os(iOS)
             // #697/#horizontal-swipe parity, see ScreenScaffold.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            #endif
             Divider().overlay(StrandPalette.hairline)
             footerBar
         }
         // Same sizing split as ScoringGuideView / WhatsNewView: a fixed window on macOS,
         // fill the presented sheet on iOS so nothing runs off a narrow phone screen (#185).
-        #if os(macOS)
-        .frame(width: 560, height: 640)
-        #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .noopSheetPresentation(largeFirst: true)
-        #endif
         .background(StrandPalette.surfaceBase)
     }
 

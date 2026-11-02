@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -376,4 +375,3 @@ private struct BroopAccountBondChip: View {
                          tint: live.bonded ? BroopAccountStyle.connected : BroopPalette.warning)
     }
 }
-#endif

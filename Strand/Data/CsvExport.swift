@@ -1,9 +1,5 @@
 import Foundation
-#if canImport(AppKit)
-import AppKit
-#elseif canImport(UIKit)
 import UIKit
-#endif
 import UniformTypeIdentifiers
 import WhoopStore
 import StrandImport
@@ -184,28 +180,6 @@ enum CsvExport {
                 return out
             }.value
 
-            #if os(macOS)
-            // Save panel — DataBackup.runExport precedent (NSSavePanel + .zip content type).
-            let panel = NSSavePanel()
-            panel.title = String(localized: "Export NOOP data as CSV")
-            panel.nameFieldStringValue = name
-            panel.allowedContentTypes = [.zip]
-            panel.canCreateDirectories = true
-            guard panel.runModal() == .OK, let dest = panel.url else {
-                try? FileManager.default.removeItem(at: tmp)
-                return .cancelled
-            }
-
-            // Swap the freshly-written temp zip into place. Deleting the destination before a write that
-            // can throw destroyed the user's previous export on failure (PR #97 review, tigercraft4).
-            // replaceItemAt is atomic on APFS; the original survives a failed write.
-            if FileManager.default.fileExists(atPath: dest.path) {
-                _ = try FileManager.default.replaceItemAt(dest, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: dest)
-            }
-            return .exported(dest)
-            #else
             // iOS: move the staged zip to its user-facing name, then hand it to the system document picker
             // so the user can save it into Files / iCloud Drive (DataBackup.runExport precedent). Clear any
             // stale staged copy first.
@@ -216,7 +190,6 @@ enum CsvExport {
             try FileManager.default.moveItem(at: tmp, to: staged)
             guard let dest = await DocumentPicker.export(staged) else { return .cancelled }
             return .exported(dest)
-            #endif
         } catch {
             return .failure("CSV export failed: \(error.localizedDescription)")
         }

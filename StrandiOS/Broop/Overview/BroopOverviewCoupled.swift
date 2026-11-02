@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandAnalytics
 import StrandDesign
@@ -250,4 +249,3 @@ private struct BroopOverviewCoupledBreakdown: View {
         .preferredColorScheme(.dark)
     }
 }
-#endif

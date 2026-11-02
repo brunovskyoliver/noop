@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 
 // Small building blocks shared by the final-pass rebuilds (Customize Sleep, the sleep-time editor, Caffeine,
@@ -219,4 +218,3 @@ enum BroopFinalAFormat {
         return d.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).year().locale(AppLanguage.activeLocale))
     }
 }
-#endif

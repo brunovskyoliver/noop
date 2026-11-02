@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -36,4 +35,3 @@ struct BroopHealthScreens: View {
         }
     }
 }
-#endif

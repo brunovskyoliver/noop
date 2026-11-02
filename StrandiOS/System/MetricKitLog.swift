@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import MetricKit
 
@@ -103,4 +102,3 @@ final class MetricKitLog: NSObject, MXMetricManagerSubscriber {
         return out
     }
 }
-#endif

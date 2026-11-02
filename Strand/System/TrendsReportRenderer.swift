@@ -2,11 +2,7 @@ import SwiftUI
 import StrandDesign
 import Foundation
 
-#if canImport(AppKit)
-import AppKit
-#elseif canImport(UIKit)
 import UIKit
-#endif
 
 // MARK: - Trends Report Renderer (#436)
 //
@@ -83,15 +79,7 @@ enum TrendsReportRenderer {
     static func makePNG<Page: View>(page: Page, fileName: String) -> URL? {
         let renderer = ImageRenderer(content: page)
         renderer.scale = 2.0
-        #if canImport(UIKit)
         guard let data = renderer.uiImage?.pngData() else { return nil }
-        #elseif canImport(AppKit)
-        guard let img = renderer.nsImage, let tiff = img.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let data = rep.representation(using: .png, properties: [:]) else { return nil }
-        #else
-        return nil
-        #endif
         let url = NoopScratch.file(fileName)
         do { try data.write(to: url) } catch { return nil }
         return url
@@ -101,12 +89,6 @@ enum TrendsReportRenderer {
     /// filled before the view draws (PDF pages start transparent). Pulled from the same
     /// `StrandPalette.surfaceBase` token the page uses, so there's no colour drift.
     private static var pageBackgroundCGColor: CGColor {
-        #if canImport(AppKit)
-        return NSColor(StrandPalette.surfaceBase).cgColor
-        #elseif canImport(UIKit)
         return UIColor(StrandPalette.surfaceBase).cgColor
-        #else
-        return CGColor(gray: 0, alpha: 1)
-        #endif
     }
 }

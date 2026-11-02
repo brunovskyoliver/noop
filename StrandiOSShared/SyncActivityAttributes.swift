@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import ActivityKit
 
@@ -52,4 +51,3 @@ public struct SyncActivityAttributes: ActivityAttributes {
         self.title = title
     }
 }
-#endif

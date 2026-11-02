@@ -12,33 +12,18 @@
 
 import SwiftUI
 import StrandDesign   // NoopMotionState / QuietMotionPrefs — the shared quiet-motion gate
-#if canImport(UIKit)
 import UIKit
-#endif
-#if canImport(AppKit)
-import AppKit
-#endif
-#if canImport(CoreMotion)
 import CoreMotion
-#endif
 
 // MARK: - Colour helpers (mirror the mock's rgba / shade / mix)
 
 extension Color {
     /// sRGB components, best-effort. Falls back to opaque white off-UIKit.
     func liquidComponents() -> (r: Double, g: Double, b: Double, a: Double) {
-        #if canImport(UIKit)
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         if UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) {
             return (Double(r), Double(g), Double(b), Double(a))
         }
-        #elseif canImport(AppKit)
-        // macOS has no UIKit; without this the sky keyframes all resolved to the white fallback below,
-        // so the whole day-of-sky rendered white on mac. NSColor in sRGB gives the same components UIKit does.
-        if let ns = NSColor(self).usingColorSpace(.sRGB) {
-            return (Double(ns.redComponent), Double(ns.greenComponent), Double(ns.blueComponent), Double(ns.alphaComponent))
-        }
-        #endif
         return (1, 1, 1, 1)
     }
     func liquidMix(_ other: Color, _ t: Double) -> Color {
@@ -72,7 +57,6 @@ final class LiquidMotion {
     /// on Mac Catalyst / simulator it simply stays flat, which reads fine.
     private(set) var tilt: Double = 0
 
-    #if os(iOS)   // CMMotionManager is iOS/Catalyst only; CoreMotion imports on macOS but the class is unavailable there
     private let manager = CMMotionManager()
     /// Device-motion callbacks land here, OFF the main thread, so 60Hz sensor updates don't contend with
     /// the scroll + Canvas redraws on main. `tilt` is a single 8-byte Double (atomic read/write on ARM64),
@@ -84,12 +68,10 @@ final class LiquidMotion {
         q.maxConcurrentOperationCount = 1
         return q
     }()
-    #endif
     private var started = false
     private var refCount = 0
 
     private init() {
-        #if os(iOS) && !targetEnvironment(macCatalyst)
         // Stop at the app boundary. `onDisappear` is NOT called when the app is backgrounded, and
         // NOOP declares `bluetooth-central` + `location` background modes, so it keeps RUNNING
         // behind the lock screen while a strap is connected — which meant a decorative 60 Hz
@@ -108,7 +90,6 @@ final class LiquidMotion {
                        object: nil, queue: .main) { [weak self] _ in self?.syncToPolicy() }
         nc.addObserver(forName: UserDefaults.didChangeNotification,
                        object: UserDefaults.standard, queue: .main) { [weak self] _ in self?.syncToPolicy() }
-        #endif
     }
 
     /// The three signals that mean "no decorative motion", read imperatively. Views read
@@ -117,9 +98,7 @@ final class LiquidMotion {
     static var quietNow: Bool {
         if ProcessInfo.processInfo.isLowPowerModeEnabled { return true }
         if UserDefaults.standard.bool(forKey: QuietMotionPrefs.enabledKey) { return true }
-        #if canImport(UIKit) && !os(watchOS)
         if UIAccessibility.isReduceMotionEnabled { return true }
-        #endif
         return false
     }
 
@@ -136,7 +115,6 @@ final class LiquidMotion {
     private func startIfWanted() {
         guard !started, refCount > 0, !LiquidMotion.quietNow else { return }
         started = true
-        #if os(iOS) && !targetEnvironment(macCatalyst)
         guard manager.isDeviceMotionAvailable else { started = false; return }
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
         manager.startDeviceMotionUpdates(to: motionQueue) { [weak self] motion, _ in
@@ -150,7 +128,6 @@ final class LiquidMotion {
             let raw = max(-0.62, min(0.62, m.attitude.roll)) * upright
             self.tilt += (raw - self.tilt) * 0.18   // light smoothing
         }
-        #endif
     }
 
     /// #1004 — pure uprightness → tilt-response attenuation, mirrored bit-for-bit on Android
@@ -176,9 +153,7 @@ final class LiquidMotion {
     private func stop() {
         guard started else { return }
         started = false
-        #if os(iOS) && !targetEnvironment(macCatalyst)
         manager.stopDeviceMotionUpdates()
-        #endif
         tilt = 0
     }
 

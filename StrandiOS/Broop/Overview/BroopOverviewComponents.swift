@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 
@@ -611,5 +610,4 @@ enum BroopOverviewFormat {
         return date.formatted(date: .omitted, time: .shortened)
     }
 }
-#endif
 

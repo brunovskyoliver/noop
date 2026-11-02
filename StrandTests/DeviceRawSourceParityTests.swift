@@ -67,24 +67,7 @@ final class DeviceRawSourceParityTests: XCTestCase {
         }
     }
 
-    func testStressCannotPinRawReadsToCanonicalNamespace() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(contentsOf: root.appendingPathComponent("Strand/Screens/StressView.swift"),
-                                encoding: .utf8)
-        let withoutComments = source.replacingOccurrences(of: #"/\*.*?\*/"#, with: "",
-                                                           options: .regularExpression)
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.split(separator: "//", maxSplits: 1).first.map(String.init) ?? "" }
-            .joined(separator: "\n")
-        let directCanonicalRaw = #"(?s)(hrSamples|rrIntervals|gravitySamples)\s*\([^)]*(\"my-whoop\"|Repository\.whoopSource)"#
-        XCTAssertNil(withoutComments.range(of: directCanonicalRaw, options: .regularExpression),
-                     "Stress raw physiology must resolve via the device-aware repository API")
-        for call in ["repo.hrSamples(from:", "repo.rrIntervals(from:", "repo.gravitySamplesUnion(from:"] {
-            XCTAssertTrue(withoutComments.contains(call), "Stress must use device-aware \(call)")
-        }
-    }
-
-    func testCoachTimelineAndRhythmUseDeviceAwareRawFacades() throws {
+    func testCoachAndTimelineUseDeviceAwareRawFacades() throws {
         let coach = try production("Strand/AI/AICoach.swift")
         XCTAssertTrue(coach.contains("repo.rrIntervals(from:"),
                       "AI Coach stress context must use Repository's all-source R-R facade")
@@ -106,13 +89,5 @@ final class DeviceRawSourceParityTests: XCTestCase {
                       "Primary sleep reads must include every registered WHOOP strap")
         XCTAssertTrue(repository.contains("ids: rawComputedReadIds(store: store)"),
                       "Computed sleep reads must include every registered WHOOP strap")
-
-        let pillars = try production("Strand/Screens/V5PillarHosts.swift")
-        XCTAssertTrue(pillars.contains("repo.rrIntervals(from:"),
-                      "Rhythm must use Repository's all-source R-R facade")
-        XCTAssertTrue(pillars.contains("repo.gravitySamplesUnion(from:"),
-                      "Rhythm must use Repository's all-source gravity facade")
-        XCTAssertFalse(pillars.contains("store.rrIntervals(deviceId: repo.deviceId"),
-                       "Rhythm must not pin R-R to the currently active device")
     }
 }

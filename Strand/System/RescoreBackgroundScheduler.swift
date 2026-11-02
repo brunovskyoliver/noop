@@ -1,9 +1,7 @@
 import Foundation
 import OSLog
-#if os(iOS)
 import BackgroundTasks
 import UIKit
-#endif
 
 /// Coordinates durable pending analysis and the execution time iOS grants it.
 /// Short passes use an execution assertion; longer work is submitted to BGProcessing.
@@ -150,11 +148,7 @@ enum RescoreBackgroundScheduler {
     /// an incoming call — therefore self-correct within seconds, and the case that matters is never missed.
     static var isBackgrounded: Bool {
         if let override = backgroundStateOverride { return override }
-        #if os(iOS)
         return UIApplication.shared.applicationState != .active
-        #else
-        return false
-        #endif
     }
 
     /// Decide, then either run `work` under an execution assertion or leave it for `BGProcessingTask`.
@@ -270,7 +264,6 @@ enum RescoreBackgroundScheduler {
     /// Expiration cancels the actual worker before releasing the execution assertion.
     private static func withAssertion(log: @escaping (String) -> Void,
                                       work: @escaping @MainActor () async -> Void) async {
-        #if os(iOS)
         let worker = Task { @MainActor in
             guard !Task.isCancelled else { return }
             await $hasExecutionGrant.withValue(true) { await work() }
@@ -310,14 +303,10 @@ enum RescoreBackgroundScheduler {
             worker.cancel()
         }
         assertion.end()
-        #else
-        await runCancellableWork(work: work)
-        #endif
     }
 
     // MARK: - iOS background-processing plumbing
 
-    #if os(iOS)
     static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".rescore"
 
     /// Register the handler. MUST be called from `StrandiOSApp.init()` before launch finishes, and the
@@ -428,8 +417,4 @@ enum RescoreBackgroundScheduler {
             task.setTaskCompleted(success: success)
         }
     }
-    #else
-    /// macOS has no background-task scheduler and no suspension deadline — nothing to schedule.
-    static func schedule(log: ((String) -> Void)? = nil) {}
-    #endif
 }

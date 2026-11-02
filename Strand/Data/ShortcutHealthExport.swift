@@ -15,9 +15,8 @@ import StrandAnalytics
 /// must not round-trip back in on the next HealthKit/export import) and never the `-noop` computed
 /// source.
 ///
-/// Mirrors CsvExport's shape: a platform-neutral enum in Strand/Data/ that compiles into the macOS
-/// target too (no UIKit). The iOS-only pieces live in StrandiOS/ — the scenePhase trigger in
-/// StrandiOSApp and the opt-in toggle in ShortcutExportSettingsView.
+/// Mirrors CsvExport's shape: a platform-neutral enum in Strand/Data/ (no UIKit). The UI pieces live in StrandiOS/ — the scenePhase trigger in
+/// StrandiOSApp and the opt-in toggle.
 enum ShortcutHealthExport {
 
     /// Opt-in gate (default OFF — every automation in NOOP is optional).

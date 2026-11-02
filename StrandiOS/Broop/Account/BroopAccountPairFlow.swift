@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import StrandDesign
 import WhoopStore
@@ -395,4 +394,3 @@ private struct BroopAccountPairIllustration: View {
         .accessibilityHidden(true)
     }
 }
-#endif
