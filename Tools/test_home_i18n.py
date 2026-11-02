@@ -41,19 +41,10 @@ ANDROID_HOME_FILES = {
 }
 ANDROID_SHELL_FILE = "android/app/src/main/java/com/noop/ui/AppRoot.kt"
 
-# Both selectable Today implementations, their Today-only editor/metadata, the shared
-# day picker that they render, and the iPhone shell/icon actions that enter Home.
+# The shared day picker and the iPhone icon actions that enter Home.
 APPLE_HOME_FILES = {
-    "Strand/Screens/TodayView.swift",
-    "Strand/Liquid/LiquidTodayView.swift",
-    "Strand/Screens/TodayCustomizationSheet.swift",
-    "Strand/Screens/TodayCustomizationMetadata.swift",
     "Packages/StrandDesign/Sources/StrandDesign/DayNavBar.swift",
     "StrandiOS/System/HomeScreenQuickActions.swift",
-    "Strand/Screens/AutoWorkoutCard.swift",
-    "Strand/Screens/JournalReminderCard.swift",
-    "Strand/Screens/SkinTempCardsView.swift",
-    "Strand/Screens/HealthAlertBanner.swift",
 }
 APPLE_SHELL_FILE = "StrandiOS/App/RootTabView.swift"
 
@@ -474,24 +465,12 @@ class HomeLocalizationTest(unittest.TestCase):
             )
 
     def test_apple_whoop_brand_and_tint_are_locale_independent(self) -> None:
-        source = (ROOT / "Strand/Screens/TodayView.swift").read_text(encoding="utf-8")
         catalog = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")
         self.assertEqual("WHOOP", catalog["strings"]["Whoop"]["localizations"]["pt-PT"]["stringUnit"]["value"])
         rules = (ROOT / "Strand/Data/TodayRules.swift").read_text(encoding="utf-8")
         self.assertIn('static let whoopBrandName = "WHOOP"', rules)
 
-        tint_start = source.index("private func provenanceTint")
-        tint_end = source.index("// MARK: Apple Watch provenance", tint_start)
-        self.assertNotIn("provenanceLabel(", source[tint_start:tint_end])
-
     def test_apple_liquid_runtime_copy_and_pt_terms_are_localized(self) -> None:
-        source = (ROOT / "Strand/Liquid/LiquidTodayView.swift").read_text(encoding="utf-8")
-        self.assertIn(
-            'private var stressText: String { stress.map { String(Int($0.rounded())) } ?? String(localized: "Calibrating") }',
-            source,
-        )
-        self.assertIn('return "\\(base) · \\(String(localized: \"Charging\"))"', source)
-
         strings = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")["strings"]
         expected = {
             "Push": "Avançar",
@@ -507,13 +486,12 @@ class HomeLocalizationTest(unittest.TestCase):
         readiness = (ROOT / "Packages/StrandAnalytics/Sources/StrandAnalytics/ReadinessEngine.swift").read_text(encoding="utf-8")
         today = "\n".join(
             (ROOT / path).read_text(encoding="utf-8")
-            for path in ("Strand/Screens/TodayView.swift", "Strand/Data/TodayRules.swift", "Strand/Data/TodayDisplay.swift")
+            for path in ("Strand/Data/TodayRules.swift", "Strand/Data/TodayDisplay.swift")
         )
 
         self.assertIn("public enum Message", illness)
         self.assertIn('suppressedBy.append("a hard or late workout")', illness)
         self.assertIn("suppressionReasons.append(.hardOrLateWorkout)", illness)
-        self.assertNotIn('result.copy.contains("numbers agree")', (ROOT / "Strand/Screens/SkinTempCardsView.swift").read_text(encoding="utf-8"))
         self.assertIn('String(localized: "RHR +\\(delta)")', app_model)
         self.assertIn('String(localized: "HRV −\\(percent)%")', app_model)
         # 240c48ae (#1671): the label now carries the reader's unit via UnitFormatter.skinTempSignalPhrase,
@@ -522,15 +500,11 @@ class HomeLocalizationTest(unittest.TestCase):
         self.assertIn('String(localized: "Respiration up")', app_model)
 
         self.assertIn("public enum Evidence", readiness)
-        self.assertIn("readinessEvidenceText", today)
-        self.assertIn("readinessDetailText", today)
-        self.assertIn('String(format: "%.\\(decimals)f", locale: AppLanguage.activeLocale, value)', today)
         self.assertNotIn("if let evidence = s.evidence", today)
         self.assertNotIn("LocalizedStringKey(s.detail)", today)
 
-        self.assertIn("badge: TodayRules.whoopBrandName", today)
-        self.assertIn('case .nutritionCsv: return String(localized: "Nutrition")', today)
-        self.assertIn('case .localCache: return String(localized: "Cached")', today)
+        self.assertIn('case .nutritionCsv:  return String(localized: "Nutrition")', today)
+        self.assertIn('case .localCache:    return String(localized: "Cached")', today)
 
         strings = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")["strings"]
         for key in (
@@ -558,15 +532,12 @@ class HomeLocalizationTest(unittest.TestCase):
 
     def test_apple_home_banner_and_suppression_contract_are_semantic(self) -> None:
         app_model = (ROOT / "Strand/App/AppModel.swift").read_text(encoding="utf-8")
-        banner = (ROOT / "Strand/Screens/HealthAlertBanner.swift").read_text(encoding="utf-8")
         illness = (ROOT / "Packages/StrandAnalytics/Sources/StrandAnalytics/IllnessSignalEngine.swift").read_text(encoding="utf-8")
 
         self.assertIn("struct HealthAlert: Equatable", app_model)
         self.assertIn("let message: IllnessSignalEngine.Message", app_model)
         self.assertIn("@Published var healthAlert: HealthAlert?", app_model)
         self.assertNotIn("? result.copy : nil", app_model)
-        self.assertIn("localizedHealthAlertCopy", banner)
-        self.assertNotIn("Text(alert)", banner)
         self.assertIn('suppressedBy.append("a hard or late workout")', illness)
         self.assertIn("public enum SuppressionReason", illness)
         self.assertIn("public let suppressionReasons: [SuppressionReason]", illness)
@@ -590,12 +561,7 @@ class HomeLocalizationTest(unittest.TestCase):
             self.assertEqual(expected, strings[key]["localizations"]["de"]["stringUnit"]["value"])
 
     def test_apple_home_count_catalogs_have_real_focus_plural_variations(self) -> None:
-        today = (ROOT / "Strand/Screens/TodayView.swift").read_text(encoding="utf-8")
         strings = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")["strings"]
-        self.assertNotIn('String(localized: "\\(repo.days.count) days · \\(repo.sleeps.count) sleeps")', today)
-        self.assertIn("localizedDayCount", today)
-        self.assertIn("localizedSleepCount", today)
-        self.assertIn("localizedWorkoutCount", today)
         for key in ("%lld days", "%lld sleeps", "%lld workouts"):
             for lang in ("en", *audit.LANGS, "it"):
                 localization = strings[key].get("localizations", {}).get(lang, {})

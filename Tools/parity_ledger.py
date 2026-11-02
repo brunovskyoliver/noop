@@ -58,7 +58,6 @@ SWIFT_EXCLUDED_GLOBS = (
     "Packages/StrandDesign/Sources/**/*.swift",
     "Strand/**/*.swift",
     "StrandiOS*/**/*.swift",
-    "NOOPWatch*/**/*.swift",
 )
 KOTLIN_EXCLUDED_GLOBS = (
     "android/app/src/main/java/com/noop/*.kt",
@@ -77,7 +76,6 @@ PRODUCTION_GLOBS = (
     "Packages/**/Sources/**/*.swift",
     "Strand/**/*.swift",
     "StrandiOS*/**/*.swift",
-    "NOOPWatch*/**/*.swift",
     "android/app/src/main/java/**/*.kt",
 )
 TEST_GLOBS = (
@@ -91,9 +89,18 @@ REFERENCE_GLOBS = (
     "Strand/**/*.swift",
     "StrandTests/**/*.swift",
     "StrandiOS*/**/*.swift",
-    "NOOPWatch*/**/*.swift",
     "android/**/*.kt",
 )
+
+# Swift targets named by Android comments whose Swift side went with the macOS app and its classic
+# screens. The Kotlin code is still live; only the comment's pointer has no target any more.
+REMOVED_SWIFT_TWIN_TARGETS = frozenset({
+    "ActiveWorkoutClockTests", "CoachLauncherSheet", "CoachPrompts.suggestions", "HRVStatusSection",
+    "HostedCard.route", "TodayVitalCardTests", "TodayView.calibrationDetail", "TodayView.hrEmptyTitle",
+    "VitalitySection.paceRow", "WorkoutDetailView.exportRoute", "daytimeLoading", "metricKindValues",
+    "motionStrip", "statusChip", "testEachHostedCardOpensItsOwnTab",
+    "testScoreState_gapLongerThanTheChargeWindow_calibratesRatherThanCarrying",
+})
 
 # These names coincide but describe different semantics, so they are not parity twins.
 # Keep each exclusion exact; all other same-named constants remain subject to the normal pairing audit.
@@ -2280,6 +2287,8 @@ def scan(root: Path, twin_map: dict) -> ScanResult:
             if reference.attached_function is not None else None
         )
         if claimant in accepted_missing_claimants:
+            continue
+        if reference.language == "kotlin" and reference.raw_target in REMOVED_SWIFT_TWIN_TARGETS:
             continue
         target_language = "Kotlin" if reference.language == "swift" else "Swift"
         findings.append(

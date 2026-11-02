@@ -5,7 +5,7 @@
 #
 #   Tools/release.sh <version> <asset> [<asset> ...] [-- "release notes"]
 #   e.g. Tools/release.sh 4.7.0 \
-#          dist/NOOP-v4.7.0-macos.zip dist/NOOP-v4.7.0.ipa dist/NOOP-v4.7.0.apk \
+#          dist/NOOP-v4.7.0.ipa dist/NOOP-v4.7.0.apk \
 #          -- "Bug fixes and the new Lab Book."
 #
 # GitHub is CANONICAL — the release is created there FIRST (ryanbr/noop, marked
@@ -166,20 +166,19 @@ else
   echo "  ⚠ $HERE/forgejo-release.sh not found/executable — skipping mirror" >&2
 fi
 
-# ── 3. Distribution manifests (AltStore source + Homebrew cask) ───────────────
+# ── 3. Distribution manifests (AltStore source) ───────────────
 # These were historically run BY HAND and got silently skipped for the whole
-# 6.0.x batch, stranding every iOS-sideload and `brew` user on 5.3.0 (#560/#562).
+# 6.0.x batch, stranding every iOS-sideload user on 5.3.0 (#560/#562).
 # Wire them into the release so the manifests can never fall behind a release
 # again. Best-effort: a manifest miss warns but never fails the run (the GitHub
 # release already succeeded). Only fires when the matching asset is present and
 # the GitHub release was OK. The AltStore source file is committed/pushed by the
-# normal `git push` of altstore-source.json; the cask script self-pushes its tap.
+# normal `git push` of altstore-source.json.
 if [ "$GH_OK" = 1 ]; then
-  IPA_ASSET=""; ZIP_ASSET=""
+  IPA_ASSET=""
   for f in ${ASSETS[@]+"${ASSETS[@]}"}; do
     case "$f" in
       *NOOP-v*-ios.ipa|*NOOP-v*.ipa) [ -z "$IPA_ASSET" ] && [ -f "$f" ] && IPA_ASSET="$f" ;;
-      *NOOP-v*-macos.zip|*NOOP-v*macos*.zip) [ -f "$f" ] && ZIP_ASSET="$f" ;;
     esac
   done
   if [ -n "$IPA_ASSET" ] && [ -x "$HERE/update-altstore-source.sh" ]; then
@@ -187,11 +186,6 @@ if [ "$GH_OK" = 1 ]; then
     "$HERE/update-altstore-source.sh" "$VER" "$IPA_ASSET" \
       || echo "  ⚠ AltStore source update failed — run Tools/update-altstore-source.sh by hand" >&2
     echo "  ↳ remember to commit + push altstore-source.json"
-  fi
-  if [ -n "$ZIP_ASSET" ] && [ -x "$HERE/update-homebrew-cask.sh" ]; then
-    echo "→ refreshing Homebrew cask for $VER"
-    "$HERE/update-homebrew-cask.sh" "$VER" "$ZIP_ASSET" \
-      || echo "  ⚠ Homebrew cask update failed — run Tools/update-homebrew-cask.sh by hand" >&2
   fi
 fi
 
