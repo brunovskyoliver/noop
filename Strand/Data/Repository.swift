@@ -188,6 +188,23 @@ final class Repository: ObservableObject {
     /// tier), so none of them can fold a different history than the score was computed against. nil until
     /// the first refresh.
     @Published private(set) var chargeBaselines: ChargeBaselines.Resolved?
+    /// The rows `chargeBaselines(forDay:)` reads, kept unblended because imports only seed a baseline.
+    private var chargeImportedRows: [DailyMetric] = []
+    private var chargeOwnRows: [DailyMetric] = []
+
+    /// The Charge baselines for one day's score: the nights before that day, so a breakdown of a past day
+    /// describes the baseline that day's headline was scored against. nil until the first refresh.
+    func chargeBaselines(forDay day: String) -> ChargeBaselines.Resolved? {
+        guard chargeBaselines != nil else { return nil }
+        let oldest = Baselines.cutoffKey(todayKey: day, carryDays: ChargeBaselines.windowDays)
+        let inWindow: (DailyMetric) -> Bool = { $0.day >= oldest && $0.day < day }
+        return ChargeBaselines.resolve(imported: chargeImportedRows.filter(inWindow), own: chargeOwnRows.filter(inWindow),
+                                       anchorDay: day, hrvEpoch: Baselines.hrvBaselineEpoch(),
+                                       recoveryEpoch: Baselines.recoveryBaselineEpoch(),
+                                       rest: { [self] d in
+                                           IntelligenceEngine.chargeRestQuality(d, rest: { restScore(for: $0) })
+                                       })
+    }
     /// Cached sleep sessions over the recent window, oldest→newest.
     @Published var sleeps: [CachedSleepSession] = []
     /// Imported (export-verbatim) sleep figures by day. Empty until a WHOOP import lands.
@@ -236,7 +253,9 @@ final class Repository: ObservableObject {
     /// instant the strap trace covers the window, recomputed from the SAME samples the graph/zones use, so
     /// per-workout Effort can never read blank while the day total counted it. Honest: only filled when the
     /// window is genuinely dense (the same minSamples gate the HR reconcile uses); never fabricated.
-    struct StrainProfile: Sendable { let hrMax: Double; let sex: String }
+    /// See `refreshEnergyAnchors`.
+    var energyAnchors: (awake: Double?, vo2max: Double?) = (nil, nil)
+    struct StrainProfile: Sendable { let hrMax: Double; let sex: String; var user: UserProfile? = nil }
     var strainProfile: StrainProfile?
 
     /// Emit one Workouts & GPS test-mode line iff the mode is on and a sink is wired. The cheap
@@ -857,6 +876,8 @@ final class Repository: ObservableObject {
         let importedSleep: [String: ImportedSleepFigures]
         let days: [DailyMetric]
         let chargeBaselines: ChargeBaselines.Resolved
+        let chargeImported: [DailyMetric]
+        let chargeOwn: [DailyMetric]
         let sleeps: [CachedSleepSession]
         let vitalRows: [SourcedDailyMetric]
         let freshness: RepositoryFreshness
@@ -1005,6 +1026,7 @@ final class Repository: ObservableObject {
                 chargeBaselines: ChargeBaselines.resolve(imported: imported, own: computed,
                                                          anchorDay: chargeAnchorDay,
                                                          hrvEpoch: hrvEpoch, recoveryEpoch: recoveryEpoch),
+                chargeImported: imported, chargeOwn: computed,
                 sleeps: Self.mergeSleep(imported: impSleep, computed: compSleep),
                 vitalRows: Self.sourceRows(imported: imported, computed: computed, apple: apple),
                 freshness: Self.computeFreshness(imported: imported, computed: computed, apple: apple,
@@ -1035,6 +1057,8 @@ final class Repository: ObservableObject {
         self.computedSleepFigures = computedFigures
         self.days = merged.days
         self.chargeBaselines = merged.chargeBaselines
+        self.chargeImportedRows = merged.chargeImported
+        self.chargeOwnRows = merged.chargeOwn
         self.sleeps = merged.sleeps
         self.vitalRows = merged.vitalRows
         self.freshness = merged.freshness
@@ -2093,6 +2117,14 @@ final class Repository: ObservableObject {
         return DeviceFamily.isWhoop5Registry(model: d?.model, brand: d?.brand)
     }
 
+    /// True when the active strap is a WHOOP 4.0 in the registry; false for no store or another brand.
+    func activeStrapIsWhoop4() -> Bool {
+        guard let store else { return false }
+        let devices = (try? DeviceRegistryStore(dbQueue: store.registryWriter).all()) ?? []
+        let d = devices.first(where: { $0.id == deviceId })
+        return DeviceFamily.forRegistryDevice(model: d?.model, brand: d?.brand) == .whoop4
+    }
+
     /// The active device's registry display name (nickname, else "Brand Model") for a screen that names
     /// the source of what it plots — the Deep Timeline's source row. `nil` when the active id has no
     /// registry row (the pre-registry seeded strap), so the caller keeps its legacy "My WHOOP" copy.
@@ -2599,7 +2631,7 @@ final class Repository: ObservableObject {
         case "sleep_performance": return Self.restFallback(daily: d)
         case "steps":            return d.steps.map(Double.init)
         case "active_kcal": return nil // The legacy daily column includes resting energy.
-        case "energy_kcal": return d.activeKcalEst
+        case "energy_kcal": return d.totalKcalEst
         default:                 return nil
         }
     }
@@ -3233,12 +3265,12 @@ final class Repository: ObservableObject {
         }
     }
 
-    // MARK: - Auto-detect workouts , the opt-in "Looks like a workout?" Today prompt
+    // MARK: - Auto-detect workouts , the "Looks like a workout?" prompt (on by default)
     //
     // This is the only path that can create a NEW visible automatically suggested workout, and it still
-    // saves nothing until the user taps Save. The analytics detector remains internal for daily scoring
-    // and overlap enrichment; it no longer persists generic `sport="detected"` rows. Both historical
-    // dismissal stores are honored during the transition so retiring that writer cannot resurrect a bout.
+    // saves nothing until the user taps Save. `WorkoutDetector` drives it, the same detector daily scoring
+    // uses; it no longer persists generic `sport="detected"` rows. `AutoWorkoutDetector` runs only as the
+    // Test Centre shadow below. Both historical dismissal stores are honored.
 
     /// Dismissed AUTO-DETECT spans ("startSec:endSec"). The key remains distinct for backup compatibility;
     /// candidate selection also honors the legacy `dismissedDetected` intervals during the transition.
@@ -3253,25 +3285,24 @@ final class Repository: ObservableObject {
         "\(w.startSec):\(w.endSec)"
     }
 
-    /// Select the newest published suggestion after applying BOTH durable dismissal contracts. The
-    /// suggestion detector historically used exact span tokens; engine-created rows used half-open overlap
-    /// tombstones because a re-score could shift the inferred boundary by a few seconds. Preserve both
-    /// semantics so neither kind of prior dismissal can reappear during the unification.
-    nonisolated static func selectAutoDetectCandidate(
+    /// Every suggestion still open, newest first: not saved, not dismissed in either store, and settled.
+    /// Dismissals match by overlap, because a re-scan or this detector's different boundaries can move a span.
+    /// A session that ended within `stitchMaxGapS` may be mid-rest and may yet grow, so it waits.
+    nonisolated static func selectAutoDetectCandidates(
         _ candidates: [DetectedWorkout],
+        savedSpans: [SavedWorkoutSpan],
         autoDismissedTokens: [String],
-        detectedDismissedTokens: [String]
-    ) -> DetectedWorkout? {
-        let exact = Set(autoDismissedTokens)
-        let legacy = WorkoutSource.parseDismissedSpans(detectedDismissedTokens)
+        detectedDismissedTokens: [String],
+        now: Int
+    ) -> [DetectedWorkout] {
+        let dismissed = WorkoutSource.parseDismissedSpans(autoDismissedTokens + detectedDismissedTokens)
         return candidates
-            .filter { candidate in
-                !exact.contains(autoDetectToken(candidate))
-                    && !legacy.contains { span in
-                        candidate.startSec < span.end && span.start < candidate.endSec
-                    }
+            .filter { c in
+                c.endSec <= now - WorkoutDetector.stitchMaxGapS
+                    && !dismissed.contains { c.startSec < $0.end && $0.start < c.endSec }
+                    && !savedSpans.contains { c.startSec < $0.endSec && $0.startSec < c.endSec }
             }
-            .max(by: { $0.startSec < $1.startSec })
+            .sorted { $0.startSec > $1.startSec }
     }
 
     /// Hard cap on the dismissed-span list , a backstop so the UserDefaults array can't grow without
@@ -3308,43 +3339,39 @@ final class Repository: ObservableObject {
         return fresh.indices.filter { keepIdx.contains($0) }.map { fresh[$0] }
     }
 
-    /// Run the opt-in detector over the last `daysBack` days of HR and return the single best
-    /// candidate to suggest , newest first , that is NOT already saved and NOT previously dismissed.
-    /// Returns nil when the toggle is off, there's nothing to suggest, or detection finds nothing.
-    /// PURE READ: never writes a workout. The window scans from `daysBack` days ago to now.
-    func autoDetectCandidate(daysBack: Int = 2) async -> DetectedWorkout? {
-        guard PuffinExperiment.autoDetectWorkoutsEnabled else { return nil }
+    /// Run `WorkoutDetector` over the last `daysBack` days and return every open suggestion, newest first.
+    /// Empty when the toggle is off or nothing is found. PURE READ: never writes a workout.
+    func autoDetectCandidates(daysBack: Int = 2) async -> [DetectedWorkout] {
+        guard PuffinExperiment.autoDetectWorkoutsEnabled else { return [] }
         let now = Int(Date().timeIntervalSince1970)
         let from = now - daysBack * 86_400
         let samples = await hrSamples(from: from, to: now, limit: 200_000)
-        guard samples.count >= 2 else { return nil }
+        guard samples.count >= 2 else { return [] }
         let hr = samples.map { (ts: $0.ts, bpm: $0.bpm) }
 
-        // Resting HR: most recent nightly RHR in range, else the detector's own default (60).
+        // Resting HR: most recent nightly RHR in range, else the detector's own derivation.
         let restingBpm = days.last(where: { $0.restingHr != nil })?.restingHr
 
         // Exclude every already-saved workout window (any source , strap, manual, imported, detected).
         let saved = await workoutRows()
         let savedSpans = saved.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) }
 
-        // 2026-09-21: motion + HRmax now reach the detector. Motion is the stored gravity stream (one
-        // batched read over the same window the HR read already pays for , no new strap traffic), so the
-        // suggestion can require real movement instead of trusting an elevated-HR-only window. maxHR is
-        // the injected strain profile's effective HRmax (user override else Tanaka); when no profile was
-        // injected the detector falls back to its legacy fixed floor, byte-identical to before.
         let gravity = await gravitySamplesUnion(from: from, to: now)
-        let motion = AutoWorkoutDetector.motionPoints(gravity)
-        let maxHR = strainProfile.map { Int($0.hrMax.rounded()) }.flatMap { $0 > 0 ? $0 : nil }
+        let maxHR = strainProfile.map(\.hrMax).flatMap { $0 > 0 ? $0 : nil }
+        // One strap's steps, as `strapStepTicks` reads them: two cumulative counters must not interleave.
+        var steps: [StepSample] = []
+        if let store = await ensureStore() {
+            for id in importedReadIds where steps.isEmpty {
+                steps = (try? await store.stepSamples(deviceId: id, from: from, to: now, limit: 200_000)) ?? []
+            }
+        }
 
-        // Workouts & GPS test mode: when on, run the diagnostic twin which returns the SAME candidates
-        // detect(...) does (it reuses detect verbatim) plus the inputs / thresholds / per-window why trace,
-        // tagged `.workouts`. Zero-cost when off: the gate is one UserDefaults bool read inside emitWorkouts,
-        // and detectTrace is only called on that branch, so the default path runs the untraced detect.
-        let candidates: [DetectedWorkout]
+        // Workouts & GPS test mode: the old detector's trace and shadow comparison, as diagnostics only.
         if TestCentre.active(.workouts), workoutsLog != nil {
-            let (results, trace) = AutoWorkoutDetector.detectTrace(
+            let motion = AutoWorkoutDetector.motionPoints(gravity)
+            let (_, trace) = AutoWorkoutDetector.detectTrace(
                 hr: hr, restingBpm: restingBpm, motion: motion, savedSpans: savedSpans,
-                maxHR: maxHR, minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin,
+                maxHR: maxHR.map { Int($0.rounded()) }, minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin,
                 path: "autoDetect")
             for line in trace { emitWorkouts(line) }
             let labelledSpans = saved
@@ -3360,30 +3387,33 @@ final class Repository: ObservableObject {
                 hr: hr, restingBpm: restingBpm, motion: nil, savedSpans: labelledSpans) {
                 emitWorkouts(line)
             }
-            candidates = results
-        } else {
-            candidates = AutoWorkoutDetector.detect(hr: hr, restingBpm: restingBpm,
-                                                    motion: motion, savedSpans: savedSpans,
-                                                    maxHR: maxHR,
-                                                    minimumSustainedMinutes: AutoWorkoutDetector.minSustainedMin)
         }
-        return Self.selectAutoDetectCandidate(
-            candidates,
+
+        await refreshEnergyAnchors()
+        let profile = strainProfile?.user.map(withEnergyAnchors)
+        let method = PuffinExperiment.effortMethod
+        let candidates = await Task.detached(priority: .utility) {
+            WorkoutDetector.detect(hr: samples, gravity: gravity, restingHR: restingBpm.map(Double.init), maxHR: maxHR,
+                                   age: profile.flatMap { $0.age > 0 ? $0.age : nil }, profile: profile,
+                                   effortMethod: method, steps: steps)
+                .map { session in
+                    let ticks = StepsCounter.stepsInWindow(steps.filter { $0.ts >= session.start && $0.ts <= session.end })
+                    let count = ticks.map { Int((Double($0) / max(profile?.stepTicksPerStep ?? 1, 0.5)).rounded()) }
+                    return DetectedWorkout(session: session, steps: count.flatMap { $0 > 0 ? $0 : nil })
+                }
+        }.value
+        return Self.selectAutoDetectCandidates(
+            candidates, savedSpans: savedSpans,
             autoDismissedTokens: autoDetectDismissedSpans,
-            detectedDismissedTokens: dismissedDetectedSpans)
+            detectedDismissedTokens: dismissedDetectedSpans, now: now)
     }
 
     /// SAVE a suggested window as a manual-style "Workout" (generic sport , we don't claim a sport we
-    /// didn't classify). Built through the same `WorkoutSource.buildManualRow` the manual sheet uses, so
-    /// it persists exactly like a hand-entered session under the strap source. After saving, the screen
-    /// re-queries (the new saved span now excludes this window from re-suggestion).
+    /// didn't classify), with the exact seconds and everything the detector computed for it. After saving,
+    /// the screen re-queries (the new saved span now excludes this window from re-suggestion).
     @discardableResult
     func saveDetectedWorkout(_ w: DetectedWorkout) async -> Bool {
-        let durationMin = max(1, w.durationMin)
-        let start = Date(timeIntervalSince1970: TimeInterval(w.startSec))
-        guard let row = WorkoutSource.buildManualRow(start: start, durationMin: durationMin,
-                                                     sport: "Workout", avgHr: w.avgBpm,
-                                                     energyKcal: nil) else { return false }
+        guard let row = WorkoutSource.buildRow(fromSuggestion: w) else { return false }
         await saveManualWorkout(row)
         return true
     }

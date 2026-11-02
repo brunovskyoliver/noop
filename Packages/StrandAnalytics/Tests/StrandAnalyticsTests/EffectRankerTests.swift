@@ -1,8 +1,8 @@
 import XCTest
 @testable import StrandAnalytics
 
-/// EffectRanker — the lag-aware "what moves your Charge" ranker. The oracle for the Android
-/// EffectRankerTest; keep the two in lockstep (same fixtures, same numbers).
+/// EffectRanker — the fixed-lag "what moves your Charge" ranker. The Android EffectRankerTest still
+/// pins the old three-lag search; this suite is no longer its oracle.
 final class EffectRankerTests: XCTestCase {
 
     private func ymd(_ y: Int, _ m: Int, _ d: Int) -> String { String(format: "%04d-%02d-%02d", y, m, d) }
@@ -67,6 +67,48 @@ final class EffectRankerTests: XCTestCase {
                                        behavior: "Alcohol", outcome: "Charge")
     }
 
+    /// A same-day dip with a flat next morning used to win at lag 0. The ranker no longer looks there.
+    func testSameDayEffectIsNotSearchedFor() {
+        var outcome: [String: Double] = [:]
+        var behaviorDays: Set<String> = []
+        for d in 1...30 { outcome[ymd(2026, 6, d)] = 70 + jitter(d) }
+        for i in 0..<6 {
+            let d = 1 + 4 * i
+            behaviorDays.insert(ymd(2026, 6, d))
+            outcome[ymd(2026, 6, d)] = 50 + jitter(d)
+        }
+        let r = EffectRanker.rank(behaviors: ["Alcohol": behaviorDays],
+                                  controls: ["Alcohol": Set(outcome.keys).subtracting(behaviorDays)],
+                                  outcomeByDay: outcome, outcome: "Charge").first
+        XCTAssertEqual(r?.lag, 1)
+        XCTAssertGreaterThanOrEqual(r!.effect.cohensD, 0)   // lag 0 would read strongly negative
+    }
+
+    /// Ten behaviours with one borderline effect each. Each row alone clears p<.05 only for the
+    /// strongest; the family correction has to apply on this path as on BehaviorInsights.rank.
+    func testRankAppliesFamilyCorrection() {
+        var outcome: [String: Double] = [:]
+        for d in 1...28 { outcome[ymd(2026, 2, d)] = 70 + Double((d * 13) % 11) - 5 }
+        var behaviours: [String: Set<String>] = [:]
+        var controls: [String: Set<String>] = [:]
+        for b in 0..<10 {
+            let days = Set((1...27).filter { ($0 * (b + 3)) % 7 < 3 }.map { ymd(2026, 2, $0) })
+            behaviours["b\(b)"] = days
+            controls["b\(b)"] = Set((1...27).map { ymd(2026, 2, $0) }).subtracting(days)
+        }
+        let rows = EffectRanker.rank(behaviors: behaviours, controls: controls, outcomeByDay: outcome, outcome: "Charge")
+        let raw = rows.map { r in
+            BehaviorInsights.effect(behaviorDays: behaviours[r.behavior]!, controlDays: controls[r.behavior]!,
+                                    outcomeByDay: EffectRanker.shiftedOutcome(outcome, byLag: 1),
+                                    behavior: r.behavior, outcome: "Charge")!.pApprox
+        }
+        let adjusted = CorrelationEngine.benjaminiHochberg(raw)
+        for (i, r) in rows.enumerated() {
+            XCTAssertEqual(r.effect.pApprox, adjusted[i], accuracy: 1e-12)
+            XCTAssertEqual(r.effect.significant, adjusted[i] < 0.05)
+        }
+    }
+
     // MARK: - Group gate suppresses thin behaviours
 
     /// A behaviour logged on only 3 days can never clear min(nWith,nWithout) ≥ 5 at any lag, so
@@ -90,7 +132,7 @@ final class EffectRankerTests: XCTestCase {
 
     // MARK: - Ranking order matches BehaviorInsights.rank (significant first, |d| desc, name asc)
 
-    /// Two behaviours, both lag-0 same-day effects, with different effect magnitudes. The bigger
+    /// Two behaviours with different effect magnitudes on the outcome the morning after. The bigger
     /// |cohensD| ranks first; a name tiebreak applies only on identical effects.
     func testRankingOrder() {
         var outcome: [String: Double] = [:]
@@ -116,8 +158,8 @@ final class EffectRankerTests: XCTestCase {
                                                "Small": Set(outcome.keys).subtracting(small)],
                                     outcomeByDay: outcome, outcome: "Charge")
         XCTAssertEqual(out.map { $0.behavior }, ["Big", "Small"])   // |d| Big > Small
-        XCTAssertEqual(row(out, "Big")!.lag, 0)                     // both are same-day effects
-        XCTAssertEqual(row(out, "Small")!.lag, 0)
+        XCTAssertEqual(row(out, "Big")!.lag, 1)
+        XCTAssertEqual(row(out, "Small")!.lag, 1)
     }
 
     // MARK: - Confidence tiers from paired-day count

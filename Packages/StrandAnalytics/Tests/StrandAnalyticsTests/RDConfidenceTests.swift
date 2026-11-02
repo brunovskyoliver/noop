@@ -35,9 +35,13 @@ final class RDConfidenceTests: XCTestCase {
     }
 
     func testFullBaselineReadsSolid() {
-        var days: [DailyMetric] = []
-        for i in 1...30 { days.append(d(i, hrv: i % 2 == 0 ? 62 : 58, rhr: 52)) }
-        days.append(d(31, hrv: 60, rhr: 52))
+        // The HRV baseline window sits before the 7-day reading: 30 nights + that week.
+        let days = (0..<37).map { i in
+            DailyMetric(day: Baselines.cutoffKey(todayKey: "2024-03-31", carryDays: 36 - i), totalSleepMin: nil,
+                        efficiency: nil, deepMin: nil, remMin: nil, lightMin: nil, disturbances: nil, restingHr: 52,
+                        avgHrv: i % 2 == 0 ? 62 : 58, recovery: nil, strain: 10, exerciseCount: nil,
+                        spo2Pct: nil, skinTempDevC: nil, respRateBpm: nil)
+        }
         XCTAssertEqual(ReadinessEngine.evaluate(days: days).confidence, .solid)
     }
 }

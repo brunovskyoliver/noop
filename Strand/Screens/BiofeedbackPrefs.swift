@@ -28,6 +28,7 @@ enum BiofeedbackPrefs {
         static let stWasBelow   = "biofeedback.stOnsetWasBelow"
         static let stLastFire   = "biofeedback.stOnsetLastFire"
         static let stPendingEdge = "biofeedback.stOnsetPendingEdge"
+        static let stLastObserved = "biofeedback.stOnsetLastObserved"
     }
 
     // MARK: - L1 locked resonance pace
@@ -105,7 +106,8 @@ enum BiofeedbackPrefs {
             baselineRMSSD: d.double(forKey: K.stBaseline),
             wasBelow: d.bool(forKey: K.stWasBelow),
             lastFireAt: d.integer(forKey: K.stLastFire),
-            pendingEdgeAt: d.integer(forKey: K.stPendingEdge))
+            pendingEdgeAt: d.integer(forKey: K.stPendingEdge),
+            lastObservedAt: d.integer(forKey: K.stLastObserved))
     }
 
     static func saveStressState(_ s: StressOnsetDetector.State) {
@@ -113,5 +115,6 @@ enum BiofeedbackPrefs {
         d.set(s.wasBelow, forKey: K.stWasBelow)
         d.set(s.lastFireAt, forKey: K.stLastFire)
         d.set(s.pendingEdgeAt, forKey: K.stPendingEdge)
+        d.set(s.lastObservedAt, forKey: K.stLastObserved)
     }
 }

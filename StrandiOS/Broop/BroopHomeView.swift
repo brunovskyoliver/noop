@@ -751,7 +751,7 @@ enum BroopVitals {
         let d = UserDefaults.standard
         let system = UnitSystem(rawValue: d.string(forKey: UnitPrefs.systemKey) ?? "") ?? .metric
         let temperature = UnitPrefs.resolveTemperature(system: system, override: d.string(forKey: UnitPrefs.temperatureKey) ?? "")
-        let skinPref = SkinTempDisplay.Kind(rawValue: d.string(forKey: UnitPrefs.skinTempDisplayKey) ?? "") ?? .absolute
+        let skinPref = SkinTempDisplay.preferred(raw: d.string(forKey: UnitPrefs.skinTempDisplayKey) ?? "", isWhoop4: repo.activeStrapIsWhoop4())
         let all = BodyVitalSigns.readings(sourceRows: repo.vitalMetricRows, temperatureUnit: temperature,
                                           spo2CandidateByDay: spo2CandidateByDay,
                                           hrvOverCountByDay: hrvOverCountByDay,

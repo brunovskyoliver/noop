@@ -437,6 +437,18 @@ enum WorkoutSource: Equatable {
                           zonesJSON: nil, notes: nil, steps: nil)
     }
 
+    /// The row for a suggestion the user confirmed: exact seconds, and the bout's computed figures rather
+    /// than blanks waiting for a later rescore.
+    static func buildRow(fromSuggestion w: DetectedWorkout, now: Date = Date()) -> WorkoutRow? {
+        guard let r = buildManualRowFromSpan(start: Date(timeIntervalSince1970: TimeInterval(w.startSec)),
+                                             end: Date(timeIntervalSince1970: TimeInterval(w.endSec)),
+                                             sport: "Workout", avgHr: w.avgBpm, energyKcal: w.energyKcal, now: now)
+        else { return nil }
+        return WorkoutRow(startTs: r.startTs, endTs: r.endTs, sport: r.sport, source: r.source,
+                          durationS: r.durationS, energyKcal: r.energyKcal, avgHr: r.avgHr, maxHr: w.peakBpm,
+                          strain: w.strain, distanceM: nil, zonesJSON: w.zonesJSON, notes: nil, steps: w.steps)
+    }
+
     /// Build a retroactive manual workout (source "manual", persisted under the strap deviceId by the
     /// caller — where v1.67's live sessions live). Returns nil when the input can't make an honest row.
     /// strain/zones stay nil: with no captured HR window an APPROXIMATE strain is never fabricated.

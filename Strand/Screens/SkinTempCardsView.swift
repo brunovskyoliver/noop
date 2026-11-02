@@ -803,8 +803,8 @@ private func prettyDay(_ key: String) -> String {
 
             BodyClockCard(
                 estimate: CircadianEngine.PhaseEstimate(
-                    tempMinHour: 5.2, acrophaseHours: 16.0, offsetVsScheduleMinutes: 38,
-                    confidence: .solid, note: "Your body clock looks later (a night-owl lean)."),
+                    tempMinHour: 5.2, acrophaseHours: 16.0,
+                    confidence: .solid, note: ""),
                 plan: CircadianEngine.JetLagPlan(
                     direction: .advance, totalShiftHours: 3, estimatedDays: 3,
                     days: [.init(dayIndex: 1, brightLightStartHour: 7, brightLightEndHour: 9,

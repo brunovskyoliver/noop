@@ -27,14 +27,14 @@ final class TrainingLoadTrimpTests: XCTestCase {
         XCTAssertEqual(StrainScorer.strainToTrimp(100), 7200, accuracy: 1e-6)
     }
 
-    /// A week at twice the TRIMP of the three before it reads ACWR ≈ 1.6 (4-week chronic includes the
-    /// hard week), and is flagged. On the Effort scale the same history read about 1.1.
+    /// A week at twice the TRIMP of the three before it reads 2.0: the baseline no longer contains the
+    /// hard week. On the Effort scale the same history read about 1.1.
     func testDoubledWeekReadsAsARealSpike() {
         let easy = StrainScorer.trimpToStrain(200), hard = StrainScorer.trimpToStrain(400)
         let days = (0..<28).map { i in day(i, strain: i < 21 ? easy : hard) }
         let (acute, chronic) = ReadinessEngine.calendarLoads(days.sorted { $0.day < $1.day }, through: days.last!.day)
         let ratio = (acute.reduce(0, +) / Double(acute.count)) / (chronic.reduce(0, +) / Double(chronic.count))
-        XCTAssertEqual(ratio, 1.6, accuracy: 0.01)
+        XCTAssertEqual(ratio, 2.0, accuracy: 0.01)
         XCTAssertLessThan(hard / easy, 1.15)   // why the Effort scale hid it
     }
 
@@ -44,9 +44,9 @@ final class TrainingLoadTrimpTests: XCTestCase {
         days += (50..<55).map { day($0, strain: 40) }            // 5 recent days after a 30-day gap
         let (acute, chronic) = ReadinessEngine.calendarLoads(days, through: days.last!.day)
         XCTAssertEqual(acute.count, 5)
-        XCTAssertEqual(chronic.count, 5)
+        XCTAssertEqual(chronic.count, 0)
         let r = ReadinessEngine.evaluate(days: days)
-        XCTAssertNil(r.acwr)                                     // 5 < 14 observed days: no ratio
+        XCTAssertNil(r.acwr)                                     // too few observed days: no ratio
     }
 
     func testDoubledTrimpDoublesWeeklyLoadAndCtlAtlTsb() {

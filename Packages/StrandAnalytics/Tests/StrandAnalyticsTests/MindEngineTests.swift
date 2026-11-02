@@ -208,6 +208,14 @@ final class MindEngineTests: XCTestCase {
 
     /// Scores built as an exact linear function of the window mean give r = −1; fewer than five check-ins
     /// give nothing.
+    func testCorrelationSkipsCheckInsWithOverlappingWindows() {
+        var signal: [(day: String, value: Double)] = []
+        for back in 0..<120 { signal.append((MindEngine.shift("2026-06-30", by: -back)!, Double(back * back % 13))) }
+        // Ten check-ins a week apart: a 14-day window keeps every other one.
+        let scores = (0..<10).map { (day: MindEngine.shift("2026-06-30", by: -$0 * 7)!, value: Double($0 * $0 % 5)) }
+        XCTAssertEqual(MindCheckIn.correlate(scores: scores, signal: signal, windowDays: 14)?.n, 5)
+    }
+
     func testCorrelationPairsEachCheckInWithItsWindow() {
         var signal: [(day: String, value: Double)] = []
         var scores: [(day: String, value: Double)] = []

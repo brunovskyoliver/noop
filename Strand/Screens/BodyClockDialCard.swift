@@ -8,11 +8,10 @@ import StrandDesign
 /// where it happened. Overlap is the whole message — the card exists so "was last night's timing right"
 /// is answerable at a glance, which the existing text-only `BodyClockCard` on Health cannot do.
 ///
-/// VOCABULARY. The caption measures `sleepWindowOffsetHours` — the distance between the two ARCS DRAWN —
-/// and NOT `offsetVsScheduleMinutes`, which compares the clock to the wearer's habitual schedule and is
-/// what the Health card already reports. The two disagree exactly when someone keeps a consistent
-/// schedule that does not suit their clock, and that is the case this dial exists to show, so captioning
-/// it with the other number would contradict the picture.
+/// The caption measures `sleepWindowOffsetHours`, the distance between the two ARCS DRAWN.
+///
+/// macOS only in practice, and left as it was: the iPhone app withdrew this comparison because the
+/// estimate tracks sleep timing itself (`CircadianEngine.PhaseEstimate`), and this dial has the same limit.
 ///
 /// Nothing here computes a metric: the window, the offset and the chronotype all come from
 /// `CircadianEngine`, byte-identical with the Kotlin twin. Only the drawing is per-platform.

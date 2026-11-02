@@ -193,10 +193,9 @@ public enum HRZones {
         for i in 0..<sorted.count {
             let dur: Double
             if i < sorted.count - 1 {
-                let gap = Double(sorted[i + 1].ts - sorted[i].ts)
-                // Guard against zero/negative or pathological gaps; cap at the median
-                // so a single huge wall-clock gap doesn't blow up one bucket.
-                dur = (gap > 0) ? min(gap, tailDuration) : tailDuration
+                // The shared interval rule: a banked 30 s stretch inside a 1 Hz workout keeps its time, a
+                // dropout carries none, and the zone chart agrees with the session's calories.
+                dur = Calories.creditedSeconds(from: sorted[i].ts, to: sorted[i + 1].ts)
             } else {
                 dur = tailDuration
             }

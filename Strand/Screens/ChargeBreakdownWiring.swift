@@ -16,14 +16,14 @@ import WhoopStore
 // Pure: no SwiftUI state, no I/O, no store access. Nothing here invents a number. The drivers come from
 // `RecoveryScorer.chargeDrivers` and the tier is SURFACED from `ScoreConfidence.charge` against the same
 // HRV baseline the drivers scored with, so the header and the rows agree by construction. The baselines
-// themselves are resolved once per refresh by `Repository.chargeBaselines` (#2525).
+// themselves come from `Repository.chargeBaselines(forDay:)`, the same fold the engine scored that day with.
 enum ChargeBreakdownWiring {
 
     /// The ordered Charge driver rows for `row` plus its confidence tier, scored against `baselines`, or nil
     /// when the night cannot honestly score (missing HRV or resting HR, or an HRV baseline that is not yet
     /// usable) so the sheet hides rather than showing fabricated rows.
     ///
-    /// `baselines` is `Repository.chargeBaselines`: the baselines resolved with the engine's own rule
+    /// `baselines` is `Repository.chargeBaselines(forDay: row.day)`: resolved with the engine's own rule
     /// (#2525), so these rows and the tier describe the baseline the Charge headline was scored against.
     /// Before #2525 this folded the whole visible history itself, which kept every imported night and every
     /// stored own night while the headline kept only the recent own nights plus the import; the page could
@@ -51,6 +51,7 @@ enum ChargeBreakdownWiring {
             rhrBaseline: rhrBase.usable ? rhrBase : nil,
             respBaseline: respBase.usable ? respBase : nil,
             sleepPerf: sleepPerfPercent.map { $0 / 100.0 },
+            sleepCenter: baselines.restCenter,
             skinTempDev: row.skinTempDevC)
         return (drivers, ScoreConfidence.charge(recovery: row.recovery, hrvBaseline: hrvBase))
     }

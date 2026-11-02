@@ -76,7 +76,7 @@ final class TonightPlanInputsTests: XCTestCase {
     /// mean asleep (which made it read 100 % beside a planner asking for more).
     func testHoursVsNeededFallbackUsesThePlannersNeed() {
         let days = (1...20).map { day($0, sleepMin: 450, eff: 0.9) }
-        let need = SleepModel.debtNeedMin(days: days, age: 35)
+        let need = SleepModel.debtNeedMin(age: 35)
         let metric = SleepModel.hoursVsNeededSeries(days: days, importedSleep: [:], age: 35)
         XCTAssertEqual(metric.series.last ?? -1, 450 / need * 100, accuracy: 1e-9)
     }

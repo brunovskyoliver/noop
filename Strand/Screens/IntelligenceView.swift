@@ -126,16 +126,7 @@ struct IntelligenceView: View {
     /// enough scored nights to anchor honestly — never a fabricated number.
     private var forecast: RecoveryForecast? {
         let charge = intelligence.results.compactMap { $0.recovery }.reversed()
-        let effort = intelligence.results.compactMap { $0.strain }.reversed()
-        // Planned sleep tonight = the recent typical night (the honest "if you sleep ~Xh"
-        // assumption surfaced in the card), from the scored nights that have a sleep total.
-        let sleeps = intelligence.results.compactMap { $0.sleepMin }
-        let plannedHours = sleeps.isEmpty ? RecoveryForecaster.defaultNeedHours
-            : (sleeps.reduce(0, +) / Double(sleeps.count)) / 60.0
-        return RecoveryForecaster.forecast(recentCharge: Array(charge),
-                                           recentEffort: Array(effort),
-                                           todayEffort: intelligence.results.first?.strain,
-                                           plannedSleepHours: plannedHours)
+        return RecoveryForecaster.forecast(recentCharge: Array(charge))
     }
 
     /// The forecast hero — tomorrow-morning Charge as the canonical liquid `LiquidVessel` gauge in the
@@ -173,11 +164,11 @@ struct IntelligenceView: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Tomorrow's Charge estimate \(Int(f.charge.rounded())) plus or minus \(Int(f.band.rounded()))")
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("You'll likely wake around \(Int(f.charge.rounded())) ± \(Int(f.band.rounded())) Charge if you sleep about \(sleepHoursLabel(f.plannedSleepHours)) tonight.")
+                        Text("You'll likely wake around \(Int(f.charge.rounded())) ± \(Int(f.band.rounded())) Charge.")
                             .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Estimate from today's effort, your typical sleep and your \(f.nights)-night recovery baseline, not a measurement. Your real Charge is scored from tomorrow's HRV when you wake.")
+                        Text("A rough guide from your last \(f.nights) days of Charge, not a measurement. Your real Charge is scored from tomorrow's HRV when you wake.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -185,14 +176,6 @@ struct IntelligenceView: View {
                 }
             }
         }
-    }
-
-    /// "~7h" / "~7h 30m" for the planned-sleep assumption (hours rounded to the nearest 30 min).
-    private func sleepHoursLabel(_ hours: Double) -> String {
-        let half = (hours * 2).rounded() / 2
-        let h = Int(half)
-        let m = Int((half - Double(h)) * 60)
-        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     private var explainerCard: some View {

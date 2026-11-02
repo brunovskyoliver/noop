@@ -38,9 +38,8 @@ final class WorkoutDetectorTests: XCTestCase {
     }
 
     func testCaloriesRestingBelowThreshold() {
-        // HR below the 30% HRR active threshold → BMR rate (small per-sample).
-        // Threshold = 60 + 0.30*(190-60) = 99. bpm 80 < 99 → resting.
-        let hr = (0..<86400).map { HRSample(ts: $0, bpm: 80) }  // a full "day" of resting
+        // HR at resting → BMR rate. The curve leaves BMR above resting HR (`grossKcalPerS`).
+        let hr = (0..<86400).map { HRSample(ts: $0, bpm: 60) }  // a full "day" of resting
         let profile = UserProfile(weightKg: 80, heightCm: 180, age: 30, sex: "male")
         let (kcal, _) = Calories.estimateBoutCalories(hr, profile: profile, hrmax: 190, restingHR: 60)
         // 86400 s at BMR rate ≈ full BMR ≈ 1853.6 kcal/day.

@@ -79,7 +79,7 @@ public enum RecoveryScorer {
     /// baseline (`Baselines.strainCfg`) are supplied.
     public static let wActivityBalance: Double = 0.05
 
-    /// Logistic spread: ±2 z-units ≈ full Red–Green band (15%–95%).
+    /// Logistic spread: with the offset below, z −2 → 5, −1 → 22, 0 → 58, +1 → 87, +2 → 97.
     public static let logisticK: Double = 1.6
     /// Logistic offset so Z=0 → 58%.
     public static let logisticZ0: Double = -0.20
@@ -90,7 +90,7 @@ public enum RecoveryScorer {
     public static let bandRedMax: Double = 34.0
     public static let bandYellowMax: Double = 67.0
 
-    /// Sleep-performance center ("good night" at ~85% efficiency).
+    /// Rest-quality centre before the wearer has a usable personal one (Rest composite 85 of 100).
     public static let sleepPerfCenter: Double = 0.85
     /// Sleep-performance scale (±2 z spans the normal range).
     public static let sleepPerfScale: Double = 0.12
@@ -265,12 +265,20 @@ public enum RecoveryScorer {
     public struct DriverBaseline: Equatable, Sendable {
         public let mean: Double
         public let spread: Double
-        public init(mean: Double, spread: Double) {
-            self.mean = mean; self.spread = spread
+        /// See `BaselineState.logDomain`.
+        public let logDomain: Bool
+        public init(mean: Double, spread: Double, logDomain: Bool = false) {
+            self.mean = mean; self.spread = spread; self.logDomain = logDomain
         }
         public init(_ state: BaselineState) {
-            self.mean = state.baseline; self.spread = state.spread
+            self.mean = state.baseline; self.spread = state.spread; self.logDomain = state.logDomain
         }
+    }
+
+    /// z of a higher-is-better value against its baseline, in ln space when the baseline was built there.
+    static func zScore(_ value: Double, baseline b: DriverBaseline) -> Double {
+        b.logDomain ? zScore(log(max(value, 1.0)), mean: log(max(b.mean, 1.0)), spread: b.spread)
+                    : zScore(value, mean: b.mean, spread: b.spread)
     }
 
     /// Robust z-score using EWMA spread: (value − mean) / (1.253 × spread).
@@ -295,6 +303,8 @@ public enum RecoveryScorer {
     ///   - respBaseline: respiration baseline; nil drops the resp term.
     ///   - sleepPerf: Rest quality (Rest composite ÷100, 0..1; was raw efficiency);
     ///     nil drops the term.
+    ///   - sleepCenter: the wearer's usual Rest quality, the term's neutral point. nil uses the fixed
+    ///     `sleepPerfCenter` until a personal one exists.
     ///   - skinTempDev: skin-temperature deviation from the personal baseline (±°C,
     ///     `DailyMetric.skinTempDevC`). Entered as a SYMMETRIC penalty −|dev|/scale,
     ///     weight wSkinTemp. nil drops the term and the weights renormalize so the
@@ -320,6 +330,7 @@ public enum RecoveryScorer {
                                 rhrBaseline: DriverBaseline?,
                                 respBaseline: DriverBaseline?,
                                 sleepPerf: Double?,
+                                sleepCenter: Double? = nil,
                                 skinTempDev: Double? = nil,
                                 hrvBaselineUsable: Bool = true,
                                 recoveryIndexSlope: Double? = nil,
@@ -343,7 +354,7 @@ public enum RecoveryScorer {
         // signature is still detected and reported out-of-band (Charge trace + ChargeDrivers verdict)
         // so real firings can be counted first. See the MARK header for why, and swap in
         // `parasympatheticSaturation(hrvZ:rhrZ:).easedHrvZ` here to enable it.
-        terms.append((zScore(hrv, mean: hrvB.mean, spread: hrvB.spread), wHRV))
+        terms.append((zScore(hrv, baseline: hrvB), wHRV))
         // RHR term: lower is better → (μ − x) / σ.
         if let b = rhrBaseline {
             terms.append((zScore(b.mean, mean: rhr, spread: b.spread), wRHR))
@@ -352,9 +363,9 @@ public enum RecoveryScorer {
         if let r = resp, let b = respBaseline {
             terms.append((zScore(b.mean, mean: r, spread: b.spread), wResp))
         }
-        // Sleep-performance / Rest-quality term: no baseline needed; centered at SLEEP_PERF_CENTER.
+        // Rest-quality term: centred on the wearer's usual Rest, or the fixed centre until they have one.
         if let sp = sleepPerf {
-            terms.append(((sp - sleepPerfCenter) / sleepPerfScale, wSleep))
+            terms.append(((sp - (sleepCenter ?? sleepPerfCenter)) / sleepPerfScale, wSleep))
         }
         // Skin-temp term: SYMMETRIC penalty on |deviation| (illness/overreach). Any
         // drift from the personal baseline lowers Charge; added only when supplied.
@@ -400,6 +411,7 @@ public enum RecoveryScorer {
                                 rhrBaseline: BaselineState?,
                                 respBaseline: BaselineState?,
                                 sleepPerf: Double?,
+                                sleepCenter: Double? = nil,
                                 skinTempDev: Double? = nil,
                                 recoveryIndexSlope: Double? = nil,
                                 effortBaseline: BaselineState? = nil,
@@ -417,6 +429,7 @@ public enum RecoveryScorer {
                  rhrBaseline: rhrBaseline.flatMap { $0.usable ? $0 : nil }.map(DriverBaseline.init),
                  respBaseline: respBaseline.flatMap { $0.usable ? $0 : nil }.map(DriverBaseline.init),
                  sleepPerf: sleepPerf,
+                 sleepCenter: sleepCenter,
                  skinTempDev: skinTempDev,
                  hrvBaselineUsable: hrvBaseline.usable,
                  recoveryIndexSlope: recoveryIndexSlope,

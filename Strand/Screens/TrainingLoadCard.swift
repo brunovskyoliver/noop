@@ -15,7 +15,7 @@ import WhoopStore
 // Descriptive only: CTL/ATL/TSB never feed the Readiness level or any score. The loads are daily TRIMP
 // recovered from each day's stored Effort (`TrainingLoadEngine.dailyTrimp`), not the log-compressed
 // Effort itself. Long-horizon by nature, so the card models the full history rather
-// than the Trends range window (14+ contiguous days are needed before anything is drawn).
+// than the Trends range window (14+ observed days are needed before anything is drawn).
 //
 // Isolated in its own file on purpose: TrendsView already sits near the iOS type-check budget, so this
 // keeps its own inference cost out of that body.
@@ -75,7 +75,10 @@ struct TrainingLoadCard: View {
     /// Model straight from the training-load engine — NOT the paired `evaluateWithTrainingLoad`, which
     /// would also run the full Readiness synthesis this card never uses. Load = TRIMP from each day's Effort.
     private static func computeResult(days: [DailyMetric]) -> TrainingLoadEngine.Result {
-        TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(days))
+        // Today's Effort is still accruing and must not read as a full day.
+        TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(
+            days, before: AnalyticsEngine.dayString(Int(Date().timeIntervalSince1970),
+                                                    offsetSec: TimeZone.current.secondsFromGMT())))
     }
 
     /// Cached accessor used by `body`. Mirrors `CompareView.currentModel`: returns the memoized result
@@ -162,14 +165,14 @@ struct TrainingLoadCard: View {
         }
     }
 
-    // Honest empty state: name exactly how many consecutive Effort days are still needed.
+    // Honest empty state: name exactly how many Effort days are still needed.
     private func unavailableCard(contiguousDays: Int) -> some View {
         ChartCard(
             title: "Training Load",
             subtitle: String(localized: "Chronic vs acute load"),
             chart: {
                 VStack(spacing: NoopMetrics.space2) {
-                    Text("Needs \(Self.minimum)+ consecutive days of Effort to begin. \(contiguousDays) so far.")
+                    Text("Needs \(Self.minimum)+ days of Effort to begin. \(contiguousDays) so far.")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .multilineTextAlignment(.center)

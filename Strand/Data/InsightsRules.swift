@@ -72,15 +72,16 @@ enum InsightsRules {
     // shaping rather than duplicating it, one source of truth for [sport: days] / [day: Charge].
     static func computeActivityCosts(workouts: [WorkoutRow], days: [DailyMetric]) -> [ActivityCost] {
         // Local-day offset so the activity day key lands on the SAME calendar as DailyMetric.day
-        // (which IntelligenceEngine/WhoopImporter both bucket by local midnight, #277).
-        let tzOffset = TimeZone.current.secondsFromGMT()
+        // (which IntelligenceEngine/WhoopImporter both bucket by local midnight, #277). Per timestamp: a
+        // workout from before a DST change sits at that date's offset, not today's.
         var activityDaysBySport: [String: Set<String>] = [:]
         for w in workouts {
             // displaySport collapses the detector's "detected" token into one "Activity" bucket and
             // de-camelCases WHOOP sport names; manual/imported labels pass through unchanged.
             let sport = WorkoutSource.displaySport(w.sport)
             guard !sport.isEmpty else { continue }
-            let day = AnalyticsEngine.dayString(w.startTs, offsetSec: tzOffset)
+            let day = AnalyticsEngine.dayString(
+                w.startTs, offsetSec: TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(w.startTs))))
             activityDaysBySport[sport, default: []].insert(day)
         }
         var recoveryByDay: [String: Double] = [:]

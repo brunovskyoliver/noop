@@ -1,6 +1,180 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Stages vs. Typical · estimated" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fasi vs. abituale · stima"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fazy a typowe · szacunek"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фазы и норма · оценка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠阶段与平时对比 · 估算"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠階段與平時對比 · 估算"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phasen vs. Typisch · geschätzt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fases vs. habitual · estimado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phases vs. habituel · estimé"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fases vs. habitual · estimado"
+          }
+        }
+      }
+    },
+    "Duration · estimated" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durata · stima"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czas · szacunek"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Длительность · оценка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时长 · 估算"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時長 · 估算"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dauer · geschätzt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duración · estimada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durée · estimée"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duração · estimada"
+          }
+        }
+      }
+    },
+    "Restorative Sleep · estimated" : {
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonno ristoratore · stima"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sen regenerujący · szacunek"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановительный сон · оценка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复性睡眠 · 估算"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復性睡眠 · 估算"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erholsamer Schlaf · geschätzt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sueño reparador · estimado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sommeil réparateur · estimé"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sono reparador · estimado"
+          }
+        }
+      }
+    },
     "Heart-rate coverage" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -222307,65 +222481,6 @@
         }
       }
     },
-    "spiking (acute:chronic %@) - higher injury risk" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "schnellt hoch (akut:chronisch %@) - höheres Verletzungsrisiko"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "disparándose (agudo:crónico %@) - mayor riesgo de lesión"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "en pic (aigu:chronique %@) - risque de blessure accru"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "in impennata (acuto:cronico %@) - rischio di infortunio più alto"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kolce (ostre:przewlekłe %@) - większe ryzyko kontuzji"
-          }
-        },
-        "pt-PT" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "pico (agudo:crónico %@) - maior risco de lesões"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "резкий скачок (остр.:хрон. %@) - повышенный риск травмы"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "急剧上升（急性：慢性 %@）——受伤风险更高"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "急劇上升（急性：慢性 %@）——受傷風險更高"
-          }
-        }
-      }
-    },
     "stale · %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -265928,6 +266043,2801 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "昨晚的睡眠評分完成後，通知會總結你的睡眠和今天的狀態，腕帶會震動。"
+          }
+        }
+      }
+    },
+    "about the same as your previous 3 weeks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "etwa wie in deinen letzten 3 Wochen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "más o menos igual que tus 3 semanas anteriores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "à peu près comme vos 3 semaines précédentes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "circa come le tue 3 settimane precedenti"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mniej więcej tak samo jak w poprzednich 3 tygodniach"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "praticamente igual às tuas 3 semanas anteriores"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "примерно как за предыдущие 3 недели"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与你之前 3 周大致相同"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與你之前 3 週大致相同"
+          }
+        }
+      }
+    },
+    "%lld%% above your previous 3 weeks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% über deinen letzten 3 Wochen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% por encima de tus 3 semanas anteriores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% au-dessus de vos 3 semaines précédentes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% sopra le tue 3 settimane precedenti"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% powyżej poprzednich 3 tygodni"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% acima das tuas 3 semanas anteriores"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на %lld%% выше, чем за предыдущие 3 недели"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比你之前 3 周高 %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比你之前 3 週高 %lld%%"
+          }
+        }
+      }
+    },
+    "%lld%% below your previous 3 weeks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% unter deinen letzten 3 Wochen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% por debajo de tus 3 semanas anteriores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld %% en dessous de vos 3 semaines précédentes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% sotto le tue 3 settimane precedenti"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% poniżej poprzednich 3 tygodni"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%% abaixo das tuas 3 semanas anteriores"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на %lld%% ниже, чем за предыдущие 3 недели"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比你之前 3 周低 %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比你之前 3 週低 %lld%%"
+          }
+        }
+      }
+    },
+    "This week's training load against your previous 3 weeks. 1.00 means level." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Trainingslast dieser Woche im Vergleich zu deinen letzten 3 Wochen. 1,00 bedeutet gleich."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carga de entrenamiento de esta semana frente a tus 3 semanas anteriores. 1,00 significa igual."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La charge d'entraînement de cette semaine par rapport à vos 3 semaines précédentes. 1,00 signifie égale."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il carico di allenamento di questa settimana rispetto alle tue 3 settimane precedenti. 1,00 significa pari."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obciążenie treningowe z tego tygodnia w porównaniu z poprzednimi 3 tygodniami. 1,00 oznacza to samo."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A carga de treino desta semana face às tuas 3 semanas anteriores. 1,00 significa igual."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тренировочная нагрузка этой недели по сравнению с предыдущими 3 неделями. 1,00 означает то же самое."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本周训练负荷与你之前 3 周的对比。1.00 表示持平。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本週訓練負荷與你之前 3 週的對比。1.00 表示持平。"
+          }
+        }
+      }
+    },
+    "low - similar strain every day this week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "niedrig - diese Woche jeden Tag ähnliche Belastung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "baja: esfuerzo similar cada día esta semana"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "faible - effort similaire chaque jour cette semaine"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bassa: sforzo simile ogni giorno questa settimana"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "niska - podobny wysiłek każdego dnia w tym tygodniu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "baixa - esforço semelhante todos os dias esta semana"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "низкая: на этой неделе каждый день похожая нагрузка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低 - 本周每天的强度相近"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低 - 本週每天的強度相近"
+          }
+        }
+      }
+    },
+    "Your signals are aligned. A harder session is well backed today." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Signale stimmen überein. Eine härtere Einheit ist heute gut abgesichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus señales coinciden. Hoy una sesión más dura está bien respaldada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos signaux concordent. Une séance plus dure est bien soutenue aujourd'hui."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I tuoi segnali concordano. Oggi una sessione più dura è ben supportata."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje sygnały są zgodne. Dziś cięższy trening ma dobre oparcie."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os teus sinais estão alinhados. Hoje uma sessão mais dura está bem suportada."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваши показатели согласуются. Сегодня более тяжёлая тренировка вполне оправданна."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的各项信号一致。今天很适合进行强度更高的训练。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的各項訊號一致。今天很適合進行強度更高的訓練。"
+          }
+        }
+      }
+    },
+    "Needs %lld+ days of Effort to begin. %lld so far." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Start sind mindestens %lld Tage mit Effort nötig. Bisher %lld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se necesitan %lld+ días de Effort para empezar. Llevas %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il faut au moins %lld jours d'Effort pour commencer. %lld pour l'instant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servono almeno %lld giorni di Effort per iniziare. Finora %lld."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na start potrzeba co najmniej %lld dni z Effort. Na razie %lld."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "São precisos %lld+ dias de Effort para começar. Até agora %lld."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для начала нужно не менее %lld дней с Effort. Пока %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要至少 %lld 天的 Effort 才能开始。目前 %lld 天。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要至少 %lld 天的 Effort 才能開始。目前 %lld 天。"
+          }
+        }
+      }
+    },
+    "Training load needs %lld days of Effort. You have %lld so far." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Trainingslast braucht %lld Tage mit Effort. Bisher hast du %lld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carga de entrenamiento necesita %lld días de Effort. Llevas %lld."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La charge d'entraînement nécessite %lld jours d'Effort. Vous en avez %lld pour l'instant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il carico di allenamento richiede %lld giorni di Effort. Finora ne hai %lld."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obciążenie treningowe wymaga %lld dni z Effort. Na razie masz %lld."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A carga de treino precisa de %lld dias de Effort. Até agora tens %lld."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для тренировочной нагрузки нужно %lld дней с Effort. Пока у вас %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "训练负荷需要 %lld 天的 Effort。目前你有 %lld 天。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訓練負荷需要 %lld 天的 Effort。目前你有 %lld 天。"
+          }
+        }
+      }
+    },
+    "Optional trackers. Everything stays on %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionale Tracker. Alles bleibt auf %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguimientos opcionales. Todo permanece en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suivis facultatifs. Tout reste sur %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker opzionali. Tutto resta su %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcjonalne funkcje śledzenia. Wszystko zostaje na %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registos opcionais. Tudo fica em %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дополнительные трекеры. Всё остаётся на %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选追踪功能。所有数据都保留在 %@ 上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可選追蹤功能。所有資料都保留在 %@ 上。"
+          }
+        }
+      }
+    },
+    "Optional trackers. Turn them on to add their cards. Everything stays on %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optionale Tracker. Schalte sie ein, um ihre Karten hinzuzufügen. Alles bleibt auf %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguimientos opcionales. Actívalos para añadir sus tarjetas. Todo permanece en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suivis facultatifs. Activez-les pour ajouter leurs cartes. Tout reste sur %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker opzionali. Attivali per aggiungere le loro schede. Tutto resta su %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcjonalne funkcje śledzenia. Włącz je, aby dodać ich karty. Wszystko zostaje na %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registos opcionais. Ativa-os para adicionar os respetivos cartões. Tudo fica em %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дополнительные трекеры. Включите их, чтобы добавить карточки. Всё остаётся на %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选追踪功能。开启后会添加对应卡片。所有数据都保留在 %@ 上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可選追蹤功能。開啟後會新增對應卡片。所有資料都保留在 %@ 上。"
+          }
+        }
+      }
+    },
+    "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. On %@ only." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach einer Synchronisierung prüft NOOP deine jüngste Herzfrequenz auf eine anhaltend erhöhte Phase, die nach Training aussieht, und bietet an, sie zu speichern. Es schlägt nur vor. Nichts wird gespeichert, bis du auf „Sichern“ tippst, und du kannst jeden Vorschlag verwerfen. Wenn du dies deaktivierst, werden künftige Vorschläge gestoppt, dein bestehender Trainingsverlauf bleibt jedoch erhalten. Nur auf %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de una sincronización, NOOP revisa tu frecuencia cardíaca reciente buscando un tramo sostenido y elevado que parezca ejercicio y ofrece guardarlo. Solo sugiere. No se guarda nada hasta que tocas Guardar, y puedes descartar cualquier sugerencia. Al desactivarlo, se detienen las sugerencias futuras, pero se conserva el historial de entrenamientos existente. Solo en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après une synchronisation, NOOP examine votre fréquence cardiaque récente à la recherche d'une période soutenue et élevée qui ressemble à de l'exercice, et propose de l'enregistrer. Il ne fait que suggérer. Rien n'est enregistré tant que vous n'appuyez pas sur Enregistrer, et vous pouvez ignorer toute suggestion. La désactivation interrompt les suggestions futures tout en conservant votre historique d'entraînement existant. Sur %@ uniquement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dopo una sincronizzazione, NOOP esamina la tua frequenza cardiaca recente alla ricerca di un tratto prolungato ed elevato che sembra esercizio fisico e propone di salvarlo. Si limita sempre a suggerire, niente viene salvato finché non tocchi Salva, e puoi ignorare qualsiasi suggerimento. Disattivandolo, le proposte future si interrompono, ma la cronologia degli allenamenti esistente viene conservata. Solo su %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Po synchronizacji NOOP sprawdza Twoje ostatnie tętno pod kątem trwałego, podwyższonego odcinka rozciągającego, który wygląda jak ćwiczenie, i proponuje jego zapisanie. Zawsze tylko sugeruje. Nic nie zostanie zapisane, dopóki nie klikniesz Zapisz. Możesz odrzucić każdą sugestię. Wyłączenie tej funkcji zatrzyma przyszłe sugestie, ale zachowa dotychczasową historię treningów. Tylko w %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Após uma sincronização, o NOOP analisa a tua frequência cardíaca recente em busca de um alongamento sustentado e elevado que pareça exercício e oferece-se para o guardar. Apenas sugere. Nada é guardado até tocar em Guardar e pode descartar qualquer sugestão. Desativar esta opção impede sugestões futuras, mas mantém o histórico de treinos existente. Apenas em %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "После синхронизации NOOP просматривает недавний пульс в поисках устойчивого повышенного отрезка, похожего на тренировку, и предлагает его сохранить. Это только предложение. Ничего не сохраняется, пока вы не нажмёте «Сохранить», и любое предложение можно отклонить. Если отключить эту функцию, новые предложения перестанут появляться, а существующая история тренировок сохранится. Только на %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步后，NOOP 会检查你近期的心率，寻找一段看起来像运动的、持续升高的区段，并建议保存它。它只会建议，在你点击「保存」之前不会保存任何内容，你也可以忽略任何建议。关闭此功能会停止今后的建议，但会保留现有的锻炼历史记录。仅在 %@ 上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步後，NOOP 會檢查你近期的心率，尋找一段看起來像運動的、持續升高的區段，並建議保存它。它只會建議，在你點擊「儲存」之前不會保存任何內容，你也可以忽略任何建議。關閉此功能會停止日後的建議，但會保留現有的鍛鍊歷史記錄。僅在 %@ 上。"
+          }
+        }
+      }
+    },
+    "± %lld yr model error · a population estimate to follow over time, not a biological age" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld J. Modellfehler · eine Bevölkerungsschätzung, die du über die Zeit verfolgen kannst, kein biologisches Alter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld años de error del modelo · una estimación poblacional para seguir en el tiempo, no una edad biológica"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld ans d’erreur du modèle · une estimation de population à suivre dans le temps, pas un âge biologique"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld anos de erro do modelo · uma estimativa populacional para acompanhar ao longo do tempo, não uma idade biológica"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld anni di errore del modello · una stima di popolazione da seguire nel tempo, non un’età biologica"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld lat błędu modelu · szacunek populacyjny do śledzenia w czasie, nie wiek biologiczny"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "± %lld лет погрешности модели · популяционная оценка для наблюдения во времени, а не биологический возраст"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型误差 ± %lld 岁 · 用于长期跟踪的人群估算值,并非生物学年龄"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型誤差 ± %lld 歲 · 用於長期追蹤的族群估算值,並非生物學年齡"
+          }
+        }
+      }
+    },
+    "Mostly steady, with irregular intervals noted. A wrist sensor cannot tell why, and this is not a diagnosis." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überwiegend gleichmäßig, unregelmäßige Intervalle festgestellt. Ein Handgelenksensor kann den Grund nicht erkennen, und dies ist keine Diagnose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mayormente estable, con intervalos irregulares observados. Un sensor de muñeca no puede saber por qué, y esto no es un diagnóstico."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plutôt régulier, avec des intervalles irréguliers relevés. Un capteur au poignet ne peut pas en connaître la cause, et ceci n’est pas un diagnostic."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maioritariamente estável, com intervalos irregulares registados. Um sensor de pulso não consegue saber porquê, e isto não é um diagnóstico."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per lo più regolare, con intervalli irregolari rilevati. Un sensore da polso non può dirne il motivo e questa non è una diagnosi."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przeważnie równomiernie, odnotowano nieregularne odstępy. Czujnik na nadgarstku nie ustali przyczyny i to nie jest diagnoza."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В основном ровно, отмечены нерегулярные интервалы. Датчик на запястье не может определить причину, и это не диагноз."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大体平稳,记录到不规则间期。腕部传感器无法判断原因,这也不是诊断。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大致平穩,記錄到不規則間期。腕部感測器無法判斷原因,這也不是診斷。"
+          }
+        }
+      }
+    },
+    "Irregular intervals noted" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unregelmäßige Intervalle festgestellt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalos irregulares observados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalles irréguliers relevés"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalos irregulares registados"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalli irregolari rilevati"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odnotowano nieregularne odstępy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отмечены нерегулярные интервалы"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录到不规则间期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄到不規則間期"
+          }
+        }
+      }
+    },
+    "Irregular intervals" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unregelmäßige Intervalle"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalos irregulares"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalles irréguliers"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalos irregulares"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalli irregolari"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieregularne odstępy"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нерегулярные интервалы"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不规则间期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不規則間期"
+          }
+        }
+      }
+    },
+    "LF/HF ratio" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LF/HF-Verhältnis"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relación LF/HF"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rapport LF/HF"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rácio LF/HF"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rapporto LF/HF"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stosunek LF/HF"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Соотношение LF/HF"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LF/HF 比值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LF/HF 比值"
+          }
+        }
+      }
+    },
+    "Low- vs high-frequency power in your HRV. A description of the signal, not a measure of stress or nervous-system tone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nieder- gegenüber hochfrequenter Leistung deiner HRV. Eine Beschreibung des Signals, kein Maß für Stress oder Nervensystem-Tonus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Potencia de baja frente a alta frecuencia en tu VFC. Describe la señal, no mide el estrés ni el tono del sistema nervioso."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puissance basse fréquence contre haute fréquence de ta VFC. Une description du signal, pas une mesure du stress ou du tonus nerveux."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Potência de baixa versus alta frequência na tua VFC. Uma descrição do sinal, não uma medida do stress ou do tónus do sistema nervoso."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Potenza a bassa rispetto ad alta frequenza della tua HRV. Descrive il segnale, non misura lo stress né il tono del sistema nervoso."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moc niskich względem wysokich częstotliwości w Twoim HRV. Opis sygnału, a nie miara stresu ani napięcia układu nerwowego."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мощность низких и высоких частот вашей ВСР. Это описание сигнала, а не мера стресса или тонуса нервной системы."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV 中低频与高频功率之比。这是对信号的描述,不是压力或神经系统张力的测量。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV 中低頻與高頻功率之比。這是對訊號的描述,不是壓力或神經系統張力的測量。"
+          }
+        }
+      }
+    },
+    "High-frequency band of your HRV, in ms². It mostly follows breathing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hochfrequenzband deiner HRV, in ms². Es folgt vor allem der Atmung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banda de alta frecuencia de tu VFC, en ms². Sigue sobre todo la respiración."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bande haute fréquence de ta VFC, en ms². Elle suit surtout la respiration."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banda de alta frequência da tua VFC, em ms². Acompanha sobretudo a respiração."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banda ad alta frequenza della tua HRV, in ms². Segue soprattutto il respiro."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasmo wysokich częstotliwości Twojego HRV, w ms². Podąża głównie za oddechem."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Высокочастотный диапазон вашей ВСР, в мс². В основном следует за дыханием."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV 的高频段,单位 ms²。主要随呼吸变化。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV 的高頻段,單位 ms²。主要隨呼吸變化。"
+          }
+        }
+      }
+    },
+    "Approximate, wide error (Uth 2004, from trained men)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungefähr, große Fehlerspanne (Uth 2004, an trainierten Männern)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aproximado, error amplio (Uth 2004, en hombres entrenados)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approximatif, large marge d’erreur (Uth 2004, chez des hommes entraînés)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aproximado, erro amplo (Uth 2004, em homens treinados)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approssimativo, errore ampio (Uth 2004, su uomini allenati)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przybliżone, duży błąd (Uth 2004, na trenujących mężczyznach)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приблизительно, большая погрешность (Uth 2004, на тренированных мужчинах)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近似值,误差较大(Uth 2004,基于受训男性)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近似值,誤差較大(Uth 2004,基於受訓男性)"
+          }
+        }
+      }
+    },
+    "better than your usual night, supporting recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "besser als deine übliche Nacht, unterstützt die Erholung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mejor que tu noche habitual, favorece la recuperación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "meilleure que ta nuit habituelle, soutient la récupération"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "melhor do que a tua noite habitual, favorece a recuperação"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "migliore della tua notte abituale, favorisce il recupero"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lepsza niż Twoja zwykła noc, wspiera regenerację"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "лучше вашей обычной ночи, поддерживает восстановление"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好于你平常的夜晚,有助于恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "優於你平常的夜晚,有助於恢復"
+          }
+        }
+      }
+    },
+    "below your usual night, limiting recovery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unter deiner üblichen Nacht, begrenzt die Erholung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "por debajo de tu noche habitual, limita la recuperación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en dessous de ta nuit habituelle, limite la récupération"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abaixo da tua noite habitual, limita a recuperação"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sotto la tua notte abituale, limita il recupero"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "poniżej Twojej zwykłej nocy, ogranicza regenerację"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "хуже вашей обычной ночи, ограничивает восстановление"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低于你平常的夜晚,限制恢复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低於你平常的夜晚,限制恢復"
+          }
+        }
+      }
+    },
+    "A rough estimate" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine grobe Schätzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una estimación aproximada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une estimation approximative"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una stima approssimativa"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przybliżone oszacowanie"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma estimativa aproximada"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приблизительная оценка"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粗略估计"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粗略估計"
+          }
+        }
+      }
+    },
+    "An estimate from your heart-rate rhythm, which mostly follows when you sleep." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Schätzung aus deinem Herzfrequenzrhythmus, der vor allem deinen Schlafzeiten folgt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una estimación a partir de tu ritmo de frecuencia cardíaca, que sigue sobre todo tus horas de sueño."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une estimation à partir de ton rythme cardiaque, qui suit surtout tes heures de sommeil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una stima dal ritmo della tua frequenza cardiaca, che segue soprattutto gli orari in cui dormi."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oszacowanie na podstawie rytmu tętna, który zależy głównie od pory snu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma estimativa a partir do teu ritmo de frequência cardíaca, que segue sobretudo as horas de sono."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценка по ритму пульса, который в основном зависит от времени сна."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据心率节律得出的估计，它主要随睡眠时间变化。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根據心率節律得出的估計，它主要隨睡眠時間變化。"
+          }
+        }
+      }
+    },
+    "Your body looks strained. Signals up: %@. No alcohol, stress, sauna, hard workout or travel logged, which does not rule them out. Consider taking it easy. On-device estimate, not a diagnosis." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Körper wirkt belastet. Erhöhte Signale: %@. Kein Alkohol, Stress, Sauna, hartes Training oder Reise erfasst, was sie aber nicht ausschließt. Lass es eher ruhig angehen. Schätzung auf dem Gerät, keine Diagnose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu cuerpo parece sobrecargado. Señales elevadas: %@. No hay alcohol, estrés, sauna, entrenamiento duro ni viaje registrados, lo que no los descarta. Plantéate ir con calma. Estimación en el dispositivo, no un diagnóstico."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ton corps semble éprouvé. Signaux en hausse : %@. Aucun alcool, stress, sauna, entraînement intense ou voyage enregistré, ce qui ne les exclut pas. Envisage de lever le pied. Estimation sur l’appareil, pas un diagnostic."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo corpo sembra sotto sforzo. Segnali in aumento: %@. Nessun alcol, stress, sauna, allenamento duro o viaggio registrato, il che non li esclude. Valuta di andarci piano. Stima sul dispositivo, non una diagnosi."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organizm wygląda na obciążony. Podwyższone sygnały: %@. Brak zapisanego alkoholu, stresu, sauny, ciężkiego treningu lub podróży, co ich nie wyklucza. Rozważ spokojniejszy dzień. Oszacowanie na urządzeniu, nie diagnoza."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O teu corpo parece sobrecarregado. Sinais elevados: %@. Sem álcool, stress, sauna, treino intenso ou viagem registados, o que não os exclui. Considera abrandar. Estimativa no dispositivo, não um diagnóstico."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Организм выглядит перегруженным. Повышенные сигналы: %@. Алкоголь, стресс, сауна, тяжёлая тренировка или поездка не отмечены, но это их не исключает. Стоит поберечь себя. Оценка на устройстве, не диагноз."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的身体看起来有些吃力。升高的信号：%@。未记录饮酒、压力、桑拿、高强度训练或旅行，但这并不能排除它们。可以考虑放松一些。这是设备端估计，并非诊断。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的身體看起來有些吃力。升高的訊號：%@。未記錄飲酒、壓力、桑拿、高強度訓練或旅行，但這並不能排除它們。可以考慮放鬆一些。這是裝置端估計，並非診斷。"
+          }
+        }
+      }
+    },
+    "Population estimate, not your data. Answer the question on days with and without %@ and this becomes yours." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevölkerungsschätzung, nicht deine Daten. Beantworte die Frage an Tagen mit und ohne %@, dann wird daraus deine."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimación poblacional, no son tus datos. Responde a la pregunta en días con y sin %@ y pasará a ser tuya."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimation de population, pas tes données. Réponds à la question les jours avec et sans %@ et elle deviendra la tienne."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stima sulla popolazione, non i tuoi dati. Rispondi alla domanda nei giorni con e senza %@ e diventerà tua."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oszacowanie populacyjne, nie Twoje dane. Odpowiadaj na pytanie w dni z %@ i bez, a stanie się Twoje."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimativa populacional, não os teus dados. Responde à pergunta em dias com e sem %@ e passa a ser tua."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оценка по популяции, а не ваши данные. Отвечайте на вопрос в дни с %@ и без, и оценка станет вашей."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是人群估计，不是你的数据。在有和没有 %@ 的日子回答问题后，它就会变成你的。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是族群估計，不是你的資料。在有和沒有 %@ 的日子回答問題後，它就會變成你的。"
+          }
+        }
+      }
+    },
+    "population" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bevölkerung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "población"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "population"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "popolazione"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "populacja"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "população"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "популяция"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "人群"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "族群"
+          }
+        }
+      }
+    },
+    "A %@ tonight tends to line up with about %@ lower on tomorrow’s %@. Population estimate, not your data." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ heute Abend geht meist mit etwa %2$@ weniger bei %3$@ morgen einher. Bevölkerungsschätzung, nicht deine Daten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ esta noche suele coincidir con unos %2$@ menos en %3$@ de mañana. Estimación poblacional, no son tus datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ce soir va souvent de pair avec environ %2$@ de moins sur %3$@ de demain. Estimation de population, pas tes données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ stasera tende a coincidere con circa %2$@ in meno su %3$@ di domani. Stima sulla popolazione, non i tuoi dati."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dziś wieczorem zwykle idzie w parze z około %2$@ niższym wynikiem %3$@ jutro. Oszacowanie populacyjne, nie Twoje dane."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ esta noite costuma coincidir com cerca de %2$@ a menos em %3$@ de amanhã. Estimativa populacional, não os teus dados."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ сегодня вечером обычно совпадает примерно с %2$@ ниже по показателю %3$@ завтра. Оценка по популяции, а не ваши данные."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今晚 %1$@ 通常对应明天的 %3$@ 低约 %2$@。这是人群估计，不是你的数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今晚 %1$@ 通常對應明天的 %3$@ 低約 %2$@。這是族群估計，不是你的資料。"
+          }
+        }
+      }
+    },
+    "A %@ tonight tends to line up with about %@ higher on tomorrow’s %@. Population estimate, not your data." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ heute Abend geht meist mit etwa %2$@ mehr bei %3$@ morgen einher. Bevölkerungsschätzung, nicht deine Daten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ esta noche suele coincidir con unos %2$@ más en %3$@ de mañana. Estimación poblacional, no son tus datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ce soir va souvent de pair avec environ %2$@ de plus sur %3$@ de demain. Estimation de population, pas tes données."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ stasera tende a coincidere con circa %2$@ in più su %3$@ di domani. Stima sulla popolazione, non i tuoi dati."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dziś wieczorem zwykle idzie w parze z około %2$@ wyższym wynikiem %3$@ jutro. Oszacowanie populacyjne, nie Twoje dane."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ esta noite costuma coincidir com cerca de %2$@ a mais em %3$@ de amanhã. Estimativa populacional, não os teus dados."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ сегодня вечером обычно совпадает примерно с %2$@ выше по показателю %3$@ завтра. Оценка по популяции, а не ваши данные."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今晚 %1$@ 通常对应明天的 %3$@ 高约 %2$@。这是人群估计，不是你的数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今晚 %1$@ 通常對應明天的 %3$@ 高約 %2$@。這是族群估計，不是你的資料。"
+          }
+        }
+      }
+    },
+    "Dose-response curve. Each extra %@ lines up with about %@ on %@, population estimate." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosis-Wirkungs-Kurve. Jede zusätzliche Einheit %1$@ geht mit etwa %2$@ bei %3$@ einher, Bevölkerungsschätzung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Curva dosis-respuesta. Cada %1$@ extra coincide con unos %2$@ en %3$@, estimación poblacional."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Courbe dose-réponse. Chaque %1$@ en plus va de pair avec environ %2$@ sur %3$@, estimation de population."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Curva dose-risposta. Ogni %1$@ in più coincide con circa %2$@ su %3$@, stima sulla popolazione."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Krzywa dawka-odpowiedź. Każda dodatkowa jednostka %1$@ to około %2$@ dla %3$@, oszacowanie populacyjne."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Curva dose-resposta. Cada %1$@ extra coincide com cerca de %2$@ em %3$@, estimativa populacional."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кривая доза-эффект. Каждая дополнительная единица %1$@ соответствует примерно %2$@ для %3$@, оценка по популяции."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剂量反应曲线。每增加一 %1$@，%3$@ 约变化 %2$@，这是人群估计。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "劑量反應曲線。每增加一 %1$@，%3$@ 約變化 %2$@，這是族群估計。"
+          }
+        }
+      }
+    },
+    "You'll likely wake around %lld ± %lld Charge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du wachst wahrscheinlich mit etwa %lld ± %lld Charge auf."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probablemente despertarás con alrededor de %lld ± %lld de Charge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu te réveilleras probablement autour de %lld ± %lld de Charge."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probabilmente ti sveglierai con circa %lld ± %lld di Charge."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prawdopodobnie obudzisz się z Charge około %lld ± %lld."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Provavelmente acordarás com cerca de %lld ± %lld de Charge."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вероятно, вы проснётесь с Charge около %lld ± %lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你醒来时的 Charge 可能在 %lld ± %lld 左右。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你醒來時的 Charge 可能在 %lld ± %lld 左右。"
+          }
+        }
+      }
+    },
+    "A range this wide held on %lld%% of your last %lld days." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein so breiter Bereich traf an %lld %% deiner letzten %lld Tage zu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un rango así de amplio se cumplió en el %lld %% de tus últimos %lld días."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une plage aussi large s’est vérifiée sur %lld %% de tes %lld derniers jours."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un intervallo così ampio ha retto nel %lld%% dei tuoi ultimi %lld giorni."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tak szeroki zakres sprawdził się w %lld%% z ostatnich %lld dni."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um intervalo assim tão largo verificou-se em %lld%% dos teus últimos %lld dias."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Такой широкий диапазон оправдался в %lld%% из последних %lld дней."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这么宽的范围在你最近 %2$lld 天中的 %1$lld%% 成立。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這麼寬的範圍在你最近 %2$lld 天中的 %1$lld%% 成立。"
+          }
+        }
+      }
+    },
+    "A rough guide from your last %lld days of Charge, not a measurement. Your real Charge is scored from tomorrow's HRV when you wake." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein grober Richtwert aus deinen letzten %lld Tagen Charge, keine Messung. Deine echte Charge wird beim Aufwachen aus der HRV von morgen berechnet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una guía aproximada a partir de tus últimos %lld días de Charge, no una medición. Tu Charge real se calcula con la VFC de mañana al despertar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un repère approximatif tiré de tes %lld derniers jours de Charge, pas une mesure. Ta vraie Charge est calculée à partir de la VFC de demain à ton réveil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una guida approssimativa dai tuoi ultimi %lld giorni di Charge, non una misurazione. La tua Charge reale viene calcolata dall’HRV di domani al risveglio."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przybliżona wskazówka z ostatnich %lld dni Charge, a nie pomiar. Prawdziwa wartość Charge powstaje z jutrzejszego HRV po przebudzeniu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma orientação aproximada dos teus últimos %lld dias de Charge, não uma medição. A tua Charge real é calculada a partir da VFC de amanhã ao acordar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Примерный ориентир по Charge за последние %lld дней, а не измерение. Настоящий Charge рассчитывается по завтрашней ВСР при пробуждении."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是根据你最近 %lld 天 Charge 得出的粗略参考，不是测量值。真实 Charge 会在你醒来时根据明天的 HRV 计算。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是根據你最近 %lld 天 Charge 得出的粗略參考，不是測量值。真實 Charge 會在你醒來時根據明天的 HRV 計算。"
+          }
+        }
+      }
+    },
+    "Your HRV dipped at a resting heart rate. Want a minute to breathe?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine HRV ist bei Ruhepuls gefallen. Möchtest du eine Minute atmen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu VFC bajó con la frecuencia cardíaca en reposo. ¿Quieres un minuto para respirar?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta VFC a baissé à fréquence cardiaque de repos. Tu veux une minute pour respirer ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La tua HRV è calata a frequenza cardiaca di riposo. Vuoi un minuto per respirare?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje HRV spadło przy tętnie spoczynkowym. Chcesz minutę na oddech?"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tua VFC desceu com a frequência cardíaca em repouso. Queres um minuto para respirar?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваша ВСР снизилась при пульсе покоя. Хотите минуту подышать?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 HRV 在静息心率下降低了。想花一分钟呼吸吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 HRV 在靜息心率下降低了。想花一分鐘呼吸嗎？"
+          }
+        }
+      }
+    },
+    "Sleep timing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafzeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horario de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horaires de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orari del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pory snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Horário de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время сна"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠时间"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠時間"
+          }
+        }
+      }
+    },
+    "Last night vs your usual" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Nacht im Vergleich zu sonst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anoche frente a lo habitual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nuit dernière par rapport à d’habitude"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La scorsa notte rispetto al solito"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnia noc a Twoja norma"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A noite passada face ao habitual"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прошлая ночь и ваше обычное время"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚与平时对比"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚與平時對比"
+          }
+        }
+      }
+    },
+    "Sleep timing dial" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafzeiten-Anzeige"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esfera de horario de sueño"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cadran des horaires de sommeil"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quadrante degli orari del sonno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarcza pór snu"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrador do horário de sono"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Циферблат времени сна"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠时间表盘"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠時間錶盤"
+          }
+        }
+      }
+    },
+    "Your usual" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Üblicher"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo habitual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ton habitude"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo solito"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoja norma"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O teu habitual"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обычно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的平时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的平時"
+          }
+        }
+      }
+    },
+    "The dashed arc is your usual sleep over the last 4 weeks. Tonight's bedtime comes from the sleep planner." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der gestrichelte Bogen zeigt deinen üblichen Schlaf der letzten 4 Wochen. Die Schlafenszeit für heute kommt aus dem Schlafplaner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El arco discontinuo es tu sueño habitual de las últimas 4 semanas. La hora de dormir de hoy viene del planificador de sueño."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’arc en pointillés montre ton sommeil habituel sur les 4 dernières semaines. L’heure de coucher de ce soir vient du planificateur de sommeil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’arco tratteggiato è il tuo sonno abituale delle ultime 4 settimane. L’orario di stasera viene dal pianificatore del sonno."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przerywany łuk to Twój typowy sen z ostatnich 4 tygodni. Dzisiejsza pora snu pochodzi z planera snu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arco tracejado é o teu sono habitual nas últimas 4 semanas. A hora de deitar de hoje vem do planeador de sono."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пунктирная дуга показывает ваш обычный сон за последние 4 недели. Время отхода ко сну на сегодня берётся из планировщика сна."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚线弧表示你最近 4 周的平时睡眠。今晚的就寝时间来自睡眠规划。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虛線弧表示你最近 4 週的平時睡眠。今晚的就寢時間來自睡眠規劃。"
+          }
+        }
+      }
+    },
+    "Last 4 weeks · %lld nights" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte 4 Wochen · %lld Nächte"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Últimas 4 semanas · %lld noches"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 dernières semaines · %lld nuits"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultime 4 settimane · %lld notti"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnie 4 tygodnie · nocy: %lld"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Últimas 4 semanas · %lld noites"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последние 4 недели · ночей: %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 4 周 · %lld 晚"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 4 週 · %lld 晚"
+          }
+        }
+      }
+    },
+    "Sleep regularity, 7 days" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafregelmäßigkeit, 7 Tage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regularidad del sueño, 7 días"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Régularité du sommeil, 7 jours"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regolarità del sonno, 7 giorni"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regularność snu, 7 dni"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regularidade do sono, 7 dias"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регулярность сна, 7 дней"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠规律性，7 天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠規律性，7 天"
+          }
+        }
+      }
+    },
+    "Free-day midsleep" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlafmitte an freien Tagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Punto medio del sueño en días libres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Milieu du sommeil les jours libres"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metà del sonno nei giorni liberi"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Środek snu w dni wolne"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponto médio do sono em dias livres"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Середина сна в выходные"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休息日睡眠中点"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休息日睡眠中點"
+          }
+        }
+      }
+    },
+    "The middle of your sleep before Saturday and Sunday wake-ups." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Mitte deines Schlafs vor dem Aufwachen an Samstag und Sonntag."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El punto medio de tu sueño antes de despertar el sábado y el domingo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le milieu de ton sommeil avant les réveils du samedi et du dimanche."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La metà del sonno prima dei risvegli di sabato e domenica."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Środek snu przed pobudkami w sobotę i niedzielę."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ponto médio do teu sono antes de acordares ao sábado e ao domingo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Середина сна перед пробуждением в субботу и воскресенье."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周六和周日醒来前的睡眠中点。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週六和週日醒來前的睡眠中點。"
+          }
+        }
+      }
+    },
+    "A rough guide for drinks, adjusted a little for your effort. Food adds about a fifth more, and thirst is enough for most people. Not medical advice. Logged on %@ only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein grober Richtwert für Getränke, leicht an deine Anstrengung angepasst. Essen liefert etwa ein Fünftel zusätzlich, und für die meisten reicht der Durst als Hinweis. Keine medizinische Beratung. Nur auf %@ erfasst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una guía aproximada para bebidas, ajustada un poco a tu esfuerzo. La comida aporta alrededor de una quinta parte más, y la sed basta para la mayoría. No es consejo médico. Registrado solo en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un repère approximatif pour les boissons, légèrement ajusté à ton effort. L’alimentation apporte environ un cinquième de plus, et la soif suffit à la plupart des gens. Pas un avis médical. Enregistré uniquement sur %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una guida approssimativa per le bevande, adattata un po’ al tuo sforzo. Il cibo aggiunge circa un quinto in più e per la maggior parte delle persone basta la sete. Non è un consiglio medico. Registrato solo su %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przybliżona wskazówka dotycząca napojów, lekko dopasowana do wysiłku. Jedzenie dostarcza około jednej piątej więcej, a większości osób wystarcza pragnienie. To nie porada medyczna. Zapisywane tylko na: %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma orientação aproximada para bebidas, ajustada um pouco ao teu esforço. A comida acrescenta cerca de um quinto, e a sede basta para a maioria das pessoas. Não é aconselhamento médico. Registado apenas em %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Примерный ориентир для напитков, немного учитывает вашу нагрузку. Еда даёт ещё около пятой части, и большинству людей достаточно ориентироваться на жажду. Это не медицинская рекомендация. Записывается только здесь: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "饮水的粗略参考，会根据你的运动量略作调整。食物还会额外提供约五分之一，而且对多数人来说，口渴就足以作为提示。并非医疗建议。仅记录在%@上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "飲水的粗略參考，會根據你的運動量略作調整。食物還會額外提供約五分之一，而且對多數人來說，口渴就足以作為提示。並非醫療建議。僅記錄在%@上。"
+          }
+        }
+      }
+    },
+    "Motion data covers %lld%% of this. Walking in the rest can read as stress." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewegungsdaten decken %lld %% davon ab. Gehen im Rest kann als Stress erscheinen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los datos de movimiento cubren el %lld %% de esto. Caminar en el resto puede interpretarse como estrés."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les données de mouvement couvrent %lld %% de cette période. La marche sur le reste peut passer pour du stress."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I dati di movimento coprono il %lld%% di questo periodo. Camminare nel resto può sembrare stress."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dane o ruchu obejmują %lld%% tego okresu. Chodzenie w pozostałym czasie może wyglądać jak stres."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os dados de movimento cobrem %lld%% disto. Caminhar no restante pode parecer stress."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Данные о движении покрывают %lld%% этого времени. Ходьба в остальное время может выглядеть как стресс."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运动数据覆盖其中的 %lld%%。其余时间的步行可能被读作压力。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "運動資料涵蓋其中的 %lld%%。其餘時間的步行可能被讀作壓力。"
+          }
+        }
+      }
+    },
+    "Charge is calculated from this, so they move together by construction." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge wird daraus berechnet, daher bewegen sich beide zwangsläufig gemeinsam."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge se calcula a partir de esto, así que se mueven juntos por construcción."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La Charge est calculée à partir de cette valeur, donc elles évoluent ensemble par construction."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La Charge è calcolata da questo valore, quindi si muovono insieme per costruzione."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge jest z tego obliczany, więc z założenia zmieniają się razem."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Charge é calculada a partir disto, por isso movem-se juntas por construção."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge рассчитывается на основе этого показателя, поэтому они меняются вместе по построению."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge 由此计算得出，所以两者必然同步变化。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charge 由此計算得出，所以兩者必然同步變化。"
+          }
+        }
+      }
+    },
+    "95% interval" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "95-%-Intervall"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalo del 95 %"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalle à 95 %"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervallo al 95%"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przedział 95%"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalo de 95%"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Интервал 95%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "95% 区间"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "95% 區間"
+          }
+        }
+      }
+    },
+    "difference" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Differenz"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "diferencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "différence"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "differenza"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "różnica"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "diferença"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разница"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "差值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "差值"
+          }
+        }
+      }
+    },
+    "An association in your own logged days, not a cause. A behaviour needs days both with and without it; significance needs at least five of each. The p-value is corrected for testing many behaviours at once." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Zusammenhang in deinen eigenen erfassten Tagen, keine Ursache. Ein Verhalten braucht Tage mit und ohne es; Signifikanz braucht je mindestens fünf. Der p-Wert ist dafür korrigiert, dass viele Verhaltensweisen zugleich getestet werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una asociación en tus propios días registrados, no una causa. Un comportamiento necesita días con y sin él; la significación necesita al menos cinco de cada. El valor p está corregido por probar muchos comportamientos a la vez."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une association dans tes propres jours enregistrés, pas une cause. Un comportement nécessite des jours avec et sans lui ; la significativité en demande au moins cinq de chaque. La valeur p est corrigée pour le test simultané de nombreux comportements."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un’associazione nei tuoi giorni registrati, non una causa. Un comportamento richiede giorni con e senza di esso; la significatività ne richiede almeno cinque per tipo. Il valore p è corretto per aver testato molti comportamenti insieme."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Związek w Twoich zapisanych dniach, a nie przyczyna. Zachowanie wymaga dni z nim i bez niego; istotność wymaga co najmniej pięciu każdego rodzaju. Wartość p jest skorygowana o testowanie wielu zachowań naraz."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma associação nos teus próprios dias registados, não uma causa. Um comportamento precisa de dias com e sem ele; a significância precisa de pelo menos cinco de cada. O valor p está corrigido por testar muitos comportamentos em simultâneo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Связь в ваших записанных днях, а не причина. Для поведения нужны дни с ним и без него; для значимости нужно минимум по пять каждого вида. Значение p скорректировано на проверку сразу многих вариантов поведения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是你记录的日子中的关联，不是原因。一种行为需要有和没有它的日子；显著性要求两者至少各五天。p 值已针对同时检验多种行为进行校正。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是你記錄的日子中的關聯，不是原因。一種行為需要有和沒有它的日子；顯著性要求兩者至少各五天。p 值已針對同時檢驗多種行為進行校正。"
           }
         }
       }

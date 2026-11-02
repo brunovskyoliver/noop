@@ -22,6 +22,12 @@ public enum SkinTempDisplay {
         VitalBands.isAbsoluteSkinTemp(value) ? .absolute : .deviation
     }
 
+    /// Which reading leads when `raw` is the stored setting. An explicit setting wins. Unset, WHOOP 4.0
+    /// leads with the deviation because its absolute value is built around a per-device 33 °C anchor.
+    public static func preferred(raw: String, isWhoop4: Bool) -> Kind {
+        Kind(rawValue: raw) ?? (isWhoop4 ? .deviation : .absolute)
+    }
+
     /// The one kind a MIXED series must be reduced to before any aggregate is taken (#1705).
     ///
     /// A CSV import writes absolute °C and the computed pipeline writes a deviation, both into this

@@ -10,8 +10,11 @@ import Foundation
 // baseline — never a population cutoff.
 //
 // This replaces the blunt 2-of-4 threshold rule in AppModel.evaluateIllness with:
-//   • a calibrated 0–100 composite anomaly score (so the surface can read "mild" vs "strong"),
-//   • a minimum-corroboration gate (≥ 2 signals) so a single noisy night never fires,
+//   • a 0–100 composite anomaly score (so the surface can read "mild" vs "strong"). It is a weighted
+//     sum of z-scores with no calibration behind it: not a probability, and never validated against
+//     illness in this project,
+//   • a minimum-corroboration gate (≥ 2 independent votes) so a single noisy night never fires. Resting
+//     HR and HRV move together, so the two of them are one vote,
 //   • EXPLICIT confounder suppression cross-checked against the same-day journal tags
 //     (alcohol / stress / sauna / late-or-intense workout / travel), which is the differentiating
 //     part — alcohol elevates RHR + skin temp and crushes HRV exactly like early illness, so a night
@@ -24,19 +27,19 @@ import Foundation
 // IllnessNotifier copy: "On-device estimate (approximate) — not a diagnosis").
 public enum IllnessSignalEngine {
 
-    // MARK: - Tuning constants (pinned by test; mirror the Kotlin twin exactly)
+    // MARK: - Tuning constants (pinned by test; the Kotlin twin still counts RHR and HRV as two votes)
 
     /// Composite score (0–100) at/above which the heads-up is RAISED. Below this it is "mild" — surfaced
     /// only in a detail view, never a notification (keeps the banner from re-introducing noise).
     public static let raiseThreshold: Double = 50.0
     /// Score floor below which there is nothing worth saying at all (engine returns `.quiet`).
     public static let mildThreshold: Double = 25.0
-    /// Minimum number of signals pointing the illness way before anything can raise — guards against a
-    /// single noisy night driving the score on its own.
+    /// Minimum number of independent votes pointing the illness way before anything can raise — guards
+    /// against a single noisy night driving the score on its own.
     public static let minCorroboratingSignals: Int = 2
 
-    /// A signal's |z| must reach this to count as "firing" toward the score. Roughly the user's own ~95th
-    /// percentile night (matches VitalBands.sigmaK), so normal night-to-night wobble doesn't register.
+    /// A signal's z must reach this to count as "firing" toward the score. On a normal night distribution
+    /// that is the one-sided 97.7th percentile (matches VitalBands.sigmaK), so normal wobble doesn't register.
     public static let signalZThreshold: Double = 2.0
     /// Per-signal sub-score is `min(perSignalCap, kZToScore · max(0, zIllnessward − signalZThreshold))`,
     /// then the composite is their sum clamped to 100. Each strong signal caps so no single one saturates.
@@ -76,9 +79,9 @@ public enum IllnessSignalEngine {
         }
     }
 
-    /// Same-day behaviour context that can explain an anomaly away. All default-false / nil so a caller
-    /// with no journal still gets the raw signal read. `travelPhaseJump` is the cross-feature hook — the
-    /// CircadianEngine can flag a detected body-clock jump (jet lag), which itself shifts temp + RHR.
+    /// Same-day behaviour context that can explain an anomaly away. All default-false so a caller with
+    /// no journal still gets the raw signal read. False means none was logged, not that none happened.
+    /// `travelPhaseJump` comes from a journal answer, a time-zone change or an active jet-lag trip.
     public struct Context: Equatable, Sendable {
         public var alcohol: Bool
         public var stress: Bool
@@ -203,8 +206,10 @@ public enum IllnessSignalEngine {
                           message: agreeing ? .alreadyUnwellAgree : .alreadyUnwell)
         }
 
-        // Corroboration + magnitude gate: need ≥ 2 firing signals and a mild-or-better composite, else quiet.
-        guard signalCount >= minCorroboratingSignals, score >= mildThreshold else {
+        // Corroboration + magnitude gate: need ≥ 2 independent votes and a mild-or-better composite, else
+        // quiet. Resting HR and HRV are strongly correlated, so both firing is often one event.
+        let votes = signalCount - (firedKeys.contains("restingHR") && firedKeys.contains("hrv") ? 1 : 0)
+        guard votes >= minCorroboratingSignals, score >= mildThreshold else {
             return Result(score: score, level: .quiet, firedSignals: firedSignals,
                           suppressedBy: [], signalCount: signalCount,
                           copy: "Nothing notable - your signals look like your normal range.",
@@ -244,11 +249,29 @@ public enum IllnessSignalEngine {
                           suppressedBy: [], signalCount: signalCount, copy: copy, message: .mild)
         }
 
-        let ruledOut = "no alcohol or travel logged"
-        let copy = "Heads-up - your body looks strained. \(signalsPhrase). With \(ruledOut), consider "
-            + "taking it easy. \(disclaimerTail)"
+        let copy = "Heads-up - your body looks strained. \(signalsPhrase). No alcohol, stress, sauna, hard "
+            + "workout or travel logged, which does not rule them out. Consider taking it easy. \(disclaimerTail)"
         return Result(score: score, level: .raised, firedSignals: firedSignals,
                       suppressedBy: [], signalCount: signalCount, copy: copy, message: .raised)
+    }
+
+    // MARK: - Skin temperature
+
+    /// The skin-temperature reading, scored only on live deviations against their own spread.
+    /// `skinTempDevC` is bimodal: an imported row is an absolute wrist °C, so z-scoring one against a
+    /// deviation scale gives z≈100. Absolute rows are dropped from every window, and a latest night that
+    /// is absolute yields no reading. Too few deviation nights gives a reading that is not present.
+    public static func skinSignal(base: [Double?], recent: [Double?], latest: Double?) -> SignalReading? {
+        func deviations(_ v: [Double?]) -> [Double] {
+            v.compactMap { $0 }.filter { SkinTempDisplay.kind(of: $0) == .deviation }
+        }
+        let recentDevs = deviations(recent)
+        guard let latest, SkinTempDisplay.kind(of: latest) == .deviation, !recentDevs.isEmpty else { return nil }
+        let state = Baselines.foldHistory(deviations(base), cfg: VitalBands.skinTempDeviationCfg)
+        guard state.usable else { return SignalReading(zIllnessward: 0, present: false) }
+        let recentMean = recentDevs.reduce(0, +) / Double(recentDevs.count)
+        return SignalReading(zIllnessward: min(Baselines.deviation(recentMean, state: state).z,
+                                               Baselines.deviation(latest, state: state).z))
     }
 
     // MARK: - Helpers
@@ -263,5 +286,36 @@ public enum IllnessSignalEngine {
             let head = reasons.dropLast().joined(separator: ", ")
             return "\(head) and \(reasons.last!)"
         }
+    }
+}
+
+// MARK: - Journal questions
+
+/// What a free-text journal question is about, by whole words. Substrings read "still" as ill, "strain"
+/// as training and "drink enough water" as alcohol.
+public enum JournalTopic: Sendable, Hashable {
+    case alcohol, caffeine, unwell, workout, stress, sauna, travel
+
+    public static func topics(of question: String) -> Set<JournalTopic> {
+        let words = Set(question.lowercased().split { !$0.isLetter }.map(String.init))
+        var out: Set<JournalTopic> = []
+        // "drink" alone is not alcohol when the question names what the drink was.
+        let namesAnotherDrink = !words.isDisjoint(with: ["water", "hydrated", "enough", "coffee", "tea", "juice",
+                                                         "soda", "milk", "caffeine", "caffeinated", "smoothie"])
+        if !words.isDisjoint(with: ["alcohol", "alcoholic", "beer", "beers", "wine", "cocktail", "cocktails", "hangover", "hungover"])
+            || (!namesAnotherDrink && !words.isDisjoint(with: ["drink", "drinks", "drinking", "drank"])) {
+            out.insert(.alcohol)
+        }
+        if !words.isDisjoint(with: ["caffeine", "caffeinated", "coffee"]) { out.insert(.caffeine) }
+        if !words.isDisjoint(with: ["sick", "ill", "illness", "unwell"]) { out.insert(.unwell) }
+        if !words.isDisjoint(with: ["workout", "workouts", "train", "trained", "training", "exercise", "exercised"]) {
+            out.insert(.workout)
+        }
+        if !words.isDisjoint(with: ["stress", "stressed", "stressful"]) { out.insert(.stress) }
+        if !words.isDisjoint(with: ["sauna", "saunas"]) { out.insert(.sauna) }
+        if !words.isDisjoint(with: ["travel", "travelled", "traveled", "travelling", "traveling", "flight", "flew", "jetlag"]) {
+            out.insert(.travel)
+        }
+        return out
     }
 }

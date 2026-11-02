@@ -92,7 +92,7 @@ final class FitnessAgeEngineTests: XCTestCase {
         XCTAssertEqual(r!.fitnessAge, 40.0, accuracy: 1e-9)
         XCTAssertEqual(r!.deltaYears, 0.0, accuracy: 1e-9)
         XCTAssertNil(r!.vo2max)               // no waist → no VO₂max display
-        XCTAssertEqual(r!.bandYears, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(r!.bandYears, 5.70 / 0.296, accuracy: 1e-9)
         XCTAssertFalse(r!.lowerConfidence)
     }
 
@@ -168,5 +168,11 @@ final class FitnessAgeEngineTests: XCTestCase {
     func testNightsUntilReadyZeroAtOrAboveFloor() {
         XCTAssertEqual(FitnessAgeEngine.nightsUntilReady(rhrDays: 4), 0)
         XCTAssertEqual(FitnessAgeEngine.nightsUntilReady(rhrDays: 7), 0)
+    }
+
+    /// The band is the model's SEE over its age slope, not a chosen number.
+    func testBandComesFromTheModelError() {
+        XCTAssertEqual(FitnessAgeEngine.bandYears(sex: "male"), 5.70 / 0.296, accuracy: 1e-9)
+        XCTAssertEqual(FitnessAgeEngine.bandYears(sex: "female"), 5.14 / 0.247, accuracy: 1e-9)
     }
 }

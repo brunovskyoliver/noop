@@ -20,7 +20,8 @@ import Foundation
 //   • Nights in `flaggedDays` (illness heads-up, etc.) are left out of the usual range only; if any sits in
 //     the short window the reading says it may reflect that.
 //
-// NOOP's nightly RMSSD comes from deep-sleep windows only, so published age norms do not apply: there is
+// NOOP's nightly RMSSD is a whole-night mean of 5-minute windows by default (`HrvWindow.whole`), not a
+// published protocol, so published age norms do not apply: there is
 // no "poor for your age" tier. Pure and deterministic; the Kotlin twin (`HRVStatus.kt`) must match.
 public enum HRVStatus {
 

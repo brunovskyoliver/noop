@@ -89,9 +89,9 @@ final class StrainSampleDurationTests: XCTestCase {
     func testEdgesMatchTheOldFallbacks() {
         XCTAssertEqual(StrainScorer.sampleDurationsMinutes([]), [])
         XCTAssertEqual(StrainScorer.sampleDurationsMinutes(series(5)), [StrainScorer.fallbackSampleMin])
-        // Coincident timestamps keep the 1 s fallback rather than a zero-duration sample.
+        // Coincident timestamps are one moment: a two-strap overlap must not count twice.
         for d in StrainScorer.sampleDurationsMinutes(series(7, 7)) {
-            XCTAssertEqual(d, StrainScorer.fallbackSampleMin, accuracy: 1e-9)
+            XCTAssertEqual(d, 0, accuracy: 1e-9)
         }
     }
 }

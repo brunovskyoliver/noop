@@ -94,10 +94,11 @@ public enum CoachSuggestions {
         return Array(chips.prefix(maxChips - 1)) + [stableGeneric]
     }
 
-    /// Mean of `avgHrv` over the trailing 30 days of `recent`, excluding the day `excludingDay`.
-    /// Returns nil when no qualifying night has an HRV value. Pure; byte-twin of the Android helper.
-    private static func hrvBaseline(_ recent: [DailyMetric], excluding day: String) -> Double? {
-        let values = recent.suffix(30).filter { $0.day != day }.compactMap { $0.avgHrv }
+    /// Mean of `avgHrv` over the 30 days before `day` in `recent`: the day is removed first, so the
+    /// baseline stays 30 days whether or not today is in the list. Returns nil when no night has an HRV
+    /// value. The Android helper still takes the suffix first (iPhone-only change).
+    static func hrvBaseline(_ recent: [DailyMetric], excluding day: String) -> Double? {
+        let values = recent.filter { $0.day != day }.suffix(30).compactMap { $0.avgHrv }
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +) / Double(values.count)
     }

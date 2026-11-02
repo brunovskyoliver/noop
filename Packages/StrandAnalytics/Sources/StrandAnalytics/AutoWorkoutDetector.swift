@@ -36,13 +36,30 @@ public struct DetectedWorkout: Equatable, Sendable {
     public let peakBpm: Int
     /// Whole minutes, floor of (endSec - startSec) / 60 — what the prompt shows.
     public let durationMin: Int
+    /// What the bout already computed, carried so that saving does not store a blank row.
+    public let energyKcal: Double?
+    public let strain: Double?
+    public let zonesJSON: String?
+    public let steps: Int?
 
-    public init(startSec: Int, endSec: Int, avgBpm: Int, peakBpm: Int, durationMin: Int) {
+    public init(startSec: Int, endSec: Int, avgBpm: Int, peakBpm: Int, durationMin: Int,
+                energyKcal: Double? = nil, strain: Double? = nil, zonesJSON: String? = nil, steps: Int? = nil) {
         self.startSec = startSec
         self.endSec = endSec
         self.avgBpm = avgBpm
         self.peakBpm = peakBpm
         self.durationMin = durationMin
+        self.energyKcal = energyKcal
+        self.strain = strain
+        self.zonesJSON = zonesJSON
+        self.steps = steps
+    }
+
+    /// A suggestion from one `WorkoutDetector` session.
+    public init(session s: ExerciseSession, steps: Int?) {
+        self.init(startSec: s.start, endSec: s.end, avgBpm: Int(s.avgHR.rounded()), peakBpm: s.peakHR,
+                  durationMin: (s.end - s.start) / 60, energyKcal: s.caloriesKcal, strain: s.strain,
+                  zonesJSON: WorkoutDetector.zonesJSON(from: s.zoneTimePct), steps: steps)
     }
 }
 
@@ -187,7 +204,11 @@ public enum AutoWorkoutDetector {
             dipStart = nil
         }
 
+        var previousTs: Int? = nil
         for sample in seg {
+            // A stretch with no samples is a missing sensor, not continued effort.
+            if let p = previousTs, sample.ts - p > maxDipS { closeSpan() }
+            previousTs = sample.ts
             if Double(sample.bpm) >= floor {
                 if spanStart == nil { spanStart = sample.ts }
                 spanEnd = sample.ts

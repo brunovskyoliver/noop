@@ -360,7 +360,7 @@ struct BroopActivityDetailView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 12) {
                     BroopActivityStatCard(symbol: "flame", title: String(localized: "Calories"),
-                                          value: row.energyKcal.map(BroopActivityFormat.grouped) ?? "–", unit: "cals")
+                                          value: row.energyKcal.map { "≈" + BroopActivityFormat.grouped($0) } ?? "–", unit: "cals")
                     BroopActivityStatCard(symbol: "heart", title: String(localized: "Avg HR"),
                                           value: row.avgHr.map(String.init) ?? "–", unit: "bpm")
                     BroopActivityStatCard(symbol: "arrow.up.heart", title: String(localized: "Max HR"),
@@ -509,16 +509,17 @@ struct BroopActivityDetailView: View {
         }()
         hrCoverage = await repo.workoutHrCoverage(from: row.startTs, to: row.endTs, source: row.source)
         let buckets = await repo.workoutHrBuckets(from: row.startTs, to: row.endTs, source: row.source)
-        var minutes: [Double]?
-        var fromImport = false
-        if let pct = WorkoutZones.percents(row.zonesJSON) {
+        // One zone model for strap-derived rows: %HRmax from strap HR. A stored split wins only on an
+        // import, which has no strap HR to compute from, or when the strap has nothing.
+        let isImport = WorkoutSource.classify(row.source) == .whoop
+        var minutes: [Double]? = isImport ? nil : await repo.workoutZoneMinutes(
+            from: row.startTs, to: row.endTs, zoneSet: profile.hrZoneSet, source: row.source)
+        let fromImport = minutes == nil && isImport
+        if minutes == nil, let pct = WorkoutZones.percents(row.zonesJSON) {
             let durMin = (row.durationS ?? Double(row.endTs - row.startTs)) / 60.0
-            if durMin > 0 {
-                minutes = pct.map { durMin * $0 / 100.0 }
-                fromImport = true
-            }
+            if durMin > 0 { minutes = pct.map { durMin * $0 / 100.0 } }
         }
-        if minutes == nil {
+        if minutes == nil, isImport {
             minutes = await repo.workoutZoneMinutes(from: row.startTs, to: row.endTs, zoneSet: profile.hrZoneSet, source: row.source)
         }
         let hrr = await repo.workoutHeartRateRecovery(from: row.startTs, to: row.endTs, maxHR: Double(profile.hrMax), source: row.source)

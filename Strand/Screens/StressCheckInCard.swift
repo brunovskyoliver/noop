@@ -8,7 +8,7 @@ import StrandDesign
 // unit-tested `StressOnsetDetector` fires (a fresh, non-metabolic HRV dip while the user is still), the
 // central hook (Wave 3, in BLEManager's existing offload/evaluateStress call-site) posts a pending nudge
 // on `StressNudgeCenter`; this dismissible card surfaces it. NEVER an alarm, NEVER a push (unless the
-// user separately opted into notifications), NEVER a diagnosis — "HRV dipped while you were still", with
+// user separately opted into notifications), NEVER a diagnosis — "HRV dipped at a resting heart rate", with
 // Breathe now / Not now / Turn off, matching DaytimeStress's "passive suggestion" stance.
 //
 // See docs/superpowers/specs/2026-06-19-v5-haptic-biofeedback-design.md (L3 / UX → "Auto-nudge (passive)").
@@ -62,7 +62,7 @@ struct StressCheckInCard: View {
                         StatePill("Passive", tone: .neutral, showsDot: true)
                     }
 
-                    Text("Your HRV dipped while you were still. Want a minute to breathe?")
+                    Text("Your HRV dipped at a resting heart rate. Want a minute to breathe?")
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)

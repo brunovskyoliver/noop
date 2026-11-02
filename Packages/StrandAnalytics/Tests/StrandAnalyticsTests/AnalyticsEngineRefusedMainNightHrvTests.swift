@@ -80,4 +80,17 @@ final class AnalyticsEngineRefusedMainNightHrvTests: XCTestCase {
                            SleepStager.sessionAvgHRV(start: nightStart, end: nightEnd, rr: rr) == nil)
         }
     }
+
+    /// The deep-window mode goes through the same gate: a refused night has no deep-window HRV either.
+    func testDeepWindowModeIsGatedToo() {
+        let deepOnly = SleepSession(start: nightStart, end: nightEnd, efficiency: 0.9,
+                                    stages: [StageSegment(start: nightStart, end: nightEnd, stage: "deep")],
+                                    restingHR: nil, avgHRV: nil)
+        func deepHrv(_ rr: [RRInterval]) -> Double? {
+            AnalyticsEngine.analyzeDay(day: day, hr: hr(nightStart, nightEnd), rr: rr, profile: profile,
+                                       providedSleep: [deepOnly], deepHrvWindow: true).daily.avgHrv
+        }
+        XCTAssertNil(deepHrv(overCountedRR(nightStart, nightEnd)))
+        XCTAssertNotNil(deepHrv(cleanRR(nightStart, nightEnd, swing: 30)))
+    }
 }

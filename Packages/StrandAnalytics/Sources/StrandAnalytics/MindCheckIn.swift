@@ -84,11 +84,15 @@ public enum MindCheckIn {
         let uniqueScores = Dictionary(scores.filter { $0.value.isFinite }.map { ($0.day, $0.value) },
                                       uniquingKeysWith: { _, new in new })
         var pairs: [(Double, Double)] = []
-        for s in uniqueScores.map({ (day: $0.key, value: $0.value) }).sorted(by: { $0.day < $1.day }) {
-            guard let end = MindEngine.epoch(s.day) else { continue }
+        // Newest first, skipping a check-in whose window overlaps the one already kept: overlapping means
+        // share days, and the shared days inflate r.
+        var nextEnd = Int.max
+        for s in uniqueScores.map({ (day: $0.key, value: $0.value) }).sorted(by: { $0.day > $1.day }) {
+            guard let end = MindEngine.epoch(s.day), end <= nextEnd else { continue }
             let xs = dated.filter { $0.0 <= end && $0.0 > end - windowDays }.map { $0.1 }
             guard !xs.isEmpty else { continue }
             pairs.append((s.value, xs.reduce(0, +) / Double(xs.count)))
+            nextEnd = end - windowDays
         }
         guard pairs.count >= minPairs else { return nil }
         return CorrelationEngine.pearson(pairs)

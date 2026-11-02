@@ -355,8 +355,8 @@ public enum SleepStagerV2 {
             let jerkMax = jerks.max() ?? 0.0
 
             let hrMean = hrs.isEmpty ? nil : hrs.reduce(0, +) / Double(hrs.count)
-            let hrVar = stdOfSeconds(e - 150, e + 30 + 150)     // 5-min centred window
-            let hrFlat11 = stdOfSeconds(e - 330, e + 30 + 360)  // 11-min centred window
+            let hrVar = stdOfSeconds(e - 150, e + 30 + 150)     // 5.5 min, centred on the epoch
+            let hrFlat11 = stdOfSeconds(e - 330, e + 30 + 360)  // 12 min, reaching 30 s further forward
 
             // RSA respiration over a wider beat window [e-90, e+120).
             var beats: [(Double, Double)] = []

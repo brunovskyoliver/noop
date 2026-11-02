@@ -122,7 +122,7 @@ let vo2MaxAttributionPrefix = "vo2max-estimator:"
 func vo2MaxEstimatorDisplayName(_ estimator: Vo2MaxEstimator?) -> String {
     switch estimator {
     case .nes: return "Nes 2011"
-    case .uth: return "Uth 2004"
+    case .uth: return String(localized: "Approximate, wide error (Uth 2004, from trained men)")
     case nil:  return String(localized: "Unknown")
     }
 }

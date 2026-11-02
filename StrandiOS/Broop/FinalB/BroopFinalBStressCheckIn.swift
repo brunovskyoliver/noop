@@ -23,7 +23,7 @@ struct BroopFinalBStressCheckIn: View {
                     BroopActivityChip(text: String(localized: "Passive"), color: BroopPalette.textSecondary)
                 }
 
-                Text("Your HRV dipped while you were still. Want a minute to breathe?")
+                Text("Your HRV dipped at a resting heart rate. Want a minute to breathe?")
                     .font(BroopType.demi(17))
                     .foregroundStyle(BroopPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)

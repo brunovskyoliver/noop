@@ -128,62 +128,42 @@ struct BroopFinalAHeadsUpCard: View {
 
 // MARK: - Body clock (Health)
 
-/// The body-clock estimate against the wearer's schedule (not last night: that is the sleep screen's dial).
-struct BroopFinalABodyClockEstimateCard: View {
-    let estimate: CircadianEngine.PhaseEstimate
-    var plan: CircadianEngine.JetLagPlan? = nil
-
-    private var confidence: (String, Color) {
-        switch estimate.confidence {
-        case .unreadable: return (String(localized: "Calibrating"), BroopPalette.textSecondary)
-        case .wide: return (String(localized: "Building"), BroopPalette.warning)
-        case .solid: return (String(localized: "Solid"), BroopPalette.teal)
-        }
-    }
+/// Measured sleep timing: regularity, usual window and free-day midsleep. It replaced an estimated
+/// body-clock offset that read as a function of sleep length (`CircadianEngine.PhaseEstimate`).
+struct BroopFinalASleepTimingCard: View {
+    let timing: SleepTiming
 
     var body: some View {
         BroopHealthCard {
             VStack(alignment: .leading, spacing: 12) {
-                BroopFinalACardTitle(title: String(localized: "Body clock"),
-                                     subtitle: String(localized: "Light + sleep timing only"),
-                                     chip: confidence.0, chipTint: confidence.1)
-                Text(verbatim: SkinTempCopy.bodyClockHeadline(estimate))
-                    .font(BroopType.demi(20))
-                    .foregroundStyle(BroopPalette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(verbatim: SkinTempCopy.bodyClockNote(estimate))
-                    .font(BroopType.medium(14))
-                    .foregroundStyle(BroopPalette.textBody)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    Image(systemName: "moon.stars").font(.system(size: 13)).foregroundStyle(BroopPalette.rest)
-                    BroopCaps(String(localized: "Body-clock low"), size: 9.5, color: BroopPalette.textSecondary)
-                    Spacer()
-                    Text(verbatim: BroopFinalABodyClockCard.clock(estimate.tempMinHour))
-                        .font(BroopType.number(17))
-                        .foregroundStyle(BroopPalette.textPrimary)
+                BroopFinalACardTitle(title: String(localized: "Sleep timing"),
+                                     subtitle: String(localized: "Last 4 weeks · \(timing.nights) nights"))
+                if let regularity = timing.regularityPercent {
+                    row(String(localized: "Sleep regularity, 7 days"), "\(Int(regularity.rounded()))%")
                 }
-                .padding(.top, 2)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text("Estimated body-clock low around \(BroopFinalABodyClockCard.clock(estimate.tempMinHour))"))
+                row(String(localized: "Your usual"),
+                    "\(BroopFinalABodyClockCard.clock(timing.usualBedHour)) – \(BroopFinalABodyClockCard.clock(timing.usualWakeHour))")
+                if let midsleep = timing.freeDayMidsleepHour {
+                    row(String(localized: "Free-day midsleep"), BroopFinalABodyClockCard.clock(midsleep))
+                    Text("The middle of your sleep before Saturday and Sunday wake-ups.")
+                        .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 NavigationLink(value: BroopScreen.jetLag) {
                     BroopNavTile(symbol: "airplane", title: String(localized: "Jet-lag planner"))
                 }
                 .buttonStyle(BroopPressableStyle())
-                if let plan, plan.direction != .none, let first = plan.days.first {
-                    BroopHairline()
-                    VStack(alignment: .leading, spacing: 6) {
-                        BroopCaps(String(localized: "Plan · \(plan.estimatedDays)-day shift"), size: 10, color: BroopPalette.textSecondary)
-                        Text("Day 1: bright light \(BroopFinalABodyClockCard.clock(first.brightLightStartHour))-\(BroopFinalABodyClockCard.clock(first.brightLightEndHour)), lights-out around \(BroopFinalABodyClockCard.clock(first.targetSleepHour)).")
-                            .font(BroopType.medium(14)).foregroundStyle(BroopPalette.textBody)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(verbatim: SkinTempCopy.planNote(plan))
-                            .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
             }
         }
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(spacing: 10) {
+            BroopCaps(label, size: 9.5, color: BroopPalette.textSecondary)
+            Spacer()
+            Text(verbatim: value).font(BroopType.number(17)).foregroundStyle(BroopPalette.textPrimary)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

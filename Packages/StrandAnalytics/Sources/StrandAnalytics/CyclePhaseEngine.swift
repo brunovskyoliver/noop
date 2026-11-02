@@ -16,7 +16,7 @@ import Foundation
 // pattern," never a verdict. All of this is the load-bearing legal/ethical framing.
 public enum CyclePhaseEngine {
 
-    // MARK: - Tuning constants (pinned by test; mirror the Kotlin twin exactly)
+    // MARK: - Tuning constants (pinned by test; iPhone only, the Kotlin twin no longer mirrors these)
 
     /// Weights for the fused luteal index z = wTemp·zTemp + wRHR·zRHR + wHRV·(−zHRV). Temperature is
     /// dominant (it is the pillar's signal); RHR and HRV corroborate. The HRV term is NEGATED so a drop
@@ -25,10 +25,18 @@ public enum CyclePhaseEngine {
     public static let wRHR: Double = 0.2
     public static let wHRV: Double = 0.2
 
-    /// A night counts as "elevated" (luteal-ward) when its fused index sits at least this many spreads
-    /// above the personal series mean. Robust spread = the series' median absolute deviation (MAD), so a
-    /// few extreme nights don't widen the gate.
-    public static let elevationK: Double = 0.5
+    /// Persistence rule for a temperature shift, after the wrist-temperature work in PMC8238491: this many
+    /// consecutive valid nights each above the highest of the previous `shiftPriorNights`. The paper's
+    /// 0.2 °C margin is dropped because the series here is a fused z, not °C. That study reported 0.62
+    /// sensitivity and 0.26 specificity against LH tests, so a shift is an observation, never a date.
+    public static let shiftConfirmNights: Int = 3
+    public static let shiftPriorNights: Int = 6
+    /// A shift counts once its run has stayed above the prior nights' mean for this many valid nights.
+    public static let minRunNights: Int = 5
+    /// Cadence gate (unvalidated, chosen to reject noise): at least this share of onset gaps must be
+    /// plausible cycle lengths, and those plausible gaps must spread by no more than `maxGapSpreadDays`.
+    public static let minPlausibleGapShare: Double = 2.0 / 3.0
+    public static let maxGapSpreadDays: Int = 9
 
     /// Plausibility clamp on the estimated cycle length (days). Anything outside is treated as "no clear
     /// pattern" rather than a fabricated cadence.
@@ -45,10 +53,6 @@ public enum CyclePhaseEngine {
     /// Minimum number of nights of usable data before the engine will classify at all (~1.5 cycles).
     public static let minNightsToClassify: Int = 42
 
-    /// Half-width (days) of the peri-ovulatory band around the estimated elevation onset — the days
-    /// straddling the follicular→luteal temperature shift.
-    public static let periOvulatoryHalfWidth: Int = 2
-
     // MARK: - Inputs
 
     /// One night's already-standardized inputs. `tempZ` / `rhrZ` / `hrvZ` are z-scores from
@@ -63,6 +67,48 @@ public enum CyclePhaseEngine {
         public init(day: String, tempZ: Double?, rhrZ: Double?, hrvZ: Double?) {
             self.day = day; self.tempZ = tempZ; self.rhrZ = rhrZ; self.hrvZ = hrvZ
         }
+    }
+
+    /// One stored day, before standardizing. `skinTempDevC` is bimodal: an imported row holds absolute
+    /// °C and a live row a signed deviation (`VitalBands.isAbsoluteSkinTemp`).
+    public struct DayRow: Equatable, Sendable {
+        public let day: String
+        public let skinTempDevC: Double?
+        public let restingHr: Double?
+        public let hrv: Double?
+        public init(day: String, skinTempDevC: Double?, restingHr: Double?, hrv: Double?) {
+            self.day = day; self.skinTempDevC = skinTempDevC; self.restingHr = restingHr; self.hrv = hrv
+        }
+    }
+
+    /// Standardize stored days for `classify`. Live deviations and imported absolutes fold separately,
+    /// each against its own baseline, so neither is scored on the other's scale.
+    public static func assemble(_ rows: [DayRow]) -> (nights: [Night], curve: [Double], baselineUsable: Bool) {
+        let sorted = rows.sorted { $0.day < $1.day }
+        guard let absoluteCfg = Baselines.metricCfg["skin_temp"],
+              let rhrCfg = Baselines.metricCfg["resting_hr"],
+              let hrvCfg = Baselines.metricCfg["hrv"] else { return ([], [], false) }
+        let skin = sorted.map(\.skinTempDevC)
+        let deviationState = Baselines.foldHistory(skin.map { $0.flatMap { VitalBands.isAbsoluteSkinTemp($0) ? nil : $0 } },
+                                                   cfg: VitalBands.skinTempDeviationCfg)
+        let absoluteState = Baselines.foldHistory(skin.map { $0.flatMap { VitalBands.isAbsoluteSkinTemp($0) ? $0 : nil } },
+                                                  cfg: absoluteCfg)
+        let rhrState = Baselines.foldHistory(sorted.map(\.restingHr), cfg: rhrCfg)
+        let hrvState = Baselines.foldHistory(sorted.map(\.hrv), cfg: hrvCfg)
+
+        var nights: [Night] = []
+        var curve: [Double] = []
+        for row in sorted {
+            let tempZ = row.skinTempDevC.flatMap { v -> Double? in
+                let state = VitalBands.isAbsoluteSkinTemp(v) ? absoluteState : deviationState
+                return state.usable ? Baselines.deviation(v, state: state).z : nil
+            }
+            let rhrZ = rhrState.usable ? row.restingHr.map { Baselines.deviation($0, state: rhrState).z } : nil
+            let hrvZ = hrvState.usable ? row.hrv.map { Baselines.deviation($0, state: hrvState).z } : nil
+            nights.append(Night(day: row.day, tempZ: tempZ, rhrZ: rhrZ, hrvZ: hrvZ))
+            if let fused = fusedIndex(tempZ: tempZ, rhrZ: rhrZ, hrvZ: hrvZ) { curve.append(fused) }
+        }
+        return (nights, curve, deviationState.usable || absoluteState.usable)
     }
 
     // MARK: - Output
@@ -146,58 +192,52 @@ public enum CyclePhaseEngine {
                           note: "Learning your pattern from your nightly temperature - keep wearing it overnight.")
         }
 
-        // Fuse each night into a single luteal index; nil where no signal at all.
-        let fused: [(day: String, value: Double?)] = nights.map { n in
-            (n.day, fusedIndex(tempZ: n.tempZ, rhrZ: n.rhrZ, hrvZ: n.hrvZ))
+        // Fuse each night, keeping valid nights only: a missing night neither breaks a run nor starts one.
+        let fused: [(day: String, value: Double)] = nights.compactMap { n in
+            fusedIndex(tempZ: n.tempZ, rhrZ: n.rhrZ, hrvZ: n.hrvZ).map { (n.day, $0) }
         }
-        let values = fused.compactMap { $0.value }
-        guard values.count >= minNightsToClassify else {
+        guard fused.count >= minNightsToClassify else {
             return Result(phase: .learning, confidence: .learning, cycleDayLow: nil, cycleDayHigh: nil,
                           cycleLengthDays: nil, nextPeriodWindow: nil, shiftMarkers: [],
                           note: "Learning your pattern from your nightly temperature - keep wearing it overnight.")
         }
 
-        let center = median(values)
-        let spread = max(1e-9, medianAbsoluteDeviation(values, center: center))
+        let shifts = detectShifts(fused.map(\.value))
+        let shiftMarkers = shifts.confirmed.map { ShiftMarker(day: fused[$0].day) }
+        let lastNightDay = fused.last!.day
 
-        // Per-night elevated flag (luteal-ward run detection).
-        let elevated: [Bool] = fused.map { row in
-            guard let v = row.value else { return false }
-            return (v - center) >= elevationK * spread
+        // Personal cycle length from the median gap between successive confirmed onsets.
+        var onsetGaps: [Int] = []
+        if shifts.confirmed.count >= 2 {
+            for k in 1..<shifts.confirmed.count {
+                if let d = daysBetween(fused[shifts.confirmed[k - 1]].day, fused[shifts.confirmed[k]].day) {
+                    onsetGaps.append(d)
+                }
+            }
         }
+        let plausibleGaps = onsetGaps.filter { (minCycleDays...maxCycleDays).contains($0) }
+        let cadenceRegular = !onsetGaps.isEmpty
+            && Double(plausibleGaps.count) / Double(onsetGaps.count) >= minPlausibleGapShare
+            && (plausibleGaps.max() ?? 0) - (plausibleGaps.min() ?? 0) <= maxGapSpreadDays
+        let hasLoggedStart = mostRecentOnOrBefore(loggedPeriodStarts, day: lastNightDay) != nil
+        let recentEnough = shifts.confirmed.last
+            .flatMap { daysBetween(fused[$0].day, lastNightDay) }.map { $0 <= maxCycleDays } ?? false
 
-        // Detect rising EDGES (follicular→luteal onsets) — the temperature-shift markers.
-        var onsets: [Int] = []
-        for i in fused.indices {
-            if elevated[i] && (i == 0 || !elevated[i - 1]) { onsets.append(i) }
-        }
-        let shiftMarkers = onsets.map { ShiftMarker(day: fused[$0].day) }
-
-        // No detectable shift at all → honest "no clear pattern," never a fabricated phase.
-        guard let lastOnsetIdx = onsets.last else {
+        // Without a repeating shift, or one shift backed by a logged period, the honest answer is
+        // "no clear pattern". A shift seen once on noise is common and says nothing about a cycle.
+        guard recentEnough, cadenceRegular || (onsetGaps.isEmpty && hasLoggedStart) else {
             return Result(phase: .unknown, confidence: .building, cycleDayLow: nil, cycleDayHigh: nil,
                           cycleLengthDays: nil, nextPeriodWindow: nil, shiftMarkers: shiftMarkers,
                           note: "No clear temperature pattern yet - this can happen with irregular cycles, "
                               + "hormonal birth control, or shift work.")
         }
-
-        // Personal cycle length from the median gap between successive onsets (in calendar days).
-        var onsetGaps: [Int] = []
-        if onsets.count >= 2 {
-            for k in 1..<onsets.count {
-                if let d = daysBetween(fused[onsets[k - 1]].day, fused[onsets[k]].day) { onsetGaps.append(d) }
-            }
-        }
-        let medianGap = onsetGaps.isEmpty ? nil : Int(median(onsetGaps.map(Double.init)).rounded())
-        let cycleLength: Int? = {
-            guard let g = medianGap, g >= minCycleDays, g <= maxCycleDays else { return nil }
-            return g
-        }()
+        // A pending shift (too young to confirm) is the newest temperature turn, so it anchors the estimate.
+        let lastOnsetIdx = shifts.pending ?? shifts.confirmed.last!
+        let cycleLength: Int? = plausibleGaps.isEmpty ? nil : Int(median(plausibleGaps.map(Double.init)).rounded())
         let confidence: Confidence = cycleLength != nil ? .solid : .building
 
         // Optional logged-period cross-validation (better mode). The most recent logged start that falls
         // on/before the latest night anchors cycle-day 1; we compare it to the detected onset.
-        let lastNightDay = fused.last!.day
         var note = ""
         var anchorDay = fused[lastOnsetIdx].day      // default anchor = the temperature shift onset
         var anchoredByLog = false
@@ -231,16 +271,9 @@ public enum CyclePhaseEngine {
             }
         }()
 
-        // Phase of the MOST RECENT night relative to the latest onset.
-        let daysSinceOnset = daysBetween(fused[lastOnsetIdx].day, lastNightDay) ?? 0
-        let phase: Phase
-        if elevated[fused.count - 1] {
-            // Currently in an elevated run → luteal, unless we're right at the onset edge (peri-ovulatory).
-            phase = daysSinceOnset <= periOvulatoryHalfWidth ? .periOvulatory : .luteal
-        } else {
-            // Below the elevation gate. Near a known onset it's the peri-ovulatory dip; otherwise follicular.
-            phase = daysSinceOnset <= periOvulatoryHalfWidth ? .periOvulatory : .follicular
-        }
+        // Phase of the most recent night. A shift still short of `minRunNights` is reported as around the
+        // turn, not as luteal, because it cannot yet be told from a wobble.
+        let phase: Phase = shifts.pending != nil ? .periOvulatory : (shifts.inRunAtEnd ? .luteal : .follicular)
 
         // Probabilistic next-period WINDOW. Always a RANGE, never a date. A logged period start is day 1,
         // so the next one is about one cycle length on. A temperature-shift anchor sits near ovulation, so
@@ -265,6 +298,33 @@ public enum CyclePhaseEngine {
                       cycleDayLow: cycleDayLow, cycleDayHigh: cycleDayHigh,
                       cycleLengthDays: cycleLength, nextPeriodWindow: window,
                       shiftMarkers: shiftMarkers, note: note)
+    }
+
+    // MARK: - Shift detection
+
+    /// Find temperature shifts in a series of valid nights, oldest first. Local to a trailing window, so
+    /// seasonal drift cannot hold a run high the way a global median does.
+    static func detectShifts(_ v: [Double]) -> (confirmed: [Int], pending: Int?, inRunAtEnd: Bool) {
+        var confirmed: [Int] = []
+        var pending: Int? = nil
+        var inRunAtEnd = false
+        var i = shiftPriorNights
+        while i + shiftConfirmNights <= v.count {
+            let prior = v[(i - shiftPriorNights)..<i]
+            let top = prior.max()!
+            guard v[i..<(i + shiftConfirmNights)].allSatisfy({ $0 > top }) else { i += 1; continue }
+            let level = prior.reduce(0, +) / Double(prior.count)
+            var end = i + shiftConfirmNights
+            while end < v.count, v[end] > level { end += 1 }
+            if end - i >= minRunNights {
+                confirmed.append(i)
+                inRunAtEnd = end == v.count
+            } else if end == v.count {
+                pending = i
+            }
+            i = end
+        }
+        return (confirmed, pending, inRunAtEnd)
     }
 
     // MARK: - Fusion
@@ -305,12 +365,6 @@ public enum CyclePhaseEngine {
         let s = xs.sorted()
         let n = s.count
         return n % 2 == 1 ? s[n / 2] : (s[n / 2 - 1] + s[n / 2]) / 2.0
-    }
-
-    /// Median absolute deviation about `center` — a robust spread estimate.
-    static func medianAbsoluteDeviation(_ xs: [Double], center: Double) -> Double {
-        guard !xs.isEmpty else { return 0 }
-        return median(xs.map { abs($0 - center) })
     }
 
     /// Calendar days from `a` to `b` ("yyyy-MM-dd"), b − a. nil if either is unparseable. UTC, pure.

@@ -7,7 +7,7 @@ final class RhythmExportTests: XCTestCase {
 
     private let summary = RhythmScreener.NightRhythmSummary(
         readableWindows: 2, steadyWindows: 1, occasionalWindows: 1, variedWindows: 0,
-        variationRecurred: false, overall: .occasionalEctopy)
+        variationRecurred: false, overall: .irregularIntervals)
 
     private let steady = RhythmScreener.WindowResult(
         label: .steady, sd1: 24.5, sd2: 60.0, sd1sd2: 0.408, normRmssd: 0.031,
@@ -15,7 +15,7 @@ final class RhythmExportTests: XCTestCase {
         agreedAcrossSources: true, poincare: [])
 
     private let occasional = RhythmScreener.WindowResult(
-        label: .occasionalEctopy, sd1: 40.0, sd2: 70.0, sd1sd2: 0.571, normRmssd: 0.05,
+        label: .irregularIntervals, sd1: 40.0, sd2: 70.0, sd1sd2: 0.571, normRmssd: 0.05,
         turningPointRate: 0.8, ectopicFraction: 0.03, nBeats: 66, confidence: .building,
         agreedAcrossSources: false, poincare: [])
 
@@ -28,10 +28,10 @@ final class RhythmExportTests: XCTestCase {
         XCTAssertTrue(csv.contains("NOT a diagnosis"))
         XCTAssertTrue(csv.contains(
             "# summary: readableWindows=2 steady=1 occasional=1 varied=0 "
-            + "overall=occasionalEctopy variationRecurred=false"))
+            + "overall=irregularIntervals variationRecurred=false"))
         XCTAssertTrue(csv.contains(RhythmExport.header))
         XCTAssertTrue(csv.contains("1,72,24.500,60.000,0.408,0.031,0.620,0.000,steady,solid"))
-        XCTAssertTrue(csv.contains("2,66,40.000,70.000,0.571,0.050,0.800,0.030,occasionalEctopy,building"))
+        XCTAssertTrue(csv.contains("2,66,40.000,70.000,0.571,0.050,0.800,0.030,irregularIntervals,building"))
         // An unreadable window exports EMPTY stat fields, never fabricated zeros.
         XCTAssertTrue(csv.contains("3,10,,,,,,,unreadable,calibrating"))
     }

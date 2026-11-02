@@ -111,4 +111,11 @@ final class SkinTempDisplayTests: XCTestCase {
         XCTAssertEqual(SkinTempDisplay.numberString(0.1, kind: .deviation, fahrenheit: false), "+0.1")
         XCTAssertEqual(SkinTempDisplay.numberString(34.2, kind: .absolute, fahrenheit: false), "34.2")
     }
+
+    func testPreferredLeadsWithDeviationOnlyWhenUnsetOnWhoop4() {
+        XCTAssertEqual(SkinTempDisplay.preferred(raw: "", isWhoop4: true), .deviation)
+        XCTAssertEqual(SkinTempDisplay.preferred(raw: "", isWhoop4: false), .absolute)
+        XCTAssertEqual(SkinTempDisplay.preferred(raw: "absolute", isWhoop4: true), .absolute)
+        XCTAssertEqual(SkinTempDisplay.preferred(raw: "deviation", isWhoop4: false), .deviation)
+    }
 }

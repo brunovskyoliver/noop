@@ -66,7 +66,7 @@ final class RhythmScreenerTests: XCTestCase {
     }
 
     /// Isolated ectopy: mostly steady sinus with sparse single short-long couplets (a
-    /// "skipped beat": one ~650 ms then one ~1350 ms), otherwise tight. → `.occasionalEctopy`.
+    /// "skipped beat": one ~650 ms then one ~1350 ms), otherwise tight. → `.irregularIntervals`.
     static func isolatedEctopy(count: Int = 240) -> [Double] {
         var base = regularSinus(count: count)
         // Insert a couplet every ~40 beats (a handful across the window).
@@ -109,7 +109,7 @@ final class RhythmScreenerTests: XCTestCase {
         let rr = Self.isolatedEctopy()
         let input = RhythmScreener.WindowInput(rrMs: rr, motionStill: true, meanHR: 60)
         let r = RhythmScreener.screenWindow(input)
-        XCTAssertEqual(r.label, .occasionalEctopy)
+        XCTAssertEqual(r.label, .irregularIntervals)
         XCTAssertNotEqual(r.label, .varied, "isolated ectopy must NOT read as varied")
         XCTAssertGreaterThan(r.ectopicFraction!, 0)
     }
@@ -222,14 +222,32 @@ final class RhythmScreenerTests: XCTestCase {
         let unreadable = RhythmScreener.screenWindow(
             .init(rrMs: Array(repeating: 1000.0, count: 10), motionStill: true, meanHR: 60))
 
-        // 3 varied windows → meets nightMinVariedWindows → recurred, overall varied.
-        let many = [varied, varied, varied, steady, unreadable]
+        // 3 varied windows spread over the minimum span → recurred, overall varied.
+        func at(_ ts: Int) -> RhythmScreener.WindowResult {
+            RhythmScreener.screenWindow(.init(rrMs: Self.afibLike(), ts: [ts], motionStill: true, meanHR: 60))
+        }
+        let span = RhythmScreener.nightMinSpanSeconds
+        let many = [at(1_000), at(1_000 + span / 2), at(1_000 + span), steady, unreadable]
         let s = RhythmScreener.summarizeNight(many)
         XCTAssertEqual(s.readableWindows, 4)         // unreadable excluded
         XCTAssertEqual(s.variedWindows, 3)
         XCTAssertEqual(s.steadyWindows, 1)
         XCTAssertTrue(s.variationRecurred)
         XCTAssertEqual(s.overall, .varied)
+    }
+
+    func testVariedWindowsNeedARealSpanToRecur() {
+        func at(_ ts: Int) -> RhythmScreener.WindowResult {
+            RhythmScreener.screenWindow(.init(rrMs: Self.afibLike(), ts: [ts], motionStill: true, meanHR: 60))
+        }
+        let span = RhythmScreener.nightMinSpanSeconds
+        // Clustered inside the span: described as noted intervals, not as recurring variation.
+        let clustered = RhythmScreener.summarizeNight([at(1_000), at(1_100), at(1_000 + span - 1)])
+        XCTAssertFalse(clustered.variationRecurred)
+        XCTAssertEqual(clustered.overall, .irregularIntervals)
+        // Without timestamps nothing shows a span, so nothing can claim recurrence.
+        let bare = RhythmScreener.screenWindow(.init(rrMs: Self.afibLike(), motionStill: true, meanHR: 60))
+        XCTAssertFalse(RhythmScreener.summarizeNight([bare, bare, bare]).variationRecurred)
     }
 
     func testSingleVariedBlipDoesNotRecur() {
@@ -255,7 +273,7 @@ final class RhythmScreenerTests: XCTestCase {
         // The enum raw strings must never name a condition or imply diagnosis.
         let banned = ["afib", "fibrillation", "arrhythmia", "diagnos", "ecg", "ekg",
                       "clinician", "disease", "cardiac", "alert"]
-        for label in [RhythmRegularity.steady, .occasionalEctopy, .varied, .unreadable] {
+        for label in [RhythmRegularity.steady, .irregularIntervals, .varied, .unreadable] {
             let raw = label.rawValue.lowercased()
             for term in banned {
                 XCTAssertFalse(raw.contains(term),

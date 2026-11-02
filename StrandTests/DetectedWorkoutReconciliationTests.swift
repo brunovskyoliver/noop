@@ -57,28 +57,31 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
         let newer = DetectedWorkout(startSec: 3_000, endSec: 3_900,
                                     avgBpm: 140, peakBpm: 165, durationMin: 15)
 
-        XCTAssertEqual(
-            Repository.selectAutoDetectCandidate(
-                [older, newer],
-                autoDismissedTokens: ["3000:3900"],
-                detectedDismissedTokens: []),
-            older,
-            "an exact dismissal from the confirmation-card store must still suppress its candidate")
+        func open(auto: [String] = [], legacy: [String] = [], saved: [SavedWorkoutSpan] = [], now: Int = 100_000) -> [DetectedWorkout] {
+            Repository.selectAutoDetectCandidates([older, newer], savedSpans: saved, autoDismissedTokens: auto,
+                                                  detectedDismissedTokens: legacy, now: now)
+        }
+        XCTAssertEqual(open(), [newer, older], "every open candidate is offered, newest first")
+        XCTAssertEqual(open(auto: ["3000:3900"]), [older], "a card dismissal suppresses its candidate")
+        XCTAssertEqual(open(auto: ["3010:3890"]), [older], "boundaries can move, so the card store overlaps too")
+        XCTAssertEqual(open(legacy: ["2990:3910"]), [older], "an overlapping legacy dismissal suppresses a shifted candidate")
+        XCTAssertEqual(open(auto: ["3000:3900"], legacy: ["990:1910"]), [], "either store keeps a candidate away")
+        XCTAssertEqual(open(saved: [SavedWorkoutSpan(startSec: 2_900, endSec: 3_100)]), [older], "saved rows exclude overlaps")
+        XCTAssertEqual(open(now: 3_900 + 60), [older], "a session that may still be mid-rest waits")
+    }
 
-        XCTAssertEqual(
-            Repository.selectAutoDetectCandidate(
-                [older, newer],
-                autoDismissedTokens: [],
-                detectedDismissedTokens: ["2990:3910"]),
-            older,
-            "an overlapping legacy engine dismissal must suppress a boundary-shifted candidate")
-
-        XCTAssertNil(
-            Repository.selectAutoDetectCandidate(
-                [older, newer],
-                autoDismissedTokens: ["3000:3900"],
-                detectedDismissedTokens: ["990:1910"]),
-            "a candidate dismissed through either historical contract must never reappear")
+    func testConfirmedSuggestionStoresExactSecondsAndComputedFigures() throws {
+        let w = DetectedWorkout(startSec: 1_000, endSec: 1_000 + 4_139, avgBpm: 117, peakBpm: 151, durationMin: 68,
+                                energyKcal: 612, strain: 41, zonesJSON: "{\"z1\":10}", steps: 900)
+        let row = try XCTUnwrap(WorkoutSource.buildRow(fromSuggestion: w, now: Date(timeIntervalSince1970: 100_000)))
+        XCTAssertEqual(row.durationS, 4_139)
+        XCTAssertEqual(row.endTs, 5_139)
+        XCTAssertEqual(row.energyKcal, 612)
+        XCTAssertEqual(row.strain, 41)
+        XCTAssertEqual(row.maxHr, 151)
+        XCTAssertEqual(row.zonesJSON, "{\"z1\":10}")
+        XCTAssertEqual(row.steps, 900)
+        XCTAssertEqual(row.source, "manual")
     }
 
     func testLegacyRowsAreRemovedFromTheirArchivedComputedOwner() async throws {
@@ -164,7 +167,7 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
         XCTAssertEqual(rows, [merged], "a successful merge must leave only the durable replacement")
     }
 
-    func testOptInCandidatePublishesTwelveMinutesAndOnlyLogsTenFifteenMinuteShadows() async throws {
+    func testOldDetectorOnlyLogsShadowsAndNothingIsWritten() async throws {
         try await withPreferences {
             UserDefaults.standard.set(true, forKey: PuffinExperiment.autoDetectWorkoutsKey)
             let store = try await WhoopStore.inMemory()
@@ -177,11 +180,8 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             var diagnostics: [String] = []
             repo.workoutsLog = { diagnostics.append($0) }
 
-            let candidate = await repo.autoDetectCandidate(daysBack: 1)
+            _ = await repo.autoDetectCandidates(daysBack: 1)
 
-            XCTAssertEqual(candidate?.startSec, start)
-            XCTAssertEqual(candidate?.durationMin, 13,
-                           "the visible card must keep the published 12-minute policy")
             XCTAssertTrue(diagnostics.contains { $0.contains("minSustainedMin=12.0") })
             XCTAssertTrue(diagnostics.contains {
                 $0.contains("workout shadow policy=10min candidates=1")
@@ -197,6 +197,28 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             XCTAssertTrue(importedRows.isEmpty)
             XCTAssertTrue(computedRows.isEmpty,
                           "published and shadow detection must stay read-only until Save")
+        }
+    }
+
+    func testSuggestionComesFromWorkoutDetectorWithItsFigures() async throws {
+        try await withPreferences {
+            UserDefaults.standard.set(true, forKey: PuffinExperiment.autoDetectWorkoutsKey)
+            let store = try await WhoopStore.inMemory()
+            let start = Int(Date().timeIntervalSince1970) - 2 * 3_600
+            let rest = (0..<10 * 60).map { HRSample(ts: start - 3_600 + $0, bpm: 60) }
+            let block = activeBlock(start: start, seconds: 20 * 60)
+            _ = try await store.insert(Streams(hr: rest + block.hr, gravity: block.gravity), deviceId: deviceId)
+            let repo = Repository(deviceId: deviceId)
+            repo.setStoreForTesting(store)
+            repo.strainProfile = Repository.StrainProfile(
+                hrMax: 195, sex: "male", user: UserProfile(weightKg: 66, heightCm: 170, age: 19, sex: "male"))
+
+            let candidates = await repo.autoDetectCandidates(daysBack: 1)
+
+            XCTAssertEqual(candidates.count, 1)
+            XCTAssertEqual(candidates.first?.startSec ?? 0, start, accuracy: 60)
+            XCTAssertNotNil(candidates.first?.energyKcal, "the suggestion carries the bout's computed figures")
+            XCTAssertNotNil(candidates.first?.zonesJSON)
         }
     }
 

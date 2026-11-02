@@ -14,8 +14,9 @@ import Foundation
 //     (support.ouraring.com/hc/en-us/articles/25358829055251). The component scales and weights below are
 //     NOOP's own and are documented next to each constant.
 //   • Cumulative Stress (31 days): a rolling load index over a month, needing 21 days of data, modelled on
-//     Oura's Cumulative Stress (Nov 2025; 31-day window, ≥21 days; validated by Oura against the Perceived
-//     Stress Scale and the Copenhagen Burnout Inventory, n=151). Oura's inputs (sleep continuity, HR stress
+//     Oura's Cumulative Stress (Nov 2025; 31-day window, ≥21 days). Oura reports a comparison with the
+//     Perceived Stress Scale and the Copenhagen Burnout Inventory (n=151); that study could not be located
+//     and would not transfer to these different inputs in any case. Oura's inputs (sleep continuity, HR stress
 //     response, micromotion, temperature) are not all available here, so NOOP's version uses the three load
 //     signals it does have: waking time in high stress, sleep stress, and the Charge shortfall.
 //
@@ -159,6 +160,9 @@ public enum ResilienceEngine {
     /// treated as no remaining headroom.
     public static let highShareCeiling = 0.35
     /// Low-stress share of waking time that earns full daytime-recovery credit (half the waking day calm).
+    /// Unvalidated, like the weights below. Low means HR below the calm floor, so this is rarely reached:
+    /// one wearer's 81 stored days averaged 23% low, a component of about 0.46. Charge also feeds the
+    /// night component, so HR and HRV count more than once.
     public static let lowShareTarget = 0.50
     /// Overnight recovery is mapped linearly from 0.30 (a red Charge / poor Rest) to 0.85 (a strong night).
     public static let nightFloor = 0.30, nightCeiling = 0.85

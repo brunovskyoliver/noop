@@ -10,8 +10,10 @@ import Foundation
 //   1. Pair (dose_d, outcome_{d+1}) for each logged day with a next-day outcome (the same
 //      L=1 alignment EffectRanker / ActivityCostEngine use, via CorrelationEngine.shiftDay).
 //   2. Fit the PERSONAL slope β_user = OLS slope of outcome on dose via the slope that
-//      CorrelationEngine.pearson already returns; n_user = paired days. (pearson needs ≥ 3
-//      pairs AND spread in both axes; if it can't fit, β_user is undefined → pure prior.)
+//      CorrelationEngine.pearson already returns; n_user = paired days that fed that fit.
+//      (pearson needs ≥ 3 pairs AND spread in both axes; if it can't fit, β_user is undefined,
+//      n_user = 0 and the result is the prior alone. Logged days that all share one dose say
+//      nothing about a slope however many there are, so they cannot raise confidence.)
 //   3. SHRINK toward the conservative documented prior β_prior (DoseResponsePriors):
 //          β = w · β_user + (1 − w) · β_prior,   w = n_user / (n_user + k)
 //      with k = shrinkageK (the pseudo-count of "prior days"). n_user = 0 ⇒ β = β_prior;
@@ -22,14 +24,16 @@ import Foundation
 //
 // HONESTY baked in (the product IS the honesty):
 //   - Below the dose gate (n_user < minDoseDays) the result is flagged `priorDominated` so the
-//     card can say "based mostly on typical patterns, not yet yours" and show the prior.
+//     card can say "population estimate" and show the prior. The priors carry no citation in
+//     this repository; treat them as conservative assumptions.
 //   - Once the user has enough data, the PERSON overrides the population: if the personal slope
-//     contradicts the prior (e.g. your drink-nights show no dip), β follows the user, and
+//     contradicts the prior with the prior outside its 95% interval, β follows the user, and
 //     `contradictsPrior` flags the "in your data so far, this doesn't move your Charge" copy.
 //   - Caffeine "dose" is a TIMING proxy (later = stronger), never mg — the priors table & UI say so.
 // Nothing here is a causal/clinical claim; it is association on the user's own logged days.
 //
-// Mirrors the Kotlin DoseResponseEngine twin byte-for-byte. (Spec:
+// The Kotlin DoseResponseEngine twin still has the sign-only gate and the n_user that counts
+// days with no slope; the iPhone app no longer matches it. (Spec:
 // 2026-06-19-v5-insights-correlation-engine-design.md — "Personal dose-response with
 // population-prior shrinkage".)
 
@@ -50,12 +54,13 @@ public struct DoseResponse: Equatable, Sendable {
     public let priorSlope: Double
     /// The shrinkage weight w = n_user / (n_user + k) in [0, 1]; 0 = pure prior, →1 = pure personal.
     public let weight: Double
-    /// Number of (dose, next-day-outcome) pairs that backed the personal fit.
+    /// Number of (dose, next-day-outcome) pairs that backed the personal fit; 0 when there is no fit.
     public let nUser: Int
     /// True while the estimate is mostly the prior (n_user below the dose gate) — show the
-    /// "typical patterns, not yet yours" banner.
+    /// "population estimate" banner.
     public let priorDominated: Bool
-    /// True when the user has enough data AND their slope's SIGN disagrees with the prior — show
+    /// True when the user has enough data, their slope's SIGN disagrees with the prior, AND the
+    /// prior lies outside the slope's 95% interval — show
     /// the "in your data so far, this doesn't move your …" copy (person overrides population).
     public let contradictsPrior: Bool
     /// Per-result certainty tier from n_user / w.
@@ -94,7 +99,7 @@ public struct DoseResponse: Equatable, Sendable {
         let dir = perUnit <= 0 ? "lower" : "higher"
         if priorDominated {
             return "Each extra unit typically lines up with about \(mag) \(outcome) \(dir) "
-                + " - typical patterns, not yet yours (n=\(nUser))."
+                + "- population estimate, not your data (n=\(nUser))."
         }
         if contradictsPrior {
             return "In your data so far, this doesn't move your \(outcome) the way it typically "
@@ -126,12 +131,25 @@ public enum DoseResponseEngine {
     /// the estimate is a 50/50 blend; larger k leans harder on the prior for longer.
     public static let shrinkageK: Double = 8.0
     /// Paired (dose, next-day) days below which the estimate is `priorDominated` (show the
-    /// "typical patterns, not yet yours" banner).
+    /// "population estimate" banner).
     public static let minDoseDays: Int = 5
     /// n_user at/above which confidence can reach `.solid` (the personal slope is trusted).
     public static let solidDoseDays: Int = 12
     /// The highest dose level the curve enumerates (0…maxCurveDose), matching the 0/1/2/3+ axis.
     public static let maxCurveDose: Int = 3
+
+    // MARK: - Doses
+
+    /// One day's dose from the journal: a Yes with no explicit amount reads 1, a No reads 0, and an
+    /// explicit dose row wins. Without the No days every dose would be 1 and no slope could exist.
+    public static func mergedDoses(yesDays: Set<String>, noDays: Set<String>,
+                                   explicit: [String: Int]) -> [String: Int] {
+        var doses: [String: Int] = [:]
+        for day in noDays { doses[day] = 0 }
+        for day in yesDays { doses[day] = 1 }
+        doses.merge(explicit) { _, new in new }
+        return doses
+    }
 
     // MARK: - Estimate
 
@@ -167,10 +185,9 @@ public enum DoseResponseEngine {
                   let outVal = outcomeByDay[d1] else { continue }
             pairs.append((Double(dose), outVal))
         }
-        let nUser = pairs.count
-
         // Personal OLS slope of outcome on dose (nil if < 3 pairs or no spread in either axis).
         let userSlope = CorrelationEngine.pearson(pairs)?.slope
+        let nUser = userSlope == nil ? 0 : pairs.count
 
         // Shrinkage weight: 0 with no data, → 1 as data accumulates past k.
         let w = Double(nUser) / (Double(nUser) + shrinkageK)
@@ -186,12 +203,13 @@ public enum DoseResponseEngine {
         let perUnit = clamp(blended, prior.clampLow, prior.clampHigh)
 
         let priorDominated = nUser < minDoseDays
-        // Person overrides population only once they have enough data AND the signs disagree
-        // (e.g. prior says drinking lowers Charge but your slope is ≥ 0). A flat personal slope
-        // counts as "doesn't move it the way it typically does."
+        // Person overrides population only once they have enough data, the signs disagree (e.g.
+        // prior says drinking lowers Charge but your slope is ≥ 0), and the data can tell the two
+        // apart. Sign alone flips by chance on about a quarter of people at n=5.
         let contradicts: Bool
         if let us = userSlope, nUser >= minDoseDays {
             contradicts = !sameSign(us, prior.slopePerUnit)
+                && abs(us - prior.slopePerUnit) > slopeHalfInterval(pairs, slope: us)
         } else {
             contradicts = false
         }
@@ -219,7 +237,20 @@ public enum DoseResponseEngine {
         return nUser >= solidDoseDays ? .solid : .building
     }
 
-    // MARK: - Helpers (self-contained so the Kotlin mirror is line-for-line)
+    // MARK: - Helpers
+
+    /// Half-width of the OLS slope's 95% interval on n−2 degrees of freedom.
+    static func slopeHalfInterval(_ pairs: [(Double, Double)], slope: Double) -> Double {
+        let n = Double(pairs.count)
+        let meanX = pairs.reduce(0) { $0 + $1.0 } / n, meanY = pairs.reduce(0) { $0 + $1.1 } / n
+        let sxx = pairs.reduce(0) { $0 + ($1.0 - meanX) * ($1.0 - meanX) }
+        let residual = pairs.reduce(0) { sum, p in
+            let e = p.1 - meanY - slope * (p.0 - meanX)
+            return sum + e * e
+        }
+        return CorrelationEngine.studentTQuantile(twoSidedP: 0.05, df: n - 2)
+            * (residual / (n - 2) / sxx).squareRoot()
+    }
 
     /// True when a and b share a sign. Zero is treated as "not the same sign" as a non-zero
     /// value (a flat personal slope DOES contradict a non-zero prior — that's the honest read).

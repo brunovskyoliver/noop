@@ -150,18 +150,39 @@ public enum SleepDebt {
         // the most-recent `cap` of them.
         let usable = series.filter { ($0.totalSleepMin ?? 0) > 0 }
         let windowed = usable.suffix(cap)
+        // A calendar night with no record repays at the same carry rate rather than freezing the debt, so
+        // one bad night weeks ago cannot sit in the balance until the strap next records.
+        func unrecordedNights(_ a: String, _ b: String) -> Int {
+            guard let lo = dayOrdinal(a), let hi = dayOrdinal(b) else { return 0 }
+            return max(0, hi - lo - 1)
+        }
 
         var nights: [SleepDebtNight] = []
         nights.reserveCapacity(windowed.count)
         var debt = 0.0
+        var previousDay: String?
         for row in windowed {
+            if let previousDay { debt *= pow(debtCarryFactor, Double(unrecordedNights(previousDay, row.day))) }
+            previousDay = row.day
             let slept = row.totalSleepMin ?? 0
             let delta = slept - needMin
             let calculatedDebt = debtCarryFactor * max(0, needMin + debt - slept)
             debt = calculatedDebt < minimumDebtMin ? 0 : calculatedDebt
             nights.append(SleepDebtNight(day: row.day, sleptMin: slept, deltaMin: delta))
         }
+        // Nights the series reaches past the last record count too, short of its final day, whose night
+        // may simply not have synced yet.
+        if let previousDay, let lastDay = series.last?.day {
+            debt *= pow(debtCarryFactor, Double(unrecordedNights(previousDay, lastDay)))
+        }
+        if debt < minimumDebtMin { debt = 0 }
         return SleepDebtLedger(balanceMin: round1(-debt), nights: nights, needMin: needMin)
+    }
+
+    private static func dayOrdinal(_ key: String) -> Int? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return LocalCalendarDate(year: parts[0], month: parts[1], day: parts[2]).daysSinceEpoch
     }
 
     /// Round to 1 decimal place (the ledger is reported in whole/near-whole minutes;

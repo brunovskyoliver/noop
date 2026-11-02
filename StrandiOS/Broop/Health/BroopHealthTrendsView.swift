@@ -30,7 +30,7 @@ struct BroopHealthTrendsView: View {
         ("recovery", "my-whoop"), ("hrv", "my-whoop"), ("rhr", "my-whoop"), ("resp_rate", "my-whoop"),
         ("sleep_performance", "my-whoop"), ("sleep_total_min", "my-whoop"), ("sleep_efficiency", "my-whoop"),
         ("sleep_consistency", "my-whoop"), ("restorative_min", "my-whoop"),
-        ("strain", "my-whoop"), ("steps", "my-whoop"), ("steps", "apple-health"), ("steps_est", "my-whoop"),
+        ("strain", "my-whoop"), ("steps", "my-whoop"), ("steps", "apple-health"),
         ("energy_kcal", "my-whoop"), ("hr_zones13_min", "my-whoop"), ("hr_zones45_min", "my-whoop"),
         ("vo2max_est", "my-whoop"), ("stress", "my-whoop"), ("weight", "apple-health"),
     ]
@@ -90,8 +90,11 @@ struct BroopHealthTrendsView: View {
         .task(id: repo.refreshSeq) {
             byID = await repo.exploreAllSeries() ?? [:]
             let days = repo.days
+            // Today's Effort is still accruing and must not read as a full day.
+            let today = AnalyticsEngine.dayString(Int(Date().timeIntervalSince1970),
+                                                  offsetSec: TimeZone.current.secondsFromGMT())
             loadResult = await CancellableAnalysis.run {
-                TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(days))
+                TrainingLoadEngine.evaluate(days: TrainingLoadEngine.dailyTrimp(days, before: today))
             }
         }
         .sheet(isPresented: $showReport) { TrendsReportSheet(days: repo.days) }
@@ -311,7 +314,7 @@ struct BroopHealthTrendsView: View {
             } else {
                 let have = loadResult?.contiguousDays ?? 0
                 let need = TrainingLoadEngine.Configuration.standard.minimumDays
-                Text("Training load needs \(need) days of Effort in a row. You have \(have) so far.")
+                Text("Training load needs \(need) days of Effort. You have \(have) so far.")
                     .font(BroopType.regular(14)).foregroundStyle(BroopPalette.textSecondary)
             }
         }

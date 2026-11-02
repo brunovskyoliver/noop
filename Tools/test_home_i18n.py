@@ -423,7 +423,7 @@ class HomeLocalizationTest(unittest.TestCase):
         )[0]
         verdicts = set(re.findall(r'(?:return|\?|:)\s*"([^"]+)"', verdict_block))
         # Pin the unique-key set size so syntax changes cannot silently evade extraction.
-        self.assertEqual(18, len(verdicts), "Verdict extraction changed; review the catalog contract")
+        self.assertEqual(20, len(verdicts), "Verdict extraction changed; review the catalog contract")
 
         catalog = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")
         missing = []
@@ -606,7 +606,7 @@ class HomeLocalizationTest(unittest.TestCase):
     def test_apple_illness_messages_are_not_portuguese_in_other_locales(self) -> None:
         strings = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")["strings"]
         keys = (
-            "Your body looks strained. Signals up: %@. No alcohol or travel was logged, so consider taking it easy. On-device estimate, not a diagnosis.",
+            "Your body looks strained. Signals up: %@. No alcohol, stress, sauna, hard workout or travel logged, which does not rule them out. Consider taking it easy. On-device estimate, not a diagnosis.",
             "You logged feeling unwell, and your signals agree. Take it easy today. On-device estimate, not a diagnosis.",
             "You logged feeling unwell. Take it easy today. On-device estimate, not a diagnosis.",
             "Some signals are up, but you logged %@. That is the more likely explanation. On-device estimate, not a diagnosis.",

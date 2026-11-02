@@ -516,8 +516,8 @@ struct BroopHealthSkinTempSection: View {
             if let illness = model.illnessSignal, illness.level != .quiet {
                 BroopFinalAHeadsUpCard(result: illness, distance: model.illnessDistance)
             }
-            if let phase = model.circadianPhase {
-                BroopFinalABodyClockEstimateCard(estimate: phase)
+            if let timing = model.sleepTiming {
+                BroopFinalASleepTimingCard(timing: timing)
             }
             if cycleEnabled, let cycle = model.cyclePhase {
                 BroopFinalACycleCard(result: cycle, curve: model.cycleCurve,
@@ -541,7 +541,7 @@ struct BroopHealthSkinTempSection: View {
                 })
             }
             if (cycleEnabled || !optInApplies)
-                && model.illnessSignal == nil && model.circadianPhase == nil && model.cyclePhase == nil {
+                && model.illnessSignal == nil && model.sleepTiming == nil && model.cyclePhase == nil {
                 BroopHealthCard {
                     HStack(spacing: 12) {
                         Image(systemName: "thermometer.medium").font(.system(size: 18, weight: .light))

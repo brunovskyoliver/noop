@@ -16,20 +16,17 @@ final class RD1LogDomainTests: XCTestCase {
     }
 
     func testHrvBaselineIsGeometricNotArithmetic() {
-        // 20 nights at 42 ms + 8 big-recovery nights at 85 ms: arithmetic mean ≈ 54, geometric ≈ 51.
+        // 17 nights at 42 ms + 7 big-recovery nights at 85 ms: arithmetic mean ≈ 54.5, geometric ≈ 52.
         var days: [DailyMetric] = []
-        for i in 1...20 { days.append(d(i, hrv: 42, rhr: i % 2 == 0 ? 53 : 51)) }
-        for i in 21...28 { days.append(d(i, hrv: 85, rhr: i % 2 == 0 ? 53 : 51)) }
-        days.append(d(29, hrv: 50, rhr: 52))   // today: a typical night
+        for i in 1...17 { days.append(d(i, hrv: 42, rhr: i % 2 == 0 ? 53 : 51)) }
+        for i in 18...24 { days.append(d(i, hrv: 85, rhr: i % 2 == 0 ? 53 : 51)) }
+        for i in 25...31 { days.append(d(i, hrv: 50, rhr: 52)) }   // a typical week, ending today
 
         let hrv = ReadinessEngine.evaluate(days: days).signals.first { $0.key == "hrv" }
-        // Log domain baselines against a GEOMETRIC center (49 ms), well below the arithmetic mean (54)
-        // a raw-ms z would report. Under RD2 the center is the recency-weighted, Winsor-clamped EWMA
-        // (Baselines spine, reject off): the 8 recent 85 ms nights nudge it up from the 42 ms cluster
-        // but Winsorization caps their pull, so it lands at 49 — still geometric, not the tail-inflated
-        // arithmetic 54.
-        XCTAssertEqual(hrv?.evidence, "50 vs 49 ms")
-        // 50 sits at the typical night → neutral, read against a representative (not tail-inflated) baseline.
+        // Log domain baselines against a GEOMETRIC center below the arithmetic mean a raw-ms z would
+        // report. The window holds the nights before the 7-day reading.
+        XCTAssertEqual(hrv?.evidence, "50 vs 52 ms")
+        // 50 sits near the typical night → neutral, read against a representative (not tail-inflated) baseline.
         XCTAssertEqual(hrv?.flag, .neutral)
     }
 }

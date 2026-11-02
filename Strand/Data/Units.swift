@@ -89,9 +89,10 @@ enum UnitPrefs {
     /// Temperature override. Empty string = "follow body measurements" (the default).
     static let temperatureKey = "units.temperature"
 
-    /// #1846: which skin-temp number the cards lead with — absent/`""` = a temperature (the default), or
-    /// `SkinTempDisplay.Kind.deviation.rawValue` to lead with the ±baseline move. Display-only; nothing
-    /// stored ever changes. Same key string as the Android `units.skinTempDisplay` pref.
+    /// #1846: which skin-temp number the cards lead with: a `SkinTempDisplay.Kind` rawValue, or
+    /// absent/`""` for the default. On iPhone the default is resolved by `SkinTempDisplay.preferred`
+    /// (deviation on WHOOP 4.0); macOS screens read it as a temperature. Display-only; nothing stored
+    /// ever changes. Same key string as the Android `units.skinTempDisplay` pref.
     static let skinTempDisplayKey = "units.skinTempDisplay"
     /// Effort display scale (#268). Stored raw is an `EffortScale` rawValue; an unset/unknown value
     /// resolves to `.hundred` (NOOP's native axis). Mirrored on Android by NoopPrefs("effort.scale").

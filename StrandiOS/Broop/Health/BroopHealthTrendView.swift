@@ -29,6 +29,7 @@ struct BroopHealthTrendView: View {
     @State private var sourceByDay: [String: String] = [:]
     @State private var loaded = false
     @State private var skinTempNote: String?
+    @State private var activeStrapIsWhoop4 = false
     @State private var others: [(metric: MetricDescriptor, series: [(day: String, value: Double)])] = []
     @State private var correlationsLoaded = false
     @State private var correlations: [Corr] = []
@@ -51,7 +52,7 @@ struct BroopHealthTrendView: View {
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
     private var temperatureUnit: TemperatureUnit { UnitPrefs.resolveTemperature(system: unitSystem, override: temperatureRaw) }
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
-    private var skinPref: SkinTempDisplay.Kind { SkinTempDisplay.Kind(rawValue: skinTempDisplayRaw) ?? .absolute }
+    private var skinPref: SkinTempDisplay.Kind { SkinTempDisplay.preferred(raw: skinTempDisplayRaw, isWhoop4: activeStrapIsWhoop4) }
     private var isSteps: Bool { MetricDetailSteps.isMetric(metric.key) }
 
     private func fmt(_ v: Double) -> String {
@@ -542,10 +543,13 @@ struct BroopHealthTrendView: View {
         let window = rawSlice(eff, anchor: anchor(eff))
         let myDays = Set(window.map(\.day))
         guard !myDays.isEmpty else { correlations = []; return }
+        let candidates = others.filter { !CorrelationEngine.isCoupled(metric.key, $0.metric.key) }
+        let screened = CorrelationEngine.screened(candidates.map { entry in
+            CorrelationEngine.alignByDay(window, entry.series.filter { myDays.contains($0.day) })
+        }, minN: 10, minAbsR: 0.3)
         var rows: [Corr] = []
-        for entry in others {
-            let pairs = CorrelationEngine.alignByDay(window, entry.series.filter { myDays.contains($0.day) })
-            guard pairs.count >= 10, let c = CorrelationEngine.pearson(pairs), abs(c.r) >= 0.3 else { continue }
+        for (entry, c) in zip(candidates, screened) {
+            guard let c else { continue }
             rows.append(Corr(id: entry.metric.id, metric: entry.metric, r: c.r, n: c.n))
         }
         rows.sort { abs($0.r) > abs($1.r) }
@@ -582,6 +586,7 @@ struct BroopHealthTrendView: View {
     // MARK: Load (MetricDetailView.load, phase 1 then phase 2)
 
     private func load() async {
+        activeStrapIsWhoop4 = repo.activeStrapIsWhoop4()
         let m = metric
         let requestedRange = range
         let resolution: MetricSeriesResolution

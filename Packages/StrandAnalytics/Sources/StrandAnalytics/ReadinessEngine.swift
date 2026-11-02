@@ -8,15 +8,15 @@ import WhoopStore
 /// deterministic function of the rows you pass in — no networking, no strap commands, no state.
 ///
 /// Signals and their references:
-/// - **HRV readiness** — z-score of today's HRV against the personal trailing baseline. A drop of
-///   roughly half a standard deviation flags autonomic fatigue (Plews et al. 2013; Buchheit 2014).
+/// - **HRV readiness** — the 7-day rolling ln RMSSD against the personal baseline before that week. A
+///   single night is too noisy to label; Plews et al. 2013 and Buchheit 2014 read the weekly average.
 /// - **Resting-HR drift** — elevated resting HR vs baseline is a classic overtraining / illness
 ///   signal (Lamberts et al. 2004).
 /// - **Respiratory-rate drift** — a rise in sleeping respiratory rate is an early illness signal.
-/// - **Training Stress Balance (ACWR)** — acute (7-day) vs chronic (28-day) strain. The 0.8–1.3
-///   band is the "sweet spot"; >1.5 is associated with higher injury risk (Gabbett 2016).
-/// - **Training monotony** — mean/SD of daily strain over a week; high monotony (low variety) is
-///   associated with higher strain and illness (Foster 1998).
+/// - **Training load** — this week's load against the three weeks before it, as a plain comparison.
+///   It sets no headline: the evidence does not support the ratio as an injury predictor
+///   (Impellizzeri et al. 2020), so it carries no risk band.
+/// - **Training monotony** — mean/SD of daily strain over a week; a descriptive note (Foster 1998).
 ///
 /// Not medical advice. These are approximations from a consumer strap; they describe trends in
 /// *your own* data, nothing more.
@@ -81,23 +81,27 @@ public enum ReadinessEngine {
     // MARK: Tunables (named so the thresholds are auditable)
 
     private static let baselineWindow = 30   // days for HRV / RHR / RR baselines
+    /// Calendar days in the rolling HRV reading, and the valid nights it needs (HRVStatus's rule).
+    static let rollingHrvDays = 7
+    static let minRollingHrvNights = 3
     private static let minBaseline    = 7    // need at least this many baseline nights
     private static let acuteWindow    = 7
     private static let chronicWindow  = 28
-    private static let minChronic     = 14   // observed load days needed in the 28-day window for ACWR
+    private static let minChronic     = 10   // observed load days needed in the previous three weeks
     private static let minAcute       = 4    // observed load days needed in the 7-day window
 
     /// Daily TRIMP (from stored Effort, Edwards scale) for the calendar days ending on `day`: the last
-    /// `acuteWindow` and `chronicWindow` days, oldest first, skipping days with no Effort. Days outside the
-    /// window never count, however few rows there are.
-    static func calendarLoads(_ sorted: [DailyMetric], through day: String) -> (acute: [Double], chronic: [Double]) {
-        guard let end = VitalityEngine.epochDay(day) else { return ([], []) }
+    /// `acuteWindow` days, and the days before them back to `chronicWindow` (the two never overlap, so the
+    /// ratio is not capped by the acute week sitting inside its own baseline). Oldest first, skipping days
+    /// with no Effort. Days outside the window never count, however few rows there are.
+    static func calendarLoads(_ sorted: [DailyMetric], through day: String,
+                              endOffset: Int = 0) -> (acute: [Double], chronic: [Double]) {
+        guard let end = VitalityEngine.epochDay(day).map({ $0 - endOffset }) else { return ([], []) }
         var acute: [Double] = [], chronic: [Double] = []
         for d in sorted {
             guard let strain = d.strain, let e = VitalityEngine.epochDay(d.day), e <= end else { continue }
             let load = StrainScorer.strainToTrimp(strain)
-            if e > end - chronicWindow { chronic.append(load) }
-            if e > end - acuteWindow { acute.append(load) }
+            if e > end - acuteWindow { acute.append(load) } else if e > end - chronicWindow { chronic.append(load) }
         }
         return (acute, chronic)
     }
@@ -158,13 +162,30 @@ public enum ReadinessEngine {
                              signals: [], acwr: nil, monotony: nil)
         }
         let history = sorted.filter { $0.day < latest.day }   // everything before today
+        // Calendar windows, so a gap cannot pass rows from months ago off as the recent baseline.
+        let latestEpochDay = VitalityEngine.epochDay(latest.day) ?? 0
+        func rows(daysBack range: ClosedRange<Int>) -> [DailyMetric] {
+            sorted.filter { d in
+                VitalityEngine.epochDay(d.day).map { range.contains(latestEpochDay - $0) } ?? false
+            }
+        }
+        // Same HRV bounds as the Charge baseline.
+        let hrvWeek = rows(daysBack: 0...(rollingHrvDays - 1)).compactMap { $0.avgHrv }
+            .filter { Baselines.hrvCfg.minVal <= $0 && $0 <= Baselines.hrvCfg.maxVal }
+        let hrvBaseline = rows(daysBack: rollingHrvDays...(rollingHrvDays + baselineWindow - 1))
+            .compactMap { $0.avgHrv }
+        let recent = rows(daysBack: 1...baselineWindow)
 
         var signals: [Signal] = []
 
         // HRV readiness ------------------------------------------------------
         let hrvSignal = zSignal(
-            value: latest.avgHrv,
-            baseline: history.suffix(baselineWindow).compactMap { $0.avgHrv },
+            // Today must have a reading; the label then describes the week it ends, as HRVStatus does.
+            value: latest.avgHrv.flatMap { _ in
+                hrvWeek.count >= minRollingHrvNights
+                    ? exp(hrvWeek.map { log(max($0, 1.0)) }.reduce(0, +) / Double(hrvWeek.count)) : nil
+            },
+            baseline: hrvBaseline,
             key: "hrv", label: "HRV",
             unit: "ms",
             decimals: 0,
@@ -180,7 +201,7 @@ public enum ReadinessEngine {
         // Resting-HR drift ---------------------------------------------------
         let rhrSignal = zSignal(
             value: latest.restingHr.map(Double.init),
-            baseline: history.suffix(baselineWindow).compactMap { $0.restingHr.map(Double.init) },
+            baseline: recent.compactMap { $0.restingHr.map(Double.init) },
             key: "rhr", label: "Resting HR",
             unit: "bpm",
             decimals: 0,
@@ -198,10 +219,11 @@ public enum ReadinessEngine {
         // use wider resp-only z thresholds (WATCH 1.5 / BAD 2.0) than HRV/RHR so a single noisy night
         // can't flip RUNDOWN. Mirrors the Kotlin reference (#78) for cross-platform parity.
         if let rr = latest.respRateBpm, SleepStager.respPlausibleRangeBpm.contains(rr) {
-            let base = history.suffix(baselineWindow).compactMap { $0.respRateBpm }
+            let base = recent.compactMap { $0.respRateBpm }
             if base.count >= minBaseline, let m = mean(base),
-               SleepStager.respPlausibleRangeBpm.contains(m), let sd = sampleSD(base), sd > 0 {
-                let z = (rr - m) / sd
+               SleepStager.respPlausibleRangeBpm.contains(m), let sd = sampleSD(base) {
+                // σ floor: a very narrow history must not turn a small rise into a huge z.
+                let z = (rr - m) / max(sd, Baselines.respCfg.floorSpread)
                 if z >= 2.0 {
                     signals.append(Signal(key: "respRate", label: "Respiratory rate",
                         evidence: evidence(value: rr, baseline: m, unit: "rpm", decimals: 1),
@@ -218,9 +240,10 @@ public enum ReadinessEngine {
 
         // Training Stress Balance (ACWR) + monotony --------------------------
         // Both run on TRIMP recovered from the stored Effort (`StrainScorer.strainToTrimp`), not on the
-        // log-compressed Effort itself, and over CALENDAR windows ending on the target day: a week off the
-        // strap leaves the acute window short instead of reaching back past the gap.
-        let (acuteLoads, chronicLoads) = calendarLoads(sorted, through: latest.day)
+        // log-compressed Effort itself, and over CALENDAR windows ending the day BEFORE the target: the
+        // target's Effort is still accruing, and a morning's near-zero must not read as a light full day.
+        // A week off the strap leaves the acute window short instead of reaching back past the gap.
+        let (acuteLoads, chronicLoads) = calendarLoads(sorted, through: latest.day, endOffset: 1)
         var acwr: Double? = nil
         var monotony: Double? = nil
         if chronicLoads.count >= minChronic, acuteLoads.count >= minAcute {
@@ -242,7 +265,7 @@ public enum ReadinessEngine {
                     signals.append(Signal(key: "monotony", label: "Training variety",
                         evidence: "monotony \(String(format: "%.1f", mono))",
                         evidenceData: .monotony(mono),
-                        detail: "low - similar strain every day raises strain/illness risk", flag: .watch))
+                        detail: "low - similar strain every day this week", flag: .neutral))
                 }
             }
         }
@@ -252,7 +275,7 @@ public enum ReadinessEngine {
         // RD-confidence: surface how much history backs the read (HRV baseline density, the primary
         // readiness driver). A read off a 7-night baseline must not look as certain as one off the full
         // 30-night window. Insufficient reads carry .calibrating.
-        let hrvBaselineNights = history.suffix(baselineWindow).compactMap { $0.avgHrv }.count
+        let hrvBaselineNights = hrvBaseline.count
         let confidence = ScoreConfidence.readiness(hasRead: level != .insufficient,
                                                    baselineNights: hrvBaselineNights,
                                                    fullWindow: baselineWindow)
@@ -279,16 +302,11 @@ public enum ReadinessEngine {
         // outlier-inflated arithmetic mean.
         let tv = logDomain ? log(max(v, 1.0)) : v
         let tb = logDomain ? baseline.map { log(max($0, 1.0)) } : baseline
-        // RD2: fold the trailing baseline through the shared Winsorized-EWMA spine — recency-weighted,
-        // σ-floored (a tight baseline can't saturate the z), and Winsor-clamped so a single freak night
-        // is DAMPED not folded raw — instead of a flat mean + sample SD. Hard-outlier REJECTION is off
-        // (`rejectHardOutliers: false`): a re-folded trailing window must ADAPT to a recent sustained
-        // shift (fitness change / device swap) rather than reject the new normal as a run of outliers —
-        // the window-fold vs incremental-fold distinction, validated on real HRV history. `cfg` is in
-        // the SAME space as `tb` (ln for HRV, linear for RHR); center + spread come back σ-floored.
-        let state = Baselines.foldHistory(tb.map { Optional($0) }, cfg: cfg, rejectHardOutliers: false)
+        // RD2: the same equally weighted, σ-floored window fold Charge uses, so a recent sustained shift
+        // is absorbed instead of rejected. `cfg` is in the SAME space as `tb` (ln for HRV, linear for RHR).
+        let state = Baselines.rollingMeanSD(tb, cfg: cfg, window: .max)
         guard state.usable else { return nil }
-        let sigma = max(1.253 * state.spread, 1e-9)   // robust σ from the EWMA-abs-dev spread
+        let sigma = Baselines.sigma(state)
         guard sigma > 0 else { return nil }
         let m = state.baseline
         // Orient z so positive always means "better".
@@ -310,30 +328,13 @@ public enum ReadinessEngine {
     }
 
     private static func acwrSignal(_ ratio: Double, acute: Double, chronic: Double) -> Signal {
-        let pct = String(format: "%.2f", ratio)
-        let evidence = "7d \(String(format: "%.1f", acute)) / 28d \(String(format: "%.1f", chronic))"
-        switch ratio {
-        case ..<0.8:
-            return Signal(key: "acwr", label: "Training load",
-                evidence: evidence,
-                evidenceData: .trainingLoad(acute: acute, chronic: chronic),
-                detail: "ramping down (acute:chronic \(pct)) - room to build", flag: .watch)
-        case 0.8..<1.3:
-            return Signal(key: "acwr", label: "Training load",
-                evidence: evidence,
-                evidenceData: .trainingLoad(acute: acute, chronic: chronic),
-                detail: "in the sweet spot (acute:chronic \(pct))", flag: .good)
-        case 1.3..<1.5:
-            return Signal(key: "acwr", label: "Training load",
-                evidence: evidence,
-                evidenceData: .trainingLoad(acute: acute, chronic: chronic),
-                detail: "building fast (acute:chronic \(pct)) - watch fatigue", flag: .watch)
-        default:
-            return Signal(key: "acwr", label: "Training load",
-                evidence: evidence,
-                evidenceData: .trainingLoad(acute: acute, chronic: chronic),
-                detail: "spiking (acute:chronic \(pct)) - higher injury risk", flag: .bad)
-        }
+        let evidence = "7d \(String(format: "%.1f", acute)) / prior 21d \(String(format: "%.1f", chronic))"
+        let pct = Int((abs(ratio - 1) * 100).rounded())
+        let detail = pct < 5 ? "about the same as your previous 3 weeks"
+            : "\(pct)% \(ratio > 1 ? "above" : "below") your previous 3 weeks"
+        return Signal(key: "acwr", label: "Training load", evidence: evidence,
+                      evidenceData: .trainingLoad(acute: acute, chronic: chronic),
+                      detail: detail, flag: .neutral)
     }
 
     private static func evidence(value: Double, baseline: Double, unit: String, decimals: Int) -> String {
@@ -357,19 +358,18 @@ public enum ReadinessEngine {
         let watch = signals.filter { $0.flag == .watch }
         let good = signals.filter { $0.flag == .good }
         let recoveryDown = signals.contains { ["hrv", "rhr", "respRate"].contains($0.key) && ($0.flag == .bad) }
-        let loadHigh = signals.contains { $0.key == "acwr" && $0.flag == .bad }
 
-        if bad.count >= 2 || (recoveryDown && loadHigh) {
+        if bad.count >= 2 {
             return (.rundown, "Run down",
                     "Several signals are down at once. Treat today as recovery - easy movement, real sleep tonight.")
         }
-        if recoveryDown || loadHigh || bad.count >= 1 {
+        if recoveryDown || bad.count >= 1 {
             return (.strained, "Strained",
                     "One of your signals is flagging. You can train, but keep it controlled and bank the recovery.")
         }
         if good.count >= 2 && watch.isEmpty {
             return (.primed, "Primed",
-                    "Your signals are aligned and your load is supported. A harder session is well backed today.")
+                    "Your signals are aligned. A harder session is well backed today.")
         }
         return (.balanced, "Balanced",
                 "Nothing's flagging. Train to feel - your body's holding steady.")

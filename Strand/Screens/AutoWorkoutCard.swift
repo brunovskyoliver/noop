@@ -4,9 +4,9 @@ import StrandAnalytics
 
 // MARK: - Auto-detected workout prompt (Today screen)
 //
-// A single, dismissible Today card that appears ONLY when the opt-in "Auto-detect workouts"
-// toggle is on and `Repository.autoDetectCandidate()` finds a recent sustained-elevated HR
-// window that isn't already saved and wasn't previously dismissed.
+// A single, dismissible Today card that appears when the "Auto-detect workouts" toggle is on and
+// `Repository.autoDetectCandidates()` finds a recent session that isn't already saved and wasn't
+// previously dismissed. It offers the newest; handling it brings up the next on the next scan.
 //
 // It only ever SUGGESTS: tapping Save creates a manual-style "Workout" for the window (via the
 // same manual-save path the edit sheet uses); the X dismisses it durably so it never re-prompts.
@@ -18,7 +18,7 @@ struct AutoWorkoutCard: View {
     @EnvironmentObject var repo: Repository
 
     /// Whether the toggle is on. Read here too so the card disappears the instant it's switched off.
-    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectEnabled = false
+    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectEnabled = true
 
     /// The current suggestion, loaded in `.task`. nil → nothing to show.
     @State private var candidate: DetectedWorkout?
@@ -108,7 +108,7 @@ struct AutoWorkoutCard: View {
 
     private func reload() async {
         guard autoDetectEnabled else { candidate = nil; return }
-        let next = await repo.autoDetectCandidate()
+        let next = await repo.autoDetectCandidates().first
         // A fresh scan resets the session guard so a NEW window can surface after one is handled.
         if next != candidate { handledThisSession = false }
         candidate = next

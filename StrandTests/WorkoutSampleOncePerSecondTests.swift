@@ -50,6 +50,7 @@ final class WorkoutSampleOncePerSecondTests: XCTestCase {
         }
         XCTAssertEqual(workout.samples.map(\.ts), clean.map(\.ts))
         XCTAssertEqual(effort(workout.samples), effort(clean))
-        XCTAssertGreaterThan(effort(everyArrival), effort(clean))
+        // The scorer itself now gives a tied timestamp no time, so a duplicated stream cannot inflate Effort.
+        XCTAssertEqual(effort(everyArrival), effort(clean), accuracy: 0.05)
     }
 }

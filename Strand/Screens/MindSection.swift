@@ -226,12 +226,11 @@ struct MindSection: View {
         // the strongest |r| first, cap at three lines.
         var built: [MoodLine] = []
         if mood.count >= Self.minDays {
+            let screened = CorrelationEngine.screened(candidates.map { CorrelationEngine.alignByDay($0.series, mood) },
+                                                      minN: Self.minDays, minAbsR: Self.minAbsR)
             var scored: [(id: String, name: String, corr: Correlation)] = []
-            for c in candidates {
-                guard let corr = CorrelationEngine.pearson(
-                        CorrelationEngine.alignByDay(c.series, mood)),
-                      corr.n >= Self.minDays,
-                      abs(corr.r) >= Self.minAbsR else { continue }
+            for (c, corr) in zip(candidates, screened) {
+                guard let corr else { continue }
                 scored.append((c.id, c.name, corr))
             }
             built = scored

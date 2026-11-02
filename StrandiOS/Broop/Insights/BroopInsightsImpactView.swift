@@ -365,7 +365,7 @@ struct BroopInsightsImpactView: View {
 
     private func relationshipCard(_ rel: BroopInsightsImpactModel.Relationship) -> some View {
         let r = rel.corr.r
-        let significant = rel.corr.pApprox < 0.05
+        let significant = !rel.coupled && rel.corr.pApprox < 0.05
         let color = significant ? (r >= 0 ? BroopInsightsPalette.helps : BroopInsightsPalette.hurts) : BroopInsightsPalette.neutralBar
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
@@ -374,7 +374,7 @@ struct BroopInsightsImpactView: View {
                 Text(verbatim: String(format: "r = %+.2f", r)).font(BroopType.number(18)).foregroundStyle(significant ? color : BroopPalette.textSecondary)
             }
             BroopInsightsImpactBar(fraction: r, color: color)
-            Text(verbatim: "\(Self.relationshipSentence(rel)) \(significant ? "p < 0.05" : "n.s.")")
+            Text(verbatim: "\(Self.relationshipSentence(rel)) \(rel.coupled ? String(localized: "Charge is calculated from this, so they move together by construction.") : significant ? "p < 0.05" : "n.s.")")
                 .font(BroopType.regular(12.5)).foregroundStyle(BroopPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(verbatim: rel.blurb).font(BroopType.regular(12)).foregroundStyle(BroopPalette.textTertiary)
@@ -452,10 +452,14 @@ struct BroopInsightsBehaviorDetail: View {
                         BroopHairline()
                         row(String(localized: "Significance"), effect.significant ? String(localized: "Significant") : String(localized: "Not yet"),
                             String(format: "p ≈ %.3f", effect.pApprox))
+                        if let low = effect.deltaLow, let high = effect.deltaHigh {
+                            BroopHairline()
+                            row(String(localized: "95% interval"), String(format: "%+.1f to %+.1f", low, high), String(localized: "difference"))
+                        }
                     }
                     .padding(.horizontal, 16)
                     .background(RoundedRectangle(cornerRadius: 14).fill(BroopPalette.card))
-                    BroopInsightsBody(text: String(localized: "An association in your own logged days, not a cause. A behaviour needs days both with and without it; significance needs at least five of each."),
+                    BroopInsightsBody(text: String(localized: "An association in your own logged days, not a cause. A behaviour needs days both with and without it; significance needs at least five of each. The p-value is corrected for testing many behaviours at once."),
                                       size: 12, color: BroopPalette.textTertiary)
                 }
                 .padding(.horizontal, BroopMetrics.page)

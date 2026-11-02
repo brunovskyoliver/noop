@@ -17,13 +17,13 @@ import WhoopProtocol
 // ── WAKING EPOCHS (non-sleep, not masked as activity) ─────────────────────────────────────────────
 // Reference: the personal calm-awake HR floor, i.e. the MEDIAN over the previous 14 local days of each
 // day's `DaytimeStress.dayDaytimeAggregate(...).hr` (the 10th percentile of that day's waking-hour mean
-// HRs). That per-day aggregate is the quantity behind `DaytimeStress.baselineRelativeHighMarginBPM`'s
-// validation (26 days vs an Oura stress reference, HR-only, r≈0.6), reused verbatim so the reference is
-// the validated one. The window is a literal 14 days, not an EWMA: WHOOP says "past 14 days".
+// HRs). That per-day aggregate is the quantity behind `DaytimeStress.baselineRelativeHighMarginBPM`, which
+// was tuned against Oura on N=1 (26 days, HR only, r≈0.6): agreement with another product's score, not
+// validation against stress. The window is a literal 14 days, not an EWMA: WHOOP says "past 14 days".
 // Mapping: level = 3 / (1 + e^−x), x = ln2 · (2·Δ/M − 1), Δ = epoch mean HR − floor, M = 15 bpm.
 //   Δ = 0 (at the calm floor)      → 1.0 (top of LOW)          — design anchor, not validated
 //   Δ = M/2                        → 1.5
-//   Δ = M = 15 bpm                 → 2.0 (bottom of HIGH)      — the validated high margin
+//   Δ = M = 15 bpm                 → 2.0 (bottom of HIGH)      — tuned against Oura on N=1
 // HR only. Daytime RMSSD stays out of the waking score (`DaytimeStress.daytimeRMSSDScoringEnabled` is
 // false: wrist RMSSD while awake is artifact-dominated, ~40→430 ms hour to hour). That honesty rule is
 // kept as is; nothing here re-validates it.
@@ -34,7 +34,9 @@ import WhoopProtocol
 // the night has R-R. The reference is the median of those over the previous 14 nights (≥ 4 needed).
 // Recumbent, still, overnight R-R is the signal the whole app already trusts for HRV, so the sleep score
 // DOES use HRV: z_HR = (HR − ref)/spread, z_HRV = (ln ref − ln RMSSD)/spread, s = (z_HR + z_HRV)/√2
-// (unit variance under independence), or s = z_HR when either side lacks R-R.
+// or s = z_HR when either side lacks R-R. Unit variance would need HR and lnRMSSD to be independent; they
+// are negatively correlated, so s spreads wider than 1 and s = 3 is commoner than three SDs suggests. No
+// sleep motion mask, and REM and the early-night HR trend also read as stress here.
 // Mapping: level = 3 / (1 + e^−x), x = −ln 6.5 + (ln 6.5 + ln 2)·s/3, so
 //   s = 0 (a typical sleeping epoch) → 0.4  (WHOOP: good sleep sits below ~0.5)
 //   s = 3 (three robust SDs above your own sleeping physiology) → 2.0 (HIGH).
@@ -45,7 +47,11 @@ import WhoopProtocol
 // at least `DaytimeStress.activityMaskFraction` of its gravity records are ambulatory
 // (`WorkoutDetector.motionThreshold`), or during the post-exercise shadow: up to 15 minutes after an
 // active epoch while HR is still `DaytimeStress.postActivityShadowBPM` over the floor. Masked time is
-// neither waking stress nor coverage.
+// neither waking stress nor coverage. The 15 minutes is a heuristic, and `DaytimeStress` uses an hour on its
+// own grid. Cardiac autonomic recovery can outlast both, so HR after hard exercise may still read as stress.
+// An epoch with no gravity at all cannot be told still from moving: it is still scored, flagged
+// `motionKnown == false`, and counted in `DayResult.motionCoverage`. Gravity lags until offload, so today's
+// levels can change once it arrives.
 //
 // ── COLD START ──────────────────────────────────────────────────────────────────────────────────────
 // Fewer than `minBaselineDays` prior days (or nights) with an aggregate → the day (night) is scored
@@ -138,7 +144,7 @@ public enum StressMonitor {
     /// Band floors on the shared 0–3 scale.
     public static let mediumFloor = 1.0
     public static let highFloor = DaytimeStress.highBandFloor
-    /// Waking HR elevation over the calm floor that reads as the bottom of HIGH (validated, HR-only).
+    /// Waking HR elevation over the calm floor that reads as the bottom of HIGH (tuned on N=1, HR-only).
     public static let wakeHighMarginBPM = DaytimeStress.baselineRelativeHighMarginBPM
     /// Level of a typical sleeping epoch (at the personal nocturnal reference).
     public static let sleepTypicalLevel = 0.4
@@ -187,9 +193,12 @@ public enum StressMonitor {
         public let rmssd: Double?
         /// True when the epoch lies in the MAIN sleep that ends on this day.
         public let inMainSleep: Bool
+        /// False when gravity had no record in this epoch, so "not moving" was assumed rather than seen.
+        public let motionKnown: Bool
 
         public init(startTs: Int, state: EpochState, level: Double?, meanHR: Double?, rmssd: Double?,
-                    inMainSleep: Bool) {
+                    inMainSleep: Bool, motionKnown: Bool = true) {
+            self.motionKnown = motionKnown
             self.startTs = startTs; self.state = state; self.level = level
             self.meanHR = meanHR; self.rmssd = rmssd; self.inMainSleep = inMainSleep
         }
@@ -288,6 +297,13 @@ public enum StressMonitor {
         public let wakeFloorAggregate: Double?
         public let nightAggregate: NightAggregate?
 
+        /// Share (0–1) of scored waking epochs that had gravity behind them; nil when none were scored.
+        public var motionCoverage: Double? {
+            let scored = epochs.filter { $0.state == .waking && $0.level != nil }
+            guard !scored.isEmpty else { return nil }
+            return Double(scored.filter(\.motionKnown).count) / Double(scored.count)
+        }
+
         /// The newest epoch with a level (the "current" reading for today).
         public var latest: Epoch? { epochs.last { $0.level != nil } }
     }
@@ -318,6 +334,46 @@ public enum StressMonitor {
     }
 
     static func clamp03(_ v: Double) -> Double { min(max(v, 0), 3) }
+
+    // MARK: - Curve for drawn surfaces
+
+    /// Today's waking epochs as the half-hour series the widget and Today card draw, so they cannot
+    /// disagree with the Stress screen: same epochs, same floor. Empty during the cold start (the floor is
+    /// then the day's own, which says nothing about this person), so a surface shows no level at all.
+    public static func curve(_ day: DayResult, tzOffsetSeconds: Int) -> DaytimeStress.Result {
+        guard day.wake?.personal == true else { return .empty }
+        var byBucket: [Int: [Epoch]] = [:]
+        for e in day.epochs where e.state == .waking || e.state == .activity {
+            byBucket[DaytimeStress.floorDiv(e.startTs, 1800) * 1800, default: []].append(e)
+        }
+        let points: [DaytimeStress.HourPoint] = byBucket.keys.sorted().map { start in
+            let epochs = byBucket[start]!
+            let levels = epochs.compactMap(\.level)
+            let hrs = epochs.compactMap(\.meanHR)
+            let local = start + tzOffsetSeconds
+            return DaytimeStress.HourPoint(
+                hour: ((DaytimeStress.floorDiv(local, 3600) % 24) + 24) % 24, startTs: start,
+                level: levels.isEmpty ? nil : levels.reduce(0, +) / Double(levels.count),
+                meanHR: hrs.isEmpty ? nil : hrs.reduce(0, +) / Double(hrs.count), rmssd: nil,
+                maskedForActivity: levels.isEmpty)
+        }
+        let scored = points.filter { $0.level != nil }
+        guard !scored.isEmpty else { return .empty }
+        // ponytail: `hours` is the half-hour series too. No reader of this result counts hours.
+        return DaytimeStress.Result(
+            hours: points, sustainedHigh: false, sustainedRun: 0, dayMean: day.summary.meanLevel,
+            peak: scored.max { $0.level! < $1.level! },
+            activityMaskedHours: points.filter(\.maskedForActivity).count / 2,
+            highStressMinutes: day.summary.highMin, hrOnlyFallback: true, timeline: points)
+    }
+
+    /// The personal lens for `DaytimeStress`, from the same stored floors and median as `wakeReference`.
+    /// `.dayRelative` until there are `minBaselineDays` of them.
+    public static func scoringMode(priorFloors: [Double?]) -> DaytimeStress.ScoringMode {
+        guard let wake = wakeReference(priorFloors: priorFloors, todayFloor: nil) else { return .dayRelative }
+        return .baselineRelative(hr: BaselineState(baseline: wake.floorHR, spread: 0, nValid: wake.days,
+                                                   nightsSinceUpdate: 0, status: .provisional), rmssd: nil)
+    }
 
     // MARK: - References
 
@@ -422,7 +478,8 @@ public enum StressMonitor {
         let wakeRef = wakeReference(priorFloors: priorFloors, todayFloor: floorAgg)
         let sleepRef = sleepReference(priorNights: priorNights, tonight: night)
 
-        // 2) Motion: per-epoch ambulatory fraction from gravity, on the day grid.
+        // 2) Motion: per-epoch ambulatory fraction from gravity, on the day grid. A missing key means no
+        //    gravity in that epoch: unknown, not still.
         var activeFrac: [Int: Double] = [:]
         if !input.gravity.isEmpty {
             var counts: [Int: (Int, Int)] = [:]
@@ -480,7 +537,7 @@ public enum StressMonitor {
             }
             let level = wakeRef.map { wakeLevel(meanHR: meanHR, floorHR: $0.floorHR) }
             epochs.append(Epoch(startTs: start, state: .waking, level: level, meanHR: meanHR, rmssd: nil,
-                                inMainSleep: false))
+                                inMainSleep: false, motionKnown: activeFrac[k] != nil))
         }
 
         // 4) Sleep Stress over the WHOLE main sleep (it may start before this day's midnight), on the same

@@ -53,9 +53,13 @@ public struct BaselineState: Equatable, Sendable {
     public let nightsSinceUpdate: Int
     /// Cold-start / staleness status.
     public let status: BaselineStatus
+    /// True when the state was built in ln space: `baseline` is then the geometric mean in the metric's
+    /// own units and `spread` is in ln units, so a z must take the log of the value first.
+    public let logDomain: Bool
 
     public init(baseline: Double, spread: Double, nValid: Int,
-                nightsSinceUpdate: Int, status: BaselineStatus) {
+                nightsSinceUpdate: Int, status: BaselineStatus, logDomain: Bool = false) {
+        self.logDomain = logDomain
         self.baseline = baseline
         self.spread = spread
         self.nValid = nValid
@@ -67,6 +71,8 @@ public struct BaselineState: Equatable, Sendable {
     public var trusted: Bool { status == .trusted }
     /// True iff at least provisionally usable (nValid ≥ MIN_NIGHTS_SEED).
     public var usable: Bool { status == .provisional || status == .trusted }
+    /// Self when usable, for the optional terms a calibrating baseline must not move.
+    public var usableOrNil: BaselineState? { usable ? self : nil }
 }
 
 /// Three forms of deviation from a personal baseline.
@@ -217,11 +223,11 @@ public enum Baselines {
         // Readiness HRV baseline, folded in the LOG domain with hard-outlier rejection OFF (RD2 · the
         // window-fold spine mode — see Baselines.update's `rejectHardOutliers`). ReadinessEngine
         // z-scores lnRMSSD (RD1: HRV is right-skewed), so these bounds/floor are in LN(ms) units — NOT
-        // the raw-ms "hrv" config above (which the RecoveryScorer folds linearly, untouched).
-        // minVal/maxVal = ln(8)/ln(250), the plausible HRV band in ln. floorSpread 0.08 (ln) sits just
+        // the raw-ms "hrv" config above.
+        // minVal/maxVal = ln(5)/ln(250), the plausible HRV band in ln. floorSpread 0.08 (ln) sits just
         // below a real wearer's own ln-HRV night-to-night spread (~0.10, measured on real WHOOP nights),
         // so personal spread drives the z while an ultra-stable baseline is floored against saturation.
-        "readiness_hrv_ln": MetricCfg(minVal: 2.079, maxVal: 5.521, floorSpread: 0.08,
+        "readiness_hrv_ln": MetricCfg(minVal: 1.609, maxVal: 5.521, floorSpread: 0.08,
                                       halfLifeB: 14.0, halfLifeS: 21.0),
 
         // Daytime/waking-hours configs (DaytimeStress baseline-relative mode, added alongside
@@ -231,13 +237,13 @@ public enum Baselines {
         // `DaytimeStress.analyze(mode: .baselineRelative(hr:rmssd:))` and z-score each waking
         // hour against "how MY days usually run" rather than "how today's own calm hours ran".
         //
-        // VALIDATED (26-day Oura-reference correlation, HR-only, r≈0.6): the per-day value to
+        // TUNED AGAINST OURA ON N=1 (26 days, HR-only, r≈0.6): the per-day value to
         // fold for "daytime_hr" is that day's 10th-percentile daytime HR (~65 bpm pooled across
         // the reference set) — NOT the day-relative calmReference's 25th-percentile quartile.
-        // The "high stress" cutoff itself is a validated fixed bpm margin over this baseline,
+        // The "high stress" cutoff itself is a tuned fixed bpm margin over this baseline,
         // NOT this config's floorSpread — see DaytimeStress.baselineRelativeHighMarginBPM.
         // TUNING SEAM: minVal/maxVal/half-life below (and all of "daytime_rmssd" — RMSSD wasn't
-        // part of the validated HR-only comparison) are a documented first pass, refinable once
+        // part of the N=1 HR-only comparison) are a documented first pass, refinable once
         // an HR+HRV comparison exists. floorSpread is wider than the nightly "hrv" config for
         // RMSSD: daytime RMSSD carries more incidental noise (posture changes, talking, movement
         // between "calm" hours) than overnight recumbent HRV.
@@ -247,6 +253,12 @@ public enum Baselines {
                                    halfLifeB: 14.0, halfLifeS: 21.0),
     ]
 
+    /// Apple Watch nightly SDNN: the RMSSD bounds do not describe it (SDNN sits well above RMSSD).
+    public static let sdnnCfg = MetricCfg(minVal: 10.0, maxVal: 300.0, floorSpread: 5.0,
+                                          halfLifeB: 14.0, halfLifeS: 21.0)
+    /// Charge's Rest-quality term (0...1). Only the window fold reads it, for the personal centre.
+    public static let restQualityCfg = MetricCfg(minVal: 0.0, maxVal: 1.0, floorSpread: 0.05,
+                                                 halfLifeB: 14.0, halfLifeS: 21.0)
     /// Convenience accessors for the standard configs.
     public static var hrvCfg: MetricCfg { metricCfg["hrv"]! }
     public static var restingHRCfg: MetricCfg { metricCfg["resting_hr"]! }
@@ -607,13 +619,38 @@ public enum Baselines {
     /// z uses (value − baseline) / sigma(state); see `sigma(_:)` for the 1.253 conversion.
     public static func deviation(_ value: Double, state: BaselineState) -> Deviation {
         let sig = sigma(state)
-        let z = (value - state.baseline) / sig
+        let z = state.logDomain ? (log(max(value, 1.0)) - log(max(state.baseline, 1.0))) / sig
+                                : (value - state.baseline) / sig
         let delta = value - state.baseline
         let ratio = state.baseline != 0 ? (value / state.baseline - 1.0) : 0.0
         return Deviation(z: z, delta: delta, ratio: ratio, inNormalRange: abs(z) <= 1.0)
     }
 
     // MARK: - Trailing-window mean/SD (simple, auditable)
+
+    /// The nightly baseline over a window the caller has already cut: drop nights before the epoch or
+    /// outside `cfg`'s plausible bounds, then take an equally weighted mean and sample SD (in ln space when
+    /// `logDomain`). Nothing is rejected for being far from the others, so a sustained change is absorbed
+    /// night by night, and the result depends only on the nights given.
+    ///
+    /// ponytail: mean/SD, so one extreme but plausible night widens the SD until it ages out of the window.
+    /// A median/MAD would resist that but jumps once the new level passes half the window, which brings
+    /// back a lockout; change it only with data showing artifact nights get past the quality gates.
+    public static func windowFold(_ values: [Double?], dayKeys: [String], cfg: MetricCfg,
+                                  baselineEpoch: Double, logDomain: Bool = false) -> BaselineState {
+        var kept: [Double?] = []
+        for (i, v) in values.enumerated() where i < dayKeys.count {
+            if baselineEpoch > 0, let d = isoEpochDay(dayKeys[i]), Double(d) * 86_400 < baselineEpoch { continue }
+            kept.append(v)
+        }
+        guard logDomain else { return rollingMeanSD(kept, cfg: cfg, window: .max) }
+        let lnCfg = MetricCfg(minVal: log(cfg.minVal), maxVal: log(cfg.maxVal),
+                              floorSpread: readinessHRVLnCfg.floorSpread,
+                              halfLifeB: cfg.halfLifeB, halfLifeS: cfg.halfLifeS)
+        let s = rollingMeanSD(kept.map { $0.map { log(max($0, 1.0)) } }, cfg: lnCfg, window: .max)
+        return BaselineState(baseline: exp(s.baseline), spread: s.spread, nValid: s.nValid,
+                             nightsSinceUpdate: s.nightsSinceUpdate, status: s.status, logDomain: true)
+    }
 
     /// Rolling personal baseline from the trailing `window` valid nights, as a
     /// plain mean and sample SD (ddof=1). This is the task's "trailing 30-day

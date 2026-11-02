@@ -60,29 +60,28 @@ final class TrainingLoadEngineTests: XCTestCase {
         XCTAssertLessThan(result.atl!, 50)
     }
 
-    func testMissingLoadBreaksContiguousSuffixInsteadOfInventingZero() {
+    func testMissingLoadDecaysThroughInsteadOfResetting() {
         var days: [TrainingLoadEngine.DailyLoad] = []
         for day in 1...20 {
             days.append(.init(day: String(format: "2026-07-%02d", day), load: day == 12 ? nil : 50))
         }
         let result = TrainingLoadEngine.evaluate(days: days)
-        XCTAssertEqual(result.state, .unavailable)
-        XCTAssertEqual(result.unavailableReason, .notEnoughContiguousDays)
-        XCTAssertEqual(result.contiguousDays, 8)
-        XCTAssertEqual(result.startDay, "2026-07-13")
+        XCTAssertEqual(result.state, .building)
+        XCTAssertEqual(result.contiguousDays, 19)
+        XCTAssertEqual(result.startDay, "2026-07-01")
         XCTAssertEqual(result.endDay, "2026-07-20")
     }
 
-    func testMissingCalendarDayBreaksSuffixRatherThanCompressingTime() {
+    func testMissingCalendarDayDecaysRatherThanCompressingTime() {
         var days: [TrainingLoadEngine.DailyLoad] = []
         for day in 1...20 where day != 15 {
             days.append(.init(day: String(format: "2026-06-%02d", day), load: 50))
         }
         let result = TrainingLoadEngine.evaluate(days: days)
-        XCTAssertEqual(result.state, .unavailable)
-        XCTAssertEqual(result.unavailableReason, .notEnoughContiguousDays)
-        XCTAssertEqual(result.contiguousDays, 5)
-        XCTAssertEqual(result.startDay, "2026-06-16")
+        XCTAssertEqual(result.state, .building)
+        XCTAssertEqual(result.contiguousDays, 19)
+        XCTAssertEqual(result.startDay, "2026-06-01")
+        XCTAssertFalse(result.points.contains { $0.day == "2026-06-15" })
     }
 
     func testExplicitTargetUsesOnlyHistoryThroughThatDay() {

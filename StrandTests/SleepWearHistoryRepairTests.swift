@@ -50,6 +50,37 @@ final class SleepWearHistoryRepairTests: XCTestCase {
         try await verifyHistoryRepair(queueForcedRescore: true)
     }
 
+    /// A row the midnight read wrote (ends 23:59:59, night goes on) is gone after one recompute, replaced
+    /// by the whole night under whichever onset the re-detection finds.
+    func testRecomputeHealsAMidnightTruncatedRow() async throws {
+        try await withPreferences {
+            let store = try await WhoopStore.inMemory()
+            let source = "my-whoop"
+            let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
+            try registry.add(PairedDevice(id: source, brand: "WHOOP", model: "5.0",
+                sourceKind: .liveBLE, capabilities: [.hr, .hrv], status: .active, addedAt: 1, lastSeenAt: 1))
+            let windows = LocalDayWindows(referenceInstant: Date())
+            let today = windows.localDate(of: windows.referenceInstant)
+            let window = try XCTUnwrap(windows.window(of: today.adding(days: -3)))
+            let midnight = Int(window.nextStart.timeIntervalSince1970)
+            let bed = midnight - 2 * 3600, wake = midnight + 6 * 3600
+            let beats = stride(from: bed - 1800, through: wake, by: 5).map { HRSample(ts: $0, bpm: 50) }
+            let grav = stride(from: bed, through: wake, by: 5).map { GravitySample(ts: $0, x: 0, y: 0, z: 1, unit: "g") }
+            _ = try await store.insert(Streams(hr: beats, gravity: grav), deviceId: source)
+            let stale = CachedSleepSession(startTs: bed + 600, endTs: midnight - 1, efficiency: 0.9, restingHr: 50,
+                                           avgHrv: nil, stagesJSON: "[]")
+            _ = try await store.upsertSleepSessions([stale], deviceId: source + "-noop")
+            let repo = Repository(deviceId: source)
+            repo.setStoreForTesting(store)
+            let engine = IntelligenceEngine(repo: repo, profile: ProfileStore(), deviceId: source)
+            await engine.analyzeRecent(maxDays: 21, force: true)
+            let rows = try await store.sleepSessions(deviceId: source + "-noop", from: bed - 3600, to: wake + 3600, limit: 10)
+            XCTAssertFalse(rows.contains { $0.endTs == midnight - 1 })
+            XCTAssertEqual(rows.count, 1)
+            XCTAssertEqual(Double(rows.first?.endTs ?? 0), Double(wake), accuracy: 600)
+        }
+    }
+
     private func verifyHistoryRepair(queueForcedRescore: Bool) async throws {
         try await withPreferences {
             let store = try await WhoopStore.inMemory()

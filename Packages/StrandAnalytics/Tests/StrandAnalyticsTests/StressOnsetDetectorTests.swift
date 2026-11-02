@@ -206,7 +206,7 @@ final class StressOnsetDetectorTests: XCTestCase {
         // The gate now opens, but the same unbroken dip must NOT fire — there is no fresh crossing.
         d = StressOnsetDetector.evaluate(rrBuffer: lowHRV, currentHR: 70, recentMotionG: 0.0,
             sessionActive: false, state: d.nextState, config: on,
-            nowSec: 300 + StressOnsetDetector.sustainSeconds, tzOffsetSec: 0)
+            nowSec: 120 + StressOnsetDetector.sustainSeconds, tzOffsetSec: 0)
         XCTAssertFalse(d.shouldNudge)
         XCTAssertEqual(d.reason, .notAnEdge)
     }
@@ -240,5 +240,46 @@ final class StressOnsetDetectorTests: XCTestCase {
             sessionActive: false, state: restored, config: on, nowSec: 100_000, tzOffsetSec: 0)
         XCTAssertFalse(d.shouldNudge)
         XCTAssertEqual(d.reason, .notAnEdge)
+    }
+
+    // MARK: - Slow baseline and gaps
+
+    /// One evaluation per second: a sustained drop to 40% of baseline must fire. The old per-call EMA
+    /// (a 50 s constant) chased the dip and never held for 60 s.
+    func test_sustained_60_percent_drop_fires() {
+        var state = StressOnsetDetector.State(baselineRMSSD: jitterRMSSD(60), lastObservedAt: 1_000)
+        var fired = false
+        for t in 1...120 {
+            let d = StressOnsetDetector.evaluate(rrBuffer: jittered(800, jitter: 24, 80), currentHR: 70, recentMotionG: nil,
+                sessionActive: false, state: state, config: on, nowSec: 1_000 + t, tzOffsetSec: 0)
+            state = d.nextState
+            fired = fired || d.shouldNudge
+        }
+        XCTAssertTrue(fired)
+    }
+
+    /// A dip, a two-hour gap, then a low reading: the sustain was never observed.
+    func test_gap_clears_an_armed_dip() {
+        let armed = StressOnsetDetector.State(baselineRMSSD: 120, wasBelow: true, pendingEdgeAt: 1_000, lastObservedAt: 1_000)
+        let d = StressOnsetDetector.evaluate(rrBuffer: jittered(800, jitter: 5, 80), currentHR: 70, recentMotionG: nil,
+            sessionActive: false, state: armed, config: on, nowSec: 8_200, tzOffsetSec: 0)
+        XCTAssertFalse(d.shouldNudge)
+        XCTAssertEqual(d.nextState.pendingEdgeAt, 8_200, "the low reading after a gap arms afresh")
+
+        let thin = StressOnsetDetector.evaluate(rrBuffer: flat(900, 5), currentHR: 70, recentMotionG: nil,
+            sessionActive: false, state: armed, config: on, nowSec: 1_030, tzOffsetSec: 0)
+        XCTAssertEqual(thin.nextState.pendingEdgeAt, 0)
+    }
+
+    /// A workout's low HRV does not move the baseline.
+    func test_baseline_holds_outside_the_resting_band() {
+        let state = StressOnsetDetector.State(baselineRMSSD: 120, lastObservedAt: 1_000)
+        let d = StressOnsetDetector.evaluate(rrBuffer: jittered(450, jitter: 5, 80), currentHR: 130, recentMotionG: nil,
+            sessionActive: false, state: state, config: on, nowSec: 1_060, tzOffsetSec: 0)
+        XCTAssertEqual(d.nextState.baselineRMSSD, 120)
+    }
+
+    private func jitterRMSSD(_ jitter: Int) -> Double {
+        HRVAnalyzer.rmssdRaw(HRVAnalyzer.cleanRR(jittered(800, jitter: jitter, 80).map(Double.init)))!
     }
 }

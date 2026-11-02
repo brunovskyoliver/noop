@@ -8,7 +8,7 @@ import Foundation
 // NON-CLINICAL, by construction and on purpose (read RhythmScreener + spec §11):
 //   • It carries the exact non-diagnostic disclaimer as a header comment on the artifact
 //     itself, not only on the screen it came from.
-//   • It emits ONLY the neutral labels the engine already produces (steady / occasionalEctopy
+//   • It emits ONLY the neutral labels the engine already produces (steady / irregularIntervals
 //     / varied / unreadable). It names NO condition, emits NO verdict, NO probability, NO
 //     "consider a clinician" call-to-action, and NO alarm. The judgement is the clinician's;
 //     this hands them the data, not a guess.

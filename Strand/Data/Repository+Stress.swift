@@ -138,6 +138,26 @@ extension Repository {
         StressMonitor.NightAggregate.Key.lnRMSSD, StressMonitor.NightAggregate.Key.lnRMSSDSpread,
     ]
 
+    /// Re-reads the energy anchors for later bout estimates: resting HR while awake (median wake floor of the
+    /// last 14 days, whole bpm so a small daily drift does not rescore every cached day) and the newest Apple
+    /// VO2max. nil anchors leave the estimate on the caller's resting HR, the sleeping floor, and on Uth.
+    /// ponytail: the VO2max has no age limit; bound it if a stale import ever misleads.
+    func refreshEnergyAnchors() async {
+        let today = Self.localDayKey(Date())
+        let from = Self.stressDayKey(offset: -StressMonitor.baselineWindowDays, from: today) ?? today
+        let stored = await stressStoredValues(keys: [StressMonitor.wakeFloorKey], from: from, to: today)
+        let awake = Calories.awakeRestingHR(priorFloors: Self.stressPriors(before: today, stored: stored).floors)
+        energyAnchors = (awake?.rounded(), await series(key: "vo2max", source: "apple-health").last?.value)
+    }
+
+    /// `profile` with the current energy anchors applied.
+    func withEnergyAnchors(_ profile: UserProfile) -> UserProfile {
+        var p = profile
+        p.awakeRestingHR = energyAnchors.awake
+        p.vo2max = energyAnchors.vo2max
+        return p
+    }
+
     /// The 14 prior days' aggregates (oldest → newest) from the stored values.
     nonisolated static func stressPriors(before dayKey: String,
                                          stored: [String: [String: Double]])

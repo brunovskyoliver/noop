@@ -28,6 +28,12 @@ public struct UserProfile: Equatable, Sendable {
     /// counter overcounts and its true tick rate is unknown, so the daily-steps total
     /// divides by this. 1.0 = raw pass-through (default); the engine clamps ≥ 0.5.
     public var stepTicksPerStep: Double
+    /// Energy estimates only: resting HR while awake (see `Calories.awakeRestingHR`). When nil, the energy
+    /// curve falls back to the `restingHR` its caller passes, which in the app is the sleeping floor and
+    /// overstates activity. Effort and Charge never read this.
+    public var awakeRestingHR: Double? = nil
+    /// Energy estimates only: a measured VO2max (Apple Health). When nil, Uth estimates one.
+    public var vo2max: Double? = nil
     public init(weightKg: Double = 70.0, heightCm: Double = 170.0,
                 age: Double = 30.0, sex: String = "nonbinary",
                 stepTicksPerStep: Double = 1.0) {
@@ -41,7 +47,7 @@ public struct UserProfile: Equatable, Sendable {
     /// format is not a contract and costs reflection per call. A new field belongs here too. Doubles by
     /// bit pattern, so the key is exact and locale-free. Twin of Kotlin `UserProfile.cacheKey`.
     public var cacheKey: String {
-        "w=\(weightKg.bitPattern),h=\(heightCm.bitPattern),a=\(age.bitPattern),s=\(sex),t=\(stepTicksPerStep.bitPattern)"
+        "w=\(weightKg.bitPattern),h=\(heightCm.bitPattern),a=\(age.bitPattern),s=\(sex),t=\(stepTicksPerStep.bitPattern),ar=\(awakeRestingHR?.bitPattern ?? 0),v=\(vo2max?.bitPattern ?? 0)"
     }
 }
 
@@ -439,18 +445,21 @@ public enum WorkoutDetector {
                               restingHR: Double, maxHR: Double) -> ([Int: Double], Double?) {
         if hrSeries.isEmpty || maxHR <= restingHR { return ([:], nil) }
         let hrReserve = maxHR - restingHR
-        var zoneCounts = [Int: Int]()
-        for z in 0...5 { zoneCounts[z] = 0 }
-        var hrrVals: [Double] = []
-        for r in hrSeries {
+        var zoneSeconds = [Int: Double]()
+        for z in 0...5 { zoneSeconds[z] = 0 }
+        var hrrSum = 0.0
+        var n = 0.0
+        // Time, not sample count: a banked 30 s stretch must weigh as much as the same minutes at 1 Hz.
+        for (i, r) in hrSeries.enumerated() {
+            let dur = i + 1 < hrSeries.count ? Calories.creditedSeconds(from: r.ts, to: hrSeries[i + 1].ts) : 1.0
             let z = StrainScorer.zoneWeight(r.bpm, restingHR: restingHR, hrReserve: hrReserve)
-            zoneCounts[z, default: 0] += 1
-            hrrVals.append(StrainScorer.pctHRR(r.bpm, restingHR: restingHR, hrReserve: hrReserve))
+            zoneSeconds[z, default: 0] += dur
+            hrrSum += StrainScorer.pctHRR(r.bpm, restingHR: restingHR, hrReserve: hrReserve) * dur
+            n += dur
         }
-        let n = Double(hrSeries.count)
         var zonePct = [Int: Double]()
-        for (z, c) in zoneCounts { zonePct[z] = ((Double(c) / n * 100.0) * 10).rounded() / 10 }
-        let avgHRR = ((hrrVals.reduce(0, +) / n) * 10).rounded() / 10
+        for (z, c) in zoneSeconds { zonePct[z] = ((c / n * 100.0) * 10).rounded() / 10 }
+        let avgHRR = ((hrrSum / n) * 10).rounded() / 10
         return (zonePct, avgHRR)
     }
 
@@ -575,6 +584,38 @@ public enum WorkoutDetector {
         }
         guard Double(otherS) >= activityMinMin * 60.0 - motionSmoothS else { return nil }
         return pieces
+    }
+
+    /// Longest rest that can sit inside one non-walking session. Tuned on one person's five Watch-logged
+    /// lifts (N=1, 2026-10): the only real split was a 13 min rest at ~109 bpm. Not validated more widely.
+    public static let stitchMaxGapS = 20 * 60
+    /// Share of a gap's minutes that must hold an HR reading, so that a data gap never joins two pieces.
+    static let stitchMinGapCoveragePct = 50.0
+    /// Share of a piece's minutes at walking cadence (`gaitMinuteTicks`) that makes it a walk.
+    static let stitchWalkMinuteFrac = 0.5
+
+    /// Minutes of `[start, end]` holding at least `gaitMinuteTicks` gait seconds, as a per-minute flag.
+    static func walkingMinutes(start: Int, end: Int, gaitTs: [Int]) -> [Bool] {
+        guard end >= start else { return [] }
+        var ticks = [Int](repeating: 0, count: (end - start) / 60 + 1)
+        for t in gaitTs where t >= start && t <= end { ticks[(t - start) / 60] += 1 }
+        return ticks.map { $0 >= gaitMinuteTicks }
+    }
+
+    /// May the rest between two non-walking pieces be bridged? Only a short gap the sensor actually saw,
+    /// with no sustained walking streak in it: a walk between two pieces means the person left. A stream
+    /// with no activity classes at all carries no evidence either way, so its pieces stay apart.
+    static func canStitchGap(from a: Int, to b: Int, hasGaitEvidence: Bool, gaitTs: [Int], hrTs: [Int]) -> Bool {
+        guard hasGaitEvidence, b - a <= stitchMaxGapS else { return false }
+        guard b > a else { return true }
+        guard (hrCoveragePct(sampleTs: hrTs.filter { $0 >= a && $0 <= b }, start: a, end: b) ?? 0)
+                >= stitchMinGapCoveragePct else { return false }
+        var run = 0
+        for walking in walkingMinutes(start: a, end: b, gaitTs: gaitTs) {
+            run = walking ? run + 1 : 0
+            if run * 60 >= gaitStreakMinS { return false }
+        }
+        return true
     }
 
     /// #148: back-date a confirmed run's start over the warm-up. Motion leads HR at the onset of the
@@ -705,6 +746,33 @@ public enum WorkoutDetector {
             f.meanRunS = durs.reduce(0, +) / durs.count
         }
 
+        // Every reported stat comes from one window, so a stitched or back-dated session cannot show
+        // zones from its core beside avg HR and calories from the whole.
+        func makeSession(_ from: Int, _ to: Int, _ activityTier: Bool) -> ExerciseSession? {
+            let window = hrSeg.filter { $0.ts >= from && $0.ts <= to }
+            guard !window.isEmpty else { return nil }
+            let bpms = window.map { $0.bpm }
+            let hrSamples = window.map { HRSample(ts: $0.ts, bpm: Int($0.bpm.rounded())) }
+            var zones: [Int: Double] = [:]
+            var hrr: Double? = nil
+            if let m = effMaxHR, m > restHR { (zones, hrr) = boutIntensity(window, restingHR: restHR, maxHR: m) }
+            var kcal: Double? = nil
+            var kj: Double? = nil
+            if let profile {
+                (kcal, kj) = Calories.estimateBoutCalories(hrSamples, profile: profile,
+                                                           hrmax: effMaxHR, restingHR: restHR)
+            }
+            return ExerciseSession(
+                start: from, end: to, avgHR: bpms.reduce(0, +) / Double(bpms.count),
+                peakHR: Int(bpms.max()!.rounded()),
+                strain: StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR, method: effortMethod,
+                                            sex: profile?.sex ?? "male", minSpanSeconds: Int(minDurS - motionSmoothS)),
+                durationS: Double(to - from), zoneTimePct: zones, avgHRRPct: hrr,
+                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
+                hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts }, start: from, end: to),
+                isActivityTier: activityTier)
+        }
+
         let minDurS = minExerciseMin * 60.0
         var sessions: [ExerciseSession] = []
         // 2026-09-23: a worklist rather than a plain walk over `runs`, so a run that fails both intensity
@@ -748,7 +816,9 @@ public enum WorkoutDetector {
             // because the right floor scales with the user's reserve, not their resting HR alone.
             // Failing BOTH bars drops the run under `droppedLowIntensity`, unchanged.
             var isActivityTier = false
-            if !zonePct.isEmpty {
+            // Fail closed: with no usable HRmax there are no zones, so z2+ reads 0 and the run must pass the
+            // gates below, which also need an HRmax. Skipping the check let any moving run qualify.
+            do {
                 let z2plus = (2...5).reduce(0.0) { $0 + (zonePct[$1] ?? 0.0) } / 100.0
                 if z2plus < minIntensityZ2Plus {
                     if let m = effMaxHR, m > restHR,
@@ -768,7 +838,7 @@ public enum WorkoutDetector {
                         // elevated cores on their own. A core never splits into cores again. A lift cut away
                         // from its walk by `gaitPieces` often lands here too: its sets-and-rests HR sits
                         // under the bar as a whole while its working stretch clears it.
-                        if coreSplit, let m = effMaxHR {
+                        if coreSplit, let m = effMaxHR, m > restHR {
                             let cores = elevatedCores(core, floor: restHR + activityHRRFraction * (m - restHR))
                             if cores.contains(where: { Double($0.1 - $0.0) >= activityMinMin * 60.0 - motionSmoothS }) {
                                 if isRun { f.splitRuns += 1 }
@@ -803,34 +873,30 @@ public enum WorkoutDetector {
             // resting BETWEEN two efforts (so bridgeRuns kept them separate) must not overlap the earlier one.
             // A core is never back-dated: the motion before it is exactly the pottering it was cut from.
             let effStart = isRun ? max(Self.backdatedStart(start, motionTs, smooth), backdateFloor) : start
-            let window = hrSeg.filter { $0.ts >= effStart && $0.ts <= end }
-            if window.isEmpty { f.droppedNoHR += 1; continue }
-            let bpms = window.map { $0.bpm }
-            let hrSamples = window.map { HRSample(ts: $0.ts, bpm: Int($0.bpm.rounded())) }
-
-            var kcal: Double? = nil
-            var kj: Double? = nil
-            if let profile = profile {
-                let (k, j) = Calories.estimateBoutCalories(hrSamples, profile: profile,
-                                                           hrmax: effMaxHR, restingHR: restHR)
-                kcal = k; kj = j
-            }
-
-            guard !bpms.isEmpty else { f.droppedNoHR += 1; continue }   // degenerate bout, no HR samples
-            let avg = bpms.reduce(0, +) / Double(bpms.count)
-            let peak = Int(bpms.max()!.rounded())
-            let strain = StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR,
-                                             method: effortMethod, sex: profile?.sex ?? "male")
-
-            sessions.append(ExerciseSession(
-                start: effStart, end: end, avgHR: avg, peakHR: peak, strain: strain,
-                durationS: Double(end - effStart), zoneTimePct: zonePct, avgHRRPct: avgHRR,
-                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
-                hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts },
-                                             start: effStart, end: end),
-                isActivityTier: isActivityTier))
+            guard let session = makeSession(effStart, end, isActivityTier) else { f.droppedNoHR += 1; continue }
+            sessions.append(session)
             if !isRun { f.splitKept += 1 }
         }
+        // Rejoin pieces of one session that a low-HR rest split apart. Sustained walks stay out: a walk
+        // piece is never a side of a join, and a walking streak in the gap blocks it.
+        func isWalk(_ w: ExerciseSession) -> Bool {
+            let minutes = walkingMinutes(start: w.start, end: w.end, gaitTs: gaitSorted)
+            let frac = Double(minutes.filter { $0 }.count) / Double(max(1, minutes.count))
+            return frac >= stitchWalkMinuteFrac
+                && (2...5).reduce(0.0) { $0 + (w.zoneTimePct[$1] ?? 0.0) } / 100.0 < minIntensityZ2Plus
+        }
+        let hasGaitEvidence = (steps ?? []).contains { $0.activityClass != nil }
+        var stitched: [ExerciseSession] = []
+        for w in sessions.sorted(by: { $0.start < $1.start }) {
+            if let last = stitched.last, !isWalk(last), !isWalk(w),
+               canStitchGap(from: last.end, to: w.start, hasGaitEvidence: hasGaitEvidence, gaitTs: gaitSorted, hrTs: hrTs),
+               let joined = makeSession(last.start, max(last.end, w.end), last.isActivityTier && w.isActivityTier) {
+                stitched[stitched.count - 1] = joined
+            } else {
+                stitched.append(w)
+            }
+        }
+        sessions = stitched
         f.kept = sessions.count
         f.keptActivity = sessions.reduce(0) { $0 + ($1.isActivityTier ? 1 : 0) }
         return sessions
@@ -843,23 +909,52 @@ public enum WorkoutDetector {
     /// IntelligenceEngine.backfillWorkoutFromDetectedBout.
     /// 2026-09-21: `zonesJSON`/`steps` join the same fill-only-when-absent rule so a detected bout can
     /// complete a manual row's missing zone split and step count without ever overwriting either.
+    /// `rowWindowZonesJSON`/`rowWindowSteps` are computed on the row's own bounds (`rowWindowFill`), so unlike
+    /// the bout's figures they still apply when the bout only partly matches the row.
     public static func backfillWorkout(_ real: WorkoutRow, avgBpm: Int, peakHR: Int, caloriesKcal: Double?, strain: Double?,
                                        zonesJSON: String? = nil, steps: Int? = nil,
-                                       boutBounds: Range<Int>? = nil) -> WorkoutRow {
+                                       boutBounds: Range<Int>? = nil,
+                                       rowWindowZonesJSON: String? = nil, rowWindowSteps: Int? = nil) -> WorkoutRow {
         // A fragment's totals cannot represent a user-confirmed whole session.
-        if let boutBounds, boutBounds.lowerBound != real.startTs || boutBounds.upperBound != real.endTs { return real }
+        let boutIsRow = boutBounds.map { $0.lowerBound == real.startTs && $0.upperBound == real.endTs } ?? true
         return WorkoutRow(
             startTs: real.startTs, endTs: real.endTs, sport: real.sport, source: real.source,
             durationS: real.durationS,
-            energyKcal: real.energyKcal ?? caloriesKcal,
-            avgHr: real.avgHr ?? avgBpm,
-            maxHr: real.maxHr ?? peakHR,
-            strain: real.strain ?? strain,
-            distanceM: real.distanceM, zonesJSON: real.zonesJSON ?? zonesJSON, notes: real.notes,
-            steps: real.steps ?? steps,
+            energyKcal: real.energyKcal ?? (boutIsRow ? caloriesKcal : nil),
+            avgHr: real.avgHr ?? (boutIsRow ? avgBpm : nil),
+            maxHr: real.maxHr ?? (boutIsRow ? peakHR : nil),
+            strain: real.strain ?? (boutIsRow ? strain : nil),
+            distanceM: real.distanceM,
+            zonesJSON: real.zonesJSON ?? rowWindowZonesJSON ?? (boutIsRow ? zonesJSON : nil), notes: real.notes,
+            steps: real.steps ?? rowWindowSteps ?? (boutIsRow ? steps : nil),
             // The suggestion is a property of "detected" rows; the real row being backfilled is
             // authoritative, so its (always-nil) value carries and a detected bout can't inject one.
             suggestedClass: real.suggestedClass, suggestedClassConfidence: real.suggestedClassConfidence)
+    }
+
+    /// Share of a row's minutes that must hold readings before its zones or steps are recomputed.
+    static let rowFillMinCoveragePct = 50.0
+
+    /// Zones and steps recomputed on a saved row's own bounds, each nil when its stream covers too little
+    /// of the row to speak for it. Totals are not recomputed here: they stay with `backfillWorkout`'s rule.
+    public static func rowWindowFill(startTs: Int, endTs: Int, hr: [HRSample], steps: [StepSample],
+                                     restingHR: Double, maxHR: Double?, ticksPerStep: Double)
+        -> (zonesJSON: String?, steps: Int?) {
+        func covered(_ ts: [Int]) -> Bool {
+            (hrCoveragePct(sampleTs: ts, start: startTs, end: endTs) ?? 0) >= rowFillMinCoveragePct
+        }
+        let window = cleanHR(hr).filter { $0.ts >= startTs && $0.ts <= endTs }
+        var zones: String? = nil
+        if let maxHR, maxHR > restingHR, covered(window.map(\.ts)) {
+            zones = zonesJSON(from: boutIntensity(window, restingHR: restingHR, maxHR: maxHR).0)
+        }
+        let inRow = steps.filter { $0.ts >= startTs && $0.ts <= endTs }
+        var count: Int? = nil
+        if covered(inRow.map(\.ts)), let ticks = StepsCounter.stepsInWindow(inRow) {
+            let scaled = Int((Double(ticks) / max(ticksPerStep, 0.5)).rounded())
+            count = scaled > 0 ? scaled : nil
+        }
+        return (zones, count)
     }
 
     /// 2026-09-21: deterministic `{"z1":…,"z5":…}` serialization of a bout's `zoneTimePct` map for
@@ -935,38 +1030,59 @@ public enum Calories {
                                   fitHR: 0.542, fitVO2: 0.392, fitWeight: 0.2485, fitAge: 0.2725,
                                   fitAlpha: -77.58445)
 
-    static let activeHRRFraction = 0.30
-    /// Whole-day active gate (`estimateDayCalories` only). The Keytel 2005 equation is
-    /// validated for genuine EXERCISE HR; applying it to ordinary low-intensity daytime
-    /// HR (walking, stairs, standing — typically ~95–110 bpm) across the WHOLE day credits
-    /// the full gross-exercise rate to every elevated second and over-counts by ~1000+ kcal
-    /// (community "Calories too high"). The bout path keeps the 0.30 detector fraction —
-    /// Keytel is appropriate for a real detected/manual workout — but the day path raises
-    /// the gate to 50% HRR so the gross rate only applies at genuine exercise-level HR.
-    static let dayActiveHRRFraction = 0.50
-    /// Longest gap over which one daily HR reading may carry RESTING energy.
-    ///
-    /// Resting metabolism continues across a dropout, so a reading may carry the BMR rate into the gap
-    /// — but only so far, or a disconnected evening would bank a full night of resting kcal that was
-    /// never observed. ACTIVE energy is capped separately and much tighter, at the inferred cadence
-    /// (see `estimateDayEnergy`): a gap is evidence of a missing sensor, never of exercise.
+    /// Top of the blend from BMR to Keytel, as a share of HRmax. Keytel 2005's lowest tested stage was 57%
+    /// of HRmax, so the equation is not used below this.
+    static let keytelBlendHRmaxFraction = 0.60
+    /// Longest gap one reading may count toward `observedSeconds`, the day's coverage figure.
     static let dayMaxObservedGapS: Double = 60.0
     static let dayMaxObservedSpanS: Double = 86_400.0
     static let workoutDivisor = 251.04  // 60 s/min × 4.184 kJ/kcal
 
     static func resolveCoeffs(_ sex: String) -> Coeffs {
-        switch sex.lowercased() {
-        case "male": return male
-        case "female": return female
-        case "nonbinary": return nonbinary
-        default: return nonbinary
+        // Prefix match, the same reading StrainScorer gives "f"/"m" from legacy or imported profiles.
+        let s = sex.lowercased()
+        if s.hasPrefix("f") { return female }
+        if s.hasPrefix("m") { return male }
+        return nonbinary
+    }
+
+    /// Seconds a reading carries until the next one, shared by bout energy, day energy and zones. A tied
+    /// timestamp carries nothing (a two-strap overlap must not count twice), and a gap longer than
+    /// `WorkoutDetector.mergeGapS` is a missing sensor, not known activity, so it carries nothing either.
+    static func creditedSeconds(from a: Int, to b: Int) -> Double {
+        let gap = Double(b - a)
+        return gap > 0 && gap <= WorkoutDetector.mergeGapS ? gap : 0
+    }
+
+    /// Whole-day active gate. The blended curve was tried on the day path and rejected on 22 real days
+    /// against an Apple Watch: mean active 1039 kcal against 643 (+62%), even with an awake anchor and a
+    /// measured VO2max. So the day credits Keytel only at genuine exercise HR, which reads low instead.
+    static let dayActiveHRRFraction = 0.50
+
+    /// One energy curve (kcal/s) for bouts: BMR at resting HR, linear up to Keytel at
+    /// `keytelBlendHRmaxFraction` of HRmax, Keytel above that, and never below BMR.
+    static func grossKcalPerS(_ c: Coeffs, hr: Double, hrmax: Double, restingHR: Double, restingRate: Double,
+                              weightKg: Double, age: Double, vo2max: Double?) -> Double {
+        func keytel(_ bpm: Double) -> Double {
+            max(restingRate, activeKcalPerS(c, hr: bpm, hrmax: hrmax, weightKg: weightKg, age: age, vo2max: vo2max))
         }
+        let blendEnd = keytelBlendHRmaxFraction * hrmax
+        if hr >= blendEnd { return keytel(hr) }
+        guard hr > restingHR else { return restingRate }
+        return restingRate + (keytel(blendEnd) - restingRate) * (hr - restingHR) / (blendEnd - restingHR)
     }
 
     static func restingKcalPerS(_ c: Coeffs, weightKg: Double, heightCm: Double, age: Double) -> Double {
         let heightM = heightCm / 100.0
         let bmr = c.restingAlpha + c.restingWeight * weightKg + c.restingHeight * heightM - c.restingAge * age
         return max(0.0, bmr) / 86_400.0
+    }
+
+    /// Resting HR while awake: the Stress Monitor's own wake reference, the median of the prior days' wake
+    /// floors. A single day's floor is never used (real data stored 120.7 bpm for a day), so too little
+    /// history gives nil rather than one day's value.
+    public static func awakeRestingHR(priorFloors: [Double?]) -> Double? {
+        StressMonitor.wakeReference(priorFloors: priorFloors, todayFloor: nil)?.floorHR
     }
 
     /// Uth–Sørensen VO2max estimate (ml·kg⁻¹·min⁻¹) ≈ 15.3 · HRmax / HRrest. Returns nil when no
@@ -997,15 +1113,9 @@ public enum Calories {
         return max(0.0, eeKjMin) / workoutDivisor
     }
 
-    /// Estimate (kcal, kJ) for a workout bout. Each sample is weighted by the ELAPSED time
-    /// to the next sample (capped at `WorkoutDetector.mergeGapS`), so a sparse, non-1 Hz
-    /// stream is counted over real seconds rather than undercounted as one second per sample.
-    ///
-    /// This elapsed-time weighting is justified ONLY for the bout path: a bout's intra-sample
-    /// gaps are motion-gated and ≤ mergeGapS (150 s) by construction, so each gap really is
-    /// continuous active/resting time. The whole-day estimator deliberately does NOT use it
-    /// (see `estimateDayCalories`) — its raw, non-gap-filled day HR union would otherwise
-    /// credit up to 150 s of active burn to a single isolated elevated sample.
+    /// Estimate (kcal, kJ) for a workout bout: gross energy on the shared curve (`grossKcalPerS`) over the
+    /// shared intervals (`creditedSeconds`). The energy above BMR is what the bout adds to the day's active
+    /// total (`estimateDayEnergy`), so the two readouts cannot disagree about the same minutes.
     public static func estimateBoutCalories(_ hrSamples: [HRSample],
                                             profile: UserProfile,
                                             hrmax: Double?,
@@ -1016,59 +1126,35 @@ public enum Calories {
         let coeffs = resolveCoeffs(profile.sex)
 
         let effHRmax = hrmax ?? 220.0
-        let effResting = restingHR ?? 60.0
-        let activeThreshold = effResting + activeHRRFraction * (effHRmax - effResting)
+        // The awake anchor when known; otherwise the caller's value, the sleeping floor in the app.
+        let curveResting = profile.awakeRestingHR ?? restingHR
+        let effResting = curveResting ?? 60.0
 
         let restingRate = restingKcalPerS(coeffs, weightKg: weightKg, heightCm: heightCm, age: age)
         // Fitness anchor (Uth VO2max) when a resting HR is known → the Keytel fitness-adjusted rate;
         // nil restingHR → base model, unchanged. Computed once (constant across the bout).
-        let vo2max = vo2maxFor(hrmax: effHRmax, restingHR: restingHR)
+        let vo2max = profile.vo2max ?? vo2maxFor(hrmax: effHRmax, restingHR: curveResting)
 
-        // Weight each sample by the ACTUAL elapsed time to the next sample, not a flat 1 s.
-        // restingRate / activeKcalPerS are per-SECOND rates, so summing one per sample only
-        // equals real energy when the stream is exactly 1 Hz. A sparse WHOOP 5/MG bout can
-        // run far below 1 sample/s, which previously undercounted energy roughly in proportion
-        // to the coverage gap (calories collapsing toward ~1 kcal, #137). Each interval is
-        // capped at mergeGapS (150 s) — the detector's own "still continuous, not resting"
-        // threshold — so a brief dropout is fully counted but a wear gap can't inflate one
-        // reading. At a steady 1 Hz every interval is ~1 s: behaviour is unchanged.
         let ordered = hrSamples.sorted { $0.ts < $1.ts }
         var totalKcal = 0.0
         for i in ordered.indices {
-            let bpm = Double(ordered[i].bpm)
-            let dur: Double
-            if i < ordered.count - 1 {
-                let gap = Double(ordered[i + 1].ts - ordered[i].ts)
-                dur = gap > 0 ? min(gap, WorkoutDetector.mergeGapS) : 1.0
-            } else {
-                dur = 1.0   // last sample carries one representative second
-            }
-            if bpm < activeThreshold {
-                totalKcal += restingRate * dur
-            } else {
-                totalKcal += activeKcalPerS(coeffs, hr: bpm, hrmax: effHRmax, weightKg: weightKg, age: age, vo2max: vo2max) * dur
-            }
+            // The last sample has no successor and carries one representative second.
+            let dur = i < ordered.count - 1 ? creditedSeconds(from: ordered[i].ts, to: ordered[i + 1].ts) : 1.0
+            totalKcal += grossKcalPerS(coeffs, hr: Double(ordered[i].bpm), hrmax: effHRmax, restingHR: effResting,
+                                       restingRate: restingRate, weightKg: weightKg, age: age, vo2max: vo2max) * dur
         }
         return (totalKcal, totalKcal * 4.184)
     }
 
     /// APPROXIMATE whole-day resting + active energy estimate from the full day's HR samples.
-    /// Resting BMR is integrated once over capped, supported sample intervals, independent of HR cadence.
-    /// Supported high-HR intervals then add only the Keytel energy ABOVE that resting floor.
     ///
-    /// The day path uses `dayActiveHRRFraction` (50% HRR), NOT the 30% the bout detector uses
-    /// (`activeHRRFraction`). The Keytel 2005 equation is validated for genuine EXERCISE HR;
-    /// at 30% the gate falls to ~94 bpm for a typical user, so ordinary low-intensity daytime
-    /// HR (walking, stairs, standing) credited the full gross-exercise rate across the whole
-    /// day and over-counted by ~1000+ kcal (community "Calories too high"). The 50% gate keeps
-    /// the gross rate for genuine exercise-level HR only; the bout path is UNCHANGED — Keytel
-    /// is appropriate there, on a real detected/manual workout.
-    ///
-    /// Cadence is inferred from the median positive timestamp gap and capped at
-    /// `dayMaxObservedGapS`. Each sample carries resting energy, and a high-HR sample carries active
-    /// energy, to the next sample for at most that cap. This can credit up to 60 s instead of the old
-    /// flat 1 s for a reading on a gappy day, but never a whole disconnect. Thus a 30 s sparse stream
-    /// and a 1 Hz stream covering the same activity produce comparable energy.
+    /// Resting energy is BMR over `creditedSeconds` (the whole day when nil, whatever the strap saw):
+    /// metabolism does not stop when the strap comes off. Active energy is the Keytel rate above BMR at or
+    /// over `dayActiveHRRFraction` of HRR, over observed intervals capped at the stream's cadence.
+    /// `observedSeconds` reports coverage and does not scale either figure. This path keeps the caller's
+    /// resting HR (the sleeping floor in the app) and its Uth VO2max, and ignores the profile's energy
+    /// anchors: its gate and history were set on those inputs, and anchoring only lowers a reading that is
+    /// already low.
     ///
     /// This is an on-device estimate from heart rate alone — NOT laboratory calorimetry, NOT
     /// Apple/WHOOP cloud parity, NOT medical advice.
@@ -1076,7 +1162,8 @@ public enum Calories {
                                          profile: UserProfile,
                                          hrmax: Double?,
                                          restingHR: Double?,
-                                         maxSpanSeconds: Double = 86_400) -> DayEnergyEstimate {
+                                         maxSpanSeconds: Double = 86_400,
+                                         creditedSeconds credited: Double? = nil) -> DayEnergyEstimate {
         if hrSamples.isEmpty {
             return DayEnergyEstimate(restingKcal: 0, activeKcal: 0, observedSeconds: 0)
         }
@@ -1088,10 +1175,7 @@ public enum Calories {
 
         let effHRmax = hrmax ?? 220.0
         let effResting = restingHR ?? 60.0
-        // Day-path gate is HIGHER than the bout detector's: only genuine exercise-level HR
-        // gets the Keytel gross rate (see `dayActiveHRRFraction`).
         let activeThreshold = effResting + dayActiveHRRFraction * (effHRmax - effResting)
-
         let restingRate = restingKcalPerS(coeffs, weightKg: weightKg, heightCm: heightCm, age: age)
         // Fitness anchor (Uth VO2max) when a resting HR is known → Keytel fitness-adjusted rate; nil
         // restingHR → base model, unchanged. Constant across the day.
@@ -1119,17 +1203,13 @@ public enum Calories {
         let observedSeconds = min(max(0, maxSpanSeconds), positiveGaps.reduce(nominalSampleS) {
             $0 + min($1, dayMaxObservedGapS)
         })
-        let restingKcal = restingRate * observedSeconds
+        let restingKcal = restingRate * max(0, credited ?? maxSpanSeconds)
 
         var activeKcal = 0.0
         for i in ordered.indices {
             let durationS: Double
-            // Active carry is capped at the INFERRED CADENCE, not at the wider resting cap. A 30 s
-            // stream still carries its full 30 s (the cadence bug this fixes), and a 1 Hz day carries
-            // 1 s so the legacy total is reproduced exactly — but a dropout in an otherwise dense day
-            // no longer credits a full minute of exercise to the last reading before it. That was the
-            // objection the flat one-second model was written to avoid, and capping active at the
-            // cadence answers it rather than narrowing it from 150 s to 60 s.
+            // Capped at the inferred cadence: a 30 s stream carries 30 s, but a dropout in a dense day
+            // does not credit a minute of exercise to the last reading before it.
             if i < ordered.count - 1 {
                 let gap = Double(ordered[i + 1].ts - ordered[i].ts)
                 durationS = gap > 0 ? min(gap, nominalSampleS) : 0.0

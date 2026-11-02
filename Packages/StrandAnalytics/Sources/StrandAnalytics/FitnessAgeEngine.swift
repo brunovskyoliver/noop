@@ -35,10 +35,12 @@ public enum FitnessAgeEngine {
     /// Population-reference PA-index (0–15): ≈ "moderately active, a few sessions a week".
     public static let paiReference = 5.0
 
-    /// Displayed uncertainty band (years) — a presentation constant; the per-reading Nes SEE (≈5–6
-    /// ml/kg/min over the ~0.3/yr age slope) is far wider, so we compute on rolling 7-day medians and
-    /// show a conservative fixed ±band with a "fitness comparison, not a biological age" disclaimer.
-    public static let displayBandYears = 5.0
+    /// The ±band (years) the Nes model's own error implies: its SEE (ml/kg/min) over its age slope
+    /// (ml/kg/min per year), about 19 years for men and 21 for women. A single reading says little in
+    /// absolute terms, which is why the card frames the number as a population estimate to follow over time.
+    public static func bandYears(sex: String) -> Double {
+        isFemale(sex) ? seeWomen / womenAge : seeMen / menAge
+    }
     public static let minAge = 20.0, maxAge = 80.0
 
     private static func isFemale(_ sex: String) -> Bool { sex.lowercased() == "female" }
@@ -143,7 +145,7 @@ public enum FitnessAgeEngine {
         let nb = sex.lowercased() != "male" && sex.lowercased() != "female"
         return FitnessAgeResult(
             vo2max: vo2, fitnessAge: fa, chronoAge: age, deltaYears: age - fa,
-            bandYears: displayBandYears, lowerConfidence: lowerConfidence || nb)
+            bandYears: bandYears(sex: sex), lowerConfidence: lowerConfidence || nb)
     }
 }
 
@@ -204,9 +206,9 @@ extension FitnessAgeEngine {
     /// platforms show the same number.
     public static func nightsUntilReady(rhrDays: Int) -> Int { max(0, minCoverageDays - rhrDays) }
 
-    private static func coverageStatus(_ days: Int, floor: Int) -> FitnessReadinessStatus {
+    private static func coverageStatus(_ days: Int) -> FitnessReadinessStatus {
         if days >= goodCoverageDays { return .satisfied }
-        if days >= floor || days > 0 { return .partial }
+        if days > 0 { return .partial }
         return .missing
     }
 
@@ -223,10 +225,10 @@ extension FitnessAgeEngine {
                 status: hasSex ? .satisfied : .missing, required: true, role: .drivesAge,
                 detail: hasSex ? "Set" : "Add it in Settings"),
             FitnessReadinessItem(key: "rhr", label: "Resting heart rate",
-                status: coverageStatus(rhrDays, floor: minCoverageDays), required: true, role: .drivesAge,
+                status: coverageStatus(rhrDays), required: true, role: .drivesAge,
                 detail: "\(rhrDays) of last 7 nights"),
             FitnessReadinessItem(key: "activity", label: "Recent activity",
-                status: coverageStatus(activityDays, floor: minCoverageDays), required: false, role: .drivesAge,
+                status: coverageStatus(activityDays), required: false, role: .drivesAge,
                 detail: "\(activityDays) of last 7 days"),
             FitnessReadinessItem(key: "bodyMetrics", label: "Height & weight",
                 status: hasHeightWeight ? .satisfied : .missing, required: false, role: .unlocksVO2max,

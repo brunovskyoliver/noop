@@ -193,7 +193,7 @@ private struct BroopOverviewChargeBreakdownSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let row = row, let baselines = repo.chargeBaselines, let b = ChargeBreakdownWiring.breakdown(
+                    if let row = row, let baselines = repo.chargeBaselines(forDay: row.day), let b = ChargeBreakdownWiring.breakdown(
                         baselines: baselines, row: row,
                         sleepPerfPercent: repo.restScore(for: row)), !b.drivers.isEmpty {
                         BroopOverviewCard {

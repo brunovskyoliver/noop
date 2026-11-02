@@ -14,7 +14,6 @@ struct BroopAccountNotificationsPage: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var behavior: BehaviorStore
     @AppStorage("notif.masterEnabled") private var wristAlertsMaster = false
-    @AppStorage(WorkoutDetectedNotifier.enabledDefaultsKey) private var workoutDetectedNotifyEnabled = false
     @AppStorage(SyncStallPolicy.enabledKey) private var syncStallReminderEnabled = true
 
     var body: some View {
@@ -31,9 +30,6 @@ struct BroopAccountNotificationsPage: View {
                     BroopAccountToggle(title: String(localized: "Sync stopped reminder"),
                                        detail: String(localized: "Asks you to reopen Broop after 30 minutes without a completed sync, or longer with power saving. It can arrive even if you swipe Broop away. Locking the phone is fine; swiping the app away stops background Bluetooth recovery."),
                                        isOn: $syncStallReminderEnabled)
-                    BroopAccountToggle(title: String(localized: "Detected workouts"),
-                                       detail: String(localized: "NOOP already saves sessions it detects on its own. With this on, it lets you know about ten minutes after one ends — one notification per sync at most. Open it to edit or relabel, or mark it not a workout. On \(Platform.deviceNounPhrase) only."),
-                                       isOn: $workoutDetectedNotifyEnabled)
                     BroopAccountToggle(title: String(localized: "Low and full battery"),
                                        detail: String(localized: "A reminder to recharge before bed when the strap drops to 15%, and a heads-up when it reaches 100%, each at most once per charge cycle."),
                                        isOn: $behavior.batteryAlerts)
@@ -68,7 +64,6 @@ struct BroopAccountNotificationsPage: View {
             if on { SyncStallReminder.shared.requestAuthorizationIfNeeded() }
             SyncStallReminder.shared.refresh()
         }
-        .onChange(of: workoutDetectedNotifyEnabled) { _, on in if on { WorkoutDetectedNotifier.requestAuthorization() } }
         .onChange(of: behavior.batteryAlerts) { _, on in if on { BatteryNotifier.requestAuthorization() } }
         .onChange(of: behavior.strainTargetNudge) { _, on in
             if on {
@@ -94,7 +89,7 @@ struct BroopAccountNotificationsPage: View {
 struct BroopAccountFeaturesPage: View {
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
-    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = false
+    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = true
     @AppStorage(PuffinExperiment.journalReminderKey) private var journalReminderEnabled = true
     @AppStorage("workoutKeepScreenOn") private var workoutKeepScreenOn = false
 
@@ -108,13 +103,13 @@ struct BroopAccountFeaturesPage: View {
                 }
             }
             BroopAccountSection(title: String(localized: "Trackers"),
-                                footer: String(localized: "Optional trackers, off by default. Everything stays on \(Platform.deviceNounPhrase).")) {
+                                footer: String(localized: "Optional trackers. Everything stays on \(Platform.deviceNounPhrase).")) {
                 BroopAccountGroup {
                     BroopAccountToggle(title: String(localized: "Hydration tracking"),
                                        detail: String(localized: "Adds a simple fluid log with a daily goal that adjusts to your effort. Tap to add a sip, cup or bottle and watch a progress ring fill. On \(Platform.deviceNounPhrase) only. Nothing is synced."),
                                        isOn: $hydrationEnabled)
                     BroopAccountToggle(title: String(localized: "Auto-detect workouts"),
-                                       detail: String(localized: "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. Deliberately conservative, so the odd workout may be missed. On \(Platform.deviceNounPhrase) only."),
+                                       detail: String(localized: "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. On \(Platform.deviceNounPhrase) only."),
                                        isOn: $autoDetectWorkoutsEnabled)
                     BroopAccountToggle(title: String(localized: "Journal reminder"),
                                        detail: String(localized: "Show a Today card reminding you to log your journal"),

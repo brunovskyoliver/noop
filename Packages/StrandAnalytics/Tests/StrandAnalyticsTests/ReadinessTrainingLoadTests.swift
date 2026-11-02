@@ -43,17 +43,15 @@ final class ReadinessTrainingLoadTests: XCTestCase {
         XCTAssertEqual(paired.trainingLoad.endDay, "2026-01-28")
     }
 
-    func testMissingLoadBreaksTrainingModelWithoutSuppressingReadiness() {
+    func testMissingLoadDecaysThroughTheModelAndReadinessStillReads() {
         var days = (1...28).map { metric(day: $0, strain: 10) }
-        // An unobserved load is not a zero-load rest day. It breaks the model's contiguous suffix, while
-        // the existing Readiness engine can still synthesize its other signals from the same history.
+        // One unobserved day no longer resets the model; it decays through the gap.
         days[20] = metric(day: 21, strain: nil)
 
         let paired = ReadinessEngine.evaluateWithTrainingLoad(days: days)
         XCTAssertNotEqual(paired.readiness.level, .insufficient)
-        XCTAssertEqual(paired.trainingLoad.state, .unavailable)
-        XCTAssertEqual(paired.trainingLoad.unavailableReason, .notEnoughContiguousDays)
-        XCTAssertEqual(paired.trainingLoad.contiguousDays, 7)
+        XCTAssertEqual(paired.trainingLoad.state, .building)
+        XCTAssertEqual(paired.trainingLoad.contiguousDays, 27)
     }
 
     func testExplicitMissingTodayFailsClosedForBothAnalyses() {

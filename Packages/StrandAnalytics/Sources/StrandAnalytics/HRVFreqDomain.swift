@@ -26,7 +26,8 @@ import WhoopProtocol
 //   • VLF  : 0.0033–0.04 Hz  (folded into total power only; not reported on its own, needs many minutes)
 //   • LF   : 0.04–0.15  Hz   (~7–37 s period)
 //   • HF   : 0.15–0.40  Hz   (~2.5–6.7 s period; the respiratory band)
-//   • LF/HF: the ratio of the two band powers.
+//   • LF/HF: the ratio of the two band powers. A descriptive ratio: it does not measure sympathetic tone
+//     (Billman 2013), so nothing here labels it that way.
 //
 // A periodogram can only resolve a frequency whose period fits inside the record several times. The Task
 // Force short-term standard is a 5-minute (300 s) recording; we relax that to honest MINIMUM spans:
@@ -149,17 +150,17 @@ public enum HRVFreqDomain {
     // MARK: - Lomb-Scargle band integral
 
     /// Trapezoidal integral of the Lomb-Scargle power across [fLow, fHigh], sampled every `freqStepHz`.
-    /// Returns 0 for a degenerate band. The Lomb-Scargle normalisation used here is the classic Press et al.
-    /// (Numerical Recipes) form; we integrate it over frequency so the result is a band POWER (ms^2),
-    /// proportional across bands and stable under the chosen grid.
+    /// Returns 0 for a degenerate band. The periodogram is scaled to a PSD in ms^2/Hz (see
+    /// `lombScarglePSD`), so the integral is a band power in ms^2: a sine of amplitude A integrates to A^2/2.
+    ///
+    /// ponytail: the grid is refined to a quarter of the record's 1/T resolution so a narrow peak is not
+    /// stepped over, but no finer than 0.0005 Hz. Above about 8 minutes a pure tone can be undersampled;
+    /// real HRV is broadband, so the integral holds. Refine only if long-record tone accuracy ever matters.
     static func bandPower(times: [Double], y: [Double], fLow: Double, fHigh: Double) -> Double {
         guard fHigh > fLow else { return 0 }
-        // Variance of the (already mean-removed) signal; Lomb-Scargle scales power by it.
-        let n = Double(y.count)
-        var variance = 0.0
-        for v in y { variance += v * v }
-        variance /= n
-        guard variance > 0 else { return 0 }
+        guard let tFirst = times.first, let tLast = times.last, tLast > tFirst, !y.isEmpty else { return 0 }
+        let record = tLast - tFirst
+        let step = max(0.0005, min(freqStepHz, 1.0 / (4.0 * record)))
 
         var power = 0.0
         var prevP = 0.0
@@ -167,7 +168,7 @@ public enum HRVFreqDomain {
         var first = true
         var f = fLow
         while f <= fHigh + 1e-12 {
-            let p = lombScarglePower(times: times, y: y, freqHz: f, variance: variance)
+            let p = lombScarglePSD(times: times, y: y, freqHz: f, recordSeconds: record)
             if !first {
                 // Trapezoid: average of the two endpoint powers times the frequency step, in (ms^2/Hz)*Hz.
                 power += 0.5 * (p + prevP) * (f - prevF)
@@ -175,15 +176,17 @@ public enum HRVFreqDomain {
             prevP = p
             prevF = f
             first = false
-            f += freqStepHz
+            f += step
         }
         return power
     }
 
-    /// Lomb-Scargle normalised power at a single angular frequency (Press et al., Numerical Recipes form).
-    /// `variance` is the sample variance of the mean-removed series. The time-offset tau makes the estimate
-    /// invariant to time translation, which is what lets it handle the uneven tachogram spacing correctly.
-    static func lombScarglePower(times: [Double], y: [Double], freqHz: Double, variance: Double) -> Double {
+    /// One-sided Lomb-Scargle PSD (ms^2/Hz) at one frequency. The classic statistic C^2/CC + S^2/SS is the
+    /// squared projection onto a unit cosine and sine; Parseval makes those projections, summed over the 1/T
+    /// frequency spacing, equal N times the variance, so the density is that statistic times T/N. The
+    /// time-offset tau makes the estimate invariant to time translation, which is what lets it handle the
+    /// uneven tachogram spacing correctly.
+    static func lombScarglePSD(times: [Double], y: [Double], freqHz: Double, recordSeconds: Double) -> Double {
         let omega = 2.0 * Double.pi * freqHz
 
         // tau: the phase offset that orthogonalises the sine and cosine sums (Lomb 1976, eq. for tau).
@@ -208,7 +211,6 @@ public enum HRVFreqDomain {
         }
         let cosPart = cDen > 0 ? (cTerm * cTerm) / cDen : 0.0
         let sinPart = sDen > 0 ? (sTerm * sTerm) / sDen : 0.0
-        // Normalised by 2*variance so the spectrum is a power-spectral-density estimate in ms^2/Hz.
-        return (cosPart + sinPart) / (2.0 * variance)
+        return (cosPart + sinPart) * recordSeconds / Double(times.count)
     }
 }

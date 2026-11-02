@@ -89,3 +89,21 @@ final class HRVFreqDomainTests: XCTestCase {
         XCTAssertTrue(bands!.hf.isFinite && bands!.hf > 0)
     }
 }
+
+extension HRVFreqDomainTests {
+    /// A sine of amplitude A has variance A²/2, so the band it sits in must integrate to that many ms².
+    func testKnownSineIntegratesToItsVariance() {
+        for (modHz, ampMs) in [(0.25, 30.0), (0.10, 20.0)] {
+            var rr: [Double] = []
+            var t = 0.0
+            while t < 300 {
+                let v = 900 + ampMs * sin(2 * Double.pi * modHz * t)
+                rr.append(v)
+                t += v / 1000
+            }
+            let bands = HRVFreqDomain.freqDomain(rawRR: rr)!
+            let inBand = modHz < 0.15 ? bands.lf! : bands.hf
+            XCTAssertEqual(inBand, ampMs * ampMs / 2, accuracy: ampMs * ampMs / 2 * 0.1, "\(modHz) Hz")
+        }
+    }
+}

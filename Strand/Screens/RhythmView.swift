@@ -268,7 +268,7 @@ struct RhythmView: View {
     private var headlineWindow: RhythmScreener.WindowResult? {
         let readable = windows.filter { $0.label != .unreadable }
         return readable.first(where: { $0.label == .varied })
-            ?? readable.first(where: { $0.label == .occasionalEctopy })
+            ?? readable.first(where: { $0.label == .irregularIntervals })
             ?? readable.first
     }
 
@@ -365,7 +365,7 @@ struct RhythmView: View {
     private func chipLabel(_ label: RhythmRegularity) -> String {
         switch label {
         case .steady:           return String(localized: "Steady")
-        case .occasionalEctopy: return String(localized: "Some variation")
+        case .irregularIntervals: return String(localized: "Irregular intervals noted")
         case .varied:           return String(localized: "More varied")
         case .unreadable:       return String(localized: "No clear reading")
         }
@@ -376,7 +376,7 @@ struct RhythmView: View {
     private static func statusIcon(_ label: RhythmRegularity) -> String {
         switch label {
         case .steady:                    return "checkmark.circle.fill"
-        case .occasionalEctopy, .varied: return "waveform.path.ecg"
+        case .irregularIntervals, .varied: return "waveform.path.ecg"
         case .unreadable:                return "questionmark.circle"
         }
     }
@@ -403,7 +403,7 @@ struct RhythmView: View {
                     VStack(spacing: 8) {
                         liquidStatRow("Beat-to-beat variation", frac: hw.normRmssd,
                                       tint: StrandPalette.restBright)
-                        liquidStatRow("Extra or skipped beats", frac: hw.ectopicFraction,
+                        liquidStatRow("Irregular intervals", frac: hw.ectopicFraction,
                                       tint: StrandPalette.restColor)
                     }
                     .padding(.top, 2)
@@ -537,8 +537,8 @@ struct RhythmView: View {
         switch night?.overall ?? headlineWindow?.label ?? .unreadable {
         case .steady:
             return String(localized: "Across the quiet windows we could read, your beat-to-beat timing held a tight, even shape.")
-        case .occasionalEctopy:
-            return String(localized: "Mostly steady, with a few isolated extra or skipped beats. Very common and usually nothing.")
+        case .irregularIntervals:
+            return String(localized: "Mostly steady, with irregular intervals noted. A wrist sensor cannot tell why, and this is not a diagnosis.")
         case .varied:
             return String(localized: "The scatter looked rounder and more spread out than a tight, steady beat. This has many ordinary causes and is not a diagnosis.")
         case .unreadable:

@@ -23,11 +23,14 @@ enum DayCycleIntelligenceIntegration {
     struct Result {
         let stepsByWakeDay: [String: Int]
         let strainByWakeDay: [String: Double]
+        /// Total energy (BMR included) per wake day, the value written to `DailyMetric.totalKcalEst`.
         let caloriesByWakeDay: [String: Double]
         let workoutCountByWakeDay: [String: Int]
         let onsetByWakeDay: [String: Int]
         let firstWakeDay: String?
         let markerUpdate: MarkerUpdate
+        /// Active energy per wake day, from the same estimate as `caloriesByWakeDay`.
+        var activeByWakeDay: [String: Double] = [:]
     }
     struct PersistedBoundary {
         let boundary: PhysiologicalSteps.CycleBoundary
@@ -41,7 +44,7 @@ enum DayCycleIntelligenceIntegration {
     }
     /// A cycle's Effort and calories, with the key of the inputs they were computed from.
     fileprivate struct CachedLoad {
-        let key: String; let strain: Double?; let calories: Double?
+        let key: String; let strain: Double?; let calories: Double?; let active: Double?
     }
     final class Cache {
         fileprivate var cycles: [String: CachedCycle] = [:]
@@ -189,7 +192,7 @@ enum DayCycleIntelligenceIntegration {
             return (night.daily.day, "\(night.owner):\(night.daily.steps.map(String.init) ?? "nil")|\(sleeps)")
         })
         var steps: [String: Int] = [:], onsets: [String: Int] = [:]
-        var strains: [String: Double] = [:], calories: [String: Double] = [:]
+        var strains: [String: Double] = [:], calories: [String: Double] = [:], actives: [String: Double] = [:]
         var workoutCounts: [String: Int] = [:]
         windowLoop: for window in windows {
             guard let day = wakeDayById[window.sleepId], let fallback = ownerById[window.sleepId] else { continue }
@@ -216,7 +219,9 @@ enum DayCycleIntelligenceIntegration {
                     hrWitness.append("\(owner)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")")
                 }
             }
+            let persistedInWindow = workouts.filter { $0.startTs >= window.onset && $0.startTs < window.endExclusive }
             let loadKey = "\(window.onset)-\(window.endExclusive)|\(hrWitness.joined(separator: ","))"
+                + "|credited=\(min(window.endExclusive, now))"
                 + "|rhr=\(restingHR)|max=\(effectiveMaxHR.map { "\($0)" } ?? "nil")|\(effortMethod)|\(profile.cacheKey)"
             let load: CachedLoad
             if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }) {
@@ -231,28 +236,23 @@ enum DayCycleIntelligenceIntegration {
                     }
                 }
                 let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
+                // BMR over the cycle so far: an open cycle is only credited up to now.
+                let energy = cycleHR.isEmpty ? nil : Calories.estimateDayEnergy(
+                    cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR,
+                    maxSpanSeconds: Double(window.endExclusive - window.onset),
+                    creditedSeconds: creditedSeconds(onset: window.onset, endExclusive: window.endExclusive, now: now))
                 load = CachedLoad(
                     key: loadKey,
                     strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
                                                 method: effortMethod, sex: profile.sex),
-                    calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
-                        cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
+                    calories: energy?.totalKcal, active: energy?.activeKcal)
                 cache.loads[window.sleepId] = load
             }
             if let strain = load.strain { strains[day] = strain }
             if let kcal = load.calories { calories[day] = kcal }
-            let persistedWorkoutKeys = workouts
-                .filter { $0.startTs >= window.onset && $0.startTs < window.endExclusive }
-                .map { "\($0.startTs):\($0.endTs)" }
-            let freshDetectedKeys = nights.flatMap(\.workouts)
-                .filter { $0.start >= window.onset && $0.start < window.endExclusive }
-                .filter { detected in
-                    !workouts.contains { persisted in
-                        detected.start < persisted.endTs && persisted.startTs < detected.end
-                    }
-                }
-                .map { "\($0.start):\($0.end)" }
-            workoutCounts[day] = Set(persistedWorkoutKeys + freshDetectedKeys).count
+            if let kcal = load.active { actives[day] = kcal }
+            // Saved rows only. Detected bouts are suggestions, and counting them showed 9 over an empty list.
+            workoutCounts[day] = Set(persistedInWindow.map { "\($0.startTs):\($0.endTs)" }).count
             var ranked = priorities; ranked[fallback] = ranked[fallback] ?? ranked.values.min() ?? 0
             var coverage: [PhysiologicalSteps.OwnerCoverage] = []
             for (owner, priority) in ranked {
@@ -344,15 +344,31 @@ enum DayCycleIntelligenceIntegration {
             workoutCountByWakeDay: workoutCounts, onsetByWakeDay: onsets,
             firstWakeDay: wakeDayById.values.min(), markerUpdate: .replace(
                 points: recoveredMarkers,
-                sourceIds: Array(Set(candidates.map { computedId($0.owner) })).sorted()))
+                sourceIds: Array(Set(candidates.map { computedId($0.owner) })).sorted()),
+            activeByWakeDay: actives)
     }
 
-    static func applying(_ result: Result, to daily: DailyMetric) -> DailyMetric {
+    /// BMR seconds for one wake day: the cycle so far, at most 24 h. A cycle stretches over days when a night
+    /// has no detected sleep, and that one row must not read as several days of metabolism (7924 kcal on real
+    /// data before this cap).
+    static func creditedSeconds(onset: Int, endExclusive: Int, now: Int) -> Double {
+        Double(min(86_400, max(0, min(endExclusive, now) - onset)))
+    }
+
+    /// The day's active energy under the same day definition `applying` gives its total, so the two
+    /// readouts cover one window.
+    static func activeEnergy(_ result: Result, day: String, calendar: Double?) -> Double? {
+        let established = result.firstWakeDay.map { day >= $0 } ?? false
+        return established ? result.activeByWakeDay[day] : calendar
+    }
+
+    /// `savedWorkoutCount` is the calendar-day count of saved rows, for days before cycles are established.
+    static func applying(_ result: Result, to daily: DailyMetric, savedWorkoutCount: Int? = nil) -> DailyMetric {
         let established = result.firstWakeDay.map { daily.day >= $0 } ?? false
         let steps = established ? result.stepsByWakeDay[daily.day] : daily.steps
         let strain = established ? result.strainByWakeDay[daily.day] : daily.strain
         let calories = established ? result.caloriesByWakeDay[daily.day] : daily.activeKcalEst
-        let workouts = established ? result.workoutCountByWakeDay[daily.day] : daily.exerciseCount
+        let workouts = established ? result.workoutCountByWakeDay[daily.day] : (savedWorkoutCount ?? daily.exerciseCount)
         return DailyMetric(day: daily.day, totalSleepMin: daily.totalSleepMin, efficiency: daily.efficiency,
             deepMin: daily.deepMin, remMin: daily.remMin, lightMin: daily.lightMin,
             disturbances: daily.disturbances, restingHr: daily.restingHr, avgHrv: daily.avgHrv,

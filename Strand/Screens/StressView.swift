@@ -501,16 +501,16 @@ struct StressView: View {
                     if let f = freqHRV {
                         if let ratio = f.lfhf {
                             StatTile(
-                                label: "Autonomic balance (LF/HF)",
+                                label: "LF/HF ratio",
                                 value: StressTrace.formatRatio(ratio),
-                                caption: String(localized: "Sympathetic vs parasympathetic tone from frequency-domain HRV. Higher leans sympathetic (stress-ward)."),
+                                caption: String(localized: "Low- vs high-frequency power in your HRV. A description of the signal, not a measure of stress or nervous-system tone."),
                                 accent: StressRamp.steady
                             )
                         } else if f.hf > 0 {
                             StatTile(
                                 label: "HF power",
                                 value: "\(Int(f.hf.rounded()))",
-                                caption: String(localized: "Parasympathetic (rest) band of your HRV."),
+                                caption: String(localized: "High-frequency band of your HRV, in ms². It mostly follows breathing."),
                                 accent: StressRamp.steady
                             )
                         }

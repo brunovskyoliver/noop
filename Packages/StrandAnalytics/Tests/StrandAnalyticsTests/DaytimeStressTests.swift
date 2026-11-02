@@ -88,10 +88,8 @@ final class DaytimeStressTests: XCTestCase {
         XCTAssertLessThanOrEqual(levels.count, 1, "a flat day should not zigzag, got \(levels)")
     }
 
-    func testTimelineMatchesTheKotlinTwinValueForValue() {
-        // The other half of the oracle. The Kotlin `DaytimeStressTest` asserts these same literals for
-        // this same scenario, so a change landing on ONE platform moves one of the two and fails here
-        // or there. An oracle only guards the direction it is written in.
+    func testTimelinePinnedValues() {
+        // iPhone only: the Kotlin `DaytimeStressTest` still has the pre-floor literals for this scenario.
         let (hr, rr) = wornMorning()
         let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
         func render(_ points: [DaytimeStress.HourPoint]) -> String {
@@ -209,9 +207,7 @@ final class DaytimeStressTests: XCTestCase {
         XCTAssertTrue(r.hours.contains { $0.hour == 7 })
     }
 
-    func testRMSSDLowersStressDirectionMatchesDailyScore() {
-        // Same HR across hours; the hour with the LOWEST HRV (RMSSD) should read more
-        // stressed — the same directionality as the daily score (HRV down = stress).
+    func testDayRelativeIgnoresDaytimeRMSSDWhileGated() {
         var hr: [HRSample] = []
         var rr: [RRInterval] = []
         for h in [8, 9, 10, 11] { hr += hourHR(h, bpm: 65) }
@@ -223,7 +219,8 @@ final class DaytimeStressTests: XCTestCase {
         let r = DaytimeStress.analyze(hr: hr, rr: rr)
         let relaxed = r.scored.first { $0.hour == 9 }!.level!
         let tense = r.scored.first { $0.hour == 11 }!.level!
-        XCTAssertGreaterThan(tense, relaxed)
+        // `daytimeRMSSDScoringEnabled` is false, and it now gates this mode too.
+        XCTAssertEqual(tense, relaxed, accuracy: 1e-9)
     }
 
     /// R-R for one hour with a controllable beat-to-beat jitter (drives RMSSD).
@@ -432,15 +429,6 @@ final class DaytimeStressTests: XCTestCase {
     // `DaytimeStress.baselineRelativeHighMarginBPM`) and elevations measured from it in terms of
     // that validated ~15 bpm margin, so the expected band crossings are exact, not approximate.
 
-    func testMarginToSigmaLandsExactlyOnBand() {
-        // The validated 15 bpm margin over baseline must land EXACTLY on highBandFloor (2.0) on
-        // the shared squash curve — the core identity `.baselineRelative` scoring relies on.
-        let sd = DaytimeStress.marginToSigma(marginBPM: DaytimeStress.baselineRelativeHighMarginBPM,
-                                             atBand: DaytimeStress.highBandFloor)
-        XCTAssertEqual(DaytimeStress.squash(DaytimeStress.baselineRelativeHighMarginBPM / sd),
-                      DaytimeStress.highBandFloor, accuracy: 1e-9)
-    }
-
     func testBaselineRelativeModeRecoversMultipleInjectedElevations() {
         // Personal daytime-HR baseline: 20 constant "days" at 65 bpm converges the EWMA center
         // to exactly 65 (spread is folded but NOT used for the HR high-band threshold — see
@@ -464,9 +452,9 @@ final class DaytimeStressTests: XCTestCase {
             XCTAssertGreaterThan(scores[i], scores[i - 1],
                 "hour \(levels[i].hour) (\(levels[i].bpm) bpm) should score higher than hour \(levels[i - 1].hour) (\(levels[i - 1].bpm) bpm)")
         }
-        // The at-baseline hour reads at the 1.5 midpoint; +15 bpm (the validated margin) lands
+        // The at-baseline hour reads at the floor's 1.0 anchor; +15 bpm (the validated margin) lands
         // exactly on highBandFloor; the most-elevated hour clears well past it.
-        XCTAssertEqual(scores[0], 1.5, accuracy: 0.05)
+        XCTAssertEqual(scores[0], 1.0, accuracy: 0.05)
         XCTAssertEqual(scores[2], DaytimeStress.highBandFloor, accuracy: 0.01,
             "the validated +15 bpm margin should land exactly on highBandFloor")
         XCTAssertGreaterThan(scores.last!, DaytimeStress.highBandFloor)
@@ -480,8 +468,8 @@ final class DaytimeStressTests: XCTestCase {
         let r = DaytimeStress.analyze(hr: hr, rr: [], mode: .baselineRelative(hr: hrBaseline, rmssd: nil))
 
         for p in r.scored {
-            XCTAssertEqual(p.level!, 1.5, accuracy: 0.05,
-                "a day flat at the personal baseline should read ~1.5, not elevated")
+            XCTAssertEqual(p.level!, 1.0, accuracy: 0.05,
+                "a day flat at the personal baseline should read ~1.0, not elevated")
         }
         XCTAssertEqual(r.highStressMinutes, 0)
         XCTAssertFalse(r.sustainedHigh)
@@ -530,5 +518,40 @@ final class DaytimeStressTests: XCTestCase {
         let suppressed = r.scored.first { $0.hour == 14 }!.level!
         XCTAssertGreaterThan(suppressed, normal,
             "suppressed RMSSD vs. the personal baseline should read MORE stressed than normal variability")
+    }
+
+    // MARK: - One curve, one floor (the widget / app disagreement)
+
+    func testBaselineRelativeIsTheStressMonitorCurve() {
+        let state = BaselineState(baseline: 65, spread: 0, nValid: 14, nightsSinceUpdate: 0, status: .trusted)
+        for bpm in [65, 70, 80, 95] {
+            let r = DaytimeStress.analyze(hr: hourHR(9, bpm: bpm), rr: [], mode: .baselineRelative(hr: state, rmssd: nil))
+            XCTAssertEqual(r.scored[0].level!, StressMonitor.wakeLevel(meanHR: Double(bpm), floorHR: 65), accuracy: 1e-9)
+        }
+    }
+
+    func testScoringModeUsesTheSameFloorAsWakeReference() {
+        let floors: [Double?] = [60, nil, 64, 80, 62, 66]
+        guard case let .baselineRelative(hr, _) = StressMonitor.scoringMode(priorFloors: floors) else { return XCTFail() }
+        XCTAssertEqual(hr.baseline, StressMonitor.wakeReference(priorFloors: floors, todayFloor: nil)!.floorHR)
+        XCTAssertEqual(StressMonitor.scoringMode(priorFloors: [60, nil, 64]), .dayRelative)
+    }
+
+    // MARK: - Day-relative floor
+
+    /// Audit case: 70, 70.5, 71, 72 used to score the 72 hour as HIGH on a flat day.
+    func testFlatDayIsNotHighAfterTheSpreadFloor() {
+        var hr: [HRSample] = []
+        for (h, bpm) in [(8, 70), (9, 71), (10, 71), (11, 72)] { hr += hourHR(h, bpm: bpm) }
+        let r = DaytimeStress.analyze(hr: hr, rr: [])
+        XCTAssertEqual(r.highStressMinutes, 0)
+    }
+
+    func testHalfStepWindowDoesNotRunPastTheWakingEnd() {
+        var hr: [HRSample] = []
+        for h in 20...22 { hr += hourHR(h, bpm: 70) }
+        let r = DaytimeStress.analyze(hr: hr, rr: [], includeTimeline: true)
+        let end = DaytimeStress.wakingEndHour * 3600
+        for p in r.timeline { XCTAssertLessThanOrEqual(p.startTs + DaytimeStress.bucketSeconds, end) }
     }
 }

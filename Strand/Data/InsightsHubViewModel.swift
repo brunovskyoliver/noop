@@ -103,20 +103,17 @@ final class InsightsHubViewModel: ObservableObject {
         }
 
         // Dose rows per dosed behaviour, under the dedicated dose source, keyed by the
-        // behaviour's storage key. A logged "yes" with no dose row reads as dose = 1
-        // (back-compatible), so we union the behaviour's logged days at dose 1 with any
-        // explicit dose rows (explicit wins).
+        // behaviour's storage key. Yes reads as dose 1, No as dose 0, explicit rows win.
         var doseByBehaviour: [DosedBehavior: [String: Int]] = [:]
         for behavior in DosedBehavior.allCases {
             let key = Self.doseKey(for: behavior)
             let rows = await repo.series(key: key, source: Self.doseSource)
-            var doses: [String: Int] = [:]
-            // Back-compat: any logged "yes" day for a matching journal question starts at dose 1.
-            for (question, days) in byBehaviour where Self.matches(behavior, question: question) {
-                for day in days { doses[day] = max(doses[day] ?? 0, 1) }
-            }
-            // Explicit dose rows override.
-            for row in rows { doses[row.day] = Int(row.value.rounded()) }
+            let matching = Set(byBehaviour.keys).union(controlsByBehaviour.keys)
+                .filter { Self.matches(behavior, question: $0) }
+            let doses = DoseResponseEngine.mergedDoses(
+                yesDays: matching.reduce(into: Set<String>()) { $0.formUnion(byBehaviour[$1] ?? []) },
+                noDays: matching.reduce(into: Set<String>()) { $0.formUnion(controlsByBehaviour[$1] ?? []) },
+                explicit: Dictionary(rows.map { ($0.day, Int($0.value.rounded())) }, uniquingKeysWith: { _, last in last }))
             if !doses.isEmpty { doseByBehaviour[behavior] = doses }
         }
 
@@ -181,10 +178,10 @@ final class InsightsHubViewModel: ObservableObject {
 
     /// Whether a journal question is the dosed behaviour (so its yes-days back-fill dose = 1).
     static func matches(_ behavior: DosedBehavior, question: String) -> Bool {
-        let q = question.lowercased()
+        let topics = JournalTopic.topics(of: question)
         switch behavior {
-        case .alcohol:  return q.contains("alcohol") || q.contains("drink")
-        case .caffeine: return q.contains("caffeine") || q.contains("coffee")
+        case .alcohol:  return topics.contains(.alcohol)
+        case .caffeine: return topics.contains(.caffeine)
         }
     }
 

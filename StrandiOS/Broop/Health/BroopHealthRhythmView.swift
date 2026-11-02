@@ -88,7 +88,7 @@ struct BroopHealthRhythmView: View {
 
     private var headline: RhythmScreener.WindowResult? {
         let readable = windows.filter { $0.label != .unreadable }
-        return readable.first { $0.label == .varied } ?? readable.first { $0.label == .occasionalEctopy } ?? readable.first
+        return readable.first { $0.label == .varied } ?? readable.first { $0.label == .irregularIntervals } ?? readable.first
     }
     private var points: [RhythmScreener.PoincarePoint] { windows.flatMap { $0.poincare } }
 
@@ -152,7 +152,7 @@ struct BroopHealthRhythmView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let hw = headline {
                 bar(String(localized: "Beat-to-beat variation"), hw.normRmssd)
-                bar(String(localized: "Extra or skipped beats"), hw.ectopicFraction)
+                bar(String(localized: "Irregular intervals"), hw.ectopicFraction)
             }
         }
         .padding(18)
@@ -239,7 +239,7 @@ struct BroopHealthRhythmView: View {
     private var chip: String {
         switch label {
         case .steady: return String(localized: "Steady")
-        case .occasionalEctopy: return String(localized: "Some variation")
+        case .irregularIntervals: return String(localized: "Irregular intervals noted")
         case .varied: return String(localized: "More varied")
         case .unreadable: return String(localized: "No clear reading")
         }
@@ -248,7 +248,7 @@ struct BroopHealthRhythmView: View {
     private var detail: String {
         switch label {
         case .steady: return String(localized: "Across the quiet windows we could read, your beat-to-beat timing held a tight, even shape.")
-        case .occasionalEctopy: return String(localized: "Mostly steady, with a few isolated extra or skipped beats. Very common and usually nothing.")
+        case .irregularIntervals: return String(localized: "Mostly steady, with irregular intervals noted. A wrist sensor cannot tell why, and this is not a diagnosis.")
         case .varied: return String(localized: "The scatter looked rounder and more spread out than a tight, steady beat. This has many ordinary causes and is not a diagnosis.")
         case .unreadable: return String(localized: "There wasn't a calm, still window clean enough to describe. Try again after a settled night.")
         }

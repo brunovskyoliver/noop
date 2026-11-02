@@ -492,7 +492,8 @@ struct BroopAccountUnitsPage: View {
                         (TemperatureUnit.fahrenheit.rawValue, "°F"),
                     ])
                     BroopAccountPicker(title: String(localized: "Skin temperature"), selection: $skinTempDisplayRaw, options: [
-                        ("", String(localized: "Temperature")),
+                        ("", String(localized: "Automatic")),
+                        (SkinTempDisplay.Kind.absolute.rawValue, String(localized: "Temperature")),
                         (SkinTempDisplay.Kind.deviation.rawValue, String(localized: "vs baseline")),
                     ])
                 }

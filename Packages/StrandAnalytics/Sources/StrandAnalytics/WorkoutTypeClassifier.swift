@@ -494,18 +494,22 @@ public enum WorkoutTypeFeatureExtractor {
             walkFraction = Double(validTicks.filter { $0 == 1 }.count) / n
             runFraction = Double(validTicks.filter { $0 == 2 }.count) / n
         }
-        // Gait streak: longest contiguous run of walk|run ticks (each tick ≈ 1 s). Cadence: mean
+        // Gait streak: longest run of walk|run ticks with no time gap, in seconds. Cadence: mean
         // wrap-aware u16 counter delta between consecutive gait ticks ≤ 2 s apart — deltas over a
         // longer gap are counter jumps across unclassified time, not cadence, and the ≤ 8 cap drops
         // reset/wrap artifacts (observed: a stray 50+ mean from one outlier delta).
         var gaitStreakSec = 0.0
-        var streakCur = 0
+        var streakStart: Int? = nil
         var cadenceSum = 0.0, cadenceN = 0
         var prevCounter: Int? = nil, prevTs: Int? = nil
         for s in stepsWindow {
             let gait = s.activityClass == 1 || s.activityClass == 2
-            streakCur = gait ? streakCur + 1 : 0
-            gaitStreakSec = max(gaitStreakSec, Double(streakCur))
+            if !gait {
+                streakStart = nil
+            } else {
+                if streakStart == nil || s.ts - (prevTs ?? s.ts) > 2 { streakStart = s.ts }
+                gaitStreakSec = max(gaitStreakSec, Double(s.ts - streakStart! + 1))
+            }
             if gait, let pc = prevCounter, let pt = prevTs, s.ts - pt <= 2 {
                 let d = (s.counter - pc) & 0xFFFF
                 if d <= 8 { cadenceSum += Double(d); cadenceN += 1 }

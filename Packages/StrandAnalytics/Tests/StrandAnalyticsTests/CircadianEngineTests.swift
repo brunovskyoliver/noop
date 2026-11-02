@@ -35,7 +35,7 @@ final class CircadianEngineTests: XCTestCase {
 
     func testStrongRhythmEnoughDaysIsSolid() {
         let bins = profile(mesor: 50, amp: 30, acrophase: 15)
-        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 20, habitualWakeHour: 7)!
+        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 20)!
         XCTAssertEqual(est.confidence, .solid)
         // Acrophase 15:00 → derived temp-min ≈ 15 − 12 = 03:00.
         XCTAssertEqual(est.tempMinHour, 3, accuracy: 1e-6)
@@ -43,7 +43,7 @@ final class CircadianEngineTests: XCTestCase {
 
     func testThinDataIsWideOrUnreadable() {
         let bins = profile(mesor: 50, amp: 30, acrophase: 15)
-        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 4, habitualWakeHour: 7)!
+        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 4)!
         XCTAssertEqual(est.confidence, .unreadable)
         XCTAssertTrue(est.note.lowercased().contains("hard to read"))
     }
@@ -51,14 +51,14 @@ final class CircadianEngineTests: XCTestCase {
     func testArrhythmicProfileIsUnreadable() {
         // Near-flat activity (amplitude ≈ 0) → arrhythmic → unreadable even with many days.
         let bins = profile(mesor: 50, amp: 0.5, acrophase: 15)
-        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 30, habitualWakeHour: 7)!
+        let est = CircadianEngine.estimatePhase(bins: bins, daysObserved: 30)!
         XCTAssertEqual(est.confidence, .unreadable)
     }
 
     func testObservedTempMinOverridesDerived() {
         let bins = profile(mesor: 50, amp: 30, acrophase: 15)
         let est = CircadianEngine.estimatePhase(
-            bins: bins, daysObserved: 20, habitualWakeHour: 7, observedTempMinHour: 4.5)!
+            bins: bins, daysObserved: 20, observedTempMinHour: 4.5)!
         XCTAssertEqual(est.tempMinHour, 4.5, accuracy: 1e-9)
     }
 
@@ -135,8 +135,7 @@ final class CircadianEngineTests: XCTestCase {
     /// still passes, a genuinely flat one still fails, and the verdict no longer moves with the mesor.
     private func confidence(mesor: Double, amp: Double) -> CircadianEngine.PhaseConfidence {
         CircadianEngine.estimatePhase(bins: profile(mesor: mesor, amp: amp, acrophase: 16),
-                                      daysObserved: CircadianEngine.goodDaysForFit,
-                                      habitualWakeHour: 7)!.confidence
+                                      daysObserved: CircadianEngine.goodDaysForFit)!.confidence
     }
 
     func testAProportionalSwingStillPasses() {
@@ -174,8 +173,7 @@ final class CircadianEngineTests: XCTestCase {
         XCTAssertEqual(confidence(mesor: 74.7, amp: 5.5), .wide)    // 0.073 - floor only
         XCTAssertEqual(confidence(mesor: 65, amp: 8), .solid)       // 0.123 - proportional
         let wide = CircadianEngine.estimatePhase(bins: profile(mesor: 74.7, amp: 5.5, acrophase: 16),
-                                                 daysObserved: CircadianEngine.goodDaysForFit,
-                                                 habitualWakeHour: 7)!
+                                                 daysObserved: CircadianEngine.goodDaysForFit)!
         XCTAssertNil(CircadianEngine.chronotype(wide), "a floor-only fit must not name a chronotype")
     }
 
@@ -212,7 +210,7 @@ final class CircadianEngineTests: XCTestCase {
     func testChronotypeIsNamedOnlyForASolidFit() {
         func estimate(_ confidence: CircadianEngine.PhaseConfidence) -> CircadianEngine.PhaseEstimate {
             CircadianEngine.PhaseEstimate(tempMinHour: 23.5, acrophaseHours: 11.5,
-                                          offsetVsScheduleMinutes: 0, confidence: confidence, note: "")
+                                          confidence: confidence, note: "")
         }
         XCTAssertEqual(CircadianEngine.chronotype(estimate(.solid)), .morning)
         XCTAssertNil(CircadianEngine.chronotype(estimate(.wide)),
@@ -225,7 +223,7 @@ final class CircadianEngineTests: XCTestCase {
     /// ~0 — while being strongly evening-type by the clock.
     func testConsistentLateSleeperIsEveningTypeDespiteAZeroScheduleOffset() {
         let alignedButLate = CircadianEngine.PhaseEstimate(
-            tempMinHour: 8.0, acrophaseHours: 20.0, offsetVsScheduleMinutes: 0,
+            tempMinHour: 8.0, acrophaseHours: 20.0,
             confidence: .solid, note: "")
         XCTAssertEqual(CircadianEngine.chronotype(alignedButLate), .evening)
     }
@@ -273,15 +271,66 @@ final class CircadianEngineTests: XCTestCase {
         }
     }
 
-    /// The dial's caption and the card's existing headline measure DIFFERENT things: a consistent late
-    /// sleeper is well-aligned with their own schedule while sleeping hours from what their clock wants.
-    func testWindowOffsetAndScheduleOffsetAreDifferentQuantities() {
-        let windowOffset = CircadianEngine.sleepWindowOffsetHours(tempMinHour: 8.0, actualWakeHour: 6.5)
-        XCTAssertEqual(windowOffset, -4.0, accuracy: 1e-12)
-        let scheduleAligned = CircadianEngine.PhaseEstimate(
-            tempMinHour: 8.0, acrophaseHours: 20.0, offsetVsScheduleMinutes: 0,
-            confidence: .solid, note: "")
-        XCTAssertEqual(scheduleAligned.offsetVsScheduleMinutes, 0)
-        XCTAssertGreaterThan(abs(windowOffset), 1.0)
+    /// An 8 h sleeper's fitted phase must not produce a lean: the estimate has no schedule to compare with.
+    func testEstimateNoteNamesNoLean() {
+        let note = CircadianEngine.estimatePhase(bins: profile(mesor: 60, amp: 15, acrophase: 15), daysObserved: 20)!.note
+        XCTAssertFalse(note.contains("lark"))
+        XCTAssertFalse(note.contains("owl"))
+    }
+
+    /// The window crosses the European change on 25 Oct 2026. One offset applied to both halves would put
+    /// the same 14:00 local bucket in two bins.
+    func testPooledBinsUseEachBucketsOwnOffset() {
+        let zone = TimeZone(identifier: "Europe/Bratislava")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        func ts(_ d: Int, _ m: Int) -> Int {
+            Int(calendar.date(from: DateComponents(year: 2026, month: m, day: d, hour: 14))!.timeIntervalSince1970)
+        }
+        let pooled = CircadianEngine.pooledBins(buckets: [(ts(20, 10), 80), (ts(30, 10), 90)], timeZone: zone)
+        XCTAssertEqual(pooled.bins.count, 1)
+        XCTAssertEqual(pooled.bins[0].hour, 14.5)     // bin centre, not its start
+        XCTAssertEqual(pooled.bins[0].activity, 85)
+        XCTAssertEqual(pooled.daysObserved, 2)
+    }
+
+    // MARK: - Sleep timing
+
+    private func timing(_ nights: [(start: Int, end: Int)]) -> SleepTiming? {
+        SleepTiming.summarize(sessions: nights, timeZone: TimeZone(identifier: "UTC")!,
+                              now: 1_800_000_000, regularityPercent: nil)
+    }
+
+    /// A UTC midnight five days before `now`.
+    private let anchor = 1_800_000_000 - (1_800_000_000 % 86_400) - 5 * 86_400
+
+    private func night(_ dayOffset: Int, bed: Double, wake: Double) -> (start: Int, end: Int) {
+        (anchor + dayOffset * 86_400 + Int(bed * 3600), anchor + dayOffset * 86_400 + Int(wake * 3600))
+    }
+
+    func testTimingMediansCrossMidnightAndNapsDoNotCount() {
+        var nights = (0..<5).map { night($0, bed: -1, wake: 7) }      // 23:00 to 07:00
+        nights.append(night(4, bed: 14, wake: 15))                     // an afternoon nap
+        let t = timing(nights)!
+        XCTAssertEqual(t.usualBedHour, 23, accuracy: 0.01)
+        XCTAssertEqual(t.usualWakeHour, 7, accuracy: 0.01)
+        XCTAssertEqual(t.nights, 5)
+    }
+
+    func testFreeDayMidsleepUsesWeekendWakeUpsOnly() {
+        let weekdayFor: (Int) -> Int = { offset in
+            var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!
+            return c.component(.weekday, from: Date(timeIntervalSince1970: TimeInterval(self.anchor + offset * 86_400)))
+        }
+        let nights = (-7...4).map { i -> (start: Int, end: Int) in
+            [1, 7].contains(weekdayFor(i)) ? night(i, bed: 1, wake: 9) : night(i, bed: -1, wake: 7)
+        }
+        XCTAssertEqual(timing(nights)!.freeDayMidsleepHour!, 5, accuracy: 0.01)
+        let weekdaysOnly = (-14...4).filter { ![1, 7].contains(weekdayFor($0)) }.prefix(6).map { night($0, bed: -1, wake: 7) }
+        XCTAssertNil(timing(weekdaysOnly)!.freeDayMidsleepHour)
+    }
+
+    func testTimingNeedsEnoughNights() {
+        XCTAssertNil(timing((0..<4).map { night($0, bed: -1, wake: 7) }))
     }
 }

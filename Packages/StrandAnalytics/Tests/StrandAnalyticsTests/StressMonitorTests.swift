@@ -51,6 +51,39 @@ final class StressMonitorTests: XCTestCase {
         XCTAssertFalse(result.summary.hasWaking)
     }
 
+    // MARK: - One curve for drawn surfaces
+
+    func testCurveCarriesTheEpochLevelsAndPersonalFloor() {
+        let floors: [Double?] = Array(repeating: 60, count: 14)
+        let result = StressMonitor.analyzeDay(input(hr: hr(day0 + 8 * 3600, day0 + 9 * 3600, bpm: 75)),
+                                              priorFloors: floors, priorNights: [])
+        let curve = StressMonitor.curve(result, tzOffsetSeconds: 0)
+        XCTAssertEqual(curve.timeline.count, 2)
+        for p in curve.timeline {
+            XCTAssertEqual(p.level!, StressMonitor.wakeLevel(meanHR: 75, floorHR: 60), accuracy: 1e-9)
+            XCTAssertEqual(p.hour, 8)
+        }
+    }
+
+    func testCurveIsEmptyDuringColdStart() {
+        let result = StressMonitor.analyzeDay(input(hr: hr(day0 + 8 * 3600, day0 + 12 * 3600, bpm: 75)),
+                                              priorFloors: [], priorNights: [])
+        XCTAssertNotNil(result.latest?.level)      // the Stress screen still has its own-day read
+        XCTAssertEqual(StressMonitor.curve(result, tzOffsetSeconds: 0), .empty)
+    }
+
+    // MARK: - Motion coverage
+
+    func testMissingGravityIsReportedAsUnknownMotion() {
+        let gravity = stride(from: day0 + 8 * 3600, to: day0 + 8 * 3600 + 1800, by: 30).map {
+            GravitySample(ts: $0, x: 0, y: 0, z: 1)
+        }
+        let result = StressMonitor.analyzeDay(input(hr: hr(day0 + 8 * 3600, day0 + 9 * 3600, bpm: 70), gravity: gravity),
+                                              priorFloors: Array(repeating: 60, count: 14), priorNights: [])
+        XCTAssertEqual(result.motionCoverage!, 0.5, accuracy: 1e-9)   // 6 of 12 epochs had gravity
+        XCTAssertEqual(result.epochs.filter { $0.state == .waking && !$0.motionKnown }.count, 6)
+    }
+
     // MARK: - Level maps
 
     func testWakeLevelAnchors() {

@@ -13,11 +13,10 @@ import Foundation
 //     input (nil HRV-baseline-not-usable, nil resp, nil sleepPerf, nil skin-temp deviation)
 //     produces NO row, never a fabricated zero.
 //   - deltaPoints is the term's REAL marginal contribution to the 0-100 score: the score
-//     WITH every present term minus the score recomputed with THIS term omitted (and the
-//     remaining weights renormalized, which is exactly what recovery(...) already does when
-//     an input is nil). So the points come from the same weighting the headline uses, not an
-//     invented number. A positive deltaPoints means the term pushed Charge UP vs leaving it
-//     out; negative means it pulled Charge DOWN.
+//     WITH every present term minus the score recomputed with THIS term held at its neutral
+//     point (its z at 0, every weight kept). So the points come from the same weighting the
+//     headline uses, not an invented number. A positive deltaPoints means the term pushed
+//     Charge UP vs sitting at neutral; negative means it pulled Charge DOWN.
 //   - The score is logistic, so per-term deltas do NOT sum to the headline; they are each an
 //     honest "what this term was worth" marginal, ordered by magnitude (biggest mover first).
 //
@@ -109,7 +108,7 @@ extension RecoveryScorer {
     /// respiration, skin-temp deviation). A term whose input is missing / uncalibrated is
     /// OMITTED (no row), exactly as `recovery(...)` drops it. Each row's `deltaPoints` is the
     /// term's marginal contribution to the 0-100 score: `recovery(all terms)` minus
-    /// `recovery(this term omitted)`, rounded - real points from the real weighting, never
+    /// `recovery(this term at neutral)`, rounded - real points from the real weighting, never
     /// invented. Rows are ordered by |deltaPoints| descending (biggest mover first); ties keep
     /// a stable term order (hrv, rhr, sleepPerf, resp, skinTempDev).
     ///
@@ -126,6 +125,7 @@ extension RecoveryScorer {
                                      rhrBaseline: BaselineState?,
                                      respBaseline: BaselineState?,
                                      sleepPerf: Double?,
+                                     sleepCenter: Double? = nil,
                                      skinTempDev: Double? = nil) -> [ChargeDriver] {
 
         // No score => no real contributions to attribute (cold-start). recovery(...) enforces
@@ -139,7 +139,7 @@ extension RecoveryScorer {
         let respB = respBaseline.flatMap { $0.usable ? $0 : nil }
         guard let full = recovery(hrv: hrv, rhr: rhr, resp: resp,
                                   hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                  respBaseline: respB, sleepPerf: sleepPerf,
+                                  respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                                   skinTempDev: skinTempDev) else {
             return []
         }
@@ -151,7 +151,7 @@ extension RecoveryScorer {
         // being neutral. This routes through recovery(...) itself (same terms, same weighting, same
         // logistic), so the points can never drift from the headline. A term reaches z = 0 at:
         // HRV / resting HR / respiration = the baseline mean (recovery uses BaselineState.baseline
-        // as the mean), Rest quality = sleepPerfCenter, skin-temp deviation = 0. Renormalised
+        // as the mean), Rest quality = its centre, skin-temp deviation = 0. Renormalised
         // leave-one-out would be WRONG here: when the surviving terms average to the same z as the
         // full set, dropping one and renormalising returns the same score, collapsing the delta to
         // 0 even for a clearly good or bad term.
@@ -166,7 +166,7 @@ extension RecoveryScorer {
         // low, decoupled resting HR)? Detection ONLY: the guard's easing is not applied, so deltaPoints
         // below is the full, unguarded HRV penalty. The verdict merely NAMES the detected pattern so the
         // UI can surface it while real firings accumulate. See the MARK header in RecoveryScorer.swift.
-        let hrvZFull = zScore(hrv, mean: hrvBaseline.baseline, spread: hrvBaseline.spread)
+        let hrvZFull = zScore(hrv, baseline: DriverBaseline(hrvBaseline))
         let rhrZFull: Double? = rhrB.map { zScore($0.baseline, mean: rhr, spread: $0.spread) }
         let hrvSaturationDetected = parasympatheticSaturation(hrvZ: hrvZFull, rhrZ: rhrZFull).active
 
@@ -174,7 +174,7 @@ extension RecoveryScorer {
         // Higher HRV vs baseline supports recovery. Neutral = HRV at the baseline mean.
         let hrvPoints = points(recovery(hrv: hrvBaseline.baseline, rhr: rhr, resp: resp,
                                         hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                        respBaseline: respB, sleepPerf: sleepPerf,
+                                        respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                                         skinTempDev: skinTempDev))
         drivers.append(ChargeDriver(
             label: "Heart rate variability",
@@ -190,7 +190,7 @@ extension RecoveryScorer {
         if let b = rhrB {
             let rhrPoints = points(recovery(hrv: hrv, rhr: b.baseline, resp: resp,
                                             hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                            respBaseline: respB, sleepPerf: sleepPerf,
+                                            respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                                             skinTempDev: skinTempDev))
             drivers.append(ChargeDriver(
                 label: "Resting heart rate",
@@ -200,17 +200,18 @@ extension RecoveryScorer {
                 verdict: rhrVerdict(value: rhr, baseline: b.baseline, deltaPoints: rhrPoints)))
         }
 
-        // ── Rest quality (the Rest composite; neutral at sleepPerfCenter) ────────
+        // ── Rest quality (the Rest composite; neutral at the wearer's usual Rest) ────────
         if let sp = sleepPerf {
             drivers.append(ChargeDriver(
                 label: "Sleep quality",
                 deltaPoints: points(recovery(hrv: hrv, rhr: rhr, resp: resp,
                                              hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                             respBaseline: respB, sleepPerf: sleepPerfCenter,
+                                             respBaseline: respB, sleepPerf: sleepCenter ?? sleepPerfCenter,
+                                             sleepCenter: sleepCenter,
                                              skinTempDev: skinTempDev)),
                 valueText: "\(Int((sp * 100).rounded()))%",
-                baselineText: "",   // centred on a fixed "good night", not a learned baseline
-                verdict: sleepVerdict(sleepPerf: sp)))
+                baselineText: "",   // the verdict already says which reference it used
+                verdict: sleepVerdict(sleepPerf: sp, personalCenter: sleepCenter)))
         }
 
         // ── Respiration (lower vs baseline supports recovery) ────────────────────
@@ -218,7 +219,7 @@ extension RecoveryScorer {
         if let r = resp, let b = respB {
             let respPoints = points(recovery(hrv: hrv, rhr: rhr, resp: b.baseline,
                                              hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                             respBaseline: respB, sleepPerf: sleepPerf,
+                                             respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                                              skinTempDev: skinTempDev))
             drivers.append(ChargeDriver(
                 label: "Respiratory rate",
@@ -235,7 +236,7 @@ extension RecoveryScorer {
         if let dev = skinTempDev {
             let skinTempPoints = points(recovery(hrv: hrv, rhr: rhr, resp: resp,
                                                  hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                                                 respBaseline: respB, sleepPerf: sleepPerf,
+                                                 respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                                                  skinTempDev: 0))
             drivers.append(ChargeDriver(
                 label: "Skin temperature",
@@ -332,7 +333,12 @@ extension RecoveryScorer {
             : "below baseline, limiting recovery"
     }
 
-    static func sleepVerdict(sleepPerf: Double) -> String {
+    static func sleepVerdict(sleepPerf: Double, personalCenter: Double? = nil) -> String {
+        if let center = personalCenter {
+            if sleepPerf > center { return "better than your usual night, supporting recovery" }
+            if sleepPerf < center { return "below your usual night, limiting recovery" }
+            return "a typical night"
+        }
         if sleepPerf > sleepPerfCenter { return "a strong night, supporting recovery" }
         if sleepPerf < sleepPerfCenter { return "below a good night, limiting recovery" }
         return "a typical night"

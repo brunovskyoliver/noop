@@ -41,7 +41,7 @@ func localizedHealthAlertCopy(_ alert: AppModel.HealthAlert) -> String {
         let formatter = ListFormatter()
         formatter.locale = AppLanguage.activeLocale
         let signals = formatter.string(from: alert.firedSignals) ?? alert.firedSignals.joined(separator: ", ")
-        return String(localized: "Your body looks strained. Signals up: \(signals). No alcohol or travel was logged, so consider taking it easy. On-device estimate, not a diagnosis.")
+        return String(localized: "Your body looks strained. Signals up: \(signals). No alcohol, stress, sauna, hard workout or travel logged, which does not rule them out. Consider taking it easy. On-device estimate, not a diagnosis.")
     }
     if alert.message == .alreadyUnwellAgree {
         return String(localized: "You logged feeling unwell, and your signals agree. Take it easy today. On-device estimate, not a diagnosis.")

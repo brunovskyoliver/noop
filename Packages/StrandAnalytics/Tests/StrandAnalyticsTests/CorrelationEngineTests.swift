@@ -29,19 +29,52 @@ final class CorrelationEngineTests: XCTestCase {
         let c = CorrelationEngine.pearson(xy)!
         XCTAssertEqual(c.r, 0.0, accuracy: 1e-9)
         XCTAssertEqual(c.slope, 0.0, accuracy: 1e-9)
-        // r=0 → t=0 → p≈1 (A&S erf leaves a ~1e-9 residual at z=0).
+        // r=0 → t=0 → p=1.
         XCTAssertEqual(c.pApprox, 1.0, accuracy: 1e-6)
     }
 
     func testPearsonGoldenValues() {
         // x=[1..5], y=[2,4,5,4,5] → r=0.7745966692, slope 0.6, intercept 2.2,
-        // pApprox (A&S-erf normal approx) ≈ 0.0338947336.
+        // t=2.1213 on 3 df → p≈0.124.
         let xy: [(Double, Double)] = [(1, 2), (2, 4), (3, 5), (4, 4), (5, 5)]
         let c = CorrelationEngine.pearson(xy)!
         XCTAssertEqual(c.r, 0.7745966692414834, accuracy: 1e-9)
         XCTAssertEqual(c.slope, 0.6, accuracy: 1e-9)
         XCTAssertEqual(c.intercept, 2.2, accuracy: 1e-9)
-        XCTAssertEqual(c.pApprox, 0.033894733597028104, accuracy: 1e-6)
+        XCTAssertEqual(c.pApprox, 0.12402706, accuracy: 1e-4)
+    }
+
+    /// Values from the audit's scipy table and t tables. A normal tail gives 0.021 and 3e-12 for the
+    /// first two Pearson rows, so this fails on the old approximation.
+    func testStudentTailMatchesReferenceValues() {
+        XCTAssertEqual(CorrelationEngine.pValue(r: 0.8, n: 5), 0.104, accuracy: 1e-3)
+        XCTAssertEqual(CorrelationEngine.pValue(r: 0.99, n: 3), 0.090, accuracy: 1e-3)
+        XCTAssertEqual(CorrelationEngine.studentTTwoSidedP(t: 1.96, df: 8), 0.0857, accuracy: 1e-3)
+        XCTAssertEqual(CorrelationEngine.studentTTwoSidedP(t: 2.228, df: 10), 0.05, accuracy: 1e-3)
+        XCTAssertEqual(CorrelationEngine.studentTTwoSidedP(t: 0, df: 10), 1, accuracy: 1e-12)
+        XCTAssertEqual(CorrelationEngine.studentTTwoSidedP(t: 1.96, df: 1e6), 0.05, accuracy: 1e-3)
+        XCTAssertEqual(CorrelationEngine.studentTQuantile(twoSidedP: 0.05, df: 10), 2.228, accuracy: 1e-3)
+    }
+
+    func testBenjaminiHochbergKnownCase() {
+        let adjusted = CorrelationEngine.benjaminiHochberg([0.01, 0.04, 0.03, 0.5])
+        XCTAssertEqual(adjusted[0], 0.04, accuracy: 1e-12)
+        XCTAssertEqual(adjusted[1], 0.05333333, accuracy: 1e-6)
+        XCTAssertEqual(adjusted[2], 0.05333333, accuracy: 1e-6)
+        XCTAssertEqual(adjusted[3], 0.5, accuracy: 1e-12)
+        XCTAssertTrue(CorrelationEngine.benjaminiHochberg([]).isEmpty)
+    }
+
+    /// Two unrelated series sharing a drift correlate near 1 raw and near 0 once detrended.
+    func testDetrendRemovesSharedDrift() {
+        let wobbleA: [Double] = [1, -1, 1, 1, -1, -1, 1, -1, -1, 1, 1, -1]
+        let wobbleB: [Double] = [1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1]
+        let pairs: [(Double, Double)] = (0..<12).map { i -> (Double, Double) in
+            let t = Double(i)
+            return (t * 5 + wobbleA[i], t * 3 + wobbleB[i])
+        }
+        XCTAssertGreaterThan(CorrelationEngine.pearson(pairs)!.r, 0.9)
+        XCTAssertLessThan(abs(CorrelationEngine.detrendedPearson(pairs)!.r), 0.5)
     }
 
     func testPearsonTooFewReturnsNil() {
@@ -137,5 +170,28 @@ final class CorrelationEngineTests: XCTestCase {
         XCTAssertEqual(CorrelationEngine.shiftDay("2026-03-01", by: -1), "2026-02-28")
         XCTAssertEqual(CorrelationEngine.shiftDay("2025-12-31", by: 1), "2026-01-01")
         XCTAssertEqual(CorrelationEngine.shiftDay("2024-02-28", by: 1), "2024-02-29") // leap year
+    }
+
+    func testIsCoupledCoversChargeInputsOnly() {
+        XCTAssertTrue(CorrelationEngine.isCoupled("recovery", "hrv"))
+        XCTAssertTrue(CorrelationEngine.isCoupled("sleep_performance", "recovery"))
+        XCTAssertFalse(CorrelationEngine.isCoupled("recovery", "strain"))
+        XCTAssertFalse(CorrelationEngine.isCoupled("hrv", "rhr"))
+    }
+
+    func testScreenedDropsSharedTrendAndNoiseKeepsRealLink() {
+        let wiggle = [3.0, -2, 5, -4, 1, -3, 4, -1, 2, -5, 3, -2]
+        let other = [1.0, 4, -3, 2, -5, 3, -1, -4, 5, -2, -3, 2]
+        func pairs(_ x: (Int) -> Double, _ y: (Int) -> Double) -> [(Double, Double)] {
+            (0..<wiggle.count).map { (x($0), y($0)) }
+        }
+        let sharedTrend = pairs({ Double($0) * 10 + wiggle[$0] }, { Double($0) * 10 + other[$0] })
+        XCTAssertGreaterThan(CorrelationEngine.pearson(sharedTrend)!.r, 0.9)
+        let real = pairs({ wiggle[$0] }, { wiggle[$0] * 2 + other[$0] * 0.1 })
+        let short = Array(real.prefix(5))
+        let out = CorrelationEngine.screened([sharedTrend, real, short], minN: 10, minAbsR: 0.3)
+        XCTAssertNil(out[0])
+        XCTAssertNotNil(out[1])
+        XCTAssertNil(out[2])
     }
 }

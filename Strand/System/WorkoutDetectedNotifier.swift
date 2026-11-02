@@ -4,7 +4,10 @@ import UserNotifications
 
 // MARK: - Detected-workout notification
 //
-// A single opt-in, default-OFF FYI: after an analysis pass persists `sport="detected"` bouts
+// RETIRED PATH: nothing writes new `sport="detected"` rows, so no pass calls `onAnalysisPass` and the
+// settings toggles are gone. The category and action handlers stay for notifications already delivered.
+//
+// The original design was a single opt-in, default-OFF FYI: after an analysis pass persists `sport="detected"` bouts
 // (IntelligenceEngine re-derives them every run), post one local notification for the newest
 // detected bout whose end is at least `WorkoutDetectedPolicy.notifySettleSec` old. The row is
 // already saved — the notification is informational, with Edit / "Not a workout" actions so the

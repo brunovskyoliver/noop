@@ -84,25 +84,28 @@ public enum DaytimeStress {
     /// away. Range ≥ 0.
     public static let postActivityShadowBPM: Double = 8.0
 
-    /// VALIDATED (26-day Oura-reference correlation, HR-only): a personal daytime-HR elevation
+    /// Floor (bpm) on the across-hour spread in `.dayRelative`. Without it a nearly flat day divides by
+    /// almost nothing and an extra 2 bpm reads as HIGH. Unvalidated; set near ordinary hour-to-hour drift.
+    public static let dayRelativeMinSpreadBPM: Double = 5.0
+
+    /// TUNED AGAINST OURA ON N=1 (26 days, HR only). This is agreement with another unvalidated
+    /// product's score, not validation against stress: a personal daytime-HR elevation
     /// of ~15 bpm over a POOLED/ROLLING baseline — the 10th-percentile daytime HR pooled across
     /// days, ~65 bpm in the reference set — is where elevated HR starts reading as
     /// Oura-comparable "high" stress (r≈0.6 against Oura's own stress signal). A PER-DAY
     /// (day-relative) baseline scored WORSE in the same comparison (r 0.43–0.53): an all-day
     /// elevated day pulls its own floor up and masks the stress, which is exactly why
-    /// `.baselineRelative` leans on `Baselines`' cross-day rolling EWMA instead of a day-local
-    /// reference. TUNING SEAM: this is HR-only; HR+HRV (WHOOP-era, RMSSD included) is expected
-    /// to beat this r≈0.6 ceiling — re-validate this margin once that comparison exists. See
-    /// `marginToSigma` for how it's translated onto the shared 0–3 squash curve.
+    /// `.baselineRelative` leans on a cross-day floor instead of a day-local reference. HR-only;
+    /// `StressMonitor.wakeLevel` is the one curve that maps this margin onto 0–3.
     public static let baselineRelativeHighMarginBPM: Double = 15.0
 
     /// Gate for whether the personal daytime-RMSSD baseline feeds the live 0–3 score. `false`:
-    /// `.baselineRelative` scores HR-only, exactly the channel the r≈0.6 margin above was validated
+    /// both modes score HR-only, the channel the r≈0.6 margin above was tuned
     /// on. The RMSSD half of the pipeline — `dayDaytimeAggregate`, `foldDaytimeBaselines`, the
     /// `daytime_rmssd` config, and `rawScore`'s HRV term — is built and unit-tested, but stays OUT
     /// of the live score until it has its OWN Oura-reference validation pass.
     ///
-    /// WHY OFF (validated against real WHOOP data, 2026-07): daytime RMSSD off the wrist is
+    /// WHY OFF (seen on real WHOOP data, one wearer, 2026-07): daytime RMSSD off the wrist is
     /// artifact-dominated — hourly values swing ~40→430 ms as posture / motion / talking break the
     /// R-R stream, an order of magnitude noisier than the overnight recumbent HRV the nightly
     /// baselines use. `rawScore` sums the HRV z EQUAL-WEIGHT with the HR z, so an artifact hour can
@@ -142,14 +145,13 @@ public enum DaytimeStress {
         /// (`Baselines.update` / `Baselines.foldHistory`) that backs the nightly HRV /
         /// resting-HR baselines elsewhere in the app, using `Baselines.metricCfg["daytime_hr"]`
         /// / `["daytime_rmssd"]` (see `Baselines.daytimeHRCfg` / `daytimeRMSSDCfg`). A caller
-        /// builds `hr` (and, when it has the history, `rmssd`) by folding this person's past
-        /// daytime aggregates — VALIDATED as each day's 10th-percentile daytime HR (a pooled
-        /// "how low does my HR run when I'm calm and awake" floor), the same way the nightly
-        /// baselines are folded from past nights.
+        /// builds `hr` from the stored 14-day calm floor (`StressMonitor.scoringMode`), so this lens
+        /// and `StressMonitor` read one floor. Each day's aggregate is its 10th-percentile daytime HR,
+        /// tuned against Oura on N=1 (see `baselineRelativeHighMarginBPM`).
         ///
         /// The HR reference point is `hr.baseline`, but the HIGH-band threshold does NOT scale
         /// with this person's own day-to-day `hr.spread` — see `baselineRelativeHighMarginBPM`:
-        /// the validated model is a roughly FIXED bpm margin over the personal floor, not a
+        /// the tuned model is a roughly FIXED bpm margin over the personal floor, not a
         /// variability-scaled one. `hr.spread` still rides along on the passed-in state for
         /// other consumers; this mode simply doesn't read it for the HR term.
         ///
@@ -159,7 +161,7 @@ public enum DaytimeStress {
         /// `Result.hrOnlyFallback`; this mirrors the per-hour graceful-nil already in
         /// `rawScore`, just at the whole-baseline grain instead of the single-hour grain. The
         /// RMSSD term (when present) DOES still scale by `rmssd.spread` via `Baselines.sigma` —
-        /// only the HR term has a validated fixed-margin figure so far.
+        /// only the HR term has a fixed-margin figure so far.
         case baselineRelative(hr: BaselineState, rmssd: BaselineState?)
     }
 
@@ -296,19 +298,6 @@ public enum DaytimeStress {
     static func squash(_ raw: Double) -> Double {
         let s = 3.0 / (1.0 + exp(-raw))
         return min(max(s, 0), 3)
-    }
-
-    /// Solve for the z-score spread `sd` such that a raw elevation of exactly `marginBPM` (or any
-    /// unit — this is unit-agnostic) squashes to exactly `band` on the shared 0–3 curve:
-    /// `band = 3 / (1 + e^(−marginBPM/sd))`. Used to translate `baselineRelativeHighMarginBPM`'s
-    /// validated bpm figure into the `sd` the shared `squash` curve expects, so "baseline +
-    /// margin" lands exactly on `band` by construction rather than by a second, separate
-    /// threshold check. Defensive fallback (never divides by zero/negative-log) if `band` is
-    /// ever configured at or outside the curve's open range (0, 3).
-    static func marginToSigma(marginBPM: Double, atBand band: Double) -> Double {
-        let ratio = 3.0 / band - 1.0
-        guard ratio > 0, marginBPM > 0 else { return max(marginBPM, 1e-9) }
-        return marginBPM / (-log(ratio))
     }
 
     /// The bucket a local timestamp falls in for a grid offset by `phase`.
@@ -472,6 +461,9 @@ public enum DaytimeStress {
         let refRMSSD: Double?
         let sdRMSSD: Double
         let hrOnlyFallback: Bool
+        // Added to the raw z-sum before the squash. Zero for day-relative; for baseline-relative it puts
+        // the floor at 1.0, the anchor `StressMonitor.wakeLevel` uses.
+        var rawOffset = 0.0
         switch mode {
         case .dayRelative:
             // The day's OWN quiet reference: centre on the CALM end (the lower quartile of
@@ -493,8 +485,9 @@ public enum DaytimeStress {
             let hrMeans = referenceAggs.compactMap { $0.meanHR }
             let rmssdVals = referenceAggs.compactMap { $0.rmssd }
             refHR = calmReference(hrMeans, calmIsLow: true)         // calm HR is LOW
-            refRMSSD = calmReference(rmssdVals, calmIsLow: false)   // calm HRV is HIGH
-            sdHR = std(hrMeans, mean: mean(hrMeans))
+            // RMSSD stays out unless `daytimeRMSSDScoringEnabled`: nil makes `rawScore` skip the term.
+            refRMSSD = daytimeRMSSDScoringEnabled ? calmReference(rmssdVals, calmIsLow: false) : nil
+            sdHR = Swift.max(std(hrMeans, mean: mean(hrMeans)), dayRelativeMinSpreadBPM)
             sdRMSSD = std(rmssdVals, mean: mean(rmssdVals))
             hrOnlyFallback = false
 
@@ -504,16 +497,14 @@ public enum DaytimeStress {
             // Ambulatory hours are still masked out of the SCORE in step 4 (the motion gate),
             // but the reference itself is external, so it needs no ambulatory exclusion here.
             refHR = hrBaseline.baseline
-            // VALIDATED tuning, not `Baselines.sigma(hrBaseline)`: the correlation study behind
-            // `baselineRelativeHighMarginBPM` found a roughly FIXED bpm margin over the personal
-            // floor — not one scaled by this person's own day-to-day spread — best matched
-            // Oura's stress signal. `marginToSigma` solves for the sd that makes exactly
-            // `refHR + baselineRelativeHighMarginBPM` land on `highBandFloor` on the shared
-            // squash curve, so the validated margin IS the "high" cutoff by construction.
-            sdHR = Self.marginToSigma(marginBPM: baselineRelativeHighMarginBPM, atBand: highBandFloor)
+            // A fixed bpm margin, not `Baselines.sigma(hrBaseline)` (see
+            // `baselineRelativeHighMarginBPM`). This sd and offset rewrite `StressMonitor.wakeLevel`'s
+            // x = ln2·(2Δ/M − 1) as Δ/sd + offset, so the HR-only score IS that curve. A test pins it.
+            sdHR = baselineRelativeHighMarginBPM / (2 * log(2.0))
+            rawOffset = -log(2.0)
             if let rmssdBaseline {
                 refRMSSD = rmssdBaseline.baseline
-                // No independently validated RMSSD margin yet (see the constant's doc) — this
+                // No RMSSD margin has been tuned (see the constant's doc), so this
                 // term still scales by the person's own spread via the shared σ conversion.
                 sdRMSSD = Baselines.sigma(rmssdBaseline)
                 hrOnlyFallback = false
@@ -541,7 +532,8 @@ public enum DaytimeStress {
             var points: [HourPoint] = []
             points.reserveCapacity(gridAggs.count)
             for a in gridAggs {
-            guard isWakingHour(a.bucket) else { continue }
+            // Both ends: a half-step window starting 21:30 would otherwise score up to 22:30.
+            guard isWakingHour(a.bucket), isWakingHour(a.bucket + bucketSeconds - 1) else { continue }
             let hourOfDay = floorDiv(a.bucket, bucketSeconds) % 24
             // The wall-clock bucket start (undo the local shift applied above).
             let wallStart = a.bucket - tzOffsetSeconds
@@ -557,7 +549,7 @@ public enum DaytimeStress {
             // Score only when at least one signal is present AND HR cleared the count gate AND the
             // hour was not motion-masked (HR is the always-available anchor; RMSSD enriches it).
             let level: Double? = (a.meanHR != nil && !masked)
-                ? squash(rawScore(hr: a.meanHR, meanHR: refHR, sdHR: sdHR,
+                ? squash(rawOffset + rawScore(hr: a.meanHR, meanHR: refHR, sdHR: sdHR,
                                   rmssd: a.rmssd, meanRMSSD: refRMSSD, sdRMSSD: sdRMSSD))
                 : nil
             points.append(HourPoint(hour: hourOfDay, startTs: wallStart,

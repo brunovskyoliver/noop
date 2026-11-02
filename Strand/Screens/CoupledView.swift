@@ -398,10 +398,10 @@ struct CoupledView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Active calories for the day from the stored whole-day estimate. Never fabricated, a day with no
+    /// Total calories for the day (BMR included) from the stored whole-day estimate. Never fabricated, a day with no
     /// estimate reads a dash.
     private var caloriesText: String {
-        guard let k = day?.activeKcalEst else { return "—" }
+        guard let k = day?.totalKcalEst else { return "—" }
         return "\(Int(k.rounded())) kcal"
     }
 
@@ -483,7 +483,7 @@ struct CoupledView: View {
     /// export carried one, else the need the Sleep tab, the debt ledger and the planner use.
     private var sleepNeedForDay: Double {
         if let need = day.flatMap({ repo.importedSleep[$0.day]?.needMin }), need > 0 { return need }
-        return SleepModel.debtNeedMin(days: repo.days, age: ProfileStore.storedAge())
+        return SleepModel.debtNeedMin(age: ProfileStore.storedAge())
     }
 
     /// Last night's bed → wake span, e.g. "23:41 – 07:23", from the day's bridged MAIN-night span
@@ -533,11 +533,10 @@ struct CoupledView: View {
     /// baseline — the exact TodayView derivation (pure engine scoring against `repo.chargeBaselines`, the
     /// personal baselines resolved with the engine's own rule, #2525). nil for a calibrating / cold-start
     /// night, which gates the sheet through to the countdown instead. PERF: mirrors
-    /// TodayView.chargeBreakdown() — the baselines are resolved once per refresh, so a body evaluation of
-    /// the open sheet folds nothing.
+    /// TodayView.chargeBreakdown(): the day's baselines are one 21-day window, read per body evaluation.
     private func chargeBreakdown() -> (drivers: [ChargeDriver], confidence: ScoreConfidence)? {
         guard let row = breakdownRow else { return nil }
-        guard let baselines = repo.chargeBaselines else { return nil }
+        guard let baselines = repo.chargeBaselines(forDay: row.day) else { return nil }
         return ChargeBreakdownWiring.breakdown(baselines: baselines, row: row, sleepPerfPercent: sleepPerformance)
     }
 

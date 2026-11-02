@@ -161,11 +161,14 @@ public enum RhythmScreener {
         public let agreedAcrossSources: Bool
         /// The Poincaré point cloud for the plot (empty when unreadable).
         public let poincare: [PoincarePoint]
+        /// Wall-clock start of the window (seconds), when its beats carried timestamps.
+        public let startTs: Int?
 
         public init(label: RhythmRegularity, sd1: Double?, sd2: Double?, sd1sd2: Double?,
                     normRmssd: Double?, turningPointRate: Double?, ectopicFraction: Double?,
                     nBeats: Int, confidence: RhythmConfidence, agreedAcrossSources: Bool,
-                    poincare: [PoincarePoint]) {
+                    poincare: [PoincarePoint], startTs: Int? = nil) {
+            self.startTs = startTs
             self.label = label
             self.sd1 = sd1
             self.sd2 = sd2
@@ -196,7 +199,7 @@ public enum RhythmScreener {
         public let readableWindows: Int
         /// Of those, how many looked steady.
         public let steadyWindows: Int
-        /// Of those, how many showed occasional extra/skipped beats.
+        /// Of those, how many had irregular intervals noted.
         public let occasionalWindows: Int
         /// Of those, how many varied a lot.
         public let variedWindows: Int
@@ -289,7 +292,7 @@ public enum RhythmScreener {
                             normRmssd: stats.normRmssd, turningPointRate: stats.turningPointRate,
                             ectopicFraction: stats.ectopicFraction,
                             nBeats: clean.count, confidence: confidence(for: clean.count),
-                            agreedAcrossSources: agreed, poincare: cloud)
+                            agreedAcrossSources: agreed, poincare: cloud, startTs: input.ts.first)
     }
 
     /// Aggregate a night's window results into a descriptive summary for the night view.
@@ -297,20 +300,24 @@ public enum RhythmScreener {
     public static func summarizeNight(_ windows: [WindowResult]) -> NightRhythmSummary {
         let readable = windows.filter { $0.label != .unreadable }
         let steady = readable.filter { $0.label == .steady }.count
-        let occasional = readable.filter { $0.label == .occasionalEctopy }.count
+        let occasional = readable.filter { $0.label == .irregularIntervals }.count
         let varied = readable.filter { $0.label == .varied }.count
 
-        // "Recurred" = enough varied windows spread over a sustained span (descriptive).
+        // "Recurred" = enough varied windows spread over a sustained span (descriptive). Windows without
+        // a timestamp cannot show a span, so they cannot claim one.
+        let variedStarts = readable.filter { $0.label == .varied }.compactMap(\.startTs)
         let recurred = varied >= nightMinVariedWindows
+            && variedStarts.count >= nightMinVariedWindows
+            && (variedStarts.max()! - variedStarts.min()!) >= nightMinSpanSeconds
 
         // Most-prominent neutral label for the one-line night summary.
         let overall: RhythmRegularity
         if readable.isEmpty {
             overall = .unreadable
-        } else if varied >= nightMinVariedWindows {
+        } else if recurred {
             overall = .varied
         } else if varied > 0 || occasional > 0 {
-            overall = .occasionalEctopy
+            overall = .irregularIntervals
         } else {
             overall = .steady
         }
@@ -474,7 +481,7 @@ public enum RhythmScreener {
         // rhythm is otherwise smooth, so this is sparse couplets, not disorganised timing.
         let ect = s.ectopicFraction ?? 0
         if ect >= tauEctopicLow && !turningHigh {
-            return .occasionalEctopy
+            return .irregularIntervals
         }
 
         return .steady
@@ -493,12 +500,12 @@ public enum RhythmScreener {
 ///
 /// User-facing copy maps these to plain language, e.g.
 ///   .steady           → "looked steady"
-///   .occasionalEctopy → "some occasional extra or skipped beats"
+///   .irregularIntervals → "irregular intervals noted"
 ///   .varied           → "varied more than usual"
 ///   .unreadable       → "couldn't read clearly"
 public enum RhythmRegularity: String, Codable, Sendable, Equatable {
     case steady
-    case occasionalEctopy
+    case irregularIntervals
     case varied
     case unreadable
 }

@@ -31,9 +31,8 @@ enum SleepRules {
     /// this note exists to explain, not an exemption from it.
     ///
     /// `needHours` is a parameter rather than a constant so a personalised need
-    /// (`AnalyticsEngine.Rest.personalizedNeedHours`) can be threaded in later without moving the rule. It
-    /// is computed per pass today and not persisted on the row a screen can reach, so the shared default
-    /// stands in.
+    /// (`SleepNeedResolver`) can be threaded in later without moving the rule; the shared default stands
+    /// in for now.
     static func stageSparseNoteApplies(stagingSparse: Bool,
                                        asleepMin: Double,
                                        needHours: Double = AnalyticsEngine.Rest.defaultNeedHours) -> Bool {
@@ -256,4 +255,27 @@ enum SleepRules {
 /// `LiveState` observation so the chunk count ticks without re-rendering the rest of the Sleep screen.
 enum SleepFreshnessStatus: Equatable {
     case syncing, calculating, syncFailed, awaitingSync, notDetected
+}
+
+/// The ONE source of the wearer's sleep need. The engine resolves it from the full stored history on
+/// every pass, whatever that pass's scan window, and screens read the value the scores were computed
+/// against, so a Rest score and the debt beside it cannot be using two different needs.
+enum SleepNeedResolver {
+    static let storedHoursKey = "sleep.resolvedNeedHours"
+
+    /// Resolve the need from every finished night, chronological, and keep it for `hours(age:)`.
+    @discardableResult
+    static func publish(nightlyHours: [Double], age: Int?) -> Double {
+        let hours = AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: nightlyHours, age: age)
+        UserDefaults.standard.set(hours, forKey: storedHoursKey)
+        return hours
+    }
+
+    /// The published need, kept above the floor for the current age; the population default before the
+    /// first pass has resolved one.
+    static func hours(age: Int?) -> Double {
+        let stored = UserDefaults.standard.double(forKey: storedHoursKey)
+        return stored > 0 ? max(stored, AnalyticsEngine.Rest.populationNeedFloorHours(age: age))
+            : AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: [], age: age)
+    }
 }

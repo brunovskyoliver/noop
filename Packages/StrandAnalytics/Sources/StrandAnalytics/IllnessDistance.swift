@@ -111,7 +111,9 @@ public enum IllnessDistance {
         var deviating = 0
         for v in x where v >= featureZThreshold { deviating += 1 }
 
-        // Resolve the correlation matrix: caller-supplied (validated square) or identity.
+        // Resolve the correlation matrix: caller-supplied (validated square) or identity. The app passes
+        // nil today, so the shared-variance discount is unused, and a wrong-size matrix falls back to
+        // identity without an error. The result is display-only.
         var corr: [[Double]]
         let suppliedCorrelation: Bool
         if let c = correlation, c.count == k, c.allSatisfy({ $0.count == k }) {

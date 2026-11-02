@@ -1,8 +1,8 @@
 import XCTest
 @testable import StrandAnalytics
 
-/// DoseResponseEngine — per-user dose slope shrunk toward a population prior. The oracle for
-/// the Android DoseResponseEngineTest; keep the two in lockstep (same fixtures, same numbers).
+/// DoseResponseEngine — per-user dose slope shrunk toward a population prior. The Android
+/// DoseResponseEngineTest pins the older n_user and contradiction rules.
 final class DoseResponseEngineTests: XCTestCase {
 
     private func ymd(_ y: Int, _ m: Int, _ d: Int) -> String { String(format: "%04d-%02d-%02d", y, m, d) }
@@ -25,6 +25,58 @@ final class DoseResponseEngineTests: XCTestCase {
         XCTAssertFalse(r.contradictsPrior)
         XCTAssertEqual(r.confidence, .calibrating)
         XCTAssertEqual(r.outcome, "Charge")
+    }
+
+    // MARK: - logged days with one dose cannot look personal
+
+    /// 20 Yes days with no amount and no No days: no slope exists, so nothing may read as personal.
+    func testSameDoseEveryDayStaysPopulationEstimate() {
+        var outcome: [String: Double] = [:]
+        var yes: Set<String> = []
+        for d in 1...20 {
+            yes.insert(ymd(2026, 6, d))
+            outcome[ymd(2026, 6, d + 1)] = 70 + Double(d % 3)
+        }
+        let doses = DoseResponseEngine.mergedDoses(yesDays: yes, noDays: [], explicit: [:])
+        let r = DoseResponseEngine.estimate(behavior: .alcohol, doseByDay: doses, outcomeByDay: outcome)!
+        XCTAssertNil(r.userSlope)
+        XCTAssertEqual(r.nUser, 0)
+        XCTAssertTrue(r.priorDominated)
+        XCTAssertEqual(r.confidence, .calibrating)
+        XCTAssertTrue(r.sentence().contains("population estimate"))
+        XCTAssertFalse(r.sentence().contains("for you"))
+    }
+
+    /// No days are dose 0, so Yes against No gives a slope. An explicit amount wins over either.
+    func testNoDaysGiveTheSlopeItsSpread() {
+        let days = (1...10).map { ymd(2026, 6, $0 * 2) }
+        let yes = Set(days.prefix(5)), no = Set(days.suffix(5))
+        var outcome: [String: Double] = [:]
+        for d in 1...10 { outcome[ymd(2026, 6, d * 2 + 1)] = d <= 5 ? 60 : 70 }
+        let explicit = [days[0]: 3]
+        let doses = DoseResponseEngine.mergedDoses(yesDays: yes, noDays: no, explicit: explicit)
+        XCTAssertEqual(doses[days[0]], 3)
+        XCTAssertEqual(doses[days[1]], 1)
+        XCTAssertEqual(doses[days[9]], 0)
+        let r = DoseResponseEngine.estimate(behavior: .alcohol, doseByDay: doses, outcomeByDay: outcome)!
+        XCTAssertEqual(r.nUser, 10)
+        XCTAssertLessThan(r.userSlope!, 0)
+        XCTAssertFalse(r.priorDominated)
+    }
+
+    /// A slope that is positive by chance, with the prior well inside its interval, must not tell
+    /// the user this does not affect them.
+    func testNoisyOppositeSlopeDoesNotContradict() {
+        var doses: [String: Int] = [:]
+        var outcome: [String: Double] = [:]
+        let values: [Double] = [50, 85, 40, 90, 75, 55]
+        for (i, month) in [1, 2, 3, 4, 5, 6].enumerated() {
+            doses[ymd(2026, month, 10)] = i % 4
+            outcome[ymd(2026, month, 11)] = values[i]
+        }
+        let r = DoseResponseEngine.estimate(behavior: .alcohol, doseByDay: doses, outcomeByDay: outcome)!
+        XCTAssertGreaterThan(r.userSlope!, 0)
+        XCTAssertFalse(r.contradictsPrior)
     }
 
     // MARK: - shrinkage weight w = n/(n+k) is exact at the boundary n = k

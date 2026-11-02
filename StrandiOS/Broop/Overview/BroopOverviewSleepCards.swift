@@ -471,7 +471,7 @@ struct BroopOverviewStagesVsTypical: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            BroopOverviewSectionTitle(String(localized: "Stages vs. Typical"))
+            BroopOverviewSectionTitle(String(localized: "Stages vs. Typical · estimated"))
             BroopOverviewCard {
                 VStack(spacing: 16) {
                     row(.deep, stages.deep, model.typicalDeepMin)

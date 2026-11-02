@@ -796,9 +796,9 @@ struct BroopActivityListView: View {
             loaded = true
             if !seededRange { range = defaultRange(r); seededRange = true }
         }
-        let from = Calendar.current.date(byAdding: .day, value: -100, to: Date()) ?? Date()
-        let metrics = await repo.dailyMetrics(fromDay: Self.dayKey(from), toDay: Self.dayKey(Date()))
-        dailyKcal = Dictionary(metrics.compactMap { m in m.activeKcalEst.map { (m.day, $0) } }, uniquingKeysWith: max)
+        // The active series, not `DailyMetric.totalKcalEst`: this feeds the "Active calories" heatmap.
+        let active = await repo.exploreSeries(key: "active_kcal", source: "my-whoop", days: 100)
+        dailyKcal = Dictionary(active.map { ($0.day, $0.value) }, uniquingKeysWith: max)
     }
 
     private func reload() async { allRows = await repo.workoutRows(days: loadedWindowDays ?? 4000) }
@@ -874,49 +874,49 @@ private struct BroopActivityStartControl: View {
     }
 }
 
-/// The auto-detected workout suggestion (`AutoWorkoutCard` behaviour), when the opt-in
-/// "Auto-detect workouts" toggle is on: Save creates the workout, Not a workout dismisses it for good.
+/// Auto-detected workout suggestions, one card per open session from the last two days: Save creates the
+/// workout, Not a workout dismisses it for good.
 struct BroopActivityDetectedCard: View {
     @EnvironmentObject private var repo: Repository
-    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var enabled = false
-    @State private var candidate: DetectedWorkout?
-    @State private var handled = false
+    @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var enabled = true
+    @State private var candidates: [DetectedWorkout] = []
     @State private var saving = false
 
     var body: some View {
-        Group {
-            if enabled, !handled, let w = candidate {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "sparkles").foregroundStyle(Color(broopHex: 0x8B6CF0))
-                        BroopCaps(String(localized: "Looks like a workout"), size: 11)
-                        Spacer()
-                    }
-                    Text(verbatim: prompt(w))
-                        .font(BroopType.medium(15))
-                        .foregroundStyle(BroopPalette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        BroopActivityButton(title: String(localized: "Save it"), kind: .filled, height: 42) { save(w) }
-                            .disabled(saving)
-                        BroopActivityButton(title: String(localized: "Not a workout"), kind: .grey, height: 42) { dismissIt(w) }
-                            .disabled(saving)
-                    }
-                }
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                        .foregroundStyle(Color(broopHex: 0x6B5FC7))
-                )
+        VStack(spacing: 12) {
+            if enabled {
+                ForEach(candidates, id: \.startSec) { w in card(w) }
             }
         }
         .task(id: "\(repo.refreshSeq)-\(enabled)") {
-            guard enabled else { candidate = nil; return }
-            let next = await repo.autoDetectCandidate()
-            if next != candidate { handled = false }
-            candidate = next
+            candidates = enabled ? await repo.autoDetectCandidates() : []
         }
+    }
+
+    private func card(_ w: DetectedWorkout) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles").foregroundStyle(Color(broopHex: 0x8B6CF0))
+                BroopCaps(String(localized: "Looks like a workout"), size: 11)
+                Spacer()
+            }
+            Text(verbatim: prompt(w))
+                .font(BroopType.medium(15))
+                .foregroundStyle(BroopPalette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                BroopActivityButton(title: String(localized: "Save it"), kind: .filled, height: 42) { save(w) }
+                    .disabled(saving)
+                BroopActivityButton(title: String(localized: "Not a workout"), kind: .grey, height: 42) { dismissIt(w) }
+                    .disabled(saving)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                .foregroundStyle(Color(broopHex: 0x6B5FC7))
+        )
     }
 
     private func prompt(_ w: DetectedWorkout) -> String {
@@ -937,7 +937,7 @@ struct BroopActivityDetectedCard: View {
 
     private func save(_ w: DetectedWorkout) {
         saving = true
-        handled = true
+        candidates.removeAll { $0 == w }
         Task {
             _ = await repo.saveDetectedWorkout(w)
             await repo.refresh()
@@ -947,8 +947,7 @@ struct BroopActivityDetectedCard: View {
 
     private func dismissIt(_ w: DetectedWorkout) {
         repo.dismissDetectedSuggestion(w)
-        handled = true
-        candidate = nil
+        candidates.removeAll { $0 == w }
     }
 }
 #endif

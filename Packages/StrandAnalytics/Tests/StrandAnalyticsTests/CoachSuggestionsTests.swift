@@ -165,4 +165,11 @@ final class CoachSuggestionsTests: XCTestCase {
             "Why am I run down?",
         ])
     }
+
+    func testHrvBaselineRemovesTodayBeforeTakingThirtyDays() {
+        // Oldest of 30 prior days carries 100; a suffix taken before removing today would drop it.
+        let recent = [metric(day: 1, hrv: 100)] + (2...30).map { metric(day: $0, hrv: 40) } + [metric(day: 31, hrv: 10)]
+        let expected = (100.0 + 29 * 40) / 30
+        XCTAssertEqual(CoachSuggestions.hrvBaseline(recent, excluding: recent.last!.day)!, expected, accuracy: 1e-9)
+    }
 }

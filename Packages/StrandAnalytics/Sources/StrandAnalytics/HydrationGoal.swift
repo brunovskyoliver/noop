@@ -5,12 +5,16 @@ import Foundation
 // LOCAL-ONLY, OPT-IN, MANUAL-FIRST: the user logs water with quick taps; this enum computes the day's
 // target in ml. It is a plain, transparent guide built from a sex baseline plus a small bump scaled by
 // the day's Effort (strain) — NEVER medical advice and never an invented measurement. The whole formula
-// lives here so it is headless and unit-tested, and is BYTE-IDENTICAL to the Android twin
-// (com.noop.analytics.HydrationGoal): same Int constants, same round-then-clamp, same integer rounding.
-// Do not change a constant or a rule on one platform without the other.
+// lives here so it is headless and unit-tested. The Android twin (com.noop.analytics.HydrationGoal) still
+// uses the older 3700 / 2700 / 3200 baselines; this iPhone-only change is not mirrored there.
+//
+// The tracker logs drinks, and the National Academies figures of 3.7 and 2.7 L are total water including
+// food, with about 20% from food. So the baselines are about 80% of those totals, rounded. They are for
+// healthy sedentary adults and the same report says thirst is enough for most people, so this is a guide.
+// The Effort bump is a judgement call with no sweat-rate behind it.
 //
 //   GOAL(ml) = roundToNearest( sexBaseline + effortBump, 50 )
-//     sexBaseline : male 3700, female 2700, unspecified/other 3200 ml
+//     sexBaseline : male 3000, female 2200, unspecified/other 2600 ml
 //     effortBump  : clamp(round(effort/100 · 700), 0…700); 0 when no Effort is available
 //
 // `effort` is the day's Effort/strain score on NOOP's native 0…100 scale (the value stored as
@@ -21,10 +25,10 @@ public enum HydrationGoal {
     // MARK: - Constants (mirror these EXACTLY in the Android twin — they are Int there)
 
     /// Baseline target by sex, in millilitres, before the Effort bump.
-    public static let baselineMaleML = 3700
-    public static let baselineFemaleML = 2700
+    public static let baselineMaleML = 3000
+    public static let baselineFemaleML = 2200
     /// Used for "unspecified" / "other" / any unrecognised sex token.
-    public static let baselineOtherML = 3200
+    public static let baselineOtherML = 2600
 
     /// The most the Effort bump can add (ml) — reached at Effort 100.
     public static let maxEffortBumpML = 700

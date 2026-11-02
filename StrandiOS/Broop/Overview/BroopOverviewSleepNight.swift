@@ -108,7 +108,7 @@ struct BroopOverviewNightCard: View {
                         .frame(width: 12, height: 12)
                     BroopCaps(String(localized: "Typical range"), size: 10.5, color: BroopPalette.textSecondary)
                     Spacer()
-                    BroopCaps(String(localized: "Duration"), size: 10.5, color: BroopPalette.textSecondary)
+                    BroopCaps(String(localized: "Duration · estimated"), size: 10.5, color: BroopPalette.textSecondary)
                     Text(verbatim: BroopFormat.duration(night.timeInBed))
                         .font(BroopType.number(16))
                         .foregroundStyle(BroopPalette.textPrimary)
@@ -399,7 +399,7 @@ struct BroopOverviewNightCard: View {
                            startPoint: .topLeading, endPoint: .bottomTrailing)
                 .frame(width: 16, height: 16)
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-            BroopCaps(String(localized: "Restorative Sleep"), size: 11.5)
+            BroopCaps(String(localized: "Restorative Sleep · estimated"), size: 11.5)
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 HStack(spacing: 6) {

@@ -970,7 +970,7 @@ private struct FitnessAgeSection: View {
                     .foregroundStyle(StrandPalette.textTertiary)
             }
 
-            Text("± \(Int(FitnessAgeEngine.displayBandYears)) yr · a fitness comparison, not a biological age")
+            Text("± \(Int(FitnessAgeEngine.bandYears(sex: profile.sex).rounded())) yr model error · a population estimate to follow over time, not a biological age")
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
 

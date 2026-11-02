@@ -118,16 +118,21 @@ public enum TrainingLoadEngine {
         public var isAvailable: Bool { state != .unavailable }
     }
 
+    /// Missing days that reset the model. Shorter gaps decay through it.
+    public static let resetGapDays = 14
+
     /// Daily TRIMP loads from stored daily metrics: each day's Effort mapped back through
     /// `StrainScorer.strainToTrimp` (Edwards scale). A day without Effort stays nil (no observation).
-    public static func dailyTrimp(_ days: [DailyMetric]) -> [DailyLoad] {
-        days.map { d in DailyLoad(day: d.day, load: d.strain.map { StrainScorer.strainToTrimp($0) }) }
+    /// `before` drops that day and later: today's Effort is still accruing and would read as a full day.
+    public static func dailyTrimp(_ days: [DailyMetric], before: String? = nil) -> [DailyLoad] {
+        days.filter { d in before.map { d.day < $0 } ?? true }.map { d in DailyLoad(day: d.day, load: d.strain.map { StrainScorer.strainToTrimp($0) }) }
     }
 
     /// Evaluate the latest day in the input, or an explicit target day. Inputs may be in any order.
     ///
-    /// Only the longest fully observed CONTIGUOUS suffix ending on the target is modeled. Older history
-    /// before a gap is intentionally ignored rather than compressing calendar time or inventing zero load.
+    /// Chronic and acute load decay at zero load through a gap shorter than `resetGapDays` missing days,
+    /// and those days emit no point. A longer gap resets the model, because older history no longer says
+    /// anything about current fitness. `contiguousDays` counts observed days since the last reset.
     public static func evaluate(days: [DailyLoad],
                                 through targetDay: String? = nil,
                                 configuration: Configuration = .standard) -> Result {
@@ -167,17 +172,18 @@ public enum TrainingLoadEngine {
             return unavailable(.missingTargetDay, contiguousDays: 0)
         }
 
-        // Walk backwards from the target until the first calendar gap OR unobserved load. A stored zero
-        // stays valid. Future rows and older history before the break do not affect this target's model.
+        // Walk backwards from the target to the first gap of `resetGapDays` or more. A stored zero stays
+        // valid; a row with no load is a missing day. Future rows do not affect this target's model.
         var suffixReversed: [(day: String, ordinal: Int, load: Double)] = []
-        var expectedOrdinal = targetOrdinal
+        var newerOrdinal = targetOrdinal
         var index = targetIndex
         while index >= 0 {
             let item = parsed[index]
-            guard item.ordinal == expectedOrdinal, let load = item.load else { break }
-            suffixReversed.append((item.day, item.ordinal, load))
-            expectedOrdinal -= 1
-            if index == 0 { break }
+            if let load = item.load {
+                if newerOrdinal - item.ordinal - 1 >= resetGapDays { break }
+                suffixReversed.append((item.day, item.ordinal, load))
+                newerOrdinal = item.ordinal
+            }
             index -= 1
         }
         let ordered = Array(suffixReversed.reversed())
@@ -203,10 +209,24 @@ public enum TrainingLoadEngine {
         points.append(Point(day: seedDay.day, load: seedDay.load,
                             chronicLoad: chronic, acuteLoad: acute, balance: chronic - acute))
 
+        var previousOrdinal = seedDay.ordinal
+        func decay(missingDays: Int) {
+            chronic *= pow(1 - alphaChronic, Double(missingDays))
+            acute *= pow(1 - alphaAcute, Double(missingDays))
+        }
         for item in ordered.dropFirst(configuration.primeDays) {
+            decay(missingDays: item.ordinal - previousOrdinal - 1)
+            previousOrdinal = item.ordinal
             chronic += alphaChronic * (item.load - chronic)
             acute += alphaAcute * (item.load - acute)
             points.append(Point(day: item.day, load: item.load,
+                                chronicLoad: chronic, acuteLoad: acute, balance: chronic - acute))
+        }
+
+        // The target itself has no load: carry the model to it, so the card reads for the day it names.
+        if previousOrdinal < targetOrdinal {
+            decay(missingDays: targetOrdinal - previousOrdinal)
+            points.append(Point(day: parsed[targetIndex].day, load: 0,
                                 chronicLoad: chronic, acuteLoad: acute, balance: chronic - acute))
         }
 

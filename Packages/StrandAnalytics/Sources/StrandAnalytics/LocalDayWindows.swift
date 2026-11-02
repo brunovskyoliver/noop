@@ -300,6 +300,27 @@ public struct LocalDayWindows: Sendable {
         return min(window.nextStart, referenceInstant)
     }
 
+    /// How far past its next start a scored day's streams are read. A night still open at the read end
+    /// is closed there by the detector, so the read has to end after any night crossing midnight has
+    /// been seen to continue: the 90-minute tail bridge plus a minimum-length night, with margin. The
+    /// 57-hour read stays inside the 54-hour `StreamReadCap` budget's 1.5 headroom.
+    public static let scoredDayOverrunSeconds = 3 * 3_600
+
+    /// The end of the stream read that scores `date`: the overrun past its next start, never past the
+    /// reference instant. Sessions still belong to the day they END on, so what the overrun reveals
+    /// moves a crossing night off this day instead of leaving a fragment that stops at the read end.
+    public func scoredDayReadEnd(of date: LocalCalendarDate) -> Date? {
+        guard let window = window(of: date) else { return nil }
+        return min(window.nextStart.addingTimeInterval(TimeInterval(Self.scoredDayOverrunSeconds)), referenceInstant)
+    }
+
+    /// True when `instant`, truncated to whole seconds, is the last second of its local date: the end a
+    /// session gets from a read that stopped one second short of the next start.
+    public func isLastSecondOfLocalDay(_ instant: Date) -> Bool {
+        let key = dayKey(for: instant)
+        return dayKey(for: instant.addingTimeInterval(1)) != key
+    }
+
     /// The UTC offset in effect at `instant`, in seconds east of UTC.
     public func offsetSeconds(at instant: Date) -> Int {
         timeZone.secondsFromGMT(for: instant)

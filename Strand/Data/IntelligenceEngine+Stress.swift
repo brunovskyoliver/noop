@@ -53,7 +53,8 @@ extension IntelligenceEngine {
         // epoch vector and pairing as the 7-day Sleep Regularity Index (naps and wake after onset included).
         out.consistencyByDay = SleepRegularity.restConsistency(
             days: windowDays,
-            sessions: sessions.map { SleepRegularity.Session(start: $0.effectiveStartTs, end: $0.endTs, stagesJSON: $0.stagesJSON) })
+            sessions: sessions.map { SleepRegularity.Session(start: $0.effectiveStartTs, end: $0.endTs, stagesJSON: $0.stagesJSON) },
+            now: Int(Date().timeIntervalSince1970))
 
         // Stored values over the window plus the 14 days before it.
         let lead = Repository.stressDayKey(offset: -StressMonitor.baselineWindowDays, from: oldest) ?? oldest

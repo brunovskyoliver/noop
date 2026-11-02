@@ -560,7 +560,7 @@ struct BroopHealthspanView: View {
                     Text("Fitness Age stops here. VO₂max keeps moving.")
                         .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                 }
-                Text("± \(Int(FitnessAgeEngine.displayBandYears)) yr · a fitness comparison, not a biological age")
+                Text("± \(Int(FitnessAgeEngine.bandYears(sex: profile.sex).rounded())) yr model error · a population estimate to follow over time, not a biological age")
                     .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                 BroopCaps(String(localized: "View trend →"), size: 11, color: BroopHealthPalette.chartBlue)
             }

@@ -53,10 +53,12 @@ public enum AnalyticsEngine {
         public let restingHR: BaselineState?
         public let resp: BaselineState?
         public let skinTemp: BaselineState?
+        /// The wearer's usual Rest quality (0...1); nil uses `RecoveryScorer.sleepPerfCenter`.
+        public let restCenter: Double?
         public init(hrv: BaselineState? = nil, restingHR: BaselineState? = nil,
-                    resp: BaselineState? = nil, skinTemp: BaselineState? = nil) {
+                    resp: BaselineState? = nil, skinTemp: BaselineState? = nil, restCenter: Double? = nil) {
             self.hrv = hrv; self.restingHR = restingHR; self.resp = resp
-            self.skinTemp = skinTemp
+            self.skinTemp = skinTemp; self.restCenter = restCenter
         }
     }
 
@@ -553,7 +555,9 @@ public enum AnalyticsEngine {
                                   // opens no BLE and decodes only files the caller already banked.
                                   imuActivityFeatures: ((Int, Int) -> ImuActivityFeatures?)? = nil,
                                   dayBounds: Range<Int>? = nil,
-                                  confirmedSleepStarts: Set<Int> = []) -> DayResult {
+                                  confirmedSleepStarts: Set<Int> = [],
+                                  // Clock for an in-progress day's BMR credit. Nil credits the whole day.
+                                  nowTs: Int? = nil) -> DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). `dayString(ts, offsetSec:)` formats the UTC
         // calendar day of (ts + offset) with a FIXED offset, so "== day" is exactly membership in
@@ -613,9 +617,24 @@ public enum AnalyticsEngine {
             }
             allSessions = keptDetected + enrichedProvided
         }
-        // Sessions attributed to `day` = those whose end falls on `day` (LOCAL day, #277). `day` is
-        // the caller's local-day key; attribute by the same offset so the bucket and the key agree.
-        let matched = allSessions.filter { tsInDay($0.end) }
+        // Sessions attributed to `day` = those whose NIGHT ends on `day` (LOCAL day, #277). `day` is the
+        // caller's local-day key; attribute by the same offset so the bucket and the key agree. Nights are
+        // grouped before days are assigned: a fragment ending 23:50 that bridges to one starting 00:20 is
+        // one night, and filtering each piece by its own end split it across two days.
+        let byOnset = allSessions.sorted { $0.start < $1.start }
+        var nightEnd = [Int: Int]()
+        var runStart = 0
+        for i in byOnset.indices {
+            // ponytail: the short-wake bridge only. The wider overnight-tail bridge is left to same-day
+            // grouping, since on real nights it pulled a sofa doze into the following night.
+            if i > 0, byOnset[i].start - byOnset[i - 1].end >= SleepStageTotals.gapBridgeMaxMin * 60
+                || confirmedSleepStarts.contains(byOnset[i].start)
+                || confirmedSleepStarts.contains(byOnset[i - 1].start) {
+                runStart = i
+            }
+            for k in runStart...i { nightEnd[byOnset[k].start] = max(byOnset[k].end, byOnset[i].end) }
+        }
+        let matched = allSessions.filter { tsInDay(nightEnd[$0.start] ?? $0.end) }
 
         // ── The day's MAIN night (#525) ───────────────────────────────────────
         // A day can hold an overnight AND a daytime nap (both end on `day`, so both are in `matched`).
@@ -736,7 +755,7 @@ public enum AnalyticsEngine {
                                           sourceRowId: String(mainStart)))
             // #271: the ONSET decision — did HR actually dip when the window opened, or did it open on a
             // still-but-awake stretch (HR still ~baseline)? Both the day-median baseline AND the at-onset
-            // window read from the SAME HR that DETECTION ran over (`dayHr ?? hr` — the full calendar day
+            // window read from the calendar-day HR (`dayHr ?? hr`; detection itself ran on `hr` — the full calendar day
             // when the caller supplies it, else the night window), so the onset instant is guaranteed to be
             // inside it and the baseline reads as a real DAY median (a real onset sits BELOW it, matching the
             // daytime/re-onset guards). Emitted only when both have HR, so a motion-only night stays silent.
@@ -796,8 +815,7 @@ public enum AnalyticsEngine {
                 // the caller shows calibrating, never a fabricated number.
                 let rrSorted = rr.sortedByTsStable()
                 let deep = physiologySessions.flatMap { s in
-                    SleepStager.sessionHrvWindows(start: s.start, end: s.end, rr: rrSorted, stages: s.stages)
-                        .filter { $0.stage == "deep" }.compactMap { $0.rmssd }
+                    SleepStager.sessionDeepRMSSDs(start: s.start, end: s.end, rr: rrSorted, stages: s.stages)
                 }
                 return deep.isEmpty ? nil : deep.reduce(0, +) / Double(deep.count)
             }
@@ -886,10 +904,8 @@ public enum AnalyticsEngine {
             // every over-count to crossSecondOverCount internally to avoid a sort, so the specific label
             // would be a distinction it does not actually make.
             //
-            // NOT in deep-window mode. That branch re-derives from `sessionHrvWindows` and never reads
-            // `s.avgHRV`, so the gate plays no part in its nil and naming it would be a diagnostic
-            // asserting a cause it did not verify. `nDeep` on this same line already explains that case.
-            let refused = !deepHrvWindow && avgHRVDaily == nil && !withR.isEmpty
+            // Deep-window mode applies the same gate (`sessionDeepRMSSDs`), so this holds there too.
+            let refused = avgHRVDaily == nil && !withR.isEmpty
                 && physiologySessions.contains { s in
                     SleepStager.sessionHrvWindows(start: s.start, end: s.end, rr: rrSorted, stages: [])
                         .contains { $0.rmssd != nil }
@@ -960,6 +976,7 @@ public enum AnalyticsEngine {
                 rhrBaseline: baselines.restingHR,
                 respBaseline: baselines.resp,
                 sleepPerf: sleepPerf,
+                sleepCenter: baselines.restCenter,
                 skinTempDev: skinTempDevC)  // symmetric penalty; drops + renormalizes when nil
             // Driver breakdown from the identical inputs; omits any missing term, never faked.
             chargeDrivers = RecoveryScorer.chargeDrivers(
@@ -970,6 +987,7 @@ public enum AnalyticsEngine {
                 rhrBaseline: baselines.restingHR,
                 respBaseline: baselines.resp,
                 sleepPerf: sleepPerf,
+                sleepCenter: baselines.restCenter,
                 skinTempDev: skinTempDevC)
         }
         // A5: skin temp as a RELATIVE deviation marker (trend, not a clinical absolute). nil
@@ -1116,10 +1134,14 @@ public enum AnalyticsEngine {
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
         let dayHrFiltered = (dayHr ?? hr).filter { tsInDay($0.ts) }
+        let daySpanS = Double(dayBounds?.count ?? 86_400)
+        // BMR runs for the whole day (23/25 h aware), but an in-progress day only as far as now.
+        let creditedS = nowTs.flatMap { n in dayBounds.map { min(daySpanS, max(0, Double(n - $0.lowerBound))) } } ?? daySpanS
         let dayEnergy = dayHrFiltered.isEmpty ? nil : Calories.estimateDayEnergy(
             dayHrFiltered, profile: profile, hrmax: effMaxHR,
             restingHR: restingHRDaily.map(Double.init),
-            maxSpanSeconds: Double(dayBounds?.count ?? 86_400))
+            maxSpanSeconds: daySpanS, creditedSeconds: creditedS)
+        // Holds the day's TOTAL (resting + active): see `DailyMetric.totalKcalEst`.
         let activeKcalEst = dayEnergy?.totalKcal
 
         // ── Assemble DailyMetric ──────────────────────────────────────────────
@@ -1308,28 +1330,29 @@ public enum AnalyticsEngine {
             guard let age, age > 0 else { return 8.0 }   // unknown → adult target
             switch age {
             case ..<18: return 9.0     // children/teens need more (NSF 8–12; target ~9)
-            default: return 8.0        // adults (18–64) & older (65+): NSF 7–9, target ~8 (the app default)
+            case 65...: return 7.5     // older adults: NSF 7–8, midpoint
+            default: return 8.0        // adults (18–64): NSF 7–9, target ~8 (the app default)
             }
         }
 
         /// Personalized nightly sleep need (hours), population-ANCHORED and age-floored (T1). The
-        /// personal component is the user's UPPER-QUARTILE nightly duration over the trailing window —
-        /// what they sleep on their less-restricted nights, NOT their average (which a chronic deficit
-        /// drags down) — floored at the age-appropriate population TARGET and capped at `maxNeedHours`.
+        /// personal component is the user's MEDIAN duration over the nights not following a short night,
+        /// in chronological input order — what they sleep when not catching up, with a chronic deficit
+        /// held off by the floor — floored at the age-appropriate population TARGET and capped at `maxNeedHours`.
         /// So it only ever ADJUSTS UP for genuine long sleepers, never below the target. Fewer
         /// than `minNeedNights` scorable nights → the population default (cold-start). Zero/negative
         /// entries (no-data days) are dropped and do not count toward the minimum.
         public static func personalizedNeedHours(nightlyHours: [Double], age: Int?) -> Double {
             let floor = populationNeedFloorHours(age: age)
-            let xs = nightlyHours.filter { $0 > 0 }.sorted()
-            guard xs.count >= minNeedNights else {
+            let nights = nightlyHours.filter { $0 > 0 }
+            guard nights.count >= minNeedNights else {
                 return min(max(defaultNeedHours, floor), maxNeedHours)
             }
-            // Linear-interpolated 75th percentile — the "unrestricted" nights.
-            let pos = 0.75 * Double(xs.count - 1)
-            let lo = Int(pos), hi = min(lo + 1, xs.count - 1)
-            let q = xs[lo] + (pos - Double(lo)) * (xs[hi] - xs[lo])
-            return min(max(q, floor), maxNeedHours)
+            // Median of the nights not repaying a short one: a rebound says what was owed, and an upper
+            // quartile rises with variability, so a steady 8 h sleeper would owe themselves half an hour.
+            let settled = nights.indices.filter { $0 == 0 || nights[$0 - 1] >= floor }.map { nights[$0] }
+            guard !settled.isEmpty else { return min(floor, maxNeedHours) }
+            return min(max(HRVAnalyzer.median(settled), floor), maxNeedHours)
         }
 
         /// Build the composite. `tstSeconds` = total sleep time, `restorativeSeconds` = deep+REM

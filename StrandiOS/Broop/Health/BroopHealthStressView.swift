@@ -131,6 +131,11 @@ private struct BroopHealthStressGauge: View {
                 if let time = reading?.time, reading?.source != .live {
                     Text(time, style: .time).font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
                 }
+                if let coverage = day?.motionCoverage, coverage < 0.5 {
+                    Text("Motion data covers \(Int((coverage * 100).rounded()))% of this. Walking in the rest can read as stress.")
+                        .font(BroopType.regular(13)).foregroundStyle(BroopPalette.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
             }
         }
         .frame(height: 240)

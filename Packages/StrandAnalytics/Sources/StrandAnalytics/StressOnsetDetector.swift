@@ -10,7 +10,7 @@ import Foundation
 // See docs/superpowers/specs/2026-06-19-v5-haptic-biofeedback-design.md (L3).
 //
 // WHAT IT GENERALISES (from AppModel.evaluateStress): a rolling clean-R-R buffer → a SLOW RMSSD baseline
-// (the shipped 0.98/0.02 EMA) + a resting-HR band gate (55–100 bpm) + a `rmssd < baseline × 0.6` drop +
+// (an EMA with a 30-minute time constant) + a resting-HR band gate (55–100 bpm) + a `rmssd < baseline × 0.6` drop +
 // a once-per-15-min limiter + a single confirming buzz. What this engine ADDS, per spec:
 //   1. A FAST short-window RMSSD (the latest beats) vs the slow baseline — "fast dropped below baseline".
 //   2. EDGE trigger: fire ONCE on the fresh crossing (was-above → now-below), not every tick — and
@@ -22,7 +22,8 @@ import Foundation
 //   4. Rate-limit + quiet hours + master toggle, and never while a manual Breathe/L1/L2 session runs.
 //
 // HONEST / NON-CLINICAL: "stress" is an autonomic PROXY (HRV-down vs the user's OWN baseline), never a
-// diagnosis. The card the caller shows says "HRV dipped while you were still" — never "you are stressed".
+// diagnosis. The card the caller shows says "HRV dipped at a resting heart rate" — never "you are stressed",
+// and never "while still": the app has no live motion signal, so only the heart-rate band was observed.
 // On fire: a single confirming buzz + a passive in-app card; NEVER a push notification unless the user
 // opted into notifications (matches DaytimeStress's "passive suggestion, never a notification" stance).
 //
@@ -32,8 +33,11 @@ public enum StressOnsetDetector {
 
     // MARK: - Tunables (evaluateStress parity + the new fast/gate pieces)
 
-    /// Slow-baseline EMA weight on the prior value (the shipped 0.98). New RMSSD gets `1 − this`.
-    public static let baselineEmaAlpha: Double = 0.98
+    /// Time constant of the slow baseline. A weight of 0.98 per packet (about one a second) was a 50 s
+    /// constant: the baseline chased the dip, and a sustained 60% drop never held for `sustainSeconds`.
+    public static let baselineTimeConstantSeconds: Double = 1800
+    /// A pause longer than this ends the observation: a low reading after it is not the same dip.
+    public static let gapResetSeconds: Int = 120
     /// Fast RMSSD must drop below `baseline × this` to count as a dip (the shipped 0.6 threshold).
     public static let dropRatio: Double = 0.6
     /// Resting HR band — outside it the dip is treated as metabolic (workout), not stress (the shipped
@@ -111,13 +115,16 @@ public enum StressOnsetDetector {
         /// recovers before it holds, and consumed once the sustain is satisfied. Persisted with the
         /// rest of the state so a relaunch mid-dip cannot double-arm.
         public var pendingEdgeAt: Int
+        /// Unix-seconds of the last evaluation with enough beats (0 = none): times the EMA and finds gaps.
+        public var lastObservedAt: Int
 
         public init(baselineRMSSD: Double = 0, wasBelow: Bool = false, lastFireAt: Int = 0,
-                    pendingEdgeAt: Int = 0) {
+                    pendingEdgeAt: Int = 0, lastObservedAt: Int = 0) {
             self.baselineRMSSD = baselineRMSSD
             self.wasBelow = wasBelow
             self.lastFireAt = lastFireAt
             self.pendingEdgeAt = pendingEdgeAt
+            self.lastObservedAt = lastObservedAt
         }
 
         /// Cold-start state (no baseline, not below, never fired).
@@ -210,17 +217,34 @@ public enum StressOnsetDetector {
             ? Array(cleanAll.suffix(fastWindowBeats))
             : cleanAll
         guard fastWindow.count >= minBeats, let fast = HRVAnalyzer.rmssdRaw(fastWindow), fast > 0 else {
-            // Not enough signal — report, don't guess. Edge state is preserved (no crossing observed).
+            // Not enough signal — report, don't guess. An armed crossing cannot be said to have held
+            // through time nobody observed, so it is dropped.
+            var cleared = state
+            cleared.pendingEdgeAt = 0
+            cleared.wasBelow = false
             return Decision(shouldNudge: false, reason: .insufficientData, buzzLoops: config.buzzLoops,
                             fastRMSSD: nil, baselineRMSSD: state.baselineRMSSD > 0 ? state.baselineRMSSD : nil,
-                            nextState: state)
+                            nextState: cleared)
         }
 
-        // 3) Advance the slow baseline EMA (seed on first trusted value), exactly like evaluateStress.
+        // 3) Advance the slow baseline by elapsed time, seeding on the first trusted value. It holds still
+        // outside the resting-HR band, so a workout does not teach it a low HRV. A gap ends any armed dip.
         var next = state
-        next.baselineRMSSD = state.baselineRMSSD == 0
-            ? fast
-            : state.baselineRMSSD * baselineEmaAlpha + fast * (1.0 - baselineEmaAlpha)
+        let elapsed = state.lastObservedAt > 0 ? Swift.max(0, nowSec - state.lastObservedAt) : 0
+        if elapsed > gapResetSeconds {
+            next.wasBelow = false
+            next.pendingEdgeAt = 0
+        }
+        next.lastObservedAt = nowSec
+        let priorWasBelow = next.wasBelow
+        let inRestingBand = currentHR.map { $0 >= restingHRLow && $0 <= restingHRHigh } ?? false
+        if state.baselineRMSSD == 0 {
+            next.baselineRMSSD = fast
+        } else if inRestingBand {
+            // Unobserved time teaches nothing, so a long gap counts as one gap's worth of decay.
+            let keep = exp(-Double(Swift.min(elapsed, gapResetSeconds)) / baselineTimeConstantSeconds)
+            next.baselineRMSSD = state.baselineRMSSD * keep + fast * (1.0 - keep)
+        }
         let baseline = next.baselineRMSSD
 
         // 4) Is the fast RMSSD below the drop threshold? (the dip test)
@@ -228,7 +252,7 @@ public enum StressOnsetDetector {
         let isBelow = fast < threshold
         // The edge: a FRESH crossing (above on the previous tick → below now). Always record the new
         // below-state so the NEXT tick can edge-detect, regardless of whether we fire.
-        let isEdge = isBelow && !state.wasBelow
+        let isEdge = isBelow && !priorWasBelow
         next.wasBelow = isBelow
 
         // SUSTAIN: the crossing only ARMS the check. A dip that recovers before it has held for

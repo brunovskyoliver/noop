@@ -783,13 +783,11 @@ struct TodayView: View {
     /// `repo.chargeBaselines`/`displayDay`. nil for a calibrating / cold-start night (no usable HRV baseline
     /// or no value), so the sheet gates through to the calibration countdown instead.
     ///
-    /// PERF: this replaces the two separate computed properties (`chargeDrivers` +
-    /// `chargeBreakdownConfidence`) that EACH re-folded the full `repo.days` history per body evaluation of
-    /// the open sheet. The baselines are now resolved once per refresh, so a body evaluation folds nothing,
-    /// and the sheet reads drivers + confidence out of a single sheet-local `let`.
+    /// PERF: the fold reads one 21-day window per body evaluation of the open sheet, and the sheet reads
+    /// drivers + confidence out of a single sheet-local `let`.
     private func chargeBreakdown() -> (drivers: [ChargeDriver], confidence: ScoreConfidence)? {
         guard let row = chargeBreakdownRow else { return nil }
-        guard let baselines = repo.chargeBaselines else { return nil }
+        guard let baselines = repo.chargeBaselines(forDay: row.day) else { return nil }
         return ChargeBreakdownWiring.breakdown(baselines: baselines, row: row, sleepPerfPercent: restScore)
     }
 
@@ -946,10 +944,8 @@ struct TodayView: View {
             // #2315: with the recalibration epoch, which is what makes the claim above true. Without it this
             // gate folded the whole history while the Charge engine folded from the epoch, so the pill could
             // read solid off nights the ring is no longer using.
-            let hrvBase = Baselines.foldHistory(repo.days.map(\.avgHrv), dayKeys: repo.days.map(\.day),
-                                                cfg: Baselines.hrvCfg,
-                                                baselineEpoch: Baselines.hrvBaselineEpoch())
-            conf = ScoreConfidence.charge(recovery: displayDay?.recovery, hrvBaseline: hrvBase)
+            let hrvBase = displayDay.flatMap { repo.chargeBaselines(forDay: $0.day)?.hrv }
+            conf = hrvBase.map { ScoreConfidence.charge(recovery: displayDay?.recovery, hrvBaseline: $0) } ?? .calibrating
         case "sleep_performance":
             // A watch night with a Rest score reads as built; without one it's still calibrating.
             conf = restScore != nil ? .building : .calibrating
@@ -1622,7 +1618,7 @@ struct TodayView: View {
                                 Text("load \(String(format: "%.2f", locale: AppLanguage.activeLocale, acwr))")
                                     .font(StrandFont.captionNumber)
                                     .foregroundStyle(StrandPalette.textTertiary)
-                                    .help("Acute (7-day) vs chronic (28-day) training load. 0.8–1.3 is the sweet spot.")
+                                    .help("This week's training load against your previous 3 weeks. 1.00 means level.")
                             }
                         }
                         // #1405: mark this as a DIFFERENT axis from the home Synthesis word (the Charge-%
@@ -1690,7 +1686,7 @@ struct TodayView: View {
     private func readinessSummaryText(_ level: ReadinessEngine.Level) -> String {
         switch level {
         case .primed:
-            return String(localized: "Your signals are aligned and your load is supported. A harder session is well backed today.")
+            return String(localized: "Your signals are aligned. A harder session is well backed today.")
         case .balanced:
             return String(localized: "Nothing's flagging. Train to feel - your body's holding steady.")
         case .strained:
@@ -1732,15 +1728,11 @@ struct TodayView: View {
     private func readinessDetailText(_ signal: ReadinessEngine.Signal) -> String {
         if signal.key == "acwr", let evidence = signal.evidenceData,
            case .trainingLoad(let acute, let chronic) = evidence {
-            let ratio = readinessNumber(chronic > 0 ? acute / chronic : 0, decimals: 2)
-            switch signal.flag {
-            case .good: return String(localized: "in the sweet spot (acute:chronic \(ratio))")
-            case .bad: return String(localized: "spiking (acute:chronic \(ratio)) - higher injury risk")
-            case .watch: return acute < chronic
-                ? String(localized: "ramping down (acute:chronic \(ratio)) - room to build")
-                : String(localized: "building fast (acute:chronic \(ratio)) - watch fatigue")
-            case .neutral: return String(localized: "in the sweet spot (acute:chronic \(ratio))")
-            }
+            let ratio = chronic > 0 ? acute / chronic : 1
+            let pct = Int((abs(ratio - 1) * 100).rounded())
+            if pct < 5 { return String(localized: "about the same as your previous 3 weeks") }
+            return ratio > 1 ? String(localized: "\(pct)% above your previous 3 weeks")
+                : String(localized: "\(pct)% below your previous 3 weeks")
         }
         switch (signal.key, signal.flag) {
         case ("hrv", .good): return String(localized: "above your baseline - well recovered")
@@ -1752,7 +1744,7 @@ struct TodayView: View {
         case ("rhr", .bad): return String(localized: "elevated - overtraining or illness can do this")
         case ("respRate", .bad): return String(localized: "up vs baseline - sometimes an early sign of getting sick")
         case ("respRate", .watch): return String(localized: "slightly raised vs baseline")
-        case ("monotony", _): return String(localized: "low - similar strain every day raises strain/illness risk")
+        case ("monotony", _): return String(localized: "low - similar strain every day this week")
         default: return String(localized: "in your normal range")
         }
     }
@@ -4487,9 +4479,7 @@ struct TodayView: View {
     ///
     /// The same "hosting none pays nothing" rule the sleep model above follows. `StressDayCurve` does
     /// the gating: it reads nothing until a cheap heart-rate fingerprint says today's heart rate moved,
-    /// and it memoises. The foreground lens is part of that memo's identity: Today shares the default
-    /// computation with the widget when the toggle is off, and recomputes with the selected personal
-    /// lens when it is on so this card and Stress detail cannot disagree.
+    /// and it memoises. It reads the same analysis as the widget and the Broop Stress screen.
     private func loadHostedStress() async {
         guard HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(.stressToday) else {
             hostedStressHours = []
@@ -4498,10 +4488,7 @@ struct TodayView: View {
         }
         // `timeline`, not `hours`: the half-step display series, so the curve tracks the day rather
         // than stepping through it, matching the widget and the Android card.
-        let result = await StressDayCurve.today(
-            repo: repo,
-            personalBaseline: PuffinExperiment.stressPersonalBaselineEnabled
-        )?.result
+        let result = await StressDayCurve.today(repo: repo)?.result
         hostedStressHours = result?.timeline ?? []
         hostedStressActivityMaskedHours = result?.activityMaskedHours ?? 0
     }

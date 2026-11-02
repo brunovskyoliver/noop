@@ -248,9 +248,15 @@ final class ChargeBaselinesTests: XCTestCase {
         let epoch = Double(Self.anchorEpochDay - 4) * 86_400
         let r = ChargeBaselines.resolve(imported: [], own: own, anchorDay: Self.anchor, hrvEpoch: 0,
                                         recoveryEpoch: epoch)
-        XCTAssertEqual(r.restingHR.nValid, 5)
+        // The anchor is the day being scored, so it is not in its own baseline.
+        XCTAssertEqual(r.restingHR.nValid, 4)
         XCTAssertEqual(r.restingHR.baseline, 50, accuracy: 1e-9)
-        XCTAssertEqual(r.hrv.nValid, 20)
+        XCTAssertEqual(r.hrv.nValid, 19)
+        XCTAssertTrue(r.hrv.logDomain)
+        XCTAssertNil(r.restCenter, "no Rest resolver, no personal centre")
+        let rested = ChargeBaselines.resolve(imported: [], own: own, anchorDay: Self.anchor, hrvEpoch: 0,
+                                             recoveryEpoch: 0, rest: { _ in 0.7 })
+        XCTAssertEqual(rested.restCenter!, 0.7, accuracy: 1e-9)
     }
 
     // MARK: - Diagnostic line

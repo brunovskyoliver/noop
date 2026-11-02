@@ -45,6 +45,7 @@ extension RecoveryScorer {
                                      rhrBaseline: BaselineState?,
                                      respBaseline: BaselineState?,
                                      sleepPerf: Double?,
+                                     sleepCenter: Double? = nil,
                                      skinTempDev: Double? = nil)
         -> (score: Double?, trace: [String]) {
 
@@ -65,7 +66,7 @@ extension RecoveryScorer {
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         let score = recovery(hrv: hrv, rhr: rhr, resp: resp,
                              hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                             respBaseline: respB, sleepPerf: sleepPerf,
+                             respBaseline: respB, sleepPerf: sleepPerf, sleepCenter: sleepCenter,
                              skinTempDev: skinTempDev)
 
         // Cold-start gate: HRV baseline not usable -> recovery() returns nil before any term is built.
@@ -79,7 +80,7 @@ extension RecoveryScorer {
 
         // Per-driver baseline state lines (mean / spread / nValid / status). The skin-temp term carries no
         // baseline arg here (skinTempDev is already a deviation), so it has no baseline line.
-        lines.append("charge baseline hrv mean=\(r2(hrvBaseline.baseline)) spread=\(r2(hrvBaseline.spread)) "
+        lines.append("charge baseline hrv mean=\(r2(hrvBaseline.baseline)) spread=\(r2(hrvBaseline.spread))\(hrvBaseline.logDomain ? " ln" : "") "
             + "nValid=\(hrvBaseline.nValid) status=\(hrvBaseline.status.rawValue)")
         if let b = rhrB {
             lines.append("charge baseline rhr mean=\(r2(b.baseline)) spread=\(r2(b.spread)) "
@@ -105,7 +106,7 @@ extension RecoveryScorer {
         // L9: every WEIGHT / SCALE / centre constant goes through r2() too (not just the z-scores), so a
         // future non-round weight (e.g. 0.333) renders identically on Swift and Kotlin and the parity
         // fixture cannot silently desync. The values render the same as before today.
-        let hrvZRaw = zScore(hrv, mean: hrvBaseline.baseline, spread: hrvBaseline.spread)
+        let hrvZRaw = zScore(hrv, baseline: DriverBaseline(hrvBaseline))
         let sat = parasympatheticSaturation(hrvZ: hrvZRaw, rhrZ: rhrZForGuard)
         terms.append(("hrv", hrvZRaw, wHRV))
         lines.append("charge term hrv z=\(r2(hrvZRaw)) w=\(r2(wHRV)) (higher HRV is better)")
@@ -129,10 +130,11 @@ extension RecoveryScorer {
 
         // Sleep-performance / Rest-quality term: no baseline needed, centered at sleepPerfCenter.
         if let sp = sleepPerf {
-            let z = (sp - sleepPerfCenter) / sleepPerfScale
+            let center = sleepCenter ?? sleepPerfCenter
+            let z = (sp - center) / sleepPerfScale
             terms.append(("sleepPerf", z, wSleep))
             lines.append("charge term sleepPerf z=\(r2(z)) w=\(r2(wSleep)) "
-                + "(rest=\(r2(sp)) center=\(r2(sleepPerfCenter)))")
+                + "(rest=\(r2(sp)) center=\(r2(center)))")
         } else {
             nilTerms.append("sleepPerf")
         }

@@ -47,6 +47,14 @@ final class Vo2maxFallbackTests: XCTestCase {
         XCTAssertGreaterThan(abs(nes - uth), 0.01)
     }
 
+    func testUthReadsTheAwakeRestingHRWhenKnown() {
+        let awake = IntelligenceEngine.fitnessAgeRows(
+            gateDays: gate(48), age: 40, sex: "male", waistCm: 0, heightCm: 175, weightKg: 80,
+            computedId: "my-whoop-noop", satKey: "2026-08-15", awakeRestingHR: 64
+        ).first { $0.key == "vo2max_est" }?.value
+        XCTAssertEqual(awake ?? 0, 15.3 * StrainScorer.tanakaHRmax(age: 40) / 64, accuracy: 0.5)
+    }
+
     func testNewlyComputedPointRecordsTheEstimatorUsedAtComputeTime() {
         let uthRows = IntelligenceEngine.fitnessAgeRows(
             gateDays: gate(60), age: 40, sex: "male", waistCm: 0, heightCm: 175, weightKg: 80,

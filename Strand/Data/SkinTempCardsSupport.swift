@@ -98,21 +98,14 @@ struct BodyClockCard: View {
 
     // MARK: derived copy
 
-    /// "About 25 min later than your schedule" — a plain, skimmable headline.
+    /// A plain headline. It states no lean: see `CircadianEngine.PhaseEstimate`.
     private var offsetTitle: String { Self.offsetTitle(estimate) }
 
     /// The headline for an estimate. Static so the Broop card words it through the same rule.
     static func offsetTitle(_ estimate: CircadianEngine.PhaseEstimate) -> String {
-        let mins = Int(abs(estimate.offsetVsScheduleMinutes).rounded())
-        if estimate.confidence == .unreadable {
-            return String(localized: "Hard to read right now")
-        }
-        if mins <= 20 {
-            return String(localized: "About in sync with your schedule")
-        }
-        return estimate.offsetVsScheduleMinutes > 0
-            ? String(localized: "About \(mins) min later than your schedule")
-            : String(localized: "About \(mins) min earlier than your schedule")
+        estimate.confidence == .unreadable
+            ? String(localized: "Hard to read right now")
+            : String(localized: "A rough estimate")
     }
 
     private var confidenceLabel: LocalizedStringKey {
@@ -154,13 +147,7 @@ func localizedBodyClockNote(_ estimate: CircadianEngine.PhaseEstimate) -> String
     if estimate.confidence == .unreadable {
         return String(localized: "Your rhythm is hard to read right now. Keep wearing your device for a clearer picture.")
     }
-    if estimate.offsetVsScheduleMinutes > 20 {
-        return String(localized: "Your body clock looks later, with a night-owl tendency.")
-    }
-    if estimate.offsetVsScheduleMinutes < -20 {
-        return String(localized: "Your body clock looks earlier, with a morning tendency.")
-    }
-    return String(localized: "Your body clock looks aligned with your schedule.")
+    return String(localized: "An estimate from your heart-rate rhythm, which mostly follows when you sleep.")
 }
 
 func localizedConfounder(_ value: String) -> String {
@@ -210,7 +197,7 @@ func localizedIllnessCopy(_ result: IllnessSignalEngine.Result) -> String {
     let message = result.message ?? fallbackIllnessMessage(result.level)
     switch message {
     case .raised:
-        return String(localized: "Your body looks strained. Signals up: \(signals). No alcohol or travel was logged, so consider taking it easy. On-device estimate, not a diagnosis.")
+        return String(localized: "Your body looks strained. Signals up: \(signals). No alcohol, stress, sauna, hard workout or travel logged, which does not rule them out. Consider taking it easy. On-device estimate, not a diagnosis.")
     case .alreadyUnwellAgree:
         return String(localized: "You logged feeling unwell, and your signals agree. Take it easy today. On-device estimate, not a diagnosis.")
     case .alreadyUnwell:

@@ -148,7 +148,7 @@ struct BroopInsightsDoseCard: View {
                     .frame(height: 120)
                     .accessibilityLabel(Text(verbatim: r.sentence()))
                 if r.priorDominated {
-                    banner(String(localized: "Based mostly on typical patterns, not yet yours. Log a few more \(card.unitLabel.lowercased()) days and this becomes yours."))
+                    banner(String(localized: "Population estimate, not your data. Answer the question on days with and without \(card.unitLabel.lowercased()) and this becomes yours."))
                 } else if r.contradictsPrior {
                     banner(String(localized: "In your data so far, this doesn\u{2019}t move your \(card.outcomeName) the way it typically does."))
                 }
@@ -204,7 +204,7 @@ struct BroopInsightsDoseCard: View {
             BroopInsightsBody(text: sentence(delta: delta, stepLabel: stepLabel), size: 13, color: BroopPalette.textSecondary)
             HStack(spacing: 10) {
                 tile(String(localized: "Per extra \(card.unitNoun)"), signed(r.perUnit),
-                     r.priorDominated ? String(localized: "typical") : String(localized: "your data"),
+                     r.priorDominated ? String(localized: "population") : String(localized: "your data"),
                      r.perUnit < 0 ? BroopInsightsPalette.hurts : BroopInsightsPalette.helps)
                 tile(String(localized: "Tomorrow\u{2019}s \(card.outcomeName)"),
                      projected.map { "\(Int($0.rounded()))\(card.outcomeSuffix)" } ?? "—",
@@ -233,8 +233,8 @@ struct BroopInsightsDoseCard: View {
         let lower = delta <= 0
         if card.response.priorDominated {
             return lower
-                ? String(localized: "A \(stepLabel) tonight tends to line up with about \(mag) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on typical patterns.")
-                : String(localized: "A \(stepLabel) tonight tends to line up with about \(mag) higher on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on typical patterns.")
+                ? String(localized: "A \(stepLabel) tonight tends to line up with about \(mag) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()). Population estimate, not your data.")
+                : String(localized: "A \(stepLabel) tonight tends to line up with about \(mag) higher on tomorrow\u{2019}s \(card.outcomeName.lowercased()). Population estimate, not your data.")
         }
         return lower
             ? String(localized: "A \(stepLabel) tonight tends to line up with about \(mag) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on \(card.response.nUser) of your \(card.unitLabel.lowercased()) days.")

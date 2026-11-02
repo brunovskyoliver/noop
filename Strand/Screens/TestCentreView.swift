@@ -750,7 +750,8 @@ struct TestCentreView: View {
     /// `HRVReadiness.minNights` valid nights it shows the honest calibrating count, never a fabricated tier.
     /// Twin of the Android `HrvReadinessReadoutTC`.
     @ViewBuilder private var hrvReadinessReadout: some View {
-        let result = HRVReadiness.evaluate(avgHrv: model.repo.days.map { $0.avgHrv })
+        let result = HRVReadiness.evaluate(nights: model.repo.days.map { (day: $0.day, value: $0.avgHrv) },
+                                            asOf: Repository.logicalDayKey(Date()))
         VStack(alignment: .leading, spacing: 2) {
             if let r = result {
                 let label = hrvTierLabel(r.tier)

@@ -11,7 +11,7 @@ import Foundation
 // We do NOT invent a new formula. Recovery is HRV-and-RHR-vs-personal-baseline, and
 // because every term is relative to the person's OWN baseline, the metric scale cancels
 // out: SDNN-vs-SDNN-baseline behaves like RMSSD-vs-RMSSD-baseline. So we build SDNN and
-// RHR baselines through the existing `Baselines` machinery and feed them straight into
+// RHR baselines through the same prior-night window fold and feed them straight into
 // the SAME `RecoveryScorer.recovery(...)` the strap uses. Watch recovery and strap
 // recovery therefore land on the same 0-100 scale and read against the same bands.
 //
@@ -61,16 +61,17 @@ public enum WatchRecovery {
     ///   `.calibrating` when today's SDNN is missing, the baseline isn't usable, or history is thin.
     public static func compute(todaySDNN: Double?, todayRHR: Int?,
                                sdnnHistory: [Double], rhrHistory: [Double]) -> Result {
-        // Build both baselines through the production model (Winsorized EWMA + cold-start gating),
-        // exactly as the strap path does. SDNN feeds the HRV config; resting HR feeds the RHR config.
-        let hrvBase = Baselines.foldHistory(sdnnHistory.map { Optional($0) }, cfg: Baselines.hrvCfg)
-        let rhrBase = Baselines.foldHistory(rhrHistory.map { Optional($0) }, cfg: Baselines.restingHRCfg)
+        compute(todaySDNN: todaySDNN, todayRHR: todayRHR,
+                hrvBase: Baselines.windowFold(sdnnHistory, dayKeys: sdnnHistory.map { _ in "" }, cfg: Baselines.sdnnCfg,
+                                              baselineEpoch: 0, logDomain: true),
+                rhrBase: Baselines.windowFold(rhrHistory, dayKeys: rhrHistory.map { _ in "" }, cfg: Baselines.restingHRCfg,
+                                              baselineEpoch: 0))
+    }
 
-        // Confidence is the SAME helper the strap Charge uses, so the calibrating → building → solid
-        // arc matches. It reads .calibrating whenever recovery would be nil (no usable HRV baseline),
-        // and below it we ALSO nil-out recovery, so the two stay consistent.
-        let conf = ScoreConfidence.charge(recovery: todaySDNN, hrvBaseline: hrvBase)
-
+    /// The same computation against baselines the caller has already folded with
+    /// `ChargeBaselines.priorBaselines`, which applies the strap's window and epoch rules.
+    public static func compute(todaySDNN: Double?, todayRHR: Int?,
+                               hrvBase: BaselineState, rhrBase: BaselineState) -> Result {
         // Honesty gate: no number unless we have today's SDNN, a usable baseline, AND at least a
         // week of nights. Any miss → nil recovery + calibrating, never a fabricated value.
         // The week is counted in nights the baseline ACCEPTED (`nValid`), not in raw history entries:
@@ -105,6 +106,7 @@ public enum WatchRecovery {
         guard let recovery else {
             return Result(recovery: nil, confidence: .calibrating)
         }
-        return Result(recovery: recovery, confidence: conf)
+        // Confidence is the SAME helper the strap Charge uses, so the calibrating → building → solid arc matches.
+        return Result(recovery: recovery, confidence: ScoreConfidence.charge(recovery: recovery, hrvBaseline: hrvBase))
     }
 }

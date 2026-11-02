@@ -56,12 +56,7 @@ struct BroopInsightsIntelligenceView: View {
     /// Same inputs as the screen: results are newest-first, the forecaster wants oldest-first.
     private var forecast: RecoveryForecast? {
         let charge = intelligence.results.compactMap { $0.recovery }.reversed()
-        let effort = intelligence.results.compactMap { $0.strain }.reversed()
-        let sleeps = intelligence.results.compactMap { $0.sleepMin }
-        let planned = sleeps.isEmpty ? RecoveryForecaster.defaultNeedHours : (sleeps.reduce(0, +) / Double(sleeps.count)) / 60
-        return RecoveryForecaster.forecast(recentCharge: Array(charge), recentEffort: Array(effort),
-                                           todayEffort: intelligence.results.first?.strain,
-                                           plannedSleepHours: planned)
+        return RecoveryForecaster.forecast(recentCharge: Array(charge))
     }
 
     private func forecastCard(_ f: RecoveryForecast) -> some View {
@@ -75,9 +70,13 @@ struct BroopInsightsIntelligenceView: View {
             Text("± \(Int(f.band.rounded())) · \(StrandPalette.recoveryState(f.charge))")
                 .font(BroopType.demi(13))
                 .foregroundStyle(BroopPalette.textSecondary)
-            BroopInsightsBody(text: String(localized: "You'll likely wake around \(Int(f.charge.rounded())) ± \(Int(f.band.rounded())) Charge if you sleep about \(Self.hours(f.plannedSleepHours)) tonight."),
+            BroopInsightsBody(text: String(localized: "You'll likely wake around \(Int(f.charge.rounded())) ± \(Int(f.band.rounded())) Charge."),
                               size: 15, color: BroopPalette.textPrimary)
-            BroopInsightsBody(text: String(localized: "Estimate from today's effort, your typical sleep and your \(f.nights)-night recovery baseline, not a measurement. Your real Charge is scored from tomorrow's HRV when you wake."),
+            if let coverage = f.coverage {
+                BroopInsightsBody(text: String(localized: "A range this wide held on \(Int((coverage * 100).rounded()))% of your last \(f.coverageDays) days."),
+                                  size: 12.5, color: BroopPalette.textSecondary)
+            }
+            BroopInsightsBody(text: String(localized: "A rough guide from your last \(f.nights) days of Charge, not a measurement. Your real Charge is scored from tomorrow's HRV when you wake."),
                               size: 12.5, color: BroopPalette.textSecondary)
         }
         .padding(18)
@@ -85,12 +84,6 @@ struct BroopInsightsIntelligenceView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private static func hours(_ h: Double) -> String {
-        let half = (h * 2).rounded() / 2
-        let whole = Int(half)
-        let m = Int((half - Double(whole)) * 60)
-        return m == 0 ? "\(whole)h" : "\(whole)h \(m)m"
-    }
 
     // MARK: Model
 

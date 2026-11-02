@@ -265,6 +265,29 @@ final class LocalDayWindowsTests: XCTestCase {
         XCTAssertNotEqual(end, helper.window(of: date("2025-11-02"))?.nextStart)
     }
 
+    /// A scored day's read must reach past midnight, or the detector closes a night at the read end and
+    /// that instant lands inside the day (09baea0b): the 23:59:59 fragment then overwrote the full row.
+    func testScoredDayReadEndPassesMidnightButNotTheReferenceInstant() {
+        let past = windows("Europe/Bratislava", reference: utc("2026-11-01T08:00:00Z"))
+        let oct29 = past.window(of: date("2026-10-29"))!
+        XCTAssertEqual(past.scoredDayReadEnd(of: date("2026-10-29")),
+                       oct29.nextStart.addingTimeInterval(TimeInterval(LocalDayWindows.scoredDayOverrunSeconds)))
+
+        let today = windows("Europe/Bratislava", reference: utc("2026-11-01T08:00:00Z"))
+        XCTAssertEqual(today.scoredDayReadEnd(of: date("2026-11-01")), utc("2026-11-01T08:00:00Z"))
+    }
+
+    /// The fingerprint of a row that bug wrote: its end is the last second of a local day, on the local
+    /// clock (a 25-hour day included), and nothing else matches.
+    func testLastSecondOfLocalDayFindsTheTruncationFingerprint() {
+        let helper = windows("Europe/Bratislava", reference: utc("2026-11-01T08:00:00Z"))
+        XCTAssertTrue(helper.isLastSecondOfLocalDay(utc("2026-10-29T22:59:59Z")))   // 23:59:59 CET
+        XCTAssertTrue(helper.isLastSecondOfLocalDay(utc("2026-10-24T21:59:59Z")))   // 23:59:59 CEST
+        XCTAssertTrue(helper.isLastSecondOfLocalDay(utc("2026-10-25T22:59:59Z")))   // end of the 25-hour day
+        XCTAssertFalse(helper.isLastSecondOfLocalDay(utc("2026-10-29T23:00:00Z")))  // midnight itself
+        XCTAssertFalse(helper.isLastSecondOfLocalDay(utc("2026-10-29T22:59:58Z")))
+    }
+
     /// A past 25-hour day reaches its own next start, 25 hours after it began.
     func testPastTwentyFiveHourDayReachesItsOwnNextStart() {
         let helper = windows("America/New_York", reference: utc("2025-12-15T12:00:00Z"))

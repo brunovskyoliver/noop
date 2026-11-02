@@ -148,4 +148,50 @@ final class IllnessSignalEngineTests: XCTestCase {
         let expectedSkin = IllnessSignalEngine.kZToScore * (2.5 - IllnessSignalEngine.signalZThreshold)
         XCTAssertEqual(r.score, IllnessSignalEngine.perSignalCap + expectedSkin, accuracy: 1e-9)
     }
+
+    // MARK: - RHR and HRV are one vote
+
+    func testRestingHRPlusHRVAloneDoesNotRaise() {
+        let both = IllnessSignalEngine.evaluate(.init(restingHR: .init(zIllnessward: 4), hrv: .init(zIllnessward: 4)),
+                                                context: .init())
+        XCTAssertEqual(both.level, .quiet)
+        XCTAssertEqual(both.signalCount, 2)
+        let withSkin = IllnessSignalEngine.evaluate(.init(restingHR: .init(zIllnessward: 4), skinTemp: .init(zIllnessward: 4)),
+                                                    context: .init())
+        XCTAssertEqual(withSkin.level, .raised)
+        let withResp = IllnessSignalEngine.evaluate(.init(restingHR: .init(zIllnessward: 4), hrv: .init(zIllnessward: 4),
+                                                          respiration: .init(zIllnessward: 2.5)), context: .init())
+        XCTAssertEqual(withResp.level, .raised)
+    }
+
+    // MARK: - Skin scale split
+
+    func testAbsoluteSkinRowsAreNotScoredAsDeviations() {
+        let liveBase: [Double?] = (0..<20).map { $0 % 2 == 0 ? 0.1 : -0.1 }
+        XCTAssertNil(IllnessSignalEngine.skinSignal(base: liveBase, recent: [34.1, 34.2], latest: 34.2))
+        // Absolute rows in the baseline window do not move a live night's z.
+        let mixed = liveBase + Array(repeating: 33.5, count: 10)
+        let a = IllnessSignalEngine.skinSignal(base: liveBase, recent: [0.9, 0.9], latest: 0.9)!
+        let b = IllnessSignalEngine.skinSignal(base: mixed, recent: [0.9, 0.9], latest: 0.9)!
+        XCTAssertEqual(a.zIllnessward, b.zIllnessward, accuracy: 1e-9)
+        XCTAssertGreaterThan(a.zIllnessward, IllnessSignalEngine.signalZThreshold)
+        // Only absolute history: no personal spread yet.
+        XCTAssertEqual(IllnessSignalEngine.skinSignal(base: Array(repeating: 33.5, count: 20), recent: [0.9], latest: 0.9)?.present, false)
+    }
+
+    // MARK: - Journal topics are whole words
+
+    func testJournalTopicsMatchWholeWords() {
+        XCTAssertTrue(JournalTopic.topics(of: "Did you still feel energetic?").isEmpty)
+        XCTAssertTrue(JournalTopic.topics(of: "Did you take a pill?").isEmpty)
+        XCTAssertTrue(JournalTopic.topics(of: "Did you feel a strain?").isEmpty)
+        XCTAssertFalse(JournalTopic.topics(of: "Did you drink enough water?").contains(.alcohol))
+        XCTAssertEqual(JournalTopic.topics(of: "Did you drink any alcohol?"), [.alcohol])
+        XCTAssertEqual(JournalTopic.topics(of: "Did you have caffeine late in the day?"), [.caffeine])
+        XCTAssertEqual(JournalTopic.topics(of: "Did you feel stressed?"), [.stress])
+        XCTAssertEqual(JournalTopic.topics(of: "Did you use a sauna?"), [.sauna])
+        XCTAssertEqual(JournalTopic.topics(of: "Did you feel sick or ill?"), [.unwell])
+        XCTAssertEqual(JournalTopic.topics(of: "Did you travel today?"), [.travel])
+        XCTAssertEqual(JournalTopic.topics(of: "Hard training session?"), [.workout])
+    }
 }

@@ -20,8 +20,11 @@ import WhoopStore
 //     algorithms, so they are never mixed past the cold start.
 //   - The rule keeps no state. Every call decides from the nights it is given.
 //
-// Pure and database-free; the engine feeds it this pass's fresh values, the dashboard the stored rows.
-// Byte-identical twin of the Kotlin `ChargeBaselines`.
+// A day is scored against the `windowDays` calendar days BEFORE it (`priorBaselines`): never itself, never
+// a later night, so a past score only moves when one of its own inputs does.
+//
+// Pure and database-free; the engine and the dashboard both feed it stored rows plus any fresher values.
+// The Kotlin `ChargeBaselines` still folds the old way: the Android twin is deliberately not updated.
 public enum ChargeBaselines {
 
     /// Calendar days of nightly history a Charge baseline reads, counted back from the anchor day and
@@ -95,8 +98,8 @@ public enum ChargeBaselines {
         for night in own where inWindow(night.day) { ownByDay[night.day] = night.value }
         let ownKeys = ownByDay.keys.sorted()
         let ownValues = ownKeys.map { ownByDay[$0]! }
-        let ownValid = Baselines.foldHistory(ownValues, dayKeys: ownKeys, cfg: cfg,
-                                             baselineEpoch: baselineEpoch).nValid
+        let ownValid = Baselines.windowFold(ownValues, dayKeys: ownKeys, cfg: cfg,
+                                            baselineEpoch: baselineEpoch).nValid
 
         var importedByDay: [String: Double?] = [:]
         for night in imported where inWindow(night.day) { importedByDay[night.day] = night.value }
@@ -121,6 +124,42 @@ public enum ChargeBaselines {
                        ownValidNights: ownValid, importedNights: importedByDay.count)
     }
 
+    /// One scored day's baseline and the history it was folded from.
+    public struct PriorBaseline: Equatable, Sendable {
+        public let history: History
+        public let state: BaselineState
+    }
+
+    /// The baseline for each of `days`, folded from the `windowDays` calendar days before that day.
+    /// Rows are indexed once, so scoring a whole history costs a fixed amount per day. A key that cannot be
+    /// parsed is dropped, as in `history`. `imported` and `own` follow `history`'s seeding rule.
+    public static func priorBaselines(days: [String],
+                                      imported: [(day: String, value: Double?)],
+                                      own: [(day: String, value: Double?)],
+                                      cfg: MetricCfg,
+                                      baselineEpoch: Double,
+                                      logDomain: Bool = false) -> [String: PriorBaseline] {
+        func index(_ rows: [(day: String, value: Double?)]) -> [Int: (day: String, value: Double?)] {
+            var out: [Int: (day: String, value: Double?)] = [:]
+            for row in rows { if let d = Baselines.isoEpochDay(row.day) { out[d] = row } }
+            return out
+        }
+        let importedIndex = index(imported), ownIndex = index(own)
+        var out: [String: PriorBaseline] = [:]
+        for day in days {
+            guard let scored = Baselines.isoEpochDay(day) else { continue }
+            let span = (scored - windowDays)..<scored
+            // The day before is the last the window holds, so `history`'s rule applies unchanged.
+            let h = history(imported: span.compactMap { importedIndex[$0] }, own: span.compactMap { ownIndex[$0] },
+                            anchorDay: Baselines.cutoffKey(todayKey: day, carryDays: 1), cfg: cfg,
+                            baselineEpoch: baselineEpoch)
+            out[day] = PriorBaseline(history: h, state: Baselines.windowFold(h.values, dayKeys: h.dayKeys, cfg: cfg,
+                                                                             baselineEpoch: baselineEpoch,
+                                                                             logDomain: logDomain))
+        }
+        return out
+    }
+
     /// The Charge baselines the dashboard reads, resolved from the stored daily rows with the same rule the
     /// engine's pass-2 fold applies (#2525), so the "What shaped it" rows, the calibration count and the
     /// confidence tier describe the baseline the Charge headline was scored against.
@@ -131,9 +170,13 @@ public enum ChargeBaselines {
         public let hrv: BaselineState
         public let restingHR: BaselineState
         public let resp: BaselineState
+        /// The wearer's usual Rest quality (0...1) before this day, or nil while too few nights exist.
+        public let restCenter: Double?
 
         public init(hrvHistory: History, restingHRHistory: History, respHistory: History,
-                    hrv: BaselineState, restingHR: BaselineState, resp: BaselineState) {
+                    hrv: BaselineState, restingHR: BaselineState, resp: BaselineState,
+                    restCenter: Double? = nil) {
+            self.restCenter = restCenter
             self.hrvHistory = hrvHistory
             self.restingHRHistory = restingHRHistory
             self.respHistory = respHistory
@@ -147,33 +190,32 @@ public enum ChargeBaselines {
     /// vendor rows, `own` the NOOP-computed ("-noop") rows. HRV folds on `hrvEpoch`, resting HR and
     /// respiration on `recoveryEpoch`, exactly as the engine does. The engine additionally cuts respiration
     /// at a device-era boundary (#459), which needs a per-night source the stored rows do not carry; the
-    /// two agree for every single-brand history. Kotlin twin: `ChargeBaselines.resolve`.
+    /// two agree for every single-brand history. `anchorDay` is the day being scored and is not itself
+    /// read. `rest` gives a row's Rest quality (0...1) for the personal centre; nil leaves it unset.
     public static func resolve(imported: [DailyMetric], own: [DailyMetric], anchorDay: String,
-                               hrvEpoch: Double, recoveryEpoch: Double) -> Resolved {
-        let hrvCfg = Baselines.hrvCfg, rhrCfg = Baselines.restingHRCfg, respCfg = Baselines.respCfg
-        let hrvHistory = history(imported: imported.map { (day: $0.day, value: $0.avgHrv) },
-                                 own: own.map { (day: $0.day, value: $0.avgHrv) },
-                                 anchorDay: anchorDay, cfg: hrvCfg, baselineEpoch: hrvEpoch)
-        let rhrHistory = history(imported: imported.map { (day: $0.day, value: $0.restingHr.map(Double.init)) },
-                                 own: own.map { (day: $0.day, value: $0.restingHr.map(Double.init)) },
-                                 anchorDay: anchorDay, cfg: rhrCfg, baselineEpoch: recoveryEpoch)
-        let respHistory = history(imported: imported.map { (day: $0.day, value: $0.respRateBpm) },
-                                  own: own.map { (day: $0.day, value: $0.respRateBpm) },
-                                  anchorDay: anchorDay, cfg: respCfg, baselineEpoch: recoveryEpoch)
-        return Resolved(
-            hrvHistory: hrvHistory, restingHRHistory: rhrHistory, respHistory: respHistory,
-            hrv: Baselines.foldHistory(hrvHistory.values, dayKeys: hrvHistory.dayKeys, cfg: hrvCfg,
-                                       baselineEpoch: hrvEpoch),
-            restingHR: Baselines.foldHistory(rhrHistory.values, dayKeys: rhrHistory.dayKeys, cfg: rhrCfg,
-                                             baselineEpoch: recoveryEpoch),
-            resp: Baselines.foldHistory(respHistory.values, dayKeys: respHistory.dayKeys, cfg: respCfg,
-                                        baselineEpoch: recoveryEpoch))
+                               hrvEpoch: Double, recoveryEpoch: Double,
+                               rest: ((DailyMetric) -> Double?)? = nil) -> Resolved {
+        func fold(_ value: (DailyMetric) -> Double?, cfg: MetricCfg, epoch: Double, logDomain: Bool = false) -> PriorBaseline? {
+            priorBaselines(days: [anchorDay], imported: imported.map { (day: $0.day, value: value($0)) },
+                           own: own.map { (day: $0.day, value: value($0)) }, cfg: cfg,
+                           baselineEpoch: epoch, logDomain: logDomain)[anchorDay]
+        }
+        let empty = PriorBaseline(history: History(dayKeys: [], values: [], seededByImport: false,
+                                                   ownValidNights: 0, importedNights: 0),
+                                  state: Baselines.windowFold([], dayKeys: [], cfg: Baselines.hrvCfg, baselineEpoch: 0))
+        let hrv = fold({ $0.avgHrv }, cfg: Baselines.hrvCfg, epoch: hrvEpoch, logDomain: true) ?? empty
+        let rhr = fold({ $0.restingHr.map(Double.init) }, cfg: Baselines.restingHRCfg, epoch: recoveryEpoch) ?? empty
+        let resp = fold({ $0.respRateBpm }, cfg: Baselines.respCfg, epoch: recoveryEpoch) ?? empty
+        let restState = rest.flatMap { fold($0, cfg: Baselines.restQualityCfg, epoch: recoveryEpoch)?.state }
+        return Resolved(hrvHistory: hrv.history, restingHRHistory: rhr.history, respHistory: resp.history,
+                        hrv: hrv.state, restingHR: rhr.state, resp: resp.state,
+                        restCenter: restState.flatMap { $0.usable ? $0.baseline : nil })
     }
 
     /// The Recovery test-mode line naming what each Charge baseline was folded from this pass. Per metric,
     /// `own/N` means the own nights alone, N of them valid; `seed/N+M` means N valid own nights still seeded
     /// by M imported nights. It reports only the composition the engine decided, not why the wearer's values
-    /// moved. Kotlin twin: `ChargeBaselines.logLine`, byte-identical.
+    /// moved.
     public static func logLine(anchorDay: String, hrv: History, restingHR: History, resp: History,
                                skin: History, windowDays: Int = ChargeBaselines.windowDays) -> String {
         let part: (History) -> String = { h in

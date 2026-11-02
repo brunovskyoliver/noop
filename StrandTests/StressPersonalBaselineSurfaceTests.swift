@@ -26,20 +26,17 @@ final class StressPersonalBaselineSurfaceTests: XCTestCase {
             of: #"DaytimeStress\.analyze\([\s\S]*?mode:\s*mode,"#,
             options: .regularExpression
         ))
-        XCTAssertTrue(producer.contains("let mode = await DaytimeStressMode.selected("))
-        XCTAssertTrue(producer.contains("tzOffsetSeconds: tz, mode: mode,"))
+        // One curve: the producer maps the analysis every other surface reads, and scores nothing itself.
+        XCTAssertTrue(producer.contains("repo.stressToday(now: now)"))
+        XCTAssertTrue(producer.contains("StressMonitor.curve("))
+        XCTAssertFalse(producer.contains("DaytimeStress.analyze("))
         for body in [today, liquidToday] {
-            XCTAssertTrue(body.contains(
-                "personalBaseline: PuffinExperiment.stressPersonalBaselineEnabled"
-            ))
+            XCTAssertTrue(body.contains("StressDayCurve.today(repo: repo)"))
         }
-        // A slot per lens, not one slot that compares the lens: comparing made the two surfaces evict
-        // each other on every alternation, so the fingerprint gate never held with the toggle on.
-        XCTAssertTrue(producer.contains("memos[personalBaseline]"))
     }
 
-    func testWidgetPublisherRetainsTheCheapDefaultMode() throws {
+    func testWidgetPublisherUsesTheOneCurve() throws {
         let widget = try source("StrandiOS/Widgets/WidgetPublish.swift")
-        XCTAssertFalse(widget.contains("personalBaseline:"))
+        XCTAssertTrue(widget.contains("StressDayCurve.today(repo: model.repo)"))
     }
 }

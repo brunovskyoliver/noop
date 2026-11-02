@@ -183,8 +183,9 @@ final class WatchRecoveryTests: XCTestCase {
         let rhrHist = Array(repeating: 52.0, count: 14)
         let out = WatchRecovery.compute(todaySDNN: 58.0, todayRHR: 50,
                                         sdnnHistory: hist, rhrHistory: rhrHist)
-        let hrvBase = Baselines.foldHistory(hist.map { Optional($0) }, cfg: Baselines.hrvCfg)
-        let rhrBase = Baselines.foldHistory(rhrHist.map { Optional($0) }, cfg: Baselines.restingHRCfg)
+        let keys = hist.map { _ in "" }
+        let hrvBase = Baselines.windowFold(hist, dayKeys: keys, cfg: Baselines.sdnnCfg, baselineEpoch: 0, logDomain: true)
+        let rhrBase = Baselines.windowFold(rhrHist, dayKeys: keys, cfg: Baselines.restingHRCfg, baselineEpoch: 0)
         let strap = RecoveryScorer.recovery(hrv: 58.0, rhr: 50.0, resp: nil,
                                             hrvBaseline: hrvBase, rhrBaseline: rhrBase,
                                             respBaseline: nil, sleepPerf: nil)

@@ -334,7 +334,8 @@ public enum StrainScorer {
         out.reserveCapacity(hr.count)
         for i in 0..<(hr.count - 1) {
             let deltaS = abs(Double(hr[i + 1].ts - hr[i].ts))
-            let minutes = deltaS > 0 ? deltaS / 60.0 : fallbackSampleMin
+            // A tied timestamp (two-strap overlap) is one moment and carries no time.
+            let minutes = deltaS / 60.0
             out.append(min(minutes, maxSampleGapMin))
         }
         out.append(out[out.count - 1])   // the final reading has no successor; reuse the gap before it
@@ -475,6 +476,10 @@ public enum StrainScorer {
                               method: Method = .edwards,
                               sex: String = "male",
                               denominator: Double? = nil,
+                              // Span floor for a stream under `minReadings`. A bout passes the detector at its own
+                              // shorter minimum and must not
+                              // then show no Effort.
+                              minSpanSeconds spanFloor: Int = minSpanSeconds,
                               // Optional diagnostic sink. Nil by default and the line is built ONLY when
                               // one is supplied, so a pass nobody is watching pays nothing.
                               //
@@ -493,7 +498,7 @@ public enum StrainScorer {
         let key = StrainKey(
             hr: StreamFingerprint.of(hr, ts: { $0.ts }, quant: { Int($0.bpm) }),
             maxHR: maxHR, restingHR: restingHR, method: method,
-            sexF: sex.lowercased().hasPrefix("f"), denom: resolvedDenominator)
+            sexF: sex.lowercased().hasPrefix("f"), denom: resolvedDenominator, spanFloor: spanFloor)
         // A diagnostic request BYPASSES the memo, and must. The Today view re-reads this on every
         // live-HR tick with no sink, so by the time the scoring pass asks with one the answer is already
         // cached — and a cache hit never reaches the code that emits, so the line would simply never
@@ -501,11 +506,11 @@ public enum StrainScorer {
         // one. Kotlin has no memo here and always emits; this keeps the two behaving the same.
         guard diag == nil else {
             return strainUncached(hr, maxHR: maxHR, restingHR: restingHR, method: method, sex: sex,
-                                  denominator: resolvedDenominator, diag: diag, day: day)
+                                  denominator: resolvedDenominator, spanFloor: spanFloor, diag: diag, day: day)
         }
         return strainCache.value(key) {
             strainUncached(hr, maxHR: maxHR, restingHR: restingHR, method: method, sex: sex,
-                           denominator: resolvedDenominator, diag: nil, day: day)
+                           denominator: resolvedDenominator, spanFloor: spanFloor, diag: nil, day: day)
         }
     }
 
@@ -676,12 +681,13 @@ public enum StrainScorer {
     private struct StrainKey: Hashable {
         let hr: StreamFingerprint
         let maxHR: Double?; let restingHR: Double; let method: Method
-        let sexF: Bool; let denom: Double
+        let sexF: Bool; let denom: Double; let spanFloor: Int
     }
     private static let strainCache = AnalyticsMemoCache<StrainKey, Double?>(capacity: 48)
 
     private static func strainUncached(_ hr: [HRSample], maxHR: Double?, restingHR: Double,
                                        method: Method, sex: String, denominator: Double,
+                                       spanFloor: Int = minSpanSeconds,
                                        diag: ((String) -> Void)? = nil, day: String = "") -> Double? {
         let effMax = maxHR ?? Double(defaultMaxHR())
         // Enough data to trust the score: a dense stream (≥ minReadings) OR a sparse-but-sustained
@@ -691,7 +697,7 @@ public enum StrainScorer {
             enoughData = true
         } else if hr.count >= minSparseReadings {
             let tss = hr.map { $0.ts }
-            enoughData = ((tss.max() ?? 0) - (tss.min() ?? 0)) >= minSpanSeconds
+            enoughData = ((tss.max() ?? 0) - (tss.min() ?? 0)) >= spanFloor
         } else {
             enoughData = false
         }

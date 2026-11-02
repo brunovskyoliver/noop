@@ -131,3 +131,15 @@ final class HeartRateRecoveryTests: XCTestCase {
         XCTAssertEqual(result?.after1Minute, -5)
     }
 }
+
+extension HeartRateRecoveryTests {
+    /// One spike in the final 30 s must not set the cessation HR.
+    func testASingleSpikeDoesNotMoveTheCessationValue() {
+        let end = 1_000_000
+        var samples = (0..<300).map { HRSample(ts: end - 300 + $0, bpm: 170) }
+        samples.append(HRSample(ts: end - 5, bpm: 198))
+        samples += (0..<360).map { HRSample(ts: end + $0, bpm: 140) }
+        let r = HeartRateRecovery.calculate(samples: samples, workoutStart: end - 300, workoutEnd: end, maxHR: 200)
+        XCTAssertEqual(r?.endHR, 170)
+    }
+}

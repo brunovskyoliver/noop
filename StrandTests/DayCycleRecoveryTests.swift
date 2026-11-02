@@ -160,4 +160,11 @@ final class DayCycleRecoveryTests: XCTestCase {
             sleepPerf: AnalyticsEngine.Rest.composite(daily: daily).map { $0 / 100.0 } ?? daily.efficiency,
             skinTempDev: skinDev)
     }
+
+    func testCycleBMRCreditIsBoundedToOneDayAndToNow() {
+        typealias I = DayCycleIntelligenceIntegration
+        XCTAssertEqual(I.creditedSeconds(onset: 0, endExclusive: 3 * 86_400, now: 4 * 86_400), 86_400)
+        XCTAssertEqual(I.creditedSeconds(onset: 0, endExclusive: 80_000, now: 90_000), 80_000)
+        XCTAssertEqual(I.creditedSeconds(onset: 0, endExclusive: 80_000, now: 3_600), 3_600)
+    }
 }

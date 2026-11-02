@@ -33,7 +33,7 @@ struct BroopHealthHydrationView: View {
                 quickLog.padding(.top, 28)
                 drinks.padding(.top, BroopMetrics.section)
                 week.padding(.top, BroopMetrics.section)
-                BroopHealthFootnote(text: String(localized: "A simple goal that adjusts to your effort. General wellness guidance, not medical advice. Logged on \(Platform.deviceNounPhrase) only."))
+                BroopHealthFootnote(text: String(localized: "A rough guide for drinks, adjusted a little for your effort. Food adds about a fifth more, and thirst is enough for most people. Not medical advice. Logged on \(Platform.deviceNounPhrase) only."))
                     .padding(.top, 20)
             }
             .padding(.horizontal, BroopMetrics.page)

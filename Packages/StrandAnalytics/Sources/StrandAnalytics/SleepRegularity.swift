@@ -4,7 +4,7 @@ import Foundation
 // doi:10.1038/s41598-017-03171-4) and every consistency value NOOP derives from it.
 //
 // SRI = 200 · P(same sleep/wake state at t and t + 24 h) − 100, over every 24 h-separated pair of
-// epochs where BOTH states are known. 100 = identical days, 0 = no more alike than chance, −100 = exactly
+// epochs where BOTH states are known. 100 = identical days, 0 = half of pairs agree (chance only when sleep fills half the day), −100 = exactly
 // inverted. It is computed on ONE epoch vector:
 //   • 60 s epochs. An epoch is ASLEEP when its midpoint falls in a recorded sleep session (main sleep OR a
 //     nap) and not in one of that session's wake segments (wake after sleep onset counts as wake);
@@ -22,10 +22,11 @@ import Foundation
 //     of UK Biobank actigraphy and required ≥ 120 h of 24 h-separated epoch pairs after non-wear removal
 //     (5 of the 6 possible day pairs).
 //   • Rest's "Consistency" (WHOOP's shape, "last 24 h vs the previous 4 days"): tonight's window paired
-//     with each of the previous `restPriorDays` windows at a lag of k × 24 h, each pair's agreement A
+//     with each of the previous `restPriorDays` windows at the same local clock time, each pair's agreement A
 //     mapped 2A − 1 (the SRI transform) and clamped to 0…1, then averaged; needs `minRestPriorDays` valid
 //     prior days (each with ≥ 12 h of known pairs).
-// Pairs use an absolute 24 h lag, so a DST change reads as a one-hour shift for one pair.
+// SRI pairs use an absolute 24 h lag (Phillips), so a DST change reads as a one-hour shift for one pair.
+// Rest's consistency pairs the same local clock time, so it does not.
 public enum SleepRegularity {
 
     public static let epochSeconds = 60
@@ -74,6 +75,8 @@ public enum SleepRegularity {
     /// The epoch vector over a run of consecutive day windows: 1 asleep, 0 awake, −1 unknown.
     struct Timeline {
         let days: [String]
+        /// Unix time of epoch 0.
+        let origin: Int
         /// Epoch index at which each day's window starts (plus one past the last window).
         let bounds: [Int]
         let state: [Int8]
@@ -101,7 +104,8 @@ public enum SleepRegularity {
     }
 
     /// Build the epoch vector for `first…last` (inclusive day keys).
-    static func timeline(first: String, last: String, sessions: [Session], timeZone: TimeZone) -> Timeline? {
+    static func timeline(first: String, last: String, sessions: [Session], timeZone: TimeZone,
+                         now: Int? = nil) -> Timeline? {
         var days: [String] = []
         var d = first
         while d <= last, days.count < 20_000 {
@@ -131,9 +135,10 @@ public enum SleepRegularity {
             var slept = 0
             for e in lo..<hi where asleep[e] { slept += 1 }
             guard slept * epochSeconds >= minCapturedSleepSeconds else { continue }
-            for e in lo..<hi { state[e] = asleep[e] ? 1 : 0 }
+            // Epochs not yet lived are unknown, not awake.
+            for e in lo..<hi where now.map({ origin + e * epochSeconds < $0 }) ?? true { state[e] = asleep[e] ? 1 : 0 }
         }
-        return Timeline(days: days, bounds: bounds, state: state)
+        return Timeline(days: days, origin: origin, bounds: bounds, state: state)
     }
 
     /// Agreement over epochs `lo..<hi` against the same epochs `lag` earlier: (same, known pairs).
@@ -148,12 +153,36 @@ public enum SleepRegularity {
         return (same, known)
     }
 
+    /// Agreement of day `j`'s window with the same local clock times `k` days earlier, so a clock change
+    /// between the two reads as no shift at all. Windows clear of a transition take the constant lag.
+    static func clockTimeAgreement(_ t: Timeline, day j: Int, priorDays k: Int,
+                                   timeZone: TimeZone) -> (same: Int, known: Int) {
+        let lag = k * epochsPerDay
+        func offsetAt(_ e: Int) -> Int {
+            timeZone.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(t.origin + e * epochSeconds)))
+        }
+        let lo = t.bounds[j], hi = t.bounds[j + 1]
+        let edge = offsetAt(lo)
+        if offsetAt(hi) == edge, offsetAt(max(0, lo - lag)) == edge, offsetAt(max(0, hi - lag)) == edge {
+            return agreement(t.state, lo, hi, lag: lag)
+        }
+        var same = 0, known = 0
+        for e in lo..<hi {
+            let prior = e - lag + (offsetAt(e) - offsetAt(max(0, e - lag))) / epochSeconds
+            guard prior >= 0, prior < t.state.count, t.state[e] >= 0, t.state[prior] >= 0 else { continue }
+            known += 1
+            if t.state[e] == t.state[prior] { same += 1 }
+        }
+        return (same, known)
+    }
+
     /// The 7-day SRI (−100…100) for every day in `days` that has one. `sessions` should cover the six days
     /// before the first requested day too; days without enough known pairs are absent.
-    public static func sri(days: [String], sessions: [Session], timeZone: TimeZone = .current) -> [String: Double] {
+    public static func sri(days: [String], sessions: [Session], timeZone: TimeZone = .current,
+                           now: Int? = nil) -> [String: Double] {
         guard let first = days.min(), let last = days.max(),
               let lead = dayKey(first, offset: -(windowDays - 1)),
-              let t = timeline(first: lead, last: last, sessions: sessions, timeZone: timeZone) else { return [:] }
+              let t = timeline(first: lead, last: last, sessions: sessions, timeZone: timeZone, now: now) else { return [:] }
         let wanted = Set(days)
         var out: [String: Double] = [:]
         for j in (windowDays - 1)..<t.days.count where wanted.contains(t.days[j]) {
@@ -168,16 +197,16 @@ public enum SleepRegularity {
     /// Rest's consistency credit (0…1) for every day in `days` that has one: tonight's window against
     /// each of the previous `restPriorDays` windows.
     public static func restConsistency(days: [String], sessions: [Session],
-                                       timeZone: TimeZone = .current) -> [String: Double] {
+                                       timeZone: TimeZone = .current, now: Int? = nil) -> [String: Double] {
         guard let first = days.min(), let last = days.max(),
               let lead = dayKey(first, offset: -restPriorDays),
-              let t = timeline(first: lead, last: last, sessions: sessions, timeZone: timeZone) else { return [:] }
+              let t = timeline(first: lead, last: last, sessions: sessions, timeZone: timeZone, now: now) else { return [:] }
         let wanted = Set(days)
         var out: [String: Double] = [:]
         for j in restPriorDays..<t.days.count where wanted.contains(t.days[j]) {
             var credits: [Double] = []
             for k in 1...restPriorDays {
-                let r = agreement(t.state, t.bounds[j], t.bounds[j + 1], lag: k * epochsPerDay)
+                let r = clockTimeAgreement(t, day: j, priorDays: k, timeZone: timeZone)
                 guard r.known * epochSeconds >= minRestPairSeconds else { continue }
                 credits.append(min(1, max(0, 2 * Double(r.same) / Double(r.known) - 1)))
             }
@@ -206,5 +235,64 @@ public enum SleepRegularity {
             return dayKeys.compactMap { d in importedPct[d].map { (day: d, pct: $0) } }
         }
         return sriByDay.keys.sorted().map { (day: $0, pct: consistencyPercent(sri: sriByDay[$0]!)) }
+    }
+}
+
+// MARK: - Sleep timing
+
+/// Sleep timing facts measured from recorded sessions: the honest replacement for the withdrawn
+/// body-clock offset (`CircadianEngine.PhaseEstimate`). Nothing here estimates an internal clock.
+public struct SleepTiming: Equatable, Sendable {
+    /// Median local bedtime and wake time of main sleeps.
+    public let usualBedHour: Double
+    public let usualWakeHour: Double
+    public let nights: Int
+    /// Median local midpoint of sleep before Saturday and Sunday wake-ups.
+    /// ponytail: weekends stand in for free days; there is no work-schedule data to do better.
+    public let freeDayMidsleepHour: Double?
+    /// The 7-day Sleep Regularity Index as a percentage, when it has enough data.
+    public let regularityPercent: Double?
+
+    public static let windowDays = 28
+    public static let minNights = 5
+    public static let minFreeDayNights = 2
+
+    /// nil below `minNights` main sleeps. A main sleep is the longest session ending on a local day, so
+    /// a nap can never stand in for a night.
+    public static func summarize(sessions: [(start: Int, end: Int)], timeZone: TimeZone, now: Int,
+                                 regularityPercent: Double?) -> SleepTiming? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        func date(_ ts: Int) -> Date { Date(timeIntervalSince1970: TimeInterval(ts)) }
+        func hour(_ ts: Int) -> Double {
+            let local = ts + timeZone.secondsFromGMT(for: date(ts))
+            return Double((local % 86_400 + 86_400) % 86_400) / 3_600
+        }
+        var mainByDay: [Date: (start: Int, end: Int)] = [:]
+        for s in sessions where s.end > s.start && s.end <= now && now - s.end < windowDays * 86_400 {
+            let day = calendar.startOfDay(for: date(s.end))
+            if let current = mainByDay[day], current.end - current.start >= s.end - s.start { continue }
+            mainByDay[day] = s
+        }
+        let mains = Array(mainByDay.values)
+        guard mains.count >= minNights else { return nil }
+
+        func median(_ v: [Double]) -> Double {
+            let sorted = v.sorted()
+            let mid = sorted.count / 2
+            return sorted.count % 2 == 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+        }
+        // Night hours straddle midnight, so they are compared on a noon-to-noon line.
+        func aroundNoon(_ h: Double) -> Double { h < 12 ? h + 24 : h }
+        func wrapped(_ h: Double) -> Double { h.truncatingRemainder(dividingBy: 24) }
+        func aroundMidnight(_ h: Double) -> Double { h >= 18 ? h - 24 : h }
+
+        let free = mains.filter { [1, 7].contains(calendar.component(.weekday, from: date($0.end))) }
+        let midsleeps = free.map { aroundNoon(hour($0.start + ($0.end - $0.start) / 2)) }
+        return SleepTiming(usualBedHour: wrapped(median(mains.map { aroundNoon(hour($0.start)) })),
+                           usualWakeHour: wrapped(median(mains.map { aroundMidnight(hour($0.end)) }) + 24),
+                           nights: mains.count,
+                           freeDayMidsleepHour: free.count >= minFreeDayNights ? wrapped(median(midsleeps)) : nil,
+                           regularityPercent: regularityPercent)
     }
 }

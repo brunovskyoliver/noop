@@ -280,7 +280,7 @@ private struct DoseResponseCardView: View {
                     .accessibilityLabel(curveAccessibilityLabel(r))
 
                 if r.priorDominated {
-                    honestyBanner(String(localized: "Based mostly on typical patterns, not yet yours. Log a few more \(card.unitLabel.lowercased()) days and this becomes yours."),
+                    honestyBanner(String(localized: "Population estimate, not your data. Answer the question on days with and without \(card.unitLabel.lowercased()) and this becomes yours."),
                         tone: .neutral)
                 } else if r.contradictsPrior {
                     honestyBanner(String(localized: "In your data so far, this doesn\u{2019}t move your \(card.outcomeName) the way it typically does."), tone: .positive)
@@ -347,7 +347,7 @@ private struct DoseResponseCardView: View {
                       alignment: .leading, spacing: NoopMetrics.gap) {
                 StatTile(label: "Per extra \(card.unitNoun)",
                          value: signed(r.perUnit, suffix: card.outcomeSuffix),
-                         caption: r.priorDominated ? String(localized: "typical") : String(localized: "your data"),
+                         caption: r.priorDominated ? String(localized: "population") : String(localized: "your data"),
                          accent: r.perUnit < 0 ? StrandPalette.statusCritical : StrandPalette.statusPositive)
                 StatTile(label: "Tomorrow\u{2019}s \(card.outcomeName)",
                          value: projected.map { "\(Int($0.rounded()))\(card.outcomeSuffix)" } ?? "—",
@@ -367,8 +367,8 @@ private struct DoseResponseCardView: View {
         let lower = delta <= 0
         if card.response.priorDominated {
             return lower
-                ? String(localized: "A \(stepLabel) tonight tends to line up with about \(magText) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on typical patterns.")
-                : String(localized: "A \(stepLabel) tonight tends to line up with about \(magText) higher on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on typical patterns.")
+                ? String(localized: "A \(stepLabel) tonight tends to line up with about \(magText) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()). Population estimate, not your data.")
+                : String(localized: "A \(stepLabel) tonight tends to line up with about \(magText) higher on tomorrow\u{2019}s \(card.outcomeName.lowercased()). Population estimate, not your data.")
         }
         return lower
             ? String(localized: "A \(stepLabel) tonight tends to line up with about \(magText) lower on tomorrow\u{2019}s \(card.outcomeName.lowercased()) for you, based on \(card.response.nUser) of your \(card.unitLabel.lowercased()) days.")
@@ -404,7 +404,7 @@ private struct DoseResponseCardView: View {
     /// Whole-string key per variant (never a concatenated localized tail on an a11y label).
     private func curveAccessibilityLabel(_ r: DoseResponse) -> String {
         r.priorDominated
-            ? String(localized: "Dose-response curve. Each extra \(card.unitNoun) lines up with about \(signed(r.perUnit, suffix: card.outcomeSuffix)) on \(card.outcomeName), typical patterns.")
+            ? String(localized: "Dose-response curve. Each extra \(card.unitNoun) lines up with about \(signed(r.perUnit, suffix: card.outcomeSuffix)) on \(card.outcomeName), population estimate.")
             : String(localized: "Dose-response curve. Each extra \(card.unitNoun) lines up with about \(signed(r.perUnit, suffix: card.outcomeSuffix)) on \(card.outcomeName), your own data.")
     }
 }

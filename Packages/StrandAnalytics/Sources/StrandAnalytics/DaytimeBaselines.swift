@@ -21,7 +21,7 @@ public extension DaytimeStress {
     // MARK: - Per-day daytime aggregate
 
     /// Percentile of a day's waking-hour mean HRs used as that day's daytime-HR aggregate: the 10th,
-    /// i.e. the CALM FLOOR ("how low does my HR run when I'm calm and awake"). VALIDATED — this is the
+    /// i.e. the CALM FLOOR ("how low does my HR run when I'm calm and awake"). Tuned against Oura on N=1 — this is the
     /// ~65 bpm pooled figure from the 26-day Oura-reference correlation behind
     /// `baselineRelativeHighMarginBPM`. It is intentionally the floor (not the median) because the HR
     /// term pairs it with a FIXED bpm margin (a large effective spread via `marginToSigma`), so anchoring
@@ -36,7 +36,7 @@ public extension DaytimeStress {
     /// suppression reads stressed. Anchoring at a calm-ceiling percentile (the direct mirror of HR's
     /// floor) would make an ordinary median hour sit ~1–2σ "below baseline" and stack a large false
     /// stress term on top of the HR term. TUNING SEAM: like every RMSSD figure in this mode, the median
-    /// choice is a first pass pending an HR+HRV validation pass (the validated study was HR-only).
+    /// choice is a first pass pending an HR+HRV validation pass (the N=1 tuning was HR-only).
     static let daytimeRMSSDAggregatePercentile: Double = 0.50
 
     /// One local day's waking HR + R-R streams, the input to the daytime-baseline fold. `hr`/`rr` carry
@@ -138,9 +138,8 @@ public extension DaytimeStress {
         var hrAggs: [Double?] = []
         var rmssdAggs: [Double?] = []
         // WHOOP compares against "your personalized baseline from the past 14 days". Only the last
-        // `StressMonitor.baselineWindowDays` days are folded, so the EWMA below is bounded to that window
-        // (weights ~1 → 0.5 across it at the 14-day half-life) instead of reaching back through every
-        // day a caller happened to read. Stress Monitor v2 (`StressMonitor.wakeReference`) takes the
+        // `StressMonitor.baselineWindowDays` days count, each with equal weight (the EWMA's young phase
+        // used to give the oldest 8 of the 14 about 74% of the weight). Stress Monitor v2 (`StressMonitor.wakeReference`) takes the
         // plain median of the same per-day aggregate over the same 14 days.
         let windowed = aggregates.suffix(StressMonitor.baselineWindowDays)
         hrAggs.reserveCapacity(windowed.count)
@@ -149,14 +148,14 @@ public extension DaytimeStress {
             hrAggs.append(agg.hr)
             rmssdAggs.append(agg.rmssd)
         }
-        let hrState = Baselines.foldHistory(hrAggs, cfg: Baselines.daytimeHRCfg)
-        let rmssdState = Baselines.foldHistory(rmssdAggs, cfg: Baselines.daytimeRMSSDCfg)
+        let hrState = Baselines.rollingMeanSD(hrAggs, cfg: Baselines.daytimeHRCfg, window: .max)
+        let rmssdState = Baselines.rollingMeanSD(rmssdAggs, cfg: Baselines.daytimeRMSSDCfg, window: .max)
         return (hrState, rmssdState.usable ? rmssdState : nil)
     }
 
     /// The scoring mode to hand `analyze` for TODAY, decided from the trailing daytime `history`:
     /// `.baselineRelative` once the personal HR baseline is `.usable` (≥ `Baselines.minNightsSeed` days
-    /// of real daytime HR aggregates — the Oura-style, validated-r≈0.6 path), else `.dayRelative` (the
+    /// of real daytime HR aggregates; the r≈0.6 against Oura was N=1), else `.dayRelative` (the
     /// unchanged default). This is the single graceful-degradation gate: a cold start, or a trailing
     /// window that is all sparse/imported days, keeps EXACTLY today's pre-existing day-relative behaviour.
     static func scoringMode(history days: [DaytimeDayStreams]) -> ScoringMode {

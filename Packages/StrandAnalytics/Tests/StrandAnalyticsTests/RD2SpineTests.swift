@@ -63,10 +63,10 @@ final class RD2SpineTests: XCTestCase {
     }
 
     func testGenuineLowStillFlagsAfterSpineAdoption() {
-        // Regression: the spine must not blunt a real drop. Stable ~95 ms baseline, today a clear 68 ms.
+        // Regression: the fold must not blunt a real drop. Stable ~95 ms baseline, then a clear week at 68 ms.
         var days: [DailyMetric] = []
-        for i in 1...30 { days.append(d(i, hrv: i % 2 == 0 ? 97 : 93, rhr: 52)) }
-        days.append(d(31, hrv: 68, rhr: 52))
+        for i in 1...24 { days.append(d(i, hrv: i % 2 == 0 ? 97 : 93, rhr: 52)) }
+        for i in 25...31 { days.append(d(i, hrv: 68, rhr: 52)) }
         let hrv = ReadinessEngine.evaluate(days: days).signals.first { $0.key == "hrv" }
         XCTAssertEqual(hrv?.flag, .bad, "a genuine ~28% HRV drop must still read BAD")
     }

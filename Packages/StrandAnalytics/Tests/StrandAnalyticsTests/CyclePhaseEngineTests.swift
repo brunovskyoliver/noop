@@ -177,4 +177,92 @@ final class CyclePhaseEngineTests: XCTestCase {
         // No signal → nil.
         XCTAssertNil(CyclePhaseEngine.fusedIndex(tempZ: nil, rhrZ: nil, hrvZ: nil))
     }
+
+    // MARK: - Assembly seam (a live deviation must reach classify)
+
+    private func rows(_ n: Int, _ value: (Int) -> Double?) -> [CyclePhaseEngine.DayRow] {
+        (0..<n).map { i in
+            .init(day: CyclePhaseEngine.shiftDay("2026-01-01", by: i)!, skinTempDevC: value(i), restingHr: nil, hrv: nil)
+        }
+    }
+
+    func testLiveDeviationsMakeTheBaselineUsable() {
+        let a = CyclePhaseEngine.assemble(rows(60) { i in Double(i % 11) / 10 - 0.5 })
+        XCTAssertTrue(a.baselineUsable)
+        XCTAssertEqual(a.nights.compactMap(\.tempZ).count, 60)
+        XCTAssertNotEqual(CyclePhaseEngine.classify(a.nights, baselineUsable: a.baselineUsable).phase, .learning)
+    }
+
+    func testImportedAndLiveRowsAreScoredOnTheirOwnScales() {
+        let a = CyclePhaseEngine.assemble(rows(60) { i in i < 30 ? 33 + Double(i % 5) / 10 : Double(i % 5) / 10 - 0.2 })
+        for z in a.nights.compactMap(\.tempZ) { XCTAssertLessThan(abs(z), 5) }
+    }
+
+    // MARK: - Noise and debouncing
+
+    /// Small deterministic generator, so the noise numbers do not change between runs.
+    private struct LCG { var s: UInt64
+        mutating func uniform() -> Double {
+            s = s &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return Double(s >> 11) / Double(1 << 53)
+        }
+        mutating func gauss() -> Double {
+            (-2 * log(max(uniform(), 1e-12))).squareRoot() * cos(2 * .pi * uniform())
+        }
+    }
+
+    private func noisy(_ n: Int, seed: UInt64, luteal: (Int) -> Double = { _ in 0 }) -> [CyclePhaseEngine.Night] {
+        var g = LCG(s: seed)
+        return (0..<n).map { i in
+            .init(day: CyclePhaseEngine.shiftDay("2026-01-01", by: i)!, tempZ: g.gauss() + luteal(i), rhrZ: nil, hrvZ: nil)
+        }
+    }
+
+    func testNoiseRarelyNamesAPhase() {
+        var named = 0
+        for seed in 1...500 where CyclePhaseEngine.classify(noisy(180, seed: UInt64(seed)), baselineUsable: true).phase != .unknown {
+            named += 1
+        }
+        XCTAssertLessThan(named, 25, "noise named a phase in \(named)/500 series")
+    }
+
+    func testAOneNightWobbleIsNotAShift() {
+        var nights = biphasic(cycles: 3)
+        nights[5] = .init(day: nights[5].day, tempZ: 3, rhrZ: 1, hrvZ: -1)
+        XCTAssertEqual(CyclePhaseEngine.classify(nights, baselineUsable: true).shiftMarkers.count, 3)
+    }
+
+    func testMissingNightDoesNotCreateAnOnset() {
+        let full = biphasic(cycles: 3)
+        var gapped = full
+        let n = gapped[20]   // inside a luteal run
+        gapped[20] = .init(day: n.day, tempZ: nil, rhrZ: nil, hrvZ: nil)
+        XCTAssertEqual(CyclePhaseEngine.classify(gapped, baselineUsable: true).shiftMarkers,
+                       CyclePhaseEngine.classify(full, baselineUsable: true).shiftMarkers)
+    }
+
+    func testIrregularCadenceIsUnknown() {
+        // Three strong shifts 15 and 37 days apart: spread far beyond a regular cycle.
+        var nights: [CyclePhaseEngine.Night] = []
+        let onsets = [10, 25, 62]
+        for i in 0..<80 {
+            let hot = onsets.contains { i >= $0 && i < $0 + 8 }
+            nights.append(.init(day: CyclePhaseEngine.shiftDay("2026-01-01", by: i)!, tempZ: hot ? 2 : 0, rhrZ: nil, hrvZ: nil))
+        }
+        XCTAssertEqual(CyclePhaseEngine.classify(nights, baselineUsable: true).phase, .unknown)
+    }
+
+    func testYoungShiftIsReportedAroundTheTurnNotLuteal() {
+        let r = CyclePhaseEngine.classify(Array(biphasic(cycles: 4).dropLast(9)), baselineUsable: true)
+        XCTAssertEqual(r.phase, .periOvulatory)
+    }
+
+    func testOneShiftNeedsALoggedPeriod() {
+        let nights = Array(biphasic(cycles: 2).dropFirst(14))   // one confirmed shift inside this slice
+        var last = Array(nights.prefix(28))
+        let tail = (0..<16).map { CyclePhaseEngine.Night(day: CyclePhaseEngine.shiftDay(last.last!.day, by: $0 + 1)!,
+                                                          tempZ: -0.2, rhrZ: -0.1, hrvZ: 0.1) }
+        last += tail
+        XCTAssertEqual(CyclePhaseEngine.classify(last, baselineUsable: true).phase, .unknown)
+    }
 }

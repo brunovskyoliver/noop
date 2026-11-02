@@ -203,14 +203,14 @@ final class DaytimeBaselinesTests: XCTestCase {
     }
 
     func testFoldedBaselineCalmDayAtThePersonalFloorReadsNeutralNotHigh() {
-        // TODAY sits exactly at the personal 65 floor all day → each hour reads ~1.5 (neutral), never
+        // TODAY sits exactly at the personal 65 floor all day → each hour reads ~1.0 (the floor's anchor), never
         // high. Guards the calm end of the scale end-to-end through the fold.
         let history = (0..<20).map { DaytimeStress.DaytimeDayStreams(hr: flatDayHR($0, bpm: 65), rr: [],
                                                                      tzOffsetSeconds: 0) }
         let mode = DaytimeStress.scoringMode(history: history)
         let r = DaytimeStress.analyze(hr: flatDayHR(0, bpm: 65), rr: [], tzOffsetSeconds: 0, mode: mode)
         XCTAssertEqual(r.highStressMinutes, 0)
-        for p in r.scored { XCTAssertEqual(p.level!, 1.5, accuracy: 0.05) }
+        for p in r.scored { XCTAssertEqual(p.level!, 1.0, accuracy: 0.05) }
     }
 
     func testMedianRMSSDBaselineKeepsANormalHourNeutralNoStacking() {

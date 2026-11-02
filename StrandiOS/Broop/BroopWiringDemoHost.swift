@@ -63,10 +63,8 @@ struct BroopWiringDemoHost: View {
                 let nudge = clock(Double(AlarmRules.minuteOfDay(model.windDownTonight().fireDate)) / 60)
                 let cut = clock(Double(CaffeineDecay.cutoffMinutesSinceMidnight(bedtimeMinutes: plan.target.bedMinute)) / 60)
                 var values = "Shared plan: \(bed)–\(wake)\nWind-down reminder: \(nudge)\nCaffeine cutoff: \(cut)\n"
-                if let phase = model.circadianPhase, phase.confidence != .unreadable,
-                   let window = CircadianEngine.idealSleepWindow(tempMinHour: phase.tempMinHour,
-                                                                 durationHours: (store.snapshot?.night.map { Double($0.session.endTs - $0.session.effectiveStartTs) / 3600 } ?? 0)) {
-                    values += "Body-clock reference: \(clock(window.bedHour))–\(clock(window.wakeHour))"
+                if let timing = model.sleepTiming {
+                    values += "Usual sleep: \(clock(timing.usualBedHour))–\(clock(timing.usualWakeHour))"
                 }
                 // The planner's base need beside the need the engine scores Rest with (same estimator, same
                 // age; the engine learns from per-session asleep time over the full history).
@@ -78,7 +76,7 @@ struct BroopWiringDemoHost: View {
                         store: wstore, importedId: repo.deviceId, computedId: repo.deviceId + "-noop",
                         windowStart: mid - 4000 * 86_400 - StreamReadCap.lookbackSeconds, windowEnd: now,
                         finishedBefore: mid, offsetSec: tz)
-                    let engineNeed = AnalyticsEngine.Rest.personalizedNeedHours(nightlyHours: nightly, age: model.profile.age) * 60
+                    let engineNeed = SleepNeedResolver.publish(nightlyHours: nightly, age: model.profile.age) * 60
                     values += "\nNeed: planner \(Int(plan.baseNeedMin.rounded())) min, Rest engine \(Int(engineNeed.rounded())) min (age \(model.profile.age), \(nightly.count) nights)"
                 }
                 bedtimeValues = values

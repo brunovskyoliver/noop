@@ -66,10 +66,8 @@ public enum CircadianEngine {
     public static let acrophaseAfterCbtMinHours: Double = 12.0
     /// Population-typical wake hour, used ONLY to place the chronotype reference point.
     ///
-    /// `offsetVsScheduleMinutes` compares the clock to the USER'S OWN schedule, so it cannot name a
-    /// chronotype: someone reliably asleep 03:00-11:00 has an offset near zero and would read
-    /// "intermediate" while being strongly evening-type. A named lean needs an ABSOLUTE phase, so it is
-    /// bucketed from `tempMinHour` against a population reference instead.
+    /// A named lean needs an ABSOLUTE phase, so it is bucketed from `tempMinHour` against a population
+    /// reference. It inherits every limit of that estimate; see `PhaseEstimate`.
     public static let chronotypeReferenceWakeHour: Double = 7.0
     /// Half-width of the "intermediate" band around the reference CBTmin, in hours.
     ///
@@ -177,35 +175,52 @@ public enum CircadianEngine {
         case solid          // a stable fit over enough days
     }
 
+    ///
+    /// Pooled 24 h heart rate is dominated by sleep masking, so the fitted phase sits close to midsleep and
+    /// moves with workouts. An offset from wake−2.5 h came out as 2.5 − duration/2: an 8 h sleeper read as a
+    /// morning lark on any schedule. That offset is withdrawn. The iPhone app shows `SleepTiming` instead.
     public struct PhaseEstimate: Equatable, Sendable {
         /// Estimated clock hour of the body-clock temperature minimum, in [0, 24).
         public let tempMinHour: Double
         /// Estimated activity acrophase (peak activity clock hour).
         public let acrophaseHours: Double
-        /// Signed minutes the body clock leads (−) or lags (+) the user's own sleep schedule. Positive =
-        /// the clock is LATER than the schedule implies (a "night-owl lean").
-        public let offsetVsScheduleMinutes: Double
         public let confidence: PhaseConfidence
         public let note: String
-        public init(tempMinHour: Double, acrophaseHours: Double, offsetVsScheduleMinutes: Double,
+        public init(tempMinHour: Double, acrophaseHours: Double,
                     confidence: PhaseConfidence, note: String) {
             self.tempMinHour = tempMinHour; self.acrophaseHours = acrophaseHours
-            self.offsetVsScheduleMinutes = offsetVsScheduleMinutes
             self.confidence = confidence; self.note = note
         }
     }
 
-    /// Estimate the body-clock phase from a pooled activity profile and the user's habitual wake time.
+    /// Pool hourly heart-rate buckets into local clock bins. Each bucket uses its own UTC offset, so a
+    /// window crossing a DST change keeps its hours, and a bin for [h, h+1) sits at its centre h+0.5.
+    public static func pooledBins(buckets: [(ts: Int, bpm: Double)],
+                                  timeZone: TimeZone) -> (bins: [ActivityBin], daysObserved: Int) {
+        var sums = [Double](repeating: 0, count: 24)
+        var counts = [Int](repeating: 0, count: 24)
+        var days = Set<Int>()
+        for b in buckets {
+            let local = b.ts + timeZone.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(b.ts)))
+            let hour = (local % 86_400 + 86_400) % 86_400 / 3_600
+            sums[hour] += b.bpm; counts[hour] += 1
+            days.insert(Int((Double(local) / 86_400).rounded(.down)))
+        }
+        let bins = (0..<24).compactMap { h in
+            counts[h] > 0 ? ActivityBin(hour: Double(h) + 0.5, activity: sums[h] / Double(counts[h])) : nil
+        }
+        return (bins, days.count)
+    }
+
+    /// Estimate the body-clock phase from a pooled activity profile.
     ///
     /// - Parameters:
     ///   - bins: pooled per-hour activity over the trailing window.
     ///   - daysObserved: distinct days backing the profile (drives confidence).
-    ///   - habitualWakeHour: the user's typical wake clock hour (for the schedule-offset comparison).
     ///   - observedTempMinHour: optional measured nightly temp-minimum clock hour; when present it
     ///     corroborates / overrides the activity-derived estimate (the pillar's own signal).
     public static func estimatePhase(bins: [ActivityBin],
                                      daysObserved: Int,
-                                     habitualWakeHour: Double,
                                      observedTempMinHour: Double? = nil) -> PhaseEstimate? {
         guard let fit = cosinor(bins) else { return nil }
 
@@ -217,19 +232,13 @@ public enum CircadianEngine {
             // A reading is returned, but flagged unreadable so the surface says "hard to read right now."
             let tmin = observedTempMinHour ?? wrap24(fit.acrophaseHours - acrophaseAfterCbtMinHours)
             return PhaseEstimate(tempMinHour: tmin, acrophaseHours: fit.acrophaseHours,
-                                 offsetVsScheduleMinutes: 0, confidence: .unreadable,
+                                 confidence: .unreadable,
                                  note: "Your rhythm is hard to read right now - keep wearing it for a clearer picture.")
         }
 
         // Activity-derived temp-minimum ≈ acrophase − ~12 h (activity peaks roughly half a day after CBTmin).
         let derivedTempMin = wrap24(fit.acrophaseHours - acrophaseAfterCbtMinHours)
         let tempMinHour = observedTempMinHour ?? derivedTempMin
-
-        // A perfectly entrained clock has CBTmin ~cbtMinBeforeWakeHours before wake. The offset is how far
-        // the ESTIMATED temp-minimum sits from that ideal, in minutes (signed; + = clock later than schedule).
-        let idealTempMin = wrap24(habitualWakeHour - cbtMinBeforeWakeHours)
-        let offsetHours = signedHourDelta(from: idealTempMin, to: tempMinHour)
-        let offsetMinutes = offsetHours * 60.0
 
         // SOLID means strong on BOTH axes, not just enough days. A rhythm admitted by
         // `minAbsoluteAmplitudeBpm` alone is real but modest, and a smaller swing pins its acrophase less
@@ -238,14 +247,10 @@ public enum CircadianEngine {
         // people a body clock, not give a thinner fit a firmer label.
         let confidence: PhaseConfidence =
             (daysObserved >= goodDaysForFit && relativeAmplitude >= minRelativeAmplitude) ? .solid : .wide
-        let lean: String
-        if offsetMinutes > 20 { lean = "later (a night-owl lean)" }
-        else if offsetMinutes < -20 { lean = "earlier (a morning-lark lean)" }
-        else { lean = "well-aligned with your schedule" }
-        let note = "Your body clock looks \(lean)."
+        let note = "An estimate from your heart-rate rhythm, which mostly follows when you sleep."
 
         return PhaseEstimate(tempMinHour: tempMinHour, acrophaseHours: fit.acrophaseHours,
-                             offsetVsScheduleMinutes: offsetMinutes, confidence: confidence, note: note)
+                             confidence: confidence, note: note)
     }
 
     // MARK: - Jet-lag / shift planner
@@ -363,12 +368,8 @@ public enum CircadianEngine {
 
     /// A coarse, ABSOLUTE body-clock category: where the temperature minimum sits on the clock.
     ///
-    /// NOT the "chronotype lean" wording used elsewhere. `estimatePhase` builds a `lean` string from
-    /// `offsetVsScheduleMinutes` ("a night-owl lean"), and the v5 skin-temp design spec defines chronotype
-    /// lean as "earlier/later than your sleep schedule implies" — both RELATIVE to the wearer's own
-    /// schedule. This is relative to the CLOCK, and the two genuinely disagree: a consistent 03:00-11:00
-    /// sleeper is well-aligned by the relative read and `.evening` by this one. Keep the vocabularies
-    /// disjoint in anything user-facing, or the two readings look like a contradiction (#1409).
+    /// Only the classic macOS dial still reads this; the iPhone app withdrew it with the offset (see
+    /// `PhaseEstimate`).
     ///
     /// Three buckets, not a score: the underlying phase estimate is an activity fit, and a finer grain
     /// would imply precision it does not have.
@@ -407,11 +408,8 @@ public enum CircadianEngine {
 
     /// Signed hours the ACTUAL sleep window sits later (+) or earlier (−) than the chronotype-ideal one.
     ///
-    /// Deliberately NOT `offsetVsScheduleMinutes`. That field compares the body clock to the wearer's own
-    /// SCHEDULE; this compares the night actually slept to where the CLOCK wanted it. A dial that draws an
-    /// actual arc against an ideal arc must caption itself with the distance between those two arcs, or
-    /// the number contradicts the picture — the two disagree exactly when someone keeps a consistent
-    /// schedule that does not suit their clock, which is the case the dial exists to show.
+    /// A dial that draws an actual arc against an ideal arc must caption itself with the distance
+    /// between those two arcs, or the number contradicts the picture.
     ///
     /// Anchored on wake rather than bedtime because `idealSleepWindow` builds the ideal window from the
     /// wake end; comparing bedtimes would fold the night's DURATION into a phase reading.

@@ -1771,7 +1771,7 @@ struct LiquidTodayView: View {
             if let k = r.activeKcal { winImportedKcal[r.day] = max(winImportedKcal[r.day] ?? 0, k) }
         }
         var winOnDeviceKcal: [String: Double] = [:]
-        for r in sparkRows { if let k = r.activeKcalEst { winOnDeviceKcal[r.day] = k } }
+        for r in sparkRows { if let k = r.totalKcalEst { winOnDeviceKcal[r.day] = k } }
         let energyKcalSpark: [(String, Double)] = Set(winImportedKcal.keys).union(winOnDeviceKcal.keys).sorted()
             .compactMap { day in (winImportedKcal[day] ?? winOnDeviceKcal[day]).map { (day, $0) } }
         kSparks = [
@@ -1881,10 +1881,7 @@ struct LiquidTodayView: View {
 
         // #2040: and today's stress, on the same "only when hosted" rule.
         if HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(.stressToday) {
-            let result = await StressDayCurve.today(
-                repo: repo,
-                personalBaseline: PuffinExperiment.stressPersonalBaselineEnabled
-            )?.result
+            let result = await StressDayCurve.today(repo: repo)?.result
             hostedStressHours = result?.timeline ?? []
             hostedStressActivityMaskedHours = result?.activityMaskedHours ?? 0
         } else {
@@ -1999,12 +1996,12 @@ struct LiquidTodayView: View {
     // surfaces already showed — else NOOP's on-device HR estimate `activeKcalEst`) — one number across the
     // tile, card and the detail it taps to. Mirrors the steps precedence above.
     private var caloriesCount: Double? {
-        importedActiveKcalDay ?? displayDay?.activeKcalEst
+        importedActiveKcalDay ?? displayDay?.totalKcalEst
     }
 
     private var caloriesDetailMetric: MetricDescriptor? {
         MetricCatalog.todayCaloriesMetric(hasImportedKcal: importedActiveKcalDay != nil,
-                                          hasOnDeviceKcal: displayDay?.activeKcalEst != nil)
+                                          hasOnDeviceKcal: displayDay?.totalKcalEst != nil)
     }
 
     private var caloriesDetailKey: String { caloriesDetailMetric?.key ?? "energy_kcal" }

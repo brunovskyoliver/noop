@@ -234,11 +234,8 @@ struct WorkoutsView: View {
             // 13-week active-calorie heatmap: pull ~100 days of daily metrics and map day → active kcal.
             // Loaded AFTER `loaded`/range are set so the secondary heatmap never delays the list's first
             // paint — the card is hidden until this populates, then appears in place.
-            let toDay = todayDayString()
-            let fromDate = Calendar.current.date(byAdding: .day, value: -100, to: Date()) ?? Date()
-            let metrics = await repo.dailyMetrics(fromDay: Self.dayFormatter.string(from: fromDate), toDay: toDay)
-            dailyKcal = Dictionary(metrics.compactMap { m in m.activeKcalEst.map { (m.day, $0) } },
-                                   uniquingKeysWith: max)
+            let active = await repo.exploreSeries(key: "active_kcal", source: "my-whoop", days: 100)
+            dailyKcal = Dictionary(active.map { ($0.day, $0.value) }, uniquingKeysWith: max)
         }
         .onAppear {
             // Preview-seeded rows skip `.task`; still choose a range that has data.

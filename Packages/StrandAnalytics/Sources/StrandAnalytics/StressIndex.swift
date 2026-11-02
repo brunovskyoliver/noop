@@ -18,17 +18,20 @@ import WhoopProtocol
 //
 // A high SI means a tall, narrow, low-range histogram = a rigid rhythm = high sympathetic stress; a low SI
 // means a broad, flat, wide-range histogram = a flexible rhythm = relaxed. The units follow the classic
-// convention: R-R in SECONDS and Mo/MxDMn in seconds, AMo as a percentage (0–100), so SI is dimensionless.
+// convention: R-R in SECONDS and Mo/MxDMn in seconds, AMo as a percentage (0–100). SI therefore carries units (percent per second squared); it is
+// comparable only with values computed the same way, not a dimensionless ratio.
 //
 // APPROXIMATE, non-clinical. Returned as a plain optional number for the UI lane to band/label later.
 
 public enum StressIndex {
 
     /// Histogram bin width in SECONDS. Baevsky's method canonically bins R-R at 50 ms (0.05 s), the width
-    /// used in cardiointervalography, so the mode and its amplitude are computed on the standard grid.
+    /// used in cardiointervalography, so the mode and its amplitude use that width. Bins anchor at the
+    /// window's shortest interval, not at a fixed multiple of 50 ms, so the values are not on a shared grid.
     public static let binWidthSec: Double = 0.05
 
     /// Minimum clean intervals before an SI is computed (the histogram needs enough beats to have a mode).
+    /// Short of the roughly 5-minute recording the method normally uses, so a low-beat SI is rough.
     public static let minBeats: Int = 20
 
     /// The intermediate histogram terms, exposed so the UI / a test can show the "why" behind an SI.

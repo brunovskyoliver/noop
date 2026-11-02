@@ -2,22 +2,21 @@
 import SwiftUI
 import StrandAnalytics
 
-/// The Body Clock card on the Broop sleep screen: last night's window against the window the body clock
-/// wanted, on one thin 24-hour dial (midnight at the top), in the flat Broop dial style.
+/// The Sleep timing card on the Broop sleep screen: last night's window against the wearer's usual one, on
+/// one thin 24-hour dial (midnight at the top), in the flat Broop dial style. Both are measured from
+/// recorded sessions; this used to compare against a "body clock" fitted from heart rate, which tracked sleep
+/// timing itself (`CircadianEngine.PhaseEstimate`).
 ///
-/// Reads `AppModel.circadianPhase` in this leaf only, so the model's once-a-second republish re-renders the
-/// dial and not the sleep screen (the `BodyClockDialSection` rule). The window, the offset and the
-/// chronotype come from `CircadianEngine`; the caption and chronotype words from `BodyClockDialCard`'s static
-/// helpers, so the and Broop dials state the same comparison. Hidden for an unreadable fit, and
-/// when the engine has no ideal window for the night (a non-positive or full-day length).
+/// Reads `AppModel.sleepTiming` in this leaf only, so the model's once-a-second republish re-renders the
+/// dial and not the sleep screen (the `BodyClockDialSection` rule). Hidden until there are enough nights.
 struct BroopFinalABodyClockSection: View {
     @EnvironmentObject private var appModel: AppModel
     let actualBedHour: Double
     let actualWakeHour: Double
 
     var body: some View {
-        if let phase = appModel.circadianPhase, phase.confidence != .unreadable {
-            BroopFinalABodyClockCard(estimate: phase, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour,
+        if let timing = appModel.sleepTiming {
+            BroopFinalABodyClockCard(timing: timing, actualBedHour: actualBedHour, actualWakeHour: actualWakeHour,
                                      tonightPlan: appModel.tonightPlan)
                 .task { if appModel.tonightPlan == nil { await appModel.refreshTonightPlan() } }
         }
@@ -25,45 +24,29 @@ struct BroopFinalABodyClockSection: View {
 }
 
 struct BroopFinalABodyClockCard: View {
-    let estimate: CircadianEngine.PhaseEstimate
+    let timing: SleepTiming
     let actualBedHour: Double
     let actualWakeHour: Double
     /// Tonight's published plan: shown as its own row, since the dial is last night's comparison.
     var tonightPlan: SleepPlanner.Plan? = nil
 
-    private var durationHours: Double {
-        let d = (actualWakeHour - actualBedHour).truncatingRemainder(dividingBy: 24)
-        return d <= 0 ? d + 24 : d
-    }
-
-    private var ideal: (bedHour: Double, wakeHour: Double)? {
-        CircadianEngine.idealSleepWindow(tempMinHour: estimate.tempMinHour, durationHours: durationHours)
-    }
-
-    private var offsetHours: Double {
-        CircadianEngine.sleepWindowOffsetHours(tempMinHour: estimate.tempMinHour, actualWakeHour: actualWakeHour)
-    }
-
     var body: some View {
-        if let ideal {
             VStack(alignment: .leading, spacing: 14) {
-                BroopOverviewSectionTitle(title: String(localized: "Body Clock"),
-                                          subtitle: Text("Last night vs your body clock").foregroundColor(BroopPalette.textSecondary)) {
-                    if let chronotype = CircadianEngine.chronotype(estimate) {
-                        BroopFinalAChip(text: BodyClockDialCard.chronotypeLabel(chronotype), tint: BroopPalette.textBody)
-                    }
+                BroopOverviewSectionTitle(title: String(localized: "Sleep timing"),
+                                          subtitle: Text("Last night vs your usual").foregroundColor(BroopPalette.textSecondary)) {
+                    EmptyView()
                 }
                 BroopOverviewCard {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .center, spacing: 18) {
                             BroopFinalAClockDial(bedHour: actualBedHour, wakeHour: actualWakeHour,
-                                                 idealBed: ideal.bedHour, idealWake: ideal.wakeHour)
+                                                 idealBed: timing.usualBedHour, idealWake: timing.usualWakeHour)
                                 .frame(width: 150, height: 150)
                                 .accessibilityElement(children: .ignore)
-                                .accessibilityLabel(Text("Body clock dial"))
+                                .accessibilityLabel(Text("Sleep timing dial"))
                             VStack(alignment: .leading, spacing: 14) {
                                 window(label: String(localized: "Last night"), from: actualBedHour, to: actualWakeHour, dashed: false)
-                                window(label: String(localized: "Your clock, last night"), from: ideal.bedHour, to: ideal.wakeHour, dashed: true)
+                                window(label: String(localized: "Your usual"), from: timing.usualBedHour, to: timing.usualWakeHour, dashed: true)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -72,16 +55,10 @@ struct BroopFinalABodyClockCard: View {
                         }
                         .buttonStyle(BroopPressableStyle())
                         BroopHairline()
-                        Text(verbatim: BodyClockDialCard.alignmentText(offsetHours: offsetHours))
-                            .font(BroopType.demi(17))
-                            .foregroundStyle(BroopPalette.textPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        BroopHairline()
                         tonightRow
                     }
                 }
             }
-        }
     }
 
     /// Tonight's bedtime from the planner, formatted as the Sleep planner card formats it.
@@ -100,12 +77,18 @@ struct BroopFinalABodyClockCard: View {
                         .foregroundStyle(BroopPalette.textSecondary)
                 }
             }
-            Text(verbatim: BodyClockDialCard.retrospectiveNote(tonightPlan))
+            Text(verbatim: note)
                 .font(BroopType.regular(12.5))
                 .foregroundStyle(BroopPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var note: String {
+        let base = String(localized: "The dashed arc is your usual sleep over the last 4 weeks. Tonight's bedtime comes from the sleep planner.")
+        guard let plan = tonightPlan, !plan.target.reachable else { return base }
+        return base + " " + TonightPlanCard.unreachableNote
     }
 
     private func window(label: String, from: Double, to: Double, dashed: Bool) -> some View {
@@ -152,7 +135,7 @@ private struct BroopFinalALegendStroke: View {
     }
 }
 
-/// Thin 24-hour dial: a flat track with last night's arc, the clock's window as a dashed outer arc, ticks
+/// Thin 24-hour dial: a flat track with last night's arc, the reference window as a dashed outer arc, ticks
 /// every six hours (midnight longer) with 00 / 06 / 12 / 18, and a small bed at sleep onset. Each band has
 /// its own radius so the dashes never run into the ticks.
 struct BroopFinalAClockDial: View {
@@ -187,7 +170,7 @@ struct BroopFinalAClockDial: View {
                 numeral.shading = .color(BroopPalette.textSecondary)
                 ctx.draw(numeral, at: CGPoint(x: c.x + cos(a) * label, y: c.y + sin(a) * label), anchor: .center)
             }
-            // The clock's window, dashed; last night, solid.
+            // The reference window, dashed; last night, solid.
             arc(ctx, c, reference, idealBed, idealWake, BroopPalette.textSecondary, 3, dashed: true)
             arc(ctx, c, night, bedHour, wakeHour, BroopPalette.rest, 6, dashed: false)
             // Bed at onset, inside the night arc.

@@ -16,6 +16,8 @@ final class BroopInsightsImpactModel: ObservableObject {
         let title: String
         let blurb: String
         let corr: Correlation
+        /// Charge is calculated from this input, so the correlation is true by construction.
+        var coupled = false
     }
 
     @Published private(set) var loaded = false
@@ -89,15 +91,15 @@ final class BroopInsightsImpactModel: ObservableObject {
         var out: [Relationship] = []
         if let c = CorrelationEngine.pearson(CorrelationEngine.alignByDay(series("sleep_performance"), series("recovery"))) {
             out.append(.init(id: "sleep-rec", title: String(localized: "Rest ↔ Charge"),
-                             blurb: String(localized: "How closely a good night tracks next-morning charge."), corr: c))
+                             blurb: String(localized: "How closely a good night tracks next-morning charge."), corr: c, coupled: true))
         }
         if let c = CorrelationEngine.pearson(CorrelationEngine.alignByDay(series("hrv"), series("recovery"))) {
             out.append(.init(id: "hrv-rec", title: String(localized: "HRV ↔ Charge"),
-                             blurb: String(localized: "Heart-rate variability as the engine behind your charge score."), corr: c))
+                             blurb: String(localized: "Heart-rate variability as the engine behind your charge score."), corr: c, coupled: true))
         }
         if let c = CorrelationEngine.pearson(CorrelationEngine.alignByDay(series("rhr"), series("recovery"))) {
             out.append(.init(id: "rhr-rec", title: String(localized: "Resting HR ↔ Charge"),
-                             blurb: String(localized: "A lower resting heart rate usually means a higher charge."), corr: c))
+                             blurb: String(localized: "A lower resting heart rate usually means a higher charge."), corr: c, coupled: true))
         }
         if let c = CorrelationEngine.lagged(x: series("recovery"), y: series("recovery"), lagDays: 1) {
             out.append(.init(id: "rec-lag", title: String(localized: "Charge → Next-day charge"),

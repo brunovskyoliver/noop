@@ -15,10 +15,13 @@ import Foundation
 //   - pApprox : a two-sided p-value from Welch's t-test (unequal variances),
 //       t  = (m1 − m2) / sqrt(s1²/n1 + s2²/n2),
 //       df = (s1²/n1 + s2²/n2)² / ( (s1²/n1)²/(n1−1) + (s2²/n2)²/(n2−1) )  [Welch–Satterthwaite],
-//     converted to a tail probability with a normal approximation (deterministic,
-//     no special-function tables; slightly understates p for small samples).
-//   - significant : pApprox < 0.05 AND min(nWith, nWithout) ≥ 5 (guards against
-//     spurious "significance" from a handful of days).
+//     converted to a tail probability with the Student-t distribution on df.
+//   - deltaLow / deltaHigh : the 95% Welch interval on delta.
+//   - significant : p < 0.05 AND min(nWith, nWithout) ≥ 5 (guards against spurious
+//     "significance" from a handful of days). `rank` replaces p with its
+//     Benjamini-Hochberg adjustment across the behaviours it compared, so the flag holds
+//     for the family on screen rather than for each row alone. Days are assumed
+//     independent; neither step corrects for serial correlation.
 //
 // Effect direction is carried by the SIGN of delta / cohensD: a behavior that
 // lowers the outcome yields negative values. `rank` orders behaviors by |cohensD|
@@ -46,14 +49,19 @@ public struct BehaviorEffect: Equatable, Sendable {
     public let nWithout: Int
     /// Cohen's d using the pooled SD (signed; sign matches delta).
     public let cohensD: Double
-    /// Two-sided p-value (Welch t-test, normal approximation).
+    /// Two-sided p-value (Welch t-test, Student-t tail). From `rank`, this is the
+    /// Benjamini-Hochberg adjusted value, the one `significant` was decided on.
     public let pApprox: Double
     /// pApprox < 0.05 AND min(nWith, nWithout) ≥ 5.
     public let significant: Bool
+    /// 95% Welch interval on `delta`; nil when a group has no spread to estimate it from.
+    public let deltaLow: Double?
+    public let deltaHigh: Double?
 
     public init(behavior: String, outcome: String, meanWith: Double, meanWithout: Double,
                 delta: Double, pctChange: Double?, nWith: Int, nWithout: Int,
-                cohensD: Double, pApprox: Double, significant: Bool) {
+                cohensD: Double, pApprox: Double, significant: Bool,
+                deltaLow: Double? = nil, deltaHigh: Double? = nil) {
         self.behavior = behavior
         self.outcome = outcome
         self.meanWith = meanWith
@@ -65,6 +73,8 @@ public struct BehaviorEffect: Equatable, Sendable {
         self.cohensD = cohensD
         self.pApprox = pApprox
         self.significant = significant
+        self.deltaLow = deltaLow
+        self.deltaHigh = deltaHigh
     }
 }
 
@@ -72,7 +82,7 @@ public enum BehaviorInsights {
 
     /// Minimum group size (each side) for an effect to be flagged significant.
     public static let minGroupForSignificance: Int = 5
-    /// Significance threshold on the approximate p-value.
+    /// Significance threshold on the p-value.
     public static let alpha: Double = 0.05
 
     // MARK: - Single behavior effect
@@ -129,11 +139,13 @@ public enum BehaviorInsights {
         let p = welchP(m1: m1, v1: v1, n1: n1, m2: m2, v2: v2, n2: n2)
 
         let sig = p < alpha && Swift.min(n1, n2) >= minGroupForSignificance
+        let half = welchHalfInterval(v1: v1, n1: n1, v2: v2, n2: n2)
 
         return BehaviorEffect(behavior: behavior, outcome: outcome,
                               meanWith: m1, meanWithout: m2, delta: delta,
                               pctChange: pct, nWith: n1, nWithout: n2,
-                              cohensD: d, pApprox: p, significant: sig)
+                              cohensD: d, pApprox: p, significant: sig,
+                              deltaLow: half.map { delta - $0 }, deltaHigh: half.map { delta + $0 })
     }
 
     // MARK: - Ranking
@@ -156,12 +168,29 @@ public enum BehaviorInsights {
                 effects.append(e)
             }
         }
-        return effects.sorted { a, b in
+        return familyAdjusted(effects).sorted { a, b in
             if a.significant != b.significant { return a.significant }  // significant first
             let la = abs(a.cohensD), lb = abs(b.cohensD)
             if la != lb { return la > lb }                              // bigger effect first
             return a.behavior < b.behavior                             // stable tiebreak
         }
+    }
+
+    /// Benjamini-Hochberg across one family of comparisons. Only rows that clear the group gate can
+    /// ever be flagged, so only they count as tests.
+    static func familyAdjusted(_ effects: [BehaviorEffect]) -> [BehaviorEffect] {
+        let tested = effects.indices.filter { Swift.min(effects[$0].nWith, effects[$0].nWithout) >= minGroupForSignificance }
+        let adjusted = CorrelationEngine.benjaminiHochberg(tested.map { effects[$0].pApprox })
+        var out = effects
+        for (i, index) in tested.enumerated() {
+            let e = effects[index]
+            out[index] = BehaviorEffect(behavior: e.behavior, outcome: e.outcome, meanWith: e.meanWith,
+                                        meanWithout: e.meanWithout, delta: e.delta, pctChange: e.pctChange,
+                                        nWith: e.nWith, nWithout: e.nWithout, cohensD: e.cohensD,
+                                        pApprox: adjusted[i], significant: adjusted[i] < alpha,
+                                        deltaLow: e.deltaLow, deltaHigh: e.deltaHigh)
+        }
+        return out
     }
 
     // MARK: - Sentence
@@ -215,7 +244,22 @@ public enum BehaviorInsights {
         return (m1 - m2) / sp
     }
 
-    /// Two-sided Welch t-test p-value with a normal-approximation tail.
+    /// Welch-Satterthwaite degrees of freedom. A group of one has no variance term to add.
+    static func welchDF(v1: Double, n1: Int, v2: Double, n2: Int) -> Double {
+        let a = v1 / Double(n1), b = v2 / Double(n2)
+        let denom = (n1 > 1 ? a * a / Double(n1 - 1) : 0) + (n2 > 1 ? b * b / Double(n2 - 1) : 0)
+        return denom > 0 ? (a + b) * (a + b) / denom : 0
+    }
+
+    /// Half-width of the 95% Welch interval, or nil with no spread to estimate it from.
+    static func welchHalfInterval(v1: Double, n1: Int, v2: Double, n2: Int) -> Double? {
+        let df = welchDF(v1: v1, n1: n1, v2: v2, n2: n2)
+        guard df > 0 else { return nil }
+        return CorrelationEngine.studentTQuantile(twoSidedP: alpha, df: df)
+            * (v1 / Double(n1) + v2 / Double(n2)).squareRoot()
+    }
+
+    /// Two-sided Welch t-test p-value with a Student-t tail.
     /// Returns 1.0 (no evidence) when neither group has a usable standard error.
     static func welchP(m1: Double, v1: Double, n1: Int,
                        m2: Double, v2: Double, n2: Int) -> Double {
@@ -225,7 +269,7 @@ public enum BehaviorInsights {
             return m1 == m2 ? 1.0 : 0.0
         }
         let t = (m1 - m2) / se2.squareRoot()
-        return 2.0 * (1.0 - CorrelationEngine.normalCDF(abs(t)))
+        return CorrelationEngine.studentTTwoSidedP(t: t, df: welchDF(v1: v1, n1: n1, v2: v2, n2: n2))
     }
 
     // MARK: - Formatting helpers

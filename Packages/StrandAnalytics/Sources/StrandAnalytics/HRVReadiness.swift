@@ -65,13 +65,17 @@ public enum HRVReadiness {
 
     /// Short rolling baseline window (nights) — the Plews/Altini 7-night HRV baseline.
     public static let rollWindow: Int = 7
-    /// Long personal-normal window (nights) when enough valid nights exist.
+    /// Long personal-normal window: calendar days before the short window, which it never contains.
     public static let longWindow: Int = 60
-    /// Long-window fallback (nights) when fewer than `longWindow` valid nights are banked.
-    public static let longWindowFallback: Int = 30
+    /// Valid nights the short window needs (HRVStatus's rule: Plews reads a week from at least three).
+    public static let minRollNights: Int = 3
+    /// CV fall (percentage points per night) before the overreaching watch can fire. A slope merely below
+    /// zero happens about half the time on noise. Unvalidated: set to keep a noise-only history quiet
+    /// (see `HRVReadinessTests`), not fitted to any outcome.
+    public static let minCVFallPerNight: Double = 0.05
     /// Smallest-worthwhile-change half-width factor: the normal band is longMean ± swcK·longSD.
     public static let swcK: Double = 0.5
-    /// Minimum VALID nights before a reading is offered (else nil + the honest calibrating edge). Its OWN
+    /// Minimum VALID nights in the long window before a reading is offered (else nil + the honest calibrating edge). Its OWN
     /// constant — deliberately NOT aliased to `WatchRecovery.minBaselineNights`: the SWC band needs a longer
     /// warm-up than the watch-recovery gate. It only mirrors WatchRecovery's nil+.calibrating HONESTY
     /// pattern, not its value.
@@ -88,33 +92,32 @@ public enum HRVReadiness {
     /// Compute the Plews/Altini HRV-readiness reading. Returns nil (calibrating) below `minNights` valid
     /// nights — never a fabricated value.
     ///
-    /// - Parameter avgHrv: nightly RMSSD (ms), oldest -> newest; nils = missing nights. Out-of-range nights
-    ///   (outside `Baselines.hrvCfg` 5..250 ms) are dropped as decode artefacts.
-    public static func evaluate(avgHrv: [Double?]) -> HRVReadinessResult? {
+    /// - Parameters:
+    ///   - nights: `(yyyy-MM-dd, RMSSD ms)` per night; a nil value is a missing night. Out-of-range nights
+    ///     (outside `Baselines.hrvCfg` 5..250 ms) are dropped as decode artefacts.
+    ///   - asOf: the day the reading describes. Nights after it are ignored.
+    public static func evaluate(nights: [(day: String, value: Double?)], asOf: String) -> HRVReadinessResult? {
         let cfg = Baselines.hrvCfg
-        // Drop nils + physiologically implausible nights (shared bounds), keep order oldest -> newest.
-        let valid = avgHrv.compactMap { v -> Double? in
-            guard let v = v, cfg.minVal <= v && v <= cfg.maxVal else { return nil }
-            return v
+        guard let today = Baselines.isoEpochDay(asOf) else { return nil }
+        // ln RMSSD by days before `asOf`. Log domain: Plews/Altini. Bounds keep ln well defined.
+        var ellByAge: [Int: Double] = [:]
+        for night in nights {
+            guard let v = night.value, cfg.minVal <= v && v <= cfg.maxVal,
+                  let d = Baselines.isoEpochDay(night.day), d <= today else { continue }
+            ellByAge[today - d] = log(v)
         }
-        // Honesty gate: below minNights valid nights we refuse to score (calibrating). Never fabricate.
-        guard valid.count >= minNights else { return nil }
+        func window(_ ages: Range<Int>) -> [Double] { ages.compactMap { ellByAge[$0] } }
 
-        // Log domain: ln RMSSD (Plews/Altini). max(.,1.0) guards ln of a sub-1 value; bounds already keep it >=5.
-        let ell = valid.map { log(max($0, 1.0)) }
+        // 7 calendar days ending today, and the long normal before them, which never contains them.
+        let shortEll = window(0..<rollWindow)
+        let longEll = window(rollWindow..<(rollWindow + longWindow))
+        // Honesty gate: too few valid nights in either window and we refuse to score. Never fabricate.
+        guard shortEll.count >= minRollNights, longEll.count >= minNights else { return nil }
 
-        // 7-night rolling baseline (the short, robust HRV baseline).
-        let baseline7 = RecoveryForecaster.mean(Array(ell.suffix(rollWindow)))
-
-        // Long personal-normal window: longWindow if we have that many valid nights, else the 30-night fallback.
-        let longWin = valid.count >= longWindow ? longWindow : longWindowFallback
-        let longEll = Array(ell.suffix(longWin))
+        let baseline7 = RecoveryForecaster.mean(shortEll)
         let longMean = RecoveryForecaster.mean(longEll)
-        // SD over the long window; if fewer than 2 long nights, fall back to the 7-night SD; floored so a
-        // flat history gives a deterministic tiny band rather than an ULP-fragile zero-width one.
-        let longSDraw = longEll.count >= 2 ? RecoveryForecaster.sampleSD(longEll)
-                                           : RecoveryForecaster.sampleSD(Array(ell.suffix(rollWindow)))
-        let longSD = max(longSDraw, longSDFloor)
+        // Floored so a flat history gives a deterministic tiny band rather than an ULP-fragile zero-width one.
+        let longSD = max(RecoveryForecaster.sampleSD(longEll), longSDFloor)
 
         // Smallest-worthwhile-change band (±0.5 SD in the log domain).
         let swcHalf = swcK * longSD
@@ -136,17 +139,14 @@ public enum HRVReadiness {
         // Build a rolling CV series (one point per night with a full trailing-7 window) over the last
         // cvTrendWindow nights, then OLS its slope.
         var cvSeries: [Double] = []
-        let cvStart = max(rollWindow - 1, ell.count - cvTrendWindow)
-        var i = cvStart
-        while i < ell.count {
-            let w = Array(ell[(i - rollWindow + 1)...i])
+        for age in stride(from: cvTrendWindow - 1, through: 0, by: -1) {
+            let w = window(age..<(age + rollWindow))
+            guard w.count >= minRollNights else { continue }
             let m = RecoveryForecaster.mean(w)
-            let cv = m != 0.0 ? 100.0 * RecoveryForecaster.sampleSD(w) / m : 0.0
-            cvSeries.append(cv)
-            i += 1
+            cvSeries.append(m != 0.0 ? 100.0 * RecoveryForecaster.sampleSD(w) / m : 0.0)
         }
-        let cvSlope = RecoveryForecaster.leastSquaresSlope(cvSeries)
-        let overreachingWatch = cvSlope < 0.0 && baseline7 < longMean
+        let cvSlope = ComparisonEngine.leastSquaresSlope(cvSeries)
+        let overreachingWatch = cvSlope <= -minCVFallPerNight && baseline7 < longMean
 
         return HRVReadinessResult(tier: tier,
                                   baseline7Ms: exp(baseline7),
