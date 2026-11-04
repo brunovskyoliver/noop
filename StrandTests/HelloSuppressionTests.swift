@@ -105,6 +105,51 @@ final class HelloSuppressionTests: XCTestCase {
         XCTAssertFalse(HelloSuppressionStore.suppressed(nil))
     }
 
+    // MARK: - starting the session on a suppressed link
+
+    /// The field case: hello suppressed, link up, nothing has started the session yet.
+    func testASuppressedLinkStartsItsOwnSession() {
+        XCTAssertTrue(shouldStartUnbondedWhoop5Session(isWhoop5: true, helloSuppressed: true, connected: true,
+                                                       bonded: false, sessionStarted: false, sameLink: true))
+    }
+
+    /// Each guard alone must veto: a stale timer from an earlier link, a session some write completion
+    /// already started, a real bond (its own ack runs the session), a dropped link, a hello that was sent,
+    /// and any family other than 5/MG.
+    func testEveryGuardVetoesTheUnbondedStart() {
+        func start(_ w5: Bool = true, _ sup: Bool = true, _ conn: Bool = true,
+                   _ bond: Bool = false, _ started: Bool = false, _ same: Bool = true) -> Bool {
+            shouldStartUnbondedWhoop5Session(isWhoop5: w5, helloSuppressed: sup, connected: conn,
+                                             bonded: bond, sessionStarted: started, sameLink: same)
+        }
+        XCTAssertFalse(start(false))
+        XCTAssertFalse(start(true, false))
+        XCTAssertFalse(start(true, true, false))
+        XCTAssertFalse(start(true, true, true, true))
+        XCTAssertFalse(start(true, true, true, false, true))
+        XCTAssertFalse(start(true, true, true, false, false, false))
+    }
+
+    /// Once history has been offloaded with the hello off, the banner's "history sync stays unavailable"
+    /// is false and must not show beside a fresh "Synced" line.
+    func testTheBannerHidesOnceUnbondedHistoryWorks() {
+        XCTAssertTrue(showsHelloSuppressedHint(unbondedHistoryWorks: false))
+        XCTAssertFalse(showsHelloSuppressedHint(unbondedHistoryWorks: true))
+    }
+
+    /// The offload evidence belongs to the latch: clearing the latch (a genuine bond, forgetting the strap)
+    /// must clear it too, or a re-added strap would start with the banner wrongly hidden.
+    func testClearingTheLatchClearsTheHistoryEvidence() {
+        let id = "unit-test-\(#function)"
+        defer { HelloSuppressionStore.setSuppressed(id, false) }
+        HelloSuppressionStore.setSuppressed(id, true)
+        HelloSuppressionStore.noteUnbondedHistoryWorks(id)
+        XCTAssertTrue(HelloSuppressionStore.unbondedHistoryWorks(id.uppercased()))
+        HelloSuppressionStore.setSuppressed(id, false)
+        XCTAssertFalse(HelloSuppressionStore.unbondedHistoryWorks(id))
+        XCTAssertNil(UserDefaults.standard.object(forKey: unbondedHistoryWorksPrefKey(id)!))
+    }
+
     // MARK: - the hints (byte-identical to the Kotlin twin)
 
     /// The suppression branch pauses NOTHING, so its hint must not say auto-reconnect stopped — that was

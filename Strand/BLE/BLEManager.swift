@@ -1040,6 +1040,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// number rather than an independently chosen one: this read can cost the link, so the two platforms
     /// should not be probing at different moments when a field capture has to explain a drop.
     static let unbondedDisReadDelay: TimeInterval = 3.0
+    /// 5.0s — two seconds after the unbonded DIS read, so the session's subscribe and SET_CLOCK do not
+    /// share the moment that read can cost the link.
+    static let unbondedSessionStartDelay: TimeInterval = 5.0
     /// #1193: the WHOOP 4.0 strap serial from `GET_HELLO_HARVARD`, once it has been seen TWICE.
     ///
     /// The withholding rule itself lives in `RepeatedSerialGate`, beside the decoder, where it is unit
@@ -2859,6 +2862,16 @@ public final class BLEManager: NSObject, ObservableObject {
         else if consecutiveAutoContinues == 0 { consecutiveEmptyOffloads += 1 }
         if reason == "HISTORY_COMPLETE" {
             state.lastSyncedAt = Date().timeIntervalSince1970
+            // #1635: a completed offload on a suppressed link disproves the banner's "history sync stays
+            // unavailable". Record it per strap so later reconnects stay quiet too.
+            if selectedModel.deviceFamily == .whoop5, !didBond, let p = peripheral,
+               HelloSuppressionStore.suppressed(p.identifier.uuidString) {
+                if !HelloSuppressionStore.unbondedHistoryWorks(p.identifier.uuidString) {
+                    HelloSuppressionStore.noteUnbondedHistoryWorks(p.identifier.uuidString)
+                    log("WHOOP 5/MG: history offload completed with the handshake suppressed - clearing the not-paired banner for this strap (#1635)")
+                }
+                if state.pairingHint == BondRefusalGiveUp.helloSuppressedHint() { state.pairingHint = nil }
+            }
             // #77 / #91: a sync that COMPLETED but discarded records must not read as a clean
             // "History synced" — the wording distinguishes bytes saved on this Mac from bytes the
             // full archive could not preserve, so "saved" is never claimed falsely.
@@ -5342,6 +5355,24 @@ public final class BLEManager: NSObject, ObservableObject {
         }
     }
 
+    /// Start the 5/MG session on a suppressed-hello link, after the unbonded DIS read has gone out.
+    private func startUnbondedWhoop5SessionIfDue() {
+        let gen = connectGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + BLEManager.unbondedSessionStartDelay) { [weak self] in
+            guard let self, let p = self.peripheral else { return }
+            guard shouldStartUnbondedWhoop5Session(
+                isWhoop5: self.selectedModel.deviceFamily == .whoop5,
+                helloSuppressed: HelloSuppressionStore.suppressed(p.identifier.uuidString),
+                connected: self.state.connected,
+                bonded: self.didBond,
+                sessionStarted: self.whoop5SessionStarted,
+                sameLink: self.connectGeneration == gen
+            ) else { return }
+            self.log("WHOOP 5/MG: handshake suppressed - starting the session on the unbonded link (subscribe, clock, offload) (#1635)")
+            self.runWhoop5Session(on: p)
+        }
+    }
+
     private func readDisIdentityUnbonded() {
         // `peripheral` is only cleared by forgetDevice, so it OUTLIVES a disconnect - and this read is
         // scheduled with a delay, on a strap whose entire failure mode is dropping the link. Without the
@@ -6861,12 +6892,17 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // it invites the hammering this suppression exists to stop. Mirrors the user-facing
                     // hint, which lost the same ending.
                     log("WHOOP 5/MG: CLIENT_HELLO suppressed for this strap - it was never acknowledged and the write is what drops the link. Staying on live HR (not fully paired). Some straps have paired again after being put in pairing mode (tap until the LEDs flash blue) (#1635).")
-                    state.pairingHint = BondRefusalGiveUp.helloSuppressedHint()
+                    let historyWorks = HelloSuppressionStore.unbondedHistoryWorks(peripheral.identifier.uuidString)
+                    state.pairingHint = showsHelloSuppressedHint(unbondedHistoryWorks: historyWorks)
+                        ? BondRefusalGiveUp.helloSuppressedHint() : nil
                     // The unbonded DIS attempt rides HERE and nowhere else: this is the only 5/MG state
                     // known to be stable - the handshake is off and the link is holding - and it is now
                     // PERMANENT rather than transient, so without it a suppressed strap never learns its
                     // firmware or whether it is an MG at all (#490).
                     scheduleUnbondedDisRead()
+                    // Nothing on this path produces a write completion, so start the session ourselves
+                    // once the DIS read has had its turn; see `shouldStartUnbondedWhoop5Session`.
+                    startUnbondedWhoop5SessionIfDue()
                 } else if let hello = selectedModel.deviceFamily.clientHello {
                     // CONTRIBUTOR FIX (issue #17 — diagnosed from the logs, unverified on hardware here):
                     // write CLIENT_HELLO with .withResponse so CoreBluetooth runs just-works bonding when
@@ -6927,6 +6963,80 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 if BLEManager.whoop5NotifyChars.contains(c.uuid) {
                     whoop5NotifyCharacteristics.append(c)
                 }
+            }
+        }
+    }
+
+    /// Subscribe the puffin channels, arm realtime HR and kick the once-per-connection offload on a 5/MG.
+    ///
+    /// Called from two places. The usual one is a write completion on the command channel (the
+    /// CLIENT_HELLO ack, then every later `.withResponse` ack, which re-enters harmlessly). The other is
+    /// `startUnbondedWhoop5SessionIfDue`: with the hello suppressed (#1635) nothing else is guaranteed to
+    /// produce a completion, and before it existed the session only started if some unrelated write (a
+    /// Find My Strap buzz, an alarm ack) happened to complete. A field log showed a suppressed strap
+    /// offloading history for hours after one buzz, then going a day without a sync once nobody buzzed it.
+    private func runWhoop5Session(on peripheral: CBPeripheral) {
+        for c in whoop5NotifyCharacteristics where !c.isNotifying || restoreNeedsResubscribe {
+            requestNotify(c, on: peripheral, reason: "post-bond puffin")   // #613: force re-arm on restore
+        }
+        enableLiveNotifications(reason: "post-bond 5/MG")   // standard HR/battery that failed pre-bond
+        // Arm realtime HR with puffin framing — the verified step that makes a bonded 5/MG strap start
+        // streaming (issue #17). Once per connection; keep-alive skips 5/MG, so this is the trigger.
+        // (Opening Live later also arms it via startRealtime(), now that send() routes the 5/MG toggle.)
+        // #927: RE-DERIVE the want at arm time, never the precomputed `wantsRealtime`: that value can
+        // be up to a keep-alive tick (30 s) stale, and a reconnect just OUTSIDE the overnight window
+        // would re-arm the flood from it and stay armed until the next tick.
+        let realtimeWantNow = screenWantsRealtime || continuousCaptureWantsNow()
+        wantsRealtime = realtimeWantNow
+        if realtimeWantNow && !whoop5RealtimeArmed {
+            whoop5RealtimeArmed = true
+            realtimeArmed = true   // keep reconcileRealtime()'s edge tracking in sync with the arm
+            log("WHOOP 5/MG: arming realtime HR (puffin TOGGLE_REALTIME_HR)")
+            send(.toggleRealtimeHR, payload: [0x01])
+        }
+        startKeepAlive()                                    // re-subscribe + liveness watchdog
+        // Kick the historical offload ONCE per connection — this is the 5/MG edition of the WHOOP4
+        // connect-handshake (lines below). didWriteValueFor re-enters this `.whoop5` branch on EVERY
+        // .withResponse ack during the offload (each HISTORY_END ack), so the trigger work MUST fire
+        // once or it would re-issue SEND_HISTORICAL_DATA mid-stream and storm the strap. The notify
+        // re-subscribe + realtime-arm above are idempotent and intentionally run on every re-entry;
+        // only this block is gated. `whoop5SessionStarted` resets on disconnect.
+        if !whoop5SessionStarted {
+            whoop5SessionStarted = true
+            connectHandshakeDone = true     // unblocks beginBackfill()'s guard
+            state.historyReady = true       // and the sync controls, which must not offer what it declines
+            log("WHOOP 5/MG: connect handshake done — backfill unblocked")
+            noteRebootReconnectIfNeeded()
+            // Re-apply the Broadcast-HR device-config flag if the user opted in (#181).
+            if PuffinExperiment.broadcastHrEnabled { setBroadcastHr(true) }
+            // Clock the strap BEFORE history: an un-clocked WHOOP 5 discards sensor data ("RTC
+            // timestamp … is invalid; not saving data to flash") and history offloads "succeed"
+            // with metadata only. Same 8-byte payload as the WHOOP4 handshake, puffin-framed;
+            // GET_CLOCK's reply rides the puffin notify chars and never touches the WHOOP4
+            // clockRef correlation path. The 1.5s deferral below keeps clock-before-history.
+            // Hardware-validated ordering (#78 fork).
+            send(.setClock, payload: BLEManager.setClockPayload())
+            send(.getClock, payload: [])
+            // #1823: say what was SENT, not what resulted. This previously read "clock synced —
+            // strap can persist history now", logged before any reply had arrived, so a log could
+            // assert the clock was set while the Devices readout said 1970/71. The strap's actual
+            // answer now arrives as the "clock: …" ack line from FrameRouter.
+            log("WHOOP 5/MG: SET_CLOCK + GET_CLOCK sent — awaiting the strap's answer")
+            log("WHOOP 5/MG: scheduling first historical offload (connect)")
+            // Deferred ~1.5s so the puffin notify subscriptions settle before SEND_HISTORICAL_DATA,
+            // mirroring the WHOOP4 kick. requestSync → beginBackfill is itself gated on
+            // connectHandshakeDone, so a racing foreground/restore trigger can't fire it early.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.requestConnectSync() }
+            startBackfillTimer()            // re-offload the type-47 store every backfillIntervalSeconds
+            // #34: signal settled directly (skip the cmd-notify gate `maybeSignalConnectSettled()`
+            // uses) — armStrapAlarm's 5/MG branch never sends GET_ALARM_TIME (log-only readback is
+            // WHOOP4-only, and the 5/MG alarm itself stays behind Protocol probes), so there's
+            // no reply-channel race to wait out here; this just keeps the re-arm-on-bond signal firing
+            // for 5/MG the way it did before `connectSettled` replaced raw `bonded`.
+            if !connectSettledSignaled {
+                connectSettledSignaled = true
+                state.connectSettled &+= 1
+                restoreNeedsResubscribe = false   // #613: forced re-subscribe pass is done (5/MG path)
             }
         }
     }
@@ -7088,69 +7198,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             case .alreadyProven, .notAnAck:
                 break
             }
-            for c in whoop5NotifyCharacteristics where !c.isNotifying || restoreNeedsResubscribe {
-                requestNotify(c, on: peripheral, reason: "post-bond puffin")   // #613: force re-arm on restore
-            }
-            enableLiveNotifications(reason: "post-bond 5/MG")   // standard HR/battery that failed pre-bond
-            // Arm realtime HR with puffin framing — the verified step that makes a bonded 5/MG strap start
-            // streaming (issue #17). Once per connection; keep-alive skips 5/MG, so this is the trigger.
-            // (Opening Live later also arms it via startRealtime(), now that send() routes the 5/MG toggle.)
-            // #927: RE-DERIVE the want at arm time, never the precomputed `wantsRealtime`: that value can
-            // be up to a keep-alive tick (30 s) stale, and a reconnect just OUTSIDE the overnight window
-            // would re-arm the flood from it and stay armed until the next tick.
-            let realtimeWantNow = screenWantsRealtime || continuousCaptureWantsNow()
-            wantsRealtime = realtimeWantNow
-            if realtimeWantNow && !whoop5RealtimeArmed {
-                whoop5RealtimeArmed = true
-                realtimeArmed = true   // keep reconcileRealtime()'s edge tracking in sync with the arm
-                log("WHOOP 5/MG: arming realtime HR (puffin TOGGLE_REALTIME_HR)")
-                send(.toggleRealtimeHR, payload: [0x01])
-            }
-            startKeepAlive()                                    // re-subscribe + liveness watchdog
-            // Kick the historical offload ONCE per connection — this is the 5/MG edition of the WHOOP4
-            // connect-handshake (lines below). didWriteValueFor re-enters this `.whoop5` branch on EVERY
-            // .withResponse ack during the offload (each HISTORY_END ack), so the trigger work MUST fire
-            // once or it would re-issue SEND_HISTORICAL_DATA mid-stream and storm the strap. The notify
-            // re-subscribe + realtime-arm above are idempotent and intentionally run on every re-entry;
-            // only this block is gated. `whoop5SessionStarted` resets on disconnect.
-            if !whoop5SessionStarted {
-                whoop5SessionStarted = true
-                connectHandshakeDone = true     // unblocks beginBackfill()'s guard
-                state.historyReady = true       // and the sync controls, which must not offer what it declines
-                log("WHOOP 5/MG: connect handshake done — backfill unblocked")
-                noteRebootReconnectIfNeeded()
-                // Re-apply the Broadcast-HR device-config flag if the user opted in (#181).
-                if PuffinExperiment.broadcastHrEnabled { setBroadcastHr(true) }
-                // Clock the strap BEFORE history: an un-clocked WHOOP 5 discards sensor data ("RTC
-                // timestamp … is invalid; not saving data to flash") and history offloads "succeed"
-                // with metadata only. Same 8-byte payload as the WHOOP4 handshake, puffin-framed;
-                // GET_CLOCK's reply rides the puffin notify chars and never touches the WHOOP4
-                // clockRef correlation path. The 1.5s deferral below keeps clock-before-history.
-                // Hardware-validated ordering (#78 fork).
-                send(.setClock, payload: BLEManager.setClockPayload())
-                send(.getClock, payload: [])
-                // #1823: say what was SENT, not what resulted. This previously read "clock synced —
-                // strap can persist history now", logged before any reply had arrived, so a log could
-                // assert the clock was set while the Devices readout said 1970/71. The strap's actual
-                // answer now arrives as the "clock: …" ack line from FrameRouter.
-                log("WHOOP 5/MG: SET_CLOCK + GET_CLOCK sent — awaiting the strap's answer")
-                log("WHOOP 5/MG: scheduling first historical offload (connect)")
-                // Deferred ~1.5s so the puffin notify subscriptions settle before SEND_HISTORICAL_DATA,
-                // mirroring the WHOOP4 kick. requestSync → beginBackfill is itself gated on
-                // connectHandshakeDone, so a racing foreground/restore trigger can't fire it early.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.requestConnectSync() }
-                startBackfillTimer()            // re-offload the type-47 store every backfillIntervalSeconds
-                // #34: signal settled directly (skip the cmd-notify gate `maybeSignalConnectSettled()`
-                // uses) — armStrapAlarm's 5/MG branch never sends GET_ALARM_TIME (log-only readback is
-                // WHOOP4-only, and the 5/MG alarm itself stays behind Protocol probes), so there's
-                // no reply-channel race to wait out here; this just keeps the re-arm-on-bond signal firing
-                // for 5/MG the way it did before `connectSettled` replaced raw `bonded`.
-                if !connectSettledSignaled {
-                    connectSettledSignaled = true
-                    state.connectSettled &+= 1
-                    restoreNeedsResubscribe = false   // #613: forced re-subscribe pass is done (5/MG path)
-                }
-            }
+            runWhoop5Session(on: peripheral)
             return
         }
 

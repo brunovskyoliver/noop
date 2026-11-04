@@ -132,9 +132,59 @@ enum HelloSuppressionStore {
             // Remove rather than store false: an absent key and a false one mean the same thing, and this
             // keeps a strap that never latched from leaving a permanent entry behind.
             UserDefaults.standard.removeObject(forKey: key)
+            // The offload evidence below describes THIS latch, so it cannot outlive it.
+            if let worksKey = unbondedHistoryWorksPrefKey(peripheralId) {
+                UserDefaults.standard.removeObject(forKey: worksKey)
+            }
         }
     }
+
+    /// Has a history offload completed on this strap while the hello was suppressed?
+    static func unbondedHistoryWorks(_ peripheralId: String?) -> Bool {
+        guard let key = unbondedHistoryWorksPrefKey(peripheralId) else { return false }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    static func noteUnbondedHistoryWorks(_ peripheralId: String?) {
+        guard let key = unbondedHistoryWorksPrefKey(peripheralId) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+    }
 }
+
+/// UserDefaults key recording that a suppressed strap still hands over history. Same normalisation as
+/// `helloSuppressionPrefKey`, so the two always address the same strap.
+func unbondedHistoryWorksPrefKey(_ peripheralId: String?) -> String? {
+    helloSuppressionPrefKey(peripheralId).map { $0 + ".historyWorks" }
+}
+
+/// Should the suppressed-hello path start the 5/MG session itself?
+///
+/// With the hello suppressed nothing on the connect path writes `.withResponse`, so the completion that
+/// normally starts the session never arrives. A field log (iOS, WHOOP 5/MG, Nov 2026) showed the strap
+/// accepting the puffin subscribe, SET_CLOCK and SEND_HISTORICAL_DATA unencrypted once a buzz's completion
+/// happened to start it: hours of offload, history caught up. Without the buzz, every backfill tick logged
+/// "deferred — connect handshake not done yet" for a day.
+///
+/// `sameLink` is the connect-generation check: the start is delayed, and a reconnect inside that delay
+/// must not let one link's timer start the next link's session before it has settled.
+func shouldStartUnbondedWhoop5Session(
+    isWhoop5: Bool,
+    helloSuppressed: Bool,
+    connected: Bool,
+    bonded: Bool,
+    sessionStarted: Bool,
+    sameLink: Bool
+) -> Bool {
+    isWhoop5 && helloSuppressed && connected && !bonded && !sessionStarted && sameLink
+}
+
+/// Should the suppressed-hello banner show for this strap?
+///
+/// The banner says history sync is unavailable. Once an offload has completed on this strap with the
+/// hello suppressed, that sentence is false, and the Device screen would show it beside a fresh
+/// "Synced" line, two readouts that disagree. The latch itself stays: the hello is still what dropped
+/// the link.
+func showsHelloSuppressedHint(unbondedHistoryWorks: Bool) -> Bool { !unbondedHistoryWorks }
 
 /// #2332: is a link RSSI reading worth recording?
 ///
