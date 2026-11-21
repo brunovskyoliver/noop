@@ -32,6 +32,8 @@ struct Args {
     var from: String?
     var weight: Double?
     var height: Double?
+    var lowHRLifts = false
+    var ticksPerStep = 1.0
 }
 var a = Args()
 var it = CommandLine.arguments.dropFirst().makeIterator()
@@ -51,6 +53,8 @@ while let k = it.next() {
     case "--from": a.from = it.next()
     case "--weight": a.weight = Double(it.next() ?? "")
     case "--height": a.height = Double(it.next() ?? "")
+    case "--low-hr-lifts": a.lowHRLifts = true
+    case "--ticks-per-step": a.ticksPerStep = Double(it.next() ?? "") ?? 1
     default: FileHandle.standardError.write(Data("unknown argument \(k)\n".utf8)); exit(2)
     }
 }
@@ -75,6 +79,8 @@ guard !a.db.isEmpty else {
                             reference device's avg HR, max HR and active kcal for that session; when
                             present they are printed beside the detected session's own figures.
       --weight / --height   profile used for session calories (default 70 kg / 170 cm). Match the app.
+      --low-hr-lifts        also log lifts under the activity floor (the app's default-off toggle)
+      --ticks-per-step      strap locomotion ticks per step for walk logging (default 1). Match the app.
       --include-card-saved  also score rows saved from the suggestion card (manual rows that are a generic
                             "Workout" or still carry the classifier's class). They are the detector's own
                             output and inflate recall.
@@ -155,20 +161,24 @@ while Int(dayStart.timeIntervalSince1970) <= lastTs {
             else { funnelTotals.append((String(kv[0]), v)) }
         }
     }
-    for s in found {
+    // The app's own day log (`WorkoutAutoLog.plan`): visits, the swing bar, walks, and the low-HR lift
+    // tier with --low-hr-lifts, so the replay is the app's.
+    guard let maker = WorkoutDetector.SessionMaker(hr: st.hr, restingHR: rest, maxHR: maxHR, age: a.age,
+                                                   profile: profile) else { continue }
+    let log = WorkoutAutoLog.plan(detected: found, hr: st.hr, gravity: st.grav, steps: st.steps, restingHR: rest,
+                                  maker: maker, ticksPerStep: a.ticksPerStep, lowHRLifts: a.lowHRLifts)
+    for e in log {
         var cls: String?, conf: Double?, scores: [CoarseWorkoutClass: Double] = [:]
-        var feats: WorkoutClassFeatures?
-        // The app's own classification and auto-save verdict, so the replay is the app's.
-        let (feat, pred) = WorkoutAutoSave.classify(s, hr: st.hr, gravity: st.grav, steps: st.steps, restingHR: rest)
-        if let p = pred {
+        if let p = e.prediction {
             cls = p.predictedClass == .other ? nil : p.predictedClass.rawValue
             conf = p.confidence
             scores = p.scores
-            feats = feat
         }
-        sessions.append(Session(day: key, s: s, cls: cls, conf: conf, scores: scores, rest: rest ?? funnel?.restingHR,
-                                features: feats,
-                                verdict: WorkoutAutoSave.verdict(session: s, features: feat, prediction: pred)))
+        // A saved walk is a walk, whatever the classifier made of it.
+        if e.token == CoarseWorkoutClass.walk.rawValue { cls = e.token }
+        sessions.append(Session(day: key, s: e.session, cls: cls, conf: conf, scores: scores,
+                                rest: rest ?? funnel?.restingHR, features: e.features,
+                                verdict: e.token.map { .save(token: $0) } ?? .suggest))
     }
 }
 

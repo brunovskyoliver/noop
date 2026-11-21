@@ -3286,10 +3286,11 @@ final class Repository: ObservableObject {
 
     // MARK: - Auto-detect workouts , the "Looks like a workout?" prompt (on by default)
     //
-    // This is the only path that can create a NEW visible automatically suggested workout, and it still
-    // saves nothing until the user taps Save. `WorkoutDetector` drives it, the same detector daily scoring
-    // uses; it no longer persists generic `sport="detected"` rows. `AutoWorkoutDetector` runs only as the
-    // Test Centre shadow below. Both historical dismissal stores are honored.
+    // `WorkoutDetector` drives it, the same detector daily scoring uses, and `WorkoutAutoLog` turns each
+    // day's sessions into the log: what clears the bar is saved without asking (see Auto-save below), the
+    // rest is offered as a suggestion. It no longer persists generic `sport="detected"` rows.
+    // `AutoWorkoutDetector` runs only as the Test Centre shadow below. Both historical dismissal stores are
+    // honored.
 
     /// Dismissed AUTO-DETECT spans ("startSec:endSec"). The key remains distinct for backup compatibility;
     /// candidate selection also honors the legacy `dismissedDetected` intervals during the transition.
@@ -3387,6 +3388,7 @@ final class Repository: ObservableObject {
         await refreshEnergyAnchors()
         let profile = strainProfile?.user.map(withEnergyAnchors)
         let method = PuffinExperiment.effortMethod
+        let lowHRLifts = PuffinExperiment.lowHRLiftsEnabled
         let dayKey = DateFormatter()
         dayKey.calendar = cal; dayKey.locale = Locale(identifier: "en_US_POSIX"); dayKey.dateFormat = "yyyy-MM-dd"
 
@@ -3412,29 +3414,36 @@ final class Repository: ObservableObject {
             let key = dayKey.string(from: dayDate)
             let restingBpm = days.last(where: { $0.day <= key && $0.restingHr != nil })?.restingHr
             let cacheKey = "\(to - dayStart):\(samples.count):\(samples.last?.ts ?? 0):\(gravity.count):\(steps.count):"
-                + "\(restingBpm ?? -1):\(maxHR ?? -1):\(profile?.cacheKey ?? "-"):\(method)"
+                + "\(restingBpm ?? -1):\(maxHR ?? -1):\(profile?.cacheKey ?? "-"):\(method):\(lowHRLifts)"
             let found: [WorkoutDetection]
             if let hit = detectionCache[dayStart], hit.key == cacheKey {
                 found = hit.found
             } else {
                 found = await Task.detached(priority: .utility) {
-                    WorkoutDetector.detect(hr: samples, gravity: gravity, restingHR: restingBpm.map(Double.init),
-                                           maxHR: maxHR, age: profile.flatMap { $0.age > 0 ? $0.age : nil },
-                                           profile: profile, effortMethod: method, steps: steps)
-                        .filter { $0.start >= dayStart && $0.start < nextDay }
-                        .map { found in
-                            var session = found
-                            let (features, prediction) = WorkoutAutoSave.classify(
-                                session, hr: samples, gravity: gravity, steps: steps,
-                                restingHR: restingBpm.map(Double.init))
-                            if let prediction {
+                    let resting = restingBpm.map(Double.init), age = profile.flatMap { $0.age > 0 ? $0.age : nil }
+                    let detected = WorkoutDetector.detect(hr: samples, gravity: gravity, restingHR: resting,
+                                                          maxHR: maxHR, age: age, profile: profile,
+                                                          effortMethod: method, steps: steps)
+                    guard let maker = WorkoutDetector.SessionMaker(hr: samples, restingHR: resting, maxHR: maxHR,
+                                                                   age: age, profile: profile, effortMethod: method)
+                    else { return [] }
+                    // 2026-11-21: the day's log, as WorkoutBench replays it: one row per gym visit, the
+                    // set/rest swing bar, walks from the step counter, and the low-HR lift tier when on.
+                    return WorkoutAutoLog.plan(detected: detected, hr: samples, gravity: gravity, steps: steps,
+                                               restingHR: resting, maker: maker,
+                                               ticksPerStep: profile?.stepTicksPerStep ?? 1, lowHRLifts: lowHRLifts)
+                        .filter { $0.session.start >= dayStart && $0.session.start < nextDay }
+                        .map { entry in
+                            var session = entry.session
+                            if let prediction = entry.prediction {
                                 session.suggestedClass = prediction.predictedClass == .other
                                     ? nil : prediction.predictedClass.rawValue
                                 session.suggestedClassConfidence = prediction.confidence
                             }
-                            var token: String? = nil
-                            if case .save(let t) = WorkoutAutoSave.verdict(session: session, features: features,
-                                                                           prediction: prediction) { token = t }
+                            // A saved session is named by what it is saved as (a walk from the step
+                            // counter may not read as one to the classifier).
+                            if let t = entry.token { session.suggestedClass = t }
+                            let token = entry.token
                             let ticks = StepsCounter.stepsInWindow(steps.filter { $0.ts >= session.start && $0.ts <= session.end })
                             let count = ticks.map { Int((Double($0) / max(profile?.stepTicksPerStep ?? 1, 0.5)).rounded()) }
                             return WorkoutDetection(workout: DetectedWorkout(session: session, steps: count.flatMap { $0 > 0 ? $0 : nil }),
@@ -3518,16 +3527,24 @@ final class Repository: ObservableObject {
     /// The detections a pass should save now: cleared the bar, settled (may no longer grow), and
     /// overlapping no saved row of any source, no dismissal in either store and no earlier auto-save.
     /// Oldest first, so the saves land in the order they happened.
+    /// 2026-11-21: one exception. A detection that overlaps exactly one `replaceable` span (an auto-save
+    /// nobody edited, still on disk) and runs longer is due too: a later sync grew the session, and the
+    /// caller replaces that row. Without it the first, shorter piece blocked the whole session for good.
     nonisolated static func selectAutoSaves(
-        _ detections: [WorkoutDetection], savedSpans: [SavedWorkoutSpan], blockedTokens: [String], now: Int
+        _ detections: [WorkoutDetection], savedSpans: [SavedWorkoutSpan], blockedTokens: [String], now: Int,
+        replaceable: [SavedWorkoutSpan] = []
     ) -> [WorkoutDetection] {
         let blocked = WorkoutSource.parseDismissedSpans(blockedTokens)
         var out: [WorkoutDetection] = []
         for d in detections.sorted(by: { $0.workout.startSec < $1.workout.startSec }) {
             let w = d.workout
+            let rep = replaceable.filter { w.startSec < $0.endSec && $0.startSec < w.endSec }
+            let grows = rep.count == 1 && w.endSec - w.startSec > rep[0].endSec - rep[0].startSec
+            func isGrown(_ a: Int, _ b: Int) -> Bool { grows && a == rep[0].startSec && b == rep[0].endSec }
             guard d.autoSaveToken != nil, w.endSec <= now - WorkoutDetector.stitchMaxGapS,
-                  !blocked.contains(where: { w.startSec < $0.end && $0.start < w.endSec }),
-                  !savedSpans.contains(where: { w.startSec < $0.endSec && $0.startSec < w.endSec }),
+                  !blocked.contains(where: { w.startSec < $0.end && $0.start < w.endSec && !isGrown($0.start, $0.end) }),
+                  !savedSpans.contains(where: { w.startSec < $0.endSec && $0.startSec < w.endSec
+                                                && !isGrown($0.startSec, $0.endSec) }),
                   !out.contains(where: { w.startSec < $0.workout.endSec && $0.workout.startSec < w.endSec })
             else { continue }
             out.append(d)
@@ -3543,9 +3560,16 @@ final class Repository: ObservableObject {
         let detections = await detectWorkouts(daysBack: daysBack, now: now)
         guard !detections.isEmpty else { return ([], []) }
         var savedRows = await workoutRows()
+        // Auto-saves still on disk exactly as saved: the class is on the row (an edit clears it) and the
+        // span is in the ledger. Only these may be replaced by a longer detection.
+        let ledger = Set(autoSavedSpans)
+        let replaceable = savedRows.filter {
+            WorkoutSource.classify($0.source) == .manual && $0.suggestedClass != nil && ledger.contains("\($0.startTs):\($0.endTs)")
+        }
         let due = Self.selectAutoSaves(
             detections, savedSpans: savedRows.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) },
-            blockedTokens: autoDetectDismissedSpans + dismissedDetectedSpans + autoSavedSpans, now: now)
+            blockedTokens: autoDetectDismissedSpans + dismissedDetectedSpans + autoSavedSpans, now: now,
+            replaceable: replaceable.map { SavedWorkoutSpan(startSec: $0.startTs, endSec: $0.endTs) })
         var saved: [WorkoutRow] = []
         for d in due {
             let w = d.workout
@@ -3554,11 +3578,14 @@ final class Repository: ObservableObject {
                                          zonesJSON: w.zonesJSON, steps: w.steps, suggestedClass: d.autoSaveToken,
                                          suggestedClassConfidence: w.suggestedClassConfidence)
             guard let row = WorkoutSource.buildRow(fromSuggestion: tagged) else { continue }
+            let old = replaceable.first { w.startSec < $0.endTs && $0.startTs < w.endSec }
             // The ledger first: if the write fails, the span is still never saved twice by a later pass.
             var ledger = autoSavedSpans
+            if let old { ledger.removeAll { $0 == "\(old.startTs):\(old.endTs)" } }
             ledger.append("\(w.startSec):\(w.endSec)")
             autoSavedSpans = prunedAutoDetectSpans(ledger, now: now)
-            await saveManualWorkout(row)
+            await saveManualWorkout(row, replacing: old)
+            if let old { savedRows.removeAll { $0.startTs == old.startTs && $0.endTs == old.endTs && $0.source == old.source } }
             saved.append(row)
             savedRows.append(row)
             if TestCentre.active(.workouts) {

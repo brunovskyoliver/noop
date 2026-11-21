@@ -51,7 +51,9 @@ public enum WorkoutAutoSave {
     ///   and its motion variance is in the lifting band. Two of the eleven lifts came back `other`.
     /// - A run or ride: called so with `minCardioConfidence`, and cleared the detector's zone-2 bar
     ///   rather than only its activity tier.
-    /// Both also need `minDurationS`, `minHRCoveragePct` and `minAvgHRRPct`. A walk is never saved.
+    /// Both also need `minDurationS`, `minHRCoveragePct` and `minAvgHRRPct`. A detected walk is never
+    /// saved here: `WorkoutAutoLog.walkSpans` logs walks from the step counter instead, and
+    /// `WorkoutAutoLog.plan` adds the visit merge and the HR swing bar on top of this verdict.
     /// Kotlin twin: `WorkoutAutoSave.verdict`.
     public static func verdict(session s: ExerciseSession, features: WorkoutClassFeatures?,
                                prediction: WorkoutClassPrediction?) -> Verdict {

@@ -100,6 +100,23 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
         _ = now
     }
 
+    /// 2026-11-21: a later sync that grows an unedited auto-save replaces it; anything else still blocks.
+    func testALongerDetectionGrowsAnUneditedAutoSave() {
+        let first = SavedWorkoutSpan(startSec: 10_000, endSec: 11_800)
+        func due(_ d: Repository.WorkoutDetection, replaceable: [SavedWorkoutSpan]) -> [Int] {
+            Repository.selectAutoSaves([d], savedSpans: [first], blockedTokens: ["10000:11800"], now: 100_000,
+                                       replaceable: replaceable).map(\.workout.startSec)
+        }
+        XCTAssertEqual(due(detection(9_800, 13_000), replaceable: [first]), [9_800], "the session grew")
+        XCTAssertEqual(due(detection(10_100, 11_500), replaceable: [first]), [], "a shorter span never replaces")
+        XCTAssertEqual(due(detection(9_800, 13_000), replaceable: []), [],
+                       "an edited or deleted auto-save is not replaceable, so its span still blocks")
+        XCTAssertEqual(Repository.selectAutoSaves([detection(9_800, 13_000)], savedSpans: [first],
+                                                  blockedTokens: ["10000:11800", "12500:12600"], now: 100_000,
+                                                  replaceable: [first]).count, 0,
+                       "a dismissal inside the grown span still blocks it")
+    }
+
     /// Delete on the notification removes the row the pass saved and keeps it from coming back as a
     /// suggestion; a manual row the wearer typed (no class on it) is never touched.
     func testDeletingAnAutoSavedWorkoutDismissesItsSpan() async throws {

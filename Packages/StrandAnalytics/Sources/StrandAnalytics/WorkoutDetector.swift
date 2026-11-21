@@ -662,6 +662,62 @@ public enum WorkoutDetector {
         return start
     }
 
+    /// A session's stats over any `[from, to]` of one day's streams, scored exactly as `detect` scores the
+    /// sessions it finds: same cleaned HR, resting HR, HRmax and Effort recipe. Every reported stat comes
+    /// from one window, so a stitched or back-dated session cannot show zones from its core beside avg HR
+    /// and calories from the whole.
+    public struct SessionMaker {
+        let hrSeg: [(ts: Int, bpm: Double)]
+        public let restHR: Double
+        public let effMaxHR: Double?
+        let hrmaxSource: String
+        let profile: UserProfile?
+        let effortMethod: StrainScorer.Method
+
+        init(hrSeg: [(ts: Int, bpm: Double)], restHR: Double, effMaxHR: Double?, hrmaxSource: String,
+             profile: UserProfile?, effortMethod: StrainScorer.Method) {
+            self.hrSeg = hrSeg; self.restHR = restHR; self.effMaxHR = effMaxHR
+            self.hrmaxSource = hrmaxSource; self.profile = profile; self.effortMethod = effortMethod
+        }
+
+        /// The same resting HR and HRmax resolution `detect` applies to the same arguments; nil with no HR.
+        public init?(hr: [HRSample], restingHR: Double?, maxHR: Double?, age: Double?, profile: UserProfile?,
+                     effortMethod: StrainScorer.Method = .edwards) {
+            let seg = WorkoutDetector.cleanHR(hr)
+            guard !seg.isEmpty else { return nil }
+            let est = maxHR == nil ? StrainScorer.estimateHRmax(seg.map { $0.bpm }, age: age) : (0, "caller")
+            self.init(hrSeg: seg, restHR: restingHR ?? WorkoutDetector.deriveRestingHR(seg),
+                      effMaxHR: maxHR ?? (est.0 == 0.0 ? nil : est.0), hrmaxSource: maxHR == nil ? est.1 : "caller",
+                      profile: profile, effortMethod: effortMethod)
+        }
+
+        public func session(from: Int, to: Int, activityTier: Bool) -> ExerciseSession? {
+            let window = hrSeg.filter { $0.ts >= from && $0.ts <= to }
+            guard !window.isEmpty else { return nil }
+            let bpms = window.map { $0.bpm }
+            let hrSamples = window.map { HRSample(ts: $0.ts, bpm: Int($0.bpm.rounded())) }
+            var zones: [Int: Double] = [:]
+            var hrr: Double? = nil
+            if let m = effMaxHR, m > restHR { (zones, hrr) = boutIntensity(window, restingHR: restHR, maxHR: m) }
+            var kcal: Double? = nil
+            var kj: Double? = nil
+            if let profile {
+                (kcal, kj) = Calories.estimateBoutCalories(hrSamples, profile: profile,
+                                                           hrmax: effMaxHR, restingHR: restHR)
+            }
+            return ExerciseSession(
+                start: from, end: to, avgHR: bpms.reduce(0, +) / Double(bpms.count),
+                peakHR: Int(bpms.max()!.rounded()),
+                strain: StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR, method: effortMethod,
+                                            sex: profile?.sex ?? "male",
+                                            minSpanSeconds: Int(minExerciseMin * 60.0 - motionSmoothS)),
+                durationS: Double(to - from), zoneTimePct: zones, avgHRRPct: hrr,
+                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
+                hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts }, start: from, end: to),
+                isActivityTier: activityTier)
+        }
+    }
+
     // MARK: - Public API
 
     /// Detect workouts from the 1 Hz HR + gravity store.
@@ -768,31 +824,10 @@ public enum WorkoutDetector {
             f.meanRunS = durs.reduce(0, +) / durs.count
         }
 
-        // Every reported stat comes from one window, so a stitched or back-dated session cannot show
-        // zones from its core beside avg HR and calories from the whole.
+        let maker = SessionMaker(hrSeg: hrSeg, restHR: restHR, effMaxHR: effMaxHR, hrmaxSource: hrmaxSource,
+                                 profile: profile, effortMethod: effortMethod)
         func makeSession(_ from: Int, _ to: Int, _ activityTier: Bool) -> ExerciseSession? {
-            let window = hrSeg.filter { $0.ts >= from && $0.ts <= to }
-            guard !window.isEmpty else { return nil }
-            let bpms = window.map { $0.bpm }
-            let hrSamples = window.map { HRSample(ts: $0.ts, bpm: Int($0.bpm.rounded())) }
-            var zones: [Int: Double] = [:]
-            var hrr: Double? = nil
-            if let m = effMaxHR, m > restHR { (zones, hrr) = boutIntensity(window, restingHR: restHR, maxHR: m) }
-            var kcal: Double? = nil
-            var kj: Double? = nil
-            if let profile {
-                (kcal, kj) = Calories.estimateBoutCalories(hrSamples, profile: profile,
-                                                           hrmax: effMaxHR, restingHR: restHR)
-            }
-            return ExerciseSession(
-                start: from, end: to, avgHR: bpms.reduce(0, +) / Double(bpms.count),
-                peakHR: Int(bpms.max()!.rounded()),
-                strain: StrainScorer.strain(hrSamples, maxHR: effMaxHR, restingHR: restHR, method: effortMethod,
-                                            sex: profile?.sex ?? "male", minSpanSeconds: Int(minDurS - motionSmoothS)),
-                durationS: Double(to - from), zoneTimePct: zones, avgHRRPct: hrr,
-                hrmax: effMaxHR, hrmaxSource: hrmaxSource, caloriesKcal: kcal, caloriesKJ: kj,
-                hrCoveragePct: hrCoveragePct(sampleTs: hrSamples.map { $0.ts }, start: from, end: to),
-                isActivityTier: activityTier)
+            maker.session(from: from, to: to, activityTier: activityTier)
         }
 
         let minDurS = minExerciseMin * 60.0
