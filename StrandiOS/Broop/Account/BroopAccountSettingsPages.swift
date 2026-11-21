@@ -94,6 +94,7 @@ struct BroopAccountFeaturesPage: View {
     @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = true
+    @AppStorage(PuffinExperiment.lowHRLiftsKey) private var lowHRLiftsEnabled = false
     @AppStorage(PuffinExperiment.journalReminderKey) private var journalReminderEnabled = true
     @AppStorage("workoutKeepScreenOn") private var workoutKeepScreenOn = false
 
@@ -113,8 +114,13 @@ struct BroopAccountFeaturesPage: View {
                                        detail: String(localized: "Adds a simple fluid log with a daily goal that adjusts to your effort. Tap to add a sip, cup or bottle and watch a progress ring fill. On \(Platform.deviceNounPhrase) only. Nothing is synced."),
                                        isOn: $hydrationEnabled)
                     BroopAccountToggle(title: String(localized: "Auto-detect workouts"),
-                                       detail: String(localized: "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. On \(Platform.deviceNounPhrase) only."),
+                                       detail: String(localized: "After a sync, NOOP reads your recent heart rate and steps and logs what it finds. Lifts, runs, rides and walks of 12 minutes or more are saved as workouts without asking, and a notification lets you delete one that was wrong. Anything less certain is offered as a suggestion. Turning this off stops detection but keeps your workout history. On \(Platform.deviceNounPhrase) only."),
                                        isOn: $autoDetectWorkoutsEnabled)
+                    if autoDetectWorkoutsEnabled {
+                        BroopAccountToggle(title: String(localized: "Detect light lifts"),
+                                           detail: String(localized: "Also logs strength sessions whose heart rate stays under the usual workout floor, recognised by the rise and fall between sets. Experimental: tuned on one person's month, so it may save the odd session that was not a lift."),
+                                           isOn: $lowHRLiftsEnabled)
+                    }
                     BroopAccountToggle(title: String(localized: "Journal reminder"),
                                        detail: String(localized: "Show a Today card reminding you to log your journal"),
                                        isOn: $journalReminderEnabled)

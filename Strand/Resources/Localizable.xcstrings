@@ -266694,61 +266694,179 @@
         }
       }
     },
-    "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. On %@ only." : {
+    "After a sync, NOOP reads your recent heart rate and steps and logs what it finds. Lifts, runs, rides and walks of 12 minutes or more are saved as workouts without asking, and a notification lets you delete one that was wrong. Anything less certain is offered as a suggestion. Turning this off stops detection but keeps your workout history. On %@ only." : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nach einer Synchronisierung prüft NOOP deine jüngste Herzfrequenz auf eine anhaltend erhöhte Phase, die nach Training aussieht, und bietet an, sie zu speichern. Es schlägt nur vor. Nichts wird gespeichert, bis du auf „Sichern“ tippst, und du kannst jeden Vorschlag verwerfen. Wenn du dies deaktivierst, werden künftige Vorschläge gestoppt, dein bestehender Trainingsverlauf bleibt jedoch erhalten. Nur auf %@."
+            "value" : "Nach einer Synchronisierung liest NOOP deine jüngste Herzfrequenz und deine Schritte und protokolliert, was es findet. Krafttraining, Läufe, Radfahrten und Spaziergänge ab 12 Minuten werden ohne Nachfrage als Workouts gespeichert, und über eine Mitteilung kannst du ein falsches wieder löschen. Alles Unsichere wird als Vorschlag angeboten. Wenn du dies deaktivierst, stoppt die Erkennung, dein Trainingsverlauf bleibt erhalten. Nur auf %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Después de una sincronización, NOOP revisa tu frecuencia cardíaca reciente buscando un tramo sostenido y elevado que parezca ejercicio y ofrece guardarlo. Solo sugiere. No se guarda nada hasta que tocas Guardar, y puedes descartar cualquier sugerencia. Al desactivarlo, se detienen las sugerencias futuras, pero se conserva el historial de entrenamientos existente. Solo en %@."
+            "value" : "Después de una sincronización, NOOP lee tu frecuencia cardíaca y tus pasos recientes y registra lo que encuentra. Las sesiones de fuerza, carreras, salidas en bici y caminatas de 12 minutos o más se guardan como entrenamientos sin preguntar, y una notificación te permite borrar uno que no lo era. Lo que es menos seguro se ofrece como sugerencia. Al desactivarlo se detiene la detección, pero se conserva tu historial de entrenamientos. Solo en %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Après une synchronisation, NOOP examine votre fréquence cardiaque récente à la recherche d'une période soutenue et élevée qui ressemble à de l'exercice, et propose de l'enregistrer. Il ne fait que suggérer. Rien n'est enregistré tant que vous n'appuyez pas sur Enregistrer, et vous pouvez ignorer toute suggestion. La désactivation interrompt les suggestions futures tout en conservant votre historique d'entraînement existant. Sur %@ uniquement."
+            "value" : "Après une synchronisation, NOOP lit votre fréquence cardiaque et vos pas récents et enregistre ce qu'il trouve. Les séances de musculation, courses, sorties à vélo et marches de 12 minutes ou plus sont enregistrées comme entraînements sans confirmation, et une notification vous permet de supprimer une erreur. Ce qui est moins sûr est proposé comme suggestion. La désactivation arrête la détection, mais conserve votre historique d'entraînement. Sur %@ uniquement."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dopo una sincronizzazione, NOOP esamina la tua frequenza cardiaca recente alla ricerca di un tratto prolungato ed elevato che sembra esercizio fisico e propone di salvarlo. Si limita sempre a suggerire, niente viene salvato finché non tocchi Salva, e puoi ignorare qualsiasi suggerimento. Disattivandolo, le proposte future si interrompono, ma la cronologia degli allenamenti esistente viene conservata. Solo su %@."
+            "value" : "Dopo una sincronizzazione, NOOP legge la tua frequenza cardiaca e i tuoi passi recenti e registra ciò che trova. Allenamenti di forza, corse, uscite in bici e camminate di almeno 12 minuti vengono salvati come allenamenti senza chiedere, e una notifica ti permette di eliminare quelli sbagliati. Ciò che è meno certo viene proposto come suggerimento. Disattivandolo, il rilevamento si ferma ma la cronologia degli allenamenti resta. Solo su %@."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Po synchronizacji NOOP sprawdza Twoje ostatnie tętno pod kątem trwałego, podwyższonego odcinka rozciągającego, który wygląda jak ćwiczenie, i proponuje jego zapisanie. Zawsze tylko sugeruje. Nic nie zostanie zapisane, dopóki nie klikniesz Zapisz. Możesz odrzucić każdą sugestię. Wyłączenie tej funkcji zatrzyma przyszłe sugestie, ale zachowa dotychczasową historię treningów. Tylko w %@."
+            "value" : "Po synchronizacji NOOP odczytuje Twoje ostatnie tętno i kroki i zapisuje to, co znajdzie. Trening siłowy, biegi, jazdy na rowerze i spacery trwające co najmniej 12 minut są zapisywane jako treningi bez pytania, a powiadomienie pozwala usunąć błędny wpis. To, co mniej pewne, jest proponowane jako sugestia. Wyłączenie zatrzymuje wykrywanie, ale zachowuje historię treningów. Tylko na %@."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Após uma sincronização, o NOOP analisa a tua frequência cardíaca recente em busca de um alongamento sustentado e elevado que pareça exercício e oferece-se para o guardar. Apenas sugere. Nada é guardado até tocar em Guardar e pode descartar qualquer sugestão. Desativar esta opção impede sugestões futuras, mas mantém o histórico de treinos existente. Apenas em %@."
+            "value" : "Após uma sincronização, o NOOP lê a tua frequência cardíaca e os teus passos recentes e regista o que encontra. Treinos de força, corridas, passeios de bicicleta e caminhadas de 12 minutos ou mais são guardados como treinos sem perguntar, e uma notificação permite apagar um que esteja errado. O que for menos certo é sugerido. Desativar esta opção para a deteção, mas mantém o histórico de treinos. Apenas em %@."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "После синхронизации NOOP просматривает недавний пульс в поисках устойчивого повышенного отрезка, похожего на тренировку, и предлагает его сохранить. Это только предложение. Ничего не сохраняется, пока вы не нажмёте «Сохранить», и любое предложение можно отклонить. Если отключить эту функцию, новые предложения перестанут появляться, а существующая история тренировок сохранится. Только на %@."
+            "value" : "После синхронизации NOOP читает недавний пульс и шаги и записывает найденное. Силовые тренировки, пробежки, велопоездки и прогулки от 12 минут сохраняются как тренировки без вопросов, а уведомление позволяет удалить ошибочную. Менее уверенные находки предлагаются как подсказки. Если отключить функцию, обнаружение остановится, а история тренировок сохранится. Только на %@."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同步后，NOOP 会检查你近期的心率，寻找一段看起来像运动的、持续升高的区段，并建议保存它。它只会建议，在你点击「保存」之前不会保存任何内容，你也可以忽略任何建议。关闭此功能会停止今后的建议，但会保留现有的锻炼历史记录。仅在 %@ 上。"
+            "value" : "同步后，NOOP 会读取你最近的心率和步数，并记录它发现的活动。力量训练、跑步、骑行以及 12 分钟或更长的步行会直接保存为训练，无需确认；你可以通过通知删除判断错误的记录。把握较低的活动会作为建议提供。关闭此项会停止检测，但会保留你的训练记录。仅在%@上。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同步後，NOOP 會檢查你近期的心率，尋找一段看起來像運動的、持續升高的區段，並建議保存它。它只會建議，在你點擊「儲存」之前不會保存任何內容，你也可以忽略任何建議。關閉此功能會停止日後的建議，但會保留現有的鍛鍊歷史記錄。僅在 %@ 上。"
+            "value" : "同步後，NOOP 會讀取你最近的心率和步數，並記錄它發現的活動。重量訓練、跑步、騎車以及 12 分鐘或更長的步行會直接儲存為訓練，無需確認；你可以透過通知刪除判斷錯誤的紀錄。把握較低的活動會作為建議提供。關閉此項會停止偵測，但會保留你的訓練紀錄。僅在%@上。"
+          }
+        }
+      }
+    },
+    "Detect light lifts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leichtes Krafttraining erkennen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detectar sesiones de fuerza ligeras"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Détecter la musculation légère"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rileva allenamenti di forza leggeri"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wykrywaj lekki trening siłowy"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detetar treinos de força leves"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Распознавать лёгкие силовые"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测轻量力量训练"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偵測輕量重量訓練"
+          }
+        }
+      }
+    },
+    "Also logs strength sessions whose heart rate stays under the usual workout floor, recognised by the rise and fall between sets. Experimental: tuned on one person's month, so it may save the odd session that was not a lift." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protokolliert auch Krafttraining, dessen Herzfrequenz unter der üblichen Workout-Schwelle bleibt, erkannt am Auf und Ab zwischen den Sätzen. Experimentell: auf den Daten eines Monats einer Person abgestimmt, daher kann gelegentlich eine Sitzung gespeichert werden, die kein Krafttraining war."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "También registra sesiones de fuerza cuya frecuencia cardíaca se queda por debajo del umbral habitual, reconocidas por la subida y bajada entre series. Experimental: ajustado con un mes de datos de una persona, así que puede guardar alguna sesión que no era de fuerza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistre aussi les séances de musculation dont la fréquence cardiaque reste sous le seuil habituel, reconnues à la hausse et à la baisse entre les séries. Expérimental : réglé sur un mois de données d'une seule personne, il peut donc enregistrer une séance qui n'en était pas une."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra anche gli allenamenti di forza la cui frequenza cardiaca resta sotto la soglia abituale, riconosciuti dal salire e scendere tra le serie. Sperimentale: tarato su un mese di dati di una persona, quindi può salvare qualche sessione che non era di forza."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisuje też treningi siłowe, w których tętno pozostaje poniżej zwykłego progu, rozpoznawane po wzrostach i spadkach między seriami. Eksperymentalne: dostrojone na miesiącu danych jednej osoby, więc może zapisać sesję, która nie była treningiem siłowym."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Também regista treinos de força cuja frequência cardíaca fica abaixo do limiar habitual, reconhecidos pela subida e descida entre séries. Experimental: ajustado com um mês de dados de uma pessoa, por isso pode guardar uma sessão que não era de força."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Также записывает силовые тренировки, пульс на которых не доходит до обычного порога, по подъёмам и спадам между подходами. Экспериментально: настроено по месяцу данных одного человека, поэтому иногда может сохранить занятие, которое не было силовой."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "也会记录心率低于通常训练门槛的力量训练，依据组间心率的起伏识别。实验性功能：仅根据一个人一个月的数据调校，因此偶尔可能保存并非力量训练的时段。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "也會記錄心率低於一般訓練門檻的重量訓練，依據組間心率的起伏辨識。實驗性功能：僅根據一個人一個月的資料調校，因此偶爾可能儲存並非重量訓練的時段。"
           }
         }
       }
